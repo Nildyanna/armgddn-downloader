@@ -41,31 +41,6 @@ SetCompressor /SOLID lzma
   InstallDir "$LOCALAPPDATA\${PRODUCTNAME}"
 !endif
 
-!include "StrFunc.nsh"
-
-${StrCase}
-${StrLoc}
-${StrRep}
-${StrTok}
-${StrTrimNewLines}
-
-!macro CheckIfAppIsRunning
-  !define APP_EXECUTABLE "${MAINBINARYNAME}.exe"
-  nsExec::ExecToStack 'TaskList /FI "IMAGENAME eq ${APP_EXECUTABLE}" /FO CSV /NH'
-  Pop $0
-  Pop $1
-  ${If} $0 == 0
-    ${StrLoc} $2 $1 "${APP_EXECUTABLE}" ">"
-    ${If} $2 != ""
-      MessageBox MB_OKCANCEL|MB_ICONEXCLAMATION "${PRODUCTNAME} is currently running. Please close it and try again." IDOK TryAgain IDCANCEL Cancel
-      TryAgain:
-        !insertmacro CheckIfAppIsRunning
-      Cancel:
-        Quit
-    ${EndIf}
-  ${EndIf}
-!macroend
-
 Function .onInit
   !if "${INSTALLMODE}" == "perMachine"
     ${If} ${RunningX64}
@@ -74,8 +49,6 @@ Function .onInit
       ${EndIf}
     ${EndIf}
   !endif
-
-  !insertmacro CheckIfAppIsRunning
 FunctionEnd
 
 !insertmacro MUI_PAGE_WELCOME
@@ -119,8 +92,6 @@ Section "Install"
 SectionEnd
 
 Section "Uninstall"
-  !insertmacro CheckIfAppIsRunning
-
   RMDir /r "$INSTDIR"
 
   Delete "$SMPROGRAMS\${PRODUCTNAME}.lnk"
