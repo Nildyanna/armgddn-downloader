@@ -5,6 +5,19 @@ All notable changes to ARMGDDN Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2025-12-05
+
+### Fixed
+- **Tray Icon Behavior**: Left-click on tray icon now restores window (was unresponsive)
+- **Windows Protocol Registration**: armgddn:// protocol now automatically registered by installer
+  - No manual registry file needed
+  - "Download with App" button works immediately after installation
+  - WiX installer fragment handles registration
+
+### Improved
+- Tray icon now properly unminimizes window when clicked
+- Right-click tray menu still available for Show/Quit options
+
 ## [1.0.2] - 2025-12-05
 
 ### Fixed
