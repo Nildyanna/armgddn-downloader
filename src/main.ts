@@ -109,15 +109,23 @@ function renderDownloads() {
       } else if (download.state === "queued") {
         actionButtons = `<button onclick="startDownload('${download.id}')">▶ Start</button>`;
         actionButtons += ` <button onclick="cancelDownload('${download.id}')" class="cancel-btn">✕ Cancel</button>`;
+      } else if (download.state === "scheduled") {
+        actionButtons = `<button onclick="startDownload('${download.id}')">▶ Start Now</button>`;
+        actionButtons += ` <button onclick="cancelDownload('${download.id}')" class="cancel-btn">✕ Cancel</button>`;
       } else if (download.state === "failed") {
         actionButtons = `<button onclick="retryDownload('${download.id}')" class="retry-btn">🔄 Retry</button>`;
         actionButtons += ` <button onclick="cancelDownload('${download.id}')" class="cancel-btn">✕ Remove</button>`;
       }
+      
+      const categoryBadge = (download as any).category ? `<span class="category-badge">${escapeHtml((download as any).category)}</span>` : "";
+      const scheduledInfo = (download as any).scheduled_start && download.state === "scheduled" 
+        ? `<span class="scheduled-time">⏰ ${new Date((download as any).scheduled_start).toLocaleString()}</span>` 
+        : "";
 
       return `
         <div class="download-item ${download.state}">
           <div class="download-header">
-            <div class="download-filename">${escapeHtml(download.filename)}</div>
+            <div class="download-filename">${escapeHtml(download.filename)} ${categoryBadge}</div>
             <div class="download-state">${download.state}</div>
           </div>
           <div class="progress-bar">
@@ -126,6 +134,7 @@ function renderDownloads() {
           <div class="download-info">
             <span>${downloadedMB} MB / ${totalMB} MB</span>
             ${download.state === "downloading" ? `<span>${speedMBps} MB/s</span>` : ""}
+            ${scheduledInfo}
             ${download.error ? `<span class="error">${escapeHtml(download.error)}</span>` : ""}
           </div>
           <div class="download-actions">
@@ -352,6 +361,15 @@ window.addEventListener("DOMContentLoaded", async () => {
   // Start auto-refresh
   refreshDownloads();
   refreshInterval = window.setInterval(refreshDownloads, 1000);
+  
+  // Check for scheduled downloads every minute
+  window.setInterval(async () => {
+    try {
+      await invoke("check_scheduled_downloads");
+    } catch (error) {
+      console.error("Failed to check scheduled downloads:", error);
+    }
+  }, 60000);
 
   // Make functions globally available
   (window as any).openSettings = openSettings;
