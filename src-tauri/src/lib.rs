@@ -150,6 +150,19 @@ async fn cancel_download(
 }
 
 #[tauri::command]
+async fn retry_download(
+    download_id: String,
+    state: tauri::State<'_, Arc<Mutex<AppState>>>,
+) -> Result<(), String> {
+    let mut app_state = state.lock().await;
+    
+    app_state.download_manager.retry_download(&download_id).await
+        .map_err(|e| format!("Failed to retry download: {}", e))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
 async fn get_downloads(
     state: tauri::State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<Vec<DownloadStatus>, String> {
@@ -269,6 +282,7 @@ pub fn run() {
             pause_download,
             resume_download,
             cancel_download,
+            retry_download,
             get_downloads,
             set_download_path,
             get_download_path,

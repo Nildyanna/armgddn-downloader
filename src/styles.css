@@ -227,6 +227,26 @@ body {
   border-color: rgba(255, 100, 50, 0.4);
 }
 
+.download-actions button.retry-btn {
+  background: rgba(16, 185, 129, 0.2);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+.download-actions button.retry-btn:hover {
+  background: rgba(16, 185, 129, 0.3);
+  border-color: rgba(16, 185, 129, 0.6);
+}
+
+.download-actions button.cancel-btn {
+  background: rgba(239, 68, 68, 0.2);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.download-actions button.cancel-btn:hover {
+  background: rgba(239, 68, 68, 0.3);
+  border-color: rgba(239, 68, 68, 0.6);
+}
+
 .settings-panel {
   position: fixed;
   top: 0;
