@@ -258,7 +258,7 @@ async function checkForUpdates(silent = false) {
     const latestVersion = release.tag_name.replace('v', '');
     
     // Get current version from package
-    const currentVersion = "1.0.15"; // This will be updated during build
+    const currentVersion = "1.0.16"; // This will be updated during build
     
     if (latestVersion !== currentVersion) {
       const shouldUpdate = confirm(
