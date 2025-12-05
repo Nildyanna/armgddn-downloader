@@ -272,6 +272,35 @@ async fn check_scheduled_downloads(
         .map_err(|e| format!("Failed to check scheduled downloads: {}", e))
 }
 
+#[tauri::command]
+async fn report_progress(
+    server_url: String,
+    auth_token: Option<String>,
+    state: tauri::State<'_, Arc<Mutex<AppState>>>,
+) -> Result<(), String> {
+    let app_state = state.lock().await;
+    let downloads = app_state.download_manager.get_downloads().await;
+    
+    // Report each active download to the server
+    for download in downloads {
+        if download.state == download_manager::DownloadState::Downloading 
+            || download.state == download_manager::DownloadState::Queued {
+            report_progress_to_server(
+                &server_url,
+                auth_token.as_deref(),
+                &download.id,
+                &download.filename,
+                download.downloaded_bytes,
+                download.total_bytes,
+                &format!("{:?}", download.state).to_lowercase(),
+                download.error.as_deref(),
+            ).await;
+        }
+    }
+    
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -401,6 +430,7 @@ pub fn run() {
             add_to_history,
             clear_download_history,
             check_scheduled_downloads,
+            report_progress,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
