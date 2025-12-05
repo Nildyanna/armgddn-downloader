@@ -5,6 +5,22 @@ All notable changes to ARMGDDN Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.7] - 2025-12-05
+
+### Fixed
+- **Protocol Registration**: NSIS installer now properly registers armgddn:// protocol
+- **Deep Link Support**: "Download with App" button now opens the app automatically
+- **Windows Integration**: Desktop and Start Menu shortcuts created during installation
+
+## [1.0.6] - 2025-12-05
+
+### Added
+- **Debug Logging**: Added detailed logging for session token flow
+- **UI Improvements**: Centered text and fixed empty state message
+
+### Fixed
+- **Empty State Message**: Updated to reflect website-only flow
+
 ## [1.0.5] - 2025-12-05
 
 ### Added
