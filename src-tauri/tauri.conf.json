@@ -46,6 +46,13 @@
         "language": "en-US",
         "fragmentPaths": ["wix/protocol.wxs"]
       },
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "installMode": "perMachine",
+        "languages": ["English"],
+        "displayLanguageSelector": false,
+        "template": "nsis/installer.nsi"
+      },
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
