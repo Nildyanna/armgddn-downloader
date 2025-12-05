@@ -14,12 +14,17 @@ pub struct DownloadRequest {
     pub url: String,
     pub filename: String,
     pub size: u64,
+    #[serde(default)]
+    pub scheduled_start: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "lowercase")]
 pub enum DownloadState {
     Queued,
+    Scheduled,
     Downloading,
     Paused,
     Completed,
@@ -37,6 +42,10 @@ pub struct DownloadStatus {
     pub total_bytes: u64,
     pub speed_bps: u64,
     pub error: Option<String>,
+    #[serde(default)]
+    pub scheduled_start: Option<String>,
+    #[serde(default)]
+    pub category: Option<String>,
 }
 
 struct DownloadTask {
@@ -75,15 +84,24 @@ impl DownloadManager {
     pub async fn add_download(&mut self, request: DownloadRequest) -> Result<String> {
         let id = uuid::Uuid::new_v4().to_string();
         
+        // Determine initial state based on scheduling
+        let initial_state = if request.scheduled_start.is_some() {
+            DownloadState::Scheduled
+        } else {
+            DownloadState::Queued
+        };
+        
         let status = Arc::new(RwLock::new(DownloadStatus {
             id: id.clone(),
             filename: request.filename.clone(),
             url: request.url.clone(),
-            state: DownloadState::Queued,
+            state: initial_state,
             downloaded_bytes: 0,
             total_bytes: request.size,
             speed_bps: 0,
             error: None,
+            scheduled_start: request.scheduled_start.clone(),
+            category: request.category.clone(),
         }));
 
         let task = DownloadTask {
@@ -396,6 +414,36 @@ impl DownloadManager {
     pub async fn set_max_concurrent(&mut self, count: usize) {
         let mut max = self.max_concurrent.write().await;
         *max = count;
+    }
+
+    pub async fn check_scheduled_downloads(&mut self) -> Result<Vec<String>> {
+        let downloads = self.downloads.lock().await;
+        let mut to_start = Vec::new();
+        
+        for (id, task) in downloads.iter() {
+            let status = task.status.read().await;
+            if status.state == DownloadState::Scheduled {
+                if let Some(scheduled_time) = &status.scheduled_start {
+                    // Parse scheduled time and check if it's time to start
+                    if let Ok(scheduled) = chrono::DateTime::parse_from_rfc3339(scheduled_time) {
+                        if chrono::Utc::now() >= scheduled {
+                            to_start.push(id.clone());
+                        }
+                    }
+                }
+            }
+        }
+        
+        drop(downloads);
+        
+        // Start the scheduled downloads
+        for id in &to_start {
+            if let Err(e) = self.start_download(id).await {
+                eprintln!("Failed to start scheduled download {}: {}", id, e);
+            }
+        }
+        
+        Ok(to_start)
     }
 
     async fn check_disk_space(download_path: &std::path::Path, required_bytes: u64) -> Result<()> {

@@ -260,6 +260,15 @@ async fn clear_download_history(
     Ok(())
 }
 
+#[tauri::command]
+async fn check_scheduled_downloads(
+    state: tauri::State<'_, Arc<Mutex<AppState>>>,
+) -> Result<Vec<String>, String> {
+    let mut app_state = state.lock().await;
+    app_state.download_manager.check_scheduled_downloads().await
+        .map_err(|e| format!("Failed to check scheduled downloads: {}", e))
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -358,6 +367,7 @@ pub fn run() {
             get_download_history,
             add_to_history,
             clear_download_history,
+            check_scheduled_downloads,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
