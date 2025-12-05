@@ -168,11 +168,11 @@ Outputs:
 - [x] Auto-retry with resume support
 - [x] Bundled rclone binaries for all platforms
 - [x] Automatic config fetching and decryption
+- [x] Auto-update mechanism with cryptographic signatures
 
 ## Future Enhancements
 
 - [ ] Progress reporting to server for website display
-- [ ] Auto-update mechanism
 - [ ] Download scheduling
 - [ ] Bandwidth limiting
 - [ ] System tray integration
