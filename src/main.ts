@@ -1,4 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
+import { t, setLanguage, getLanguage, type Language } from "./i18n";
 
 interface DownloadStatus {
   id: string;
@@ -207,6 +209,10 @@ async function openSettings() {
       const downloadPath = await invoke("get_download_path");
       const pathInput = document.getElementById("download-path") as HTMLInputElement;
       if (pathInput) pathInput.value = downloadPath as string;
+      
+      // Load language setting
+      const languageSelect = document.getElementById("language-select") as HTMLSelectElement;
+      if (languageSelect) languageSelect.value = getLanguage();
     } catch (error) {
       console.error("Failed to load settings:", error);
     }
@@ -224,6 +230,7 @@ async function saveSettings() {
   const pathInput = document.getElementById("download-path") as HTMLInputElement;
   const concurrentInput = document.getElementById("concurrent-downloads") as HTMLInputElement;
   const tokenInput = document.getElementById("auth-token") as HTMLInputElement;
+  const languageSelect = document.getElementById("language-select") as HTMLSelectElement;
 
   try {
     if (pathInput.value) {
@@ -235,8 +242,13 @@ async function saveSettings() {
     if (tokenInput.value) {
       await invoke("set_auth_token", { token: tokenInput.value });
     }
+    if (languageSelect.value) {
+      setLanguage(languageSelect.value as Language);
+      // Reload the page to apply new language
+      window.location.reload();
+    }
     
-    alert("Settings saved successfully");
+    alert(t('settings.saved') || "Settings saved successfully");
     closeSettings();
   } catch (error) {
     alert(`Failed to save settings: ${error}`);
