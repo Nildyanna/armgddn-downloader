@@ -50,8 +50,7 @@
         "installerIcon": "icons/icon.ico",
         "installMode": "perMachine",
         "languages": ["English"],
-        "displayLanguageSelector": false,
-        "template": "nsis/installer.nsi"
+        "displayLanguageSelector": false
       },
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
