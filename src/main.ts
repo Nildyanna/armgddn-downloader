@@ -77,14 +77,16 @@ function renderDownloads() {
       let actionButtons = "";
       if (download.state === "downloading") {
         actionButtons = `<button onclick="pauseDownload('${download.id}')">⏸ Pause</button>`;
+        actionButtons += ` <button onclick="cancelDownload('${download.id}')" class="cancel-btn">✕ Cancel</button>`;
       } else if (download.state === "paused") {
         actionButtons = `<button onclick="resumeDownload('${download.id}')">▶ Resume</button>`;
+        actionButtons += ` <button onclick="cancelDownload('${download.id}')" class="cancel-btn">✕ Cancel</button>`;
       } else if (download.state === "queued") {
         actionButtons = `<button onclick="startDownload('${download.id}')">▶ Start</button>`;
-      }
-      
-      if (download.state !== "completed" && download.state !== "cancelled") {
-        actionButtons += ` <button onclick="cancelDownload('${download.id}')">✕ Cancel</button>`;
+        actionButtons += ` <button onclick="cancelDownload('${download.id}')" class="cancel-btn">✕ Cancel</button>`;
+      } else if (download.state === "failed") {
+        actionButtons = `<button onclick="retryDownload('${download.id}')" class="retry-btn">🔄 Retry</button>`;
+        actionButtons += ` <button onclick="cancelDownload('${download.id}')" class="cancel-btn">✕ Remove</button>`;
       }
 
       return `
@@ -149,6 +151,15 @@ function escapeHtml(text: string): string {
     await refreshDownloads();
   } catch (error) {
     alert(`Failed to cancel download: ${error}`);
+  }
+};
+
+(window as any).retryDownload = async (id: string) => {
+  try {
+    await invoke("retry_download", { downloadId: id });
+    await refreshDownloads();
+  } catch (error) {
+    alert(`Failed to retry download: ${error}`);
   }
 };
 

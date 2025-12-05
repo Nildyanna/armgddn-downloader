@@ -335,6 +335,32 @@ impl DownloadManager {
         Ok(())
     }
 
+    pub async fn retry_download(&mut self, download_id: &str) -> Result<()> {
+        let downloads = self.downloads.lock().await;
+        
+        let task = downloads
+            .get(download_id)
+            .context("Download not found")?;
+
+        // Check if download is in a failed state
+        let current_state = task.status.read().await.state.clone();
+        if current_state != DownloadState::Failed {
+            anyhow::bail!("Download is not in a failed state");
+        }
+
+        // Reset error and downloaded bytes
+        {
+            let mut status = task.status.write().await;
+            status.error = None;
+            status.downloaded_bytes = 0;
+        }
+
+        drop(downloads);
+
+        // Start the download again
+        self.start_download(download_id).await
+    }
+
     pub async fn get_all_downloads(&self) -> Vec<DownloadStatus> {
         let downloads = self.downloads.lock().await;
         let mut statuses = Vec::new();
