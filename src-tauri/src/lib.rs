@@ -279,7 +279,7 @@ async fn report_progress(
     state: tauri::State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<(), String> {
     let app_state = state.lock().await;
-    let downloads = app_state.download_manager.get_downloads().await;
+    let downloads = app_state.download_manager.get_all_downloads().await;
     
     // Report each active download to the server
     for download in downloads {
@@ -315,8 +315,9 @@ pub fn run() {
             // Handle tray icon left-click to restore window
             let app_handle = app.handle().clone();
             tray.on_tray_icon_event(move |_tray, event| {
-                if let tray_icon::TrayIconEvent::Click { button, .. } = event {
-                    if button == tray_icon::MouseButton::Left {
+                use tauri::tray::{TrayIconEvent, MouseButton};
+                if let TrayIconEvent::Click { button, .. } = event {
+                    if button == MouseButton::Left {
                         if let Some(window) = app_handle.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
