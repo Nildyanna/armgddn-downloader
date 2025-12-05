@@ -51,16 +51,25 @@ pub struct DownloadManager {
     download_path: Arc<RwLock<PathBuf>>,
     max_concurrent: Arc<RwLock<usize>>,
     active_count: Arc<Mutex<usize>>,
+    server_url: Arc<RwLock<String>>,
+    auth_token: Arc<RwLock<Option<String>>>,
 }
 
 impl DownloadManager {
-    pub fn new(download_path: PathBuf, max_concurrent: usize) -> Self {
+    pub fn new(download_path: PathBuf, max_concurrent: usize, server_url: String, auth_token: Option<String>) -> Self {
         Self {
             downloads: Arc::new(Mutex::new(HashMap::new())),
             download_path: Arc::new(RwLock::new(download_path)),
             max_concurrent: Arc::new(RwLock::new(max_concurrent)),
             active_count: Arc::new(Mutex::new(0)),
+            server_url: Arc::new(RwLock::new(server_url)),
+            auth_token: Arc::new(RwLock::new(auth_token)),
         }
+    }
+
+    pub async fn set_server_config(&mut self, server_url: String, auth_token: Option<String>) {
+        *self.server_url.write().await = server_url;
+        *self.auth_token.write().await = auth_token;
     }
 
     pub async fn add_download(&mut self, request: DownloadRequest) -> Result<String> {
@@ -101,6 +110,15 @@ impl DownloadManager {
         let current_state = task.status.read().await.state.clone();
         if current_state == DownloadState::Downloading {
             return Ok(());
+        }
+
+        // Check disk space before starting
+        let required_space = task.request.size;
+        if let Err(e) = Self::check_disk_space(&self.download_path.read().await, required_space).await {
+            let mut status = task.status.write().await;
+            status.state = DownloadState::Failed;
+            status.error = Some(format!("Insufficient disk space: {}", e));
+            return Err(e);
         }
 
         // Update state to downloading
@@ -207,7 +225,8 @@ impl DownloadManager {
                         tokio::time::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS)).await;
                         continue;
                     } else {
-                        return Err(e.into());
+                        let error_msg = Self::format_network_error(&e);
+                        return Err(anyhow::anyhow!(error_msg));
                     }
                 }
             };
@@ -220,7 +239,8 @@ impl DownloadManager {
                     tokio::time::sleep(std::time::Duration::from_millis(RETRY_DELAY_MS)).await;
                     continue;
                 } else {
-                    anyhow::bail!("Server returned error: {}", response.status());
+                    let error_msg = Self::format_http_error(response.status());
+                    anyhow::bail!(error_msg);
                 }
             }
             
@@ -376,5 +396,53 @@ impl DownloadManager {
     pub async fn set_max_concurrent(&mut self, count: usize) {
         let mut max = self.max_concurrent.write().await;
         *max = count;
+    }
+
+    async fn check_disk_space(download_path: &std::path::Path, required_bytes: u64) -> Result<()> {
+        // Add 100MB buffer for safety
+        let required_with_buffer = required_bytes + (100 * 1024 * 1024);
+        
+        match sys_info::disk_info() {
+            Ok(disk) => {
+                let available_bytes = disk.free * 1024; // Convert KB to bytes
+                if available_bytes < required_with_buffer {
+                    let required_mb = required_with_buffer / (1024 * 1024);
+                    let available_mb = available_bytes / (1024 * 1024);
+                    anyhow::bail!(
+                        "Insufficient disk space: Need {} MB but only {} MB available. Please free up space and try again.",
+                        required_mb,
+                        available_mb
+                    );
+                }
+                Ok(())
+            }
+            Err(e) => {
+                // If we can't check disk space, log warning but allow download
+                eprintln!("Warning: Could not check disk space: {}", e);
+                Ok(())
+            }
+        }
+    }
+
+    fn format_network_error(error: &reqwest::Error) -> String {
+        if error.is_timeout() {
+            "Connection timed out. Check your internet connection and try again.".to_string()
+        } else if error.is_connect() {
+            "Could not connect to server. Check your internet connection and try again.".to_string()
+        } else if error.is_request() {
+            "Network request failed. Check your internet connection and try again.".to_string()
+        } else {
+            format!("Network error: {}. Check your connection and try again.", error)
+        }
+    }
+
+    fn format_http_error(status: reqwest::StatusCode) -> String {
+        match status.as_u16() {
+            401 | 403 => "Authentication failed. Check your auth token in settings.".to_string(),
+            404 => "File not found on server. The download link may have expired.".to_string(),
+            429 => "Too many requests. Please wait a moment and try again.".to_string(),
+            500..=599 => "Server error. Please try again later.".to_string(),
+            _ => format!("Server returned error {}. Please try again.", status),
+        }
     }
 }

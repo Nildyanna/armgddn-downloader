@@ -71,6 +71,8 @@ impl AppState {
         let download_manager = DownloadManager::new(
             download_path.clone(),
             config.max_concurrent_downloads,
+            config.server_url.clone(),
+            config.auth_token.clone(),
         );
 
         Self {
