@@ -1,0 +1,15 @@
+Windows Registry Editor Version 5.00
+
+[HKEY_CLASSES_ROOT\armgddn]
+@="URL:ARMGDDN Protocol"
+"URL Protocol"=""
+
+[HKEY_CLASSES_ROOT\armgddn\DefaultIcon]
+@="C:\\Program Files\\ARMGDDN Downloader\\ARMGDDN Downloader.exe,0"
+
+[HKEY_CLASSES_ROOT\armgddn\shell]
+
+[HKEY_CLASSES_ROOT\armgddn\shell\open]
+
+[HKEY_CLASSES_ROOT\armgddn\shell\open\command]
+@="\"C:\\Program Files\\ARMGDDN Downloader\\ARMGDDN Downloader.exe\" \"%1\""
