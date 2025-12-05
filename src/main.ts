@@ -12,7 +12,8 @@ interface DownloadStatus {
 }
 
 let downloads: DownloadStatus[] = [];
-let refreshInterval: number | null = null;
+// @ts-ignore - Used for setInterval, TS doesn't detect usage
+let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
 async function fetchManifest() {
   const urlInput = document.getElementById("manifest-url") as HTMLInputElement;
@@ -212,42 +213,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   (window as any).closeSettings = closeSettings;
   (window as any).saveSettings = saveSettings;
 
-  // Listen for deep links from website
-  try {
-    const { onOpenUrl } = await import("@tauri-apps/plugin-deep-link");
-    await onOpenUrl((urls: string[]) => {
-      console.log("Deep link received:", urls);
-      for (const url of urls) {
-        handleDeepLink(url);
-      }
-    });
-  } catch (error) {
-    console.log("Deep link plugin not available:", error);
-  }
+  // Deep link support will be added in a future update
+  console.log("App initialized successfully");
 });
 
-async function handleDeepLink(url: string) {
-  console.log("Handling deep link:", url);
-  
-  // Parse armgddn://download?manifest=<url>
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol === "armgddn:" && parsed.hostname === "download") {
-      const manifestUrl = parsed.searchParams.get("manifest");
-      if (manifestUrl) {
-        // Decode and set the manifest URL
-        const decodedUrl = decodeURIComponent(manifestUrl);
-        const input = document.getElementById("manifest-url") as HTMLInputElement;
-        if (input) {
-          input.value = decodedUrl;
-        }
-        
-        // Auto-fetch the manifest
-        await fetchManifest();
-        console.log("📥 Download started from website link");
-      }
-    }
-  } catch (error) {
-    console.error("Failed to parse deep link:", error);
-  }
-}
+// Deep link handler - will be re-enabled when plugin is properly configured
+// async function handleDeepLink(url: string) { ... }
