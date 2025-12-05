@@ -266,9 +266,10 @@ async function checkForUpdates(silent = false) {
       alert("You're already running the latest version!");
     }
   } catch (error) {
+    // Silently log errors when checking on startup
+    console.log("Update check skipped:", error);
     if (!silent) {
-      console.error("Failed to check for updates:", error);
-      alert(`Failed to check for updates: ${error}`);
+      alert("Update check is not available in this build.");
     }
   }
 }
