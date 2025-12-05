@@ -246,19 +246,22 @@ async function checkForUpdates(silent = false) {
   try {
     if (!silent) {
       console.log("Checking for updates...");
+      alert("Checking for updates...");
     }
     
     // Check GitHub releases for latest version
     const response = await fetch("https://api.github.com/repos/Nildyanna/armgddn-downloader/releases/latest");
     if (!response.ok) {
-      throw new Error("Failed to check for updates");
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
     const release = await response.json();
     const latestVersion = release.tag_name.replace('v', '');
     
     // Get current version from package
-    const currentVersion = "1.0.16"; // This will be updated during build
+    const currentVersion = "1.0.17"; // This will be updated during build
+    
+    console.log(`Current: v${currentVersion}, Latest: v${latestVersion}`);
     
     if (latestVersion !== currentVersion) {
       const shouldUpdate = confirm(
@@ -276,9 +279,9 @@ async function checkForUpdates(silent = false) {
       alert("You're already running the latest version!");
     }
   } catch (error) {
-    console.log("Update check failed:", error);
+    console.error("Update check failed:", error);
     if (!silent) {
-      alert("Failed to check for updates. Please visit:\nhttps://github.com/Nildyanna/armgddn-downloader/releases");
+      alert(`Failed to check for updates: ${error}\n\nPlease visit:\nhttps://github.com/Nildyanna/armgddn-downloader/releases`);
     }
   }
 }
