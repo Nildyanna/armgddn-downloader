@@ -55,7 +55,7 @@ function renderDownloads() {
   if (!container) return;
 
   if (downloads.length === 0) {
-    container.innerHTML = '<div class="empty-state">No downloads yet. Add a manifest URL above to get started.</div>';
+    container.innerHTML = '<div class="empty-state">No downloads yet. Click "Download with App" on the website to get started.</div>';
     return;
   }
 
