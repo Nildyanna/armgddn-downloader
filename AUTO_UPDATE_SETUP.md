@@ -24,6 +24,7 @@ cargo tauri signer generate -w ~/.tauri/armgddn-downloader.key
 ```
 
 This will:
+
 - Generate a private key and save it to `~/.tauri/armgddn-downloader.key`
 - Display the public key in the terminal
 
@@ -42,15 +43,18 @@ Copy the public key output (it looks like `dW50cnVzdGVkIGNvbW1lbnQ6...`) and upd
 ### 4. Add Secrets to GitHub
 
 Go to your GitHub repository settings:
+
 1. Navigate to **Settings** → **Secrets and variables** → **Actions**
 2. Click **New repository secret**
 3. Add two secrets:
 
-**Secret 1: TAURI_SIGNING_PRIVATE_KEY**
+#### Secret 1: TAURI_SIGNING_PRIVATE_KEY
+
 - Name: `TAURI_SIGNING_PRIVATE_KEY`
 - Value: Contents of `~/.tauri/armgddn-downloader.key` (the entire file)
 
-**Secret 2: TAURI_SIGNING_PRIVATE_KEY_PASSWORD**
+#### Secret 2: TAURI_SIGNING_PRIVATE_KEY_PASSWORD
+
 - Name: `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`  
 - Value: The password you entered when generating the key (or leave empty if you didn't set one)
 
@@ -77,13 +81,15 @@ Go to your GitHub repository settings:
 ## Update Manifest
 
 GitHub Actions automatically generates `latest.json` which contains:
+
 - Version number
 - Download URLs for each platform
 - Cryptographic signatures
 - Release notes
 
 The app checks this file at:
-```
+
+```text
 https://github.com/Nildyanna/armgddn-downloader/releases/latest/download/latest.json
 ```
 
@@ -97,16 +103,19 @@ https://github.com/Nildyanna/armgddn-downloader/releases/latest/download/latest.
 ## Troubleshooting
 
 **Update check fails**:
+
 - Ensure GitHub repository is public or user has access
 - Check that `latest.json` exists in the latest release
 - Verify the public key in `tauri.conf.json` matches your generated key
 
 **Signature verification fails**:
+
 - Ensure GitHub secrets are set correctly
 - Verify the private key hasn't been corrupted
 - Check that the public key in the config matches the private key
 
 **Update doesn't appear**:
+
 - Ensure the version in `tauri.conf.json` is higher than the current version
 - Check that the release is not marked as draft or prerelease
 - Wait a few minutes for GitHub CDN to propagate the release
@@ -125,6 +134,7 @@ To test auto-updates locally:
 ## Version Numbering
 
 Follow semantic versioning:
+
 - **Major** (X.0.0): Breaking changes
 - **Minor** (1.X.0): New features, backwards compatible
 - **Patch** (1.0.X): Bug fixes, backwards compatible
