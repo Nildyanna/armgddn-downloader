@@ -5,6 +5,15 @@ All notable changes to ARMGDDN Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.9] - 2025-12-05
+
+### Added
+- **Tray Menu**: Right-click tray icon now shows Show and Quit options
+
+### Fixed
+- **Protocol Registration**: Fixed executable path in NSIS installer hooks
+- **Deep Link**: Improved protocol handler registration for Windows
+
 ## [1.0.8] - 2025-12-05
 
 ### Fixed

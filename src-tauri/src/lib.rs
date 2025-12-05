@@ -309,8 +309,19 @@ pub fn run() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_notification::init())
         .setup(|app| {
-            // Setup system tray
+            // Setup system tray with menu
+            use tauri::menu::{MenuBuilder, MenuItemBuilder};
+            
+            let show_item = MenuItemBuilder::with_id("show", "Show").build(app)?;
+            let quit_item = MenuItemBuilder::with_id("quit", "Quit").build(app)?;
+            
+            let menu = MenuBuilder::new(app)
+                .item(&show_item)
+                .item(&quit_item)
+                .build()?;
+            
             let tray = app.tray_by_id("main").expect("Failed to get tray");
+            let _ = tray.set_menu(Some(menu));
             
             // Handle tray icon left-click to restore window
             let app_handle = app.handle().clone();
