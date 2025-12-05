@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Protocol Registration**: Use HKCU for armgddn:// protocol (doesn't require admin)
 - **Deep Links**: Should now work without running installer as administrator
+- **Desktop Shortcut Icon**: Properly set icon for desktop shortcut
 
 ## [1.0.15] - 2025-12-05
 

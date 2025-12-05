@@ -13,12 +13,19 @@
   WriteRegStr HKCR "armgddn" "URL Protocol" ""
   WriteRegStr HKCR "armgddn\DefaultIcon" "" "$INSTDIR\ARMGDDN Downloader.exe,0"
   WriteRegStr HKCR "armgddn\shell\open\command" "" '"$INSTDIR\ARMGDDN Downloader.exe" "%1"'
+  
+  ; Fix desktop shortcut icon
+  SetOutPath "$INSTDIR"
+  CreateShortcut "$DESKTOP\ARMGDDN Downloader.lnk" "$INSTDIR\ARMGDDN Downloader.exe" "" "$INSTDIR\ARMGDDN Downloader.exe" 0
 !macroend
 
 !macro customUnInstall
   ; Unregister armgddn:// protocol from both locations
   DeleteRegKey HKCU "Software\Classes\armgddn"
   DeleteRegKey HKCR "armgddn"
+  
+  ; Remove desktop shortcut
+  Delete "$DESKTOP\ARMGDDN Downloader.lnk"
   
   ; Remove all app data (but don't remove install dir - Tauri handles that)
   RMDir /r "$APPDATA\com.armgddn.downloader"
