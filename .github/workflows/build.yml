@@ -62,7 +62,7 @@ jobs:
         run: npm install
 
       - name: Build Tauri app
-        run: npm run tauri build
+        run: npm run tauri:build
 
       - name: Upload artifacts (Linux)
         if: matrix.platform == 'ubuntu-22.04'
