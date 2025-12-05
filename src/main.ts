@@ -212,6 +212,11 @@ async function openSettings() {
       // Load language setting
       const languageSelect = document.getElementById("language-select") as HTMLSelectElement;
       if (languageSelect) languageSelect.value = getLanguage();
+      
+      // Load auth token
+      const tokenInput = document.getElementById("auth-token") as HTMLInputElement;
+      const savedToken = localStorage.getItem('authToken');
+      if (tokenInput && savedToken) tokenInput.value = savedToken;
     } catch (error) {
     }
   }
@@ -239,6 +244,7 @@ async function saveSettings() {
     }
     if (tokenInput.value) {
       await invoke("set_auth_token", { token: tokenInput.value });
+      localStorage.setItem('authToken', tokenInput.value);
     }
     if (languageSelect.value) {
       setLanguage(languageSelect.value as Language);
