@@ -48,6 +48,14 @@
       "webviewInstallMode": {
         "type": "downloadBootstrapper"
       }
+    },
+    "linux": {
+      "deb": {
+        "depends": []
+      },
+      "appimage": {
+        "bundleMediaFramework": false
+      }
     }
   },
   "plugins": {
