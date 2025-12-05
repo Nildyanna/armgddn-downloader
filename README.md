@@ -4,6 +4,7 @@ Production-ready external downloader app for ARMGDDN Browser that handles downlo
 
 ## Features
 
+### Core Features
 - 🔗 **Deep Link Integration**: One-click downloads from website via `armgddn://` protocol
 - 📥 **Manifest-based downloads**: Fetch download manifests from ARMGDDN Browser
 - 🔐 **Encrypted rclone config**: Automatically fetches and decrypts rclone configuration
@@ -12,6 +13,19 @@ Production-ready external downloader app for ARMGDDN Browser that handles downlo
 - 📦 **Queue management**: Configurable concurrent downloads (default: 3)
 - 🔒 **Secure**: Token-based authentication, encrypted config, no sensitive data exposed
 - 💾 **Cross-platform**: Windows and Linux support with bundled rclone binaries
+
+### Advanced Features (v1.0.0)
+- 🔔 **Desktop Notifications**: Native OS notifications when downloads complete
+- 🗂️ **Download History**: Persistent tracking of all completed downloads with timestamps
+- 📋 **System Tray Integration**: Minimize to tray with show/quit menu
+- 🛡️ **Advanced Error Recovery**: Intelligent error handling with user-friendly messages
+  - Disk space checking before downloads (100MB safety buffer)
+  - Network error detection (timeout, connection, request failures)
+  - HTTP error handling (401, 403, 404, 429, 5xx) with recovery suggestions
+- ⏰ **Download Scheduling**: Schedule downloads for specific times with auto-start
+- 🏷️ **Categories/Tags**: Organize downloads by game or type with visual badges
+- 🌍 **Multi-Language Support**: 5 languages (English, Spanish, French, German, Portuguese)
+- 🔄 **Auto-Update**: Cryptographic signature verification for secure updates
 
 ## How It Works
 
@@ -161,22 +175,32 @@ Outputs:
 
 **Note**: Rclone binaries are downloaded automatically during GitHub Actions builds.
 
-## Completed Features
+## Completed Features (v1.0.0)
 
 - [x] Native rclone integration with encrypted config
 - [x] Deep link protocol handler (`armgddn://`)
-- [x] Auto-retry with resume support
+- [x] Auto-retry with resume support (3 attempts, 2s delay)
 - [x] Bundled rclone binaries for all platforms
 - [x] Automatic config fetching and decryption
 - [x] Auto-update mechanism with cryptographic signatures
+- [x] Desktop notifications on download completion
+- [x] Download history with persistent storage
+- [x] System tray integration (minimize to tray)
+- [x] Advanced error recovery with disk space checking
+- [x] Download scheduling with auto-start
+- [x] Categories/tags for download organization
+- [x] Multi-language support (EN, ES, FR, DE, PT)
 
 ## Future Enhancements
 
-- [ ] Progress reporting to server for website display
-- [ ] Download scheduling
-- [ ] Bandwidth limiting
-- [ ] System tray integration
+- [ ] Server progress reporting implementation (infrastructure ready)
+- [ ] Bandwidth limiting per download
 - [ ] macOS support
+- [ ] More languages (Japanese, Chinese, Russian, Arabic, etc.)
+- [ ] Cloud sync for settings and history
+- [ ] Mobile version (iOS/Android via Tauri Mobile)
+- [ ] Folder organization by category
+- [ ] Search/filter in download history
 
 ## License
 
