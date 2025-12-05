@@ -62,7 +62,9 @@ jobs:
         run: npm install
 
       - name: Build Tauri app
-        run: npm run tauri:build
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts (Linux)
         if: matrix.platform == 'ubuntu-22.04'
