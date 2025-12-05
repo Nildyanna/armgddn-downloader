@@ -212,13 +212,79 @@ async fn set_concurrent_downloads(
     Ok(())
 }
 
+#[tauri::command]
+fn send_notification(title: String, body: String, app: tauri::AppHandle) -> Result<(), String> {
+    app.notification()
+        .builder()
+        .title(title)
+        .body(body)
+        .show()
+        .map_err(|e| format!("Failed to send notification: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_download_history(
+    state: tauri::State<'_, Arc<Mutex<AppState>>>,
+) -> Result<Vec<crate::state::DownloadHistoryItem>, String> {
+    let app_state = state.lock().await;
+    Ok(app_state.download_history.clone())
+}
+
+#[tauri::command]
+async fn add_to_history(
+    filename: String,
+    size: u64,
+    download_path: String,
+    state: tauri::State<'_, Arc<Mutex<AppState>>>,
+) -> Result<(), String> {
+    let mut app_state = state.lock().await;
+    let item = crate::state::DownloadHistoryItem {
+        filename,
+        size,
+        completed_at: chrono::Utc::now().to_rfc3339(),
+        download_path,
+    };
+    app_state.download_history.push(item);
+    app_state.save_config().map_err(|e| format!("Failed to save history: {}", e))?;
+    Ok(())
+}
+
+#[tauri::command]
+async fn clear_download_history(
+    state: tauri::State<'_, Arc<Mutex<AppState>>>,
+) -> Result<(), String> {
+    let mut app_state = state.lock().await;
+    app_state.download_history.clear();
+    app_state.save_config().map_err(|e| format!("Failed to clear history: {}", e))?;
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_notification::init())
         .setup(|app| {
+            // Setup system tray
+            let tray = app.tray_by_id("main").expect("Failed to get tray");
+            tray.on_menu_event(|app, event| {
+                match event.id().as_ref() {
+                    "show" => {
+                        if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                        }
+                    }
+                    "quit" => {
+                        app.exit(0);
+                    }
+                    _ => {}
+                }
+            });
+
             let app_state = Arc::new(Mutex::new(AppState::load_or_default()));
             
             // Auto-fetch rclone config on first run if not already present
@@ -288,6 +354,10 @@ pub fn run() {
             get_download_path,
             set_auth_token,
             set_concurrent_downloads,
+            send_notification,
+            get_download_history,
+            add_to_history,
+            clear_download_history,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

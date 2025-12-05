@@ -46,9 +46,34 @@ async function fetchManifest() {
   }
 }
 
+let previousDownloads: DownloadStatus[] = [];
+
 async function refreshDownloads() {
   try {
-    downloads = await invoke("get_downloads");
+    const newDownloads = await invoke("get_downloads") as DownloadStatus[];
+    
+    // Check for newly completed downloads and send notifications + add to history
+    for (const download of newDownloads) {
+      const previous = previousDownloads.find(d => d.id === download.id);
+      if (previous && previous.state !== "completed" && download.state === "completed") {
+        const sizeMB = (download.total_bytes / (1024 * 1024)).toFixed(2);
+        await invoke("send_notification", {
+          title: "Download Complete!",
+          body: `${download.filename} (${sizeMB} MB)`
+        }).catch(err => console.error("Notification failed:", err));
+        
+        // Add to history
+        const downloadPath = await invoke("get_download_path") as string;
+        await invoke("add_to_history", {
+          filename: download.filename,
+          size: download.total_bytes,
+          downloadPath: `${downloadPath}/${download.filename}`
+        }).catch(err => console.error("Failed to add to history:", err));
+      }
+    }
+    
+    previousDownloads = newDownloads;
+    downloads = newDownloads;
     renderDownloads();
   } catch (error) {
     console.error("Failed to refresh downloads:", error);
