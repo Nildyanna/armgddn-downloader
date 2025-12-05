@@ -62,9 +62,7 @@ npm run tauri build
 6. App opens automatically via deep link and starts downloading
 7. All downloads include auto-retry (3 attempts) and resume support
 
-**Alternative**:
-
-Manually paste manifest URL into the app if deep links don't work.
+**Alternative**: Manually paste manifest URL into the app if deep links don't work.
 
 ### Configuration
 
