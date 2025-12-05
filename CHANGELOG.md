@@ -5,6 +5,22 @@ All notable changes to ARMGDDN Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2025-12-05
+
+### Added
+- **Session Token Authentication**: Automatic authentication via website deep links
+- **Seamless UX**: Token automatically included when clicking "Download with App"
+- **Progress Monitoring**: Download progress now properly tracked and displayed in browser
+
+### Changed
+- **Removed Manual Input**: No more manual manifest URL entry - website-only flow
+- **Simplified Interface**: Cleaner UI with instructions to use website button
+- **Auto-Start Downloads**: Downloads start automatically when triggered from website
+
+### Fixed
+- **401 Errors**: Session token authentication eliminates unauthorized errors
+- **Progress Tracking**: Browser now correctly shows real-time download progress
+
 ## [1.0.4] - 2025-12-05
 
 ### Fixed
