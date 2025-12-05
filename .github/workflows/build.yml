@@ -87,6 +87,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
     
     steps:
       - name: Checkout repository
@@ -96,22 +98,40 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: linux-build
-          path: ./linux
+          path: ./linux-artifacts
 
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows-build
-          path: ./windows
+          path: ./windows-artifacts
 
-      - name: Create Release with Update Manifest
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "ARMGDDN Downloader v__VERSION__"
-          releaseBody: "See the assets to download this version and install."
-          releaseDraft: false
+          name: "ARMGDDN Downloader ${{ github.ref_name }}"
+          body: |
+            ## ARMGDDN Downloader ${{ github.ref_name }}
+            
+            ### Installation
+            
+            **Windows:**
+            - Download `ARMGDDN-Downloader_*_x64_en-US.msi`
+            - Run the installer
+            
+            **Linux (Debian/Ubuntu):**
+            - Download `armgddn-downloader_*_amd64.deb`
+            - Install: `sudo dpkg -i armgddn-downloader_*_amd64.deb`
+            
+            **Linux (Universal):**
+            - Download `armgddn-downloader_*_amd64.AppImage`
+            - Make executable: `chmod +x armgddn-downloader_*_amd64.AppImage`
+            - Run: `./armgddn-downloader_*_amd64.AppImage`
+            
+            ### Features
+            See [CHANGELOG.md](https://github.com/Nildyanna/armgddn-downloader/blob/main/CHANGELOG.md) for full feature list.
+          files: |
+            linux-artifacts/**/*
+            windows-artifacts/**/*
+          draft: false
           prerelease: false
-          includeUpdaterJson: true
