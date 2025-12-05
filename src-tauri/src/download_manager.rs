@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tokio::fs::{File, OpenOptions};
+use tokio::fs::OpenOptions;
 use tokio::io::AsyncWriteExt;
 use tokio::sync::{Mutex, RwLock};
 use tokio::task::JoinHandle;
@@ -166,7 +166,7 @@ impl DownloadManager {
         url: String,
         file_path: PathBuf,
         status: Arc<RwLock<DownloadStatus>>,
-        mut cancel_rx: tokio::sync::oneshot::Receiver<()>,
+        cancel_rx: tokio::sync::oneshot::Receiver<()>,
     ) -> Result<()> {
         const MAX_RETRIES: u32 = 3;
         const RETRY_DELAY_MS: u64 = 2000;

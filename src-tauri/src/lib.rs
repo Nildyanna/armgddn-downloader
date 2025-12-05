@@ -2,13 +2,14 @@ mod download_manager;
 mod rclone;
 mod state;
 
-use download_manager::{DownloadManager, DownloadRequest, DownloadStatus};
+use download_manager::{DownloadRequest, DownloadStatus};
 use state::AppState;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
 
-// Helper to report progress to server
+// Helper to report progress to server (reserved for future use)
+#[allow(dead_code)]
 async fn report_progress_to_server(
     server_url: &str,
     auth_token: Option<&str>,

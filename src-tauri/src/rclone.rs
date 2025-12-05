@@ -1,9 +1,8 @@
 use aes_gcm::{
-    aead::{Aead, KeyInit, OsRng},
+    aead::{Aead, KeyInit},
     Aes256Gcm, Nonce,
 };
 use anyhow::{Context, Result};
-use rand::RngCore;
 use base64::{engine::general_purpose, Engine as _};
 use sha2::{Digest, Sha256};
 use std::path::{Path, PathBuf};
@@ -13,6 +12,7 @@ use tokio::process::Command;
 
 pub struct RcloneManager {
     config_path: PathBuf,
+    #[allow(dead_code)]
     rclone_binary: PathBuf,
 }
 
@@ -97,6 +97,7 @@ impl RcloneManager {
         String::from_utf8(plaintext).context("Decrypted data is not valid UTF-8")
     }
 
+    #[allow(dead_code)]
     pub async fn download_file(
         &self,
         remote: &str,
@@ -147,6 +148,7 @@ impl RcloneManager {
         Ok(())
     }
 
+    #[allow(dead_code)]
     fn parse_progress(line: &str) -> Option<(u64, u64)> {
         // Parse "Transferred:   10.5 MiB / 100 MiB, 10%, 5 MiB/s, ETA 18s"
         let parts: Vec<&str> = line.split_whitespace().collect();
@@ -169,6 +171,7 @@ impl RcloneManager {
         Some((transferred, total))
     }
 
+    #[allow(dead_code)]
     fn parse_size(s: &str) -> Option<u64> {
         let s = s.trim();
         let (num_str, unit) = if s.ends_with("GiB") {
@@ -191,6 +194,7 @@ impl RcloneManager {
         self.config_path.exists()
     }
 
+    #[allow(dead_code)]
     pub async fn test_config(&self) -> Result<bool> {
         let output = Command::new(&self.rclone_binary)
             .arg("listremotes")
