@@ -48,13 +48,15 @@ jobs:
 
       - name: Download rclone (Windows)
         if: matrix.platform == 'windows-latest'
+        shell: pwsh
         run: |
           cd src-tauri
-          curl -L -o rclone.zip https://downloads.rclone.org/rclone-current-windows-amd64.zip
-          tar -xf rclone.zip
-          move rclone-*-windows-amd64\rclone.exe rclone.exe
-          rmdir /s /q rclone-*-windows-amd64
-          del rclone.zip
+          Invoke-WebRequest -Uri "https://downloads.rclone.org/rclone-current-windows-amd64.zip" -OutFile "rclone.zip"
+          Expand-Archive -Path "rclone.zip" -DestinationPath "."
+          $rcloneDir = Get-ChildItem -Directory -Filter "rclone-*-windows-amd64" | Select-Object -First 1
+          Move-Item "$($rcloneDir.FullName)\rclone.exe" "rclone.exe"
+          Remove-Item -Recurse -Force $rcloneDir
+          Remove-Item "rclone.zip"
 
       - name: Install frontend dependencies
         run: npm install
