@@ -297,6 +297,20 @@ pub fn run() {
                 }
             });
 
+            // Handle window close event - hide to tray instead of closing
+            if let Some(window) = app.get_webview_window("main") {
+                window.on_window_event(|event| {
+                    if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+                        // Prevent the window from closing
+                        api.prevent_close();
+                        // Hide the window instead
+                        if let Some(window) = event.window().get_webview_window() {
+                            let _ = window.hide();
+                        }
+                    }
+                });
+            }
+
             let app_state = Arc::new(Mutex::new(AppState::load_or_default()));
             
             // Auto-fetch rclone config on first run if not already present
