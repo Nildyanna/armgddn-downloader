@@ -60,7 +60,9 @@ pub struct DownloadManager {
     download_path: Arc<RwLock<PathBuf>>,
     max_concurrent: Arc<RwLock<usize>>,
     active_count: Arc<Mutex<usize>>,
+    #[allow(dead_code)]
     server_url: Arc<RwLock<String>>,
+    #[allow(dead_code)]
     auth_token: Arc<RwLock<Option<String>>>,
 }
 
@@ -76,6 +78,7 @@ impl DownloadManager {
         }
     }
 
+    #[allow(dead_code)]
     pub async fn set_server_config(&mut self, server_url: String, auth_token: Option<String>) {
         *self.server_url.write().await = server_url;
         *self.auth_token.write().await = auth_token;
