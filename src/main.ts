@@ -198,10 +198,28 @@ function closeSettings() {
   }
 }
 
+async function browseDownloadPath() {
+  try {
+    // @ts-ignore - Tauri dialog API
+    const { open } = await import("@tauri-apps/plugin-dialog");
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      title: "Select Download Location"
+    });
+    
+    if (selected) {
+      const pathInput = document.getElementById("download-path") as HTMLInputElement;
+      pathInput.value = selected as string;
+    }
+  } catch (error) {
+    console.error("Failed to open directory picker:", error);
+  }
+}
+
 async function saveSettings() {
   const pathInput = document.getElementById("download-path") as HTMLInputElement;
   const concurrentInput = document.getElementById("concurrent-downloads") as HTMLInputElement;
-  const tokenInput = document.getElementById("auth-token") as HTMLInputElement;
   const languageSelect = document.getElementById("language-select") as HTMLSelectElement;
 
   try {
@@ -210,10 +228,6 @@ async function saveSettings() {
     }
     if (concurrentInput.value) {
       await invoke("set_concurrent_downloads", { count: parseInt(concurrentInput.value) });
-    }
-    if (tokenInput.value) {
-      await invoke("set_auth_token", { token: tokenInput.value });
-      localStorage.setItem('authToken', tokenInput.value);
     }
     if (languageSelect.value) {
       setLanguage(languageSelect.value as Language);
@@ -230,46 +244,41 @@ async function saveSettings() {
 
 async function checkForUpdates(silent = false) {
   try {
-    // Dynamic import to handle plugin availability
-    // @ts-ignore - Plugin loaded at runtime by Tauri
-    const { check } = await import("@tauri-apps/plugin-updater");
-    // @ts-ignore - Plugin loaded at runtime by Tauri
-    const { relaunch } = await import("@tauri-apps/plugin-process");
-    
     if (!silent) {
       console.log("Checking for updates...");
     }
     
-    const update = await check();
+    // Check GitHub releases for latest version
+    const response = await fetch("https://api.github.com/repos/Nildyanna/armgddn-downloader/releases/latest");
+    if (!response.ok) {
+      throw new Error("Failed to check for updates");
+    }
     
-    if (update?.available) {
+    const release = await response.json();
+    const latestVersion = release.tag_name.replace('v', '');
+    
+    // Get current version from package
+    const currentVersion = "1.0.14"; // This will be updated during build
+    
+    if (latestVersion !== currentVersion) {
       const shouldUpdate = confirm(
-        `Update available: ${update.version}\n\n` +
-        `Current version: ${update.currentVersion}\n\n` +
-        `Would you like to download and install it now?`
+        `Update available: v${latestVersion}\n\n` +
+        `Current version: v${currentVersion}\n\n` +
+        `Would you like to download it from GitHub?`
       );
       
       if (shouldUpdate) {
-        console.log("Downloading update...");
-        await update.downloadAndInstall();
-        
-        const shouldRelaunch = confirm(
-          "Update installed successfully!\n\n" +
-          "The application needs to restart to apply the update. Restart now?"
-        );
-        
-        if (shouldRelaunch) {
-          await relaunch();
-        }
+        // @ts-ignore - Tauri opener API
+        const { open } = await import("@tauri-apps/plugin-opener");
+        await open(release.html_url);
       }
     } else if (!silent) {
       alert("You're already running the latest version!");
     }
   } catch (error) {
-    // Silently log errors when checking on startup
-    console.log("Update check skipped:", error);
+    console.log("Update check failed:", error);
     if (!silent) {
-      alert("Update check is not available in this build.");
+      alert("Failed to check for updates. Please visit:\nhttps://github.com/Nildyanna/armgddn-downloader/releases");
     }
   }
 }
@@ -338,6 +347,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("settings-btn")?.addEventListener("click", openSettings);
   document.getElementById("close-settings-btn")?.addEventListener("click", closeSettings);
   document.getElementById("save-settings-btn")?.addEventListener("click", saveSettings);
+  document.getElementById("browse-path-btn")?.addEventListener("click", browseDownloadPath);
   document.getElementById("check-updates-btn")?.addEventListener("click", () => checkForUpdates());
   document.getElementById("history-btn")?.addEventListener("click", openHistory);
   document.getElementById("close-history-btn")?.addEventListener("click", closeHistory);
