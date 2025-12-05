@@ -87,6 +87,8 @@ body {
 .manifest-input-section {
   padding: 2rem;
   display: flex;
+  justify-content: center;
+  align-items: center;
   gap: 1rem;
   background: var(--bg-secondary);
   border-bottom: 1px solid var(--border-color);
