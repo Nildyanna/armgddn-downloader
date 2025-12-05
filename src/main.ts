@@ -198,11 +198,57 @@ async function saveSettings() {
   }
 }
 
+async function checkForUpdates(silent = false) {
+  try {
+    // Dynamic import to handle plugin availability
+    // @ts-ignore - Plugin loaded at runtime by Tauri
+    const { check } = await import("@tauri-apps/plugin-updater");
+    // @ts-ignore - Plugin loaded at runtime by Tauri
+    const { relaunch } = await import("@tauri-apps/plugin-process");
+    
+    if (!silent) {
+      console.log("Checking for updates...");
+    }
+    
+    const update = await check();
+    
+    if (update?.available) {
+      const shouldUpdate = confirm(
+        `Update available: ${update.version}\n\n` +
+        `Current version: ${update.currentVersion}\n\n` +
+        `Would you like to download and install it now?`
+      );
+      
+      if (shouldUpdate) {
+        console.log("Downloading update...");
+        await update.downloadAndInstall();
+        
+        const shouldRelaunch = confirm(
+          "Update installed successfully!\n\n" +
+          "The application needs to restart to apply the update. Restart now?"
+        );
+        
+        if (shouldRelaunch) {
+          await relaunch();
+        }
+      }
+    } else if (!silent) {
+      alert("You're already running the latest version!");
+    }
+  } catch (error) {
+    if (!silent) {
+      console.error("Failed to check for updates:", error);
+      alert(`Failed to check for updates: ${error}`);
+    }
+  }
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("fetch-manifest-btn")?.addEventListener("click", fetchManifest);
   document.getElementById("settings-btn")?.addEventListener("click", openSettings);
   document.getElementById("close-settings-btn")?.addEventListener("click", closeSettings);
   document.getElementById("save-settings-btn")?.addEventListener("click", saveSettings);
+  document.getElementById("check-updates-btn")?.addEventListener("click", () => checkForUpdates());
 
   // Start auto-refresh
   refreshDownloads();
@@ -215,6 +261,9 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Deep link support - listen for armgddn:// URLs from website
   setupDeepLinkHandler();
+  
+  // Check for updates on startup (silent check)
+  checkForUpdates(true);
 });
 
 async function setupDeepLinkHandler() {

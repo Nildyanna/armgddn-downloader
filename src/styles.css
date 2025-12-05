@@ -45,6 +45,11 @@ body {
   margin: 0;
 }
 
+.header-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
 .settings-btn {
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.2);
