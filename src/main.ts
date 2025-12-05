@@ -212,8 +212,11 @@ async function openSettings() {
       // Load language setting
       const languageSelect = document.getElementById("language-select") as HTMLSelectElement;
       if (languageSelect) languageSelect.value = getLanguage();
+      
+      // Load server URL
+      const serverUrlInput = document.getElementById("server-url") as HTMLInputElement;
+      if (serverUrlInput) serverUrlInput.value = localStorage.getItem('serverUrl') || '';
     } catch (error) {
-      console.error("Failed to load settings:", error);
     }
   }
 }
@@ -229,6 +232,7 @@ async function saveSettings() {
   const pathInput = document.getElementById("download-path") as HTMLInputElement;
   const concurrentInput = document.getElementById("concurrent-downloads") as HTMLInputElement;
   const tokenInput = document.getElementById("auth-token") as HTMLInputElement;
+  const serverUrlInput = document.getElementById("server-url") as HTMLInputElement;
   const languageSelect = document.getElementById("language-select") as HTMLSelectElement;
 
   try {
@@ -240,6 +244,9 @@ async function saveSettings() {
     }
     if (tokenInput.value) {
       await invoke("set_auth_token", { token: tokenInput.value });
+    }
+    if (serverUrlInput.value) {
+      localStorage.setItem('serverUrl', serverUrlInput.value);
     }
     if (languageSelect.value) {
       setLanguage(languageSelect.value as Language);
@@ -381,6 +388,22 @@ window.addEventListener("DOMContentLoaded", async () => {
       console.error("Failed to check scheduled downloads:", error);
     }
   }, 60000);
+  
+  // Report progress to server every 5 seconds (if server URL is configured)
+  window.setInterval(async () => {
+    const serverUrl = localStorage.getItem('serverUrl');
+    if (serverUrl) {
+      try {
+        const authToken = localStorage.getItem('authToken') || null;
+        await invoke("report_progress", { 
+          serverUrl, 
+          authToken 
+        });
+      } catch (error) {
+        // Silently fail - don't spam console
+      }
+    }
+  }, 5000);
 
   // Make functions globally available
   (window as any).openSettings = openSettings;
