@@ -40,7 +40,15 @@
     ],
     "resources": [
       "rclone*"
-    ]
+    ],
+    "windows": {
+      "wix": {
+        "language": "en-US"
+      },
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      }
+    }
   },
   "plugins": {
     "deepLink": {
