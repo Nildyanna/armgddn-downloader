@@ -7,12 +7,22 @@ use std::path::PathBuf;
 // This is intentionally embedded in the app for ease of use
 const RCLONE_ENCRYPTION_KEY: &str = "armgddn-secure-key-2025";
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DownloadHistoryItem {
+    pub filename: String,
+    pub size: u64,
+    pub completed_at: String,
+    pub download_path: String,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AppConfig {
     pub download_path: String,
     pub auth_token: Option<String>,
     pub max_concurrent_downloads: usize,
     pub server_url: String,
+    #[serde(default)]
+    pub download_history: Vec<DownloadHistoryItem>,
 }
 
 impl Default for AppConfig {
@@ -28,6 +38,7 @@ impl Default for AppConfig {
             auth_token: None,
             max_concurrent_downloads: 3,
             server_url: "https://www.armgddnbrowser.com".to_string(),
+            download_history: Vec::new(),
         }
     }
 }
@@ -38,6 +49,7 @@ pub struct AppState {
     pub auth_token: Option<String>,
     pub max_concurrent_downloads: usize,
     pub server_url: String,
+    pub download_history: Vec<DownloadHistoryItem>,
 }
 
 impl AppState {
@@ -63,10 +75,11 @@ impl AppState {
 
         Self {
             download_manager,
-            download_path: config.download_path,
-            auth_token: config.auth_token,
+            download_path: config.download_path.clone(),
+            auth_token: config.auth_token.clone(),
             max_concurrent_downloads: config.max_concurrent_downloads,
-            server_url: config.server_url,
+            server_url: config.server_url.clone(),
+            download_history: config.download_history,
         }
     }
 
@@ -90,6 +103,7 @@ impl AppState {
             auth_token: self.auth_token.clone(),
             max_concurrent_downloads: self.max_concurrent_downloads,
             server_url: self.server_url.clone(),
+            download_history: self.download_history.clone(),
         };
 
         let path = Self::config_path();
