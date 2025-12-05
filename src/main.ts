@@ -279,12 +279,75 @@ async function checkForUpdates(silent = false) {
   }
 }
 
+async function openHistory() {
+  const historyPanel = document.getElementById("history-panel");
+  if (historyPanel) {
+    historyPanel.style.display = "block";
+    await loadHistory();
+  }
+}
+
+function closeHistory() {
+  const historyPanel = document.getElementById("history-panel");
+  if (historyPanel) {
+    historyPanel.style.display = "none";
+  }
+}
+
+async function loadHistory() {
+  try {
+    const history = await invoke("get_download_history") as any[];
+    const container = document.getElementById("history-list");
+    if (!container) return;
+
+    if (history.length === 0) {
+      container.innerHTML = '<div class="empty-state">No download history yet.</div>';
+      return;
+    }
+
+    container.innerHTML = history.map(item => {
+      const sizeMB = (item.size / (1024 * 1024)).toFixed(2);
+      const date = new Date(item.completed_at).toLocaleString();
+      return `
+        <div class="history-item">
+          <div class="history-item-header">
+            <span class="history-filename">📁 ${escapeHtml(item.filename)}</span>
+            <span class="history-size">${sizeMB} MB</span>
+          </div>
+          <div class="history-item-details">
+            <span class="history-date">⏰ ${date}</span>
+            <span class="history-path">📂 ${escapeHtml(item.download_path)}</span>
+          </div>
+        </div>
+      `;
+    }).join("");
+  } catch (error) {
+    console.error("Failed to load history:", error);
+  }
+}
+
+async function clearHistory() {
+  if (!confirm("Are you sure you want to clear all download history?")) {
+    return;
+  }
+  
+  try {
+    await invoke("clear_download_history");
+    await loadHistory();
+  } catch (error) {
+    alert(`Failed to clear history: ${error}`);
+  }
+}
+
 window.addEventListener("DOMContentLoaded", async () => {
   document.getElementById("fetch-manifest-btn")?.addEventListener("click", fetchManifest);
   document.getElementById("settings-btn")?.addEventListener("click", openSettings);
   document.getElementById("close-settings-btn")?.addEventListener("click", closeSettings);
   document.getElementById("save-settings-btn")?.addEventListener("click", saveSettings);
   document.getElementById("check-updates-btn")?.addEventListener("click", () => checkForUpdates());
+  document.getElementById("history-btn")?.addEventListener("click", openHistory);
+  document.getElementById("close-history-btn")?.addEventListener("click", closeHistory);
+  document.getElementById("clear-history-btn")?.addEventListener("click", clearHistory);
 
   // Start auto-refresh
   refreshDownloads();

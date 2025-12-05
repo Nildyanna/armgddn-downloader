@@ -13,6 +13,7 @@
       <header class="app-header">
         <h1>🎮 ARMGDDN Downloader</h1>
         <div class="header-buttons">
+          <button id="history-btn" class="settings-btn">📜 History</button>
           <button id="check-updates-btn" class="settings-btn">🔄 Check for Updates</button>
           <button id="settings-btn" class="settings-btn">⚙️ Settings</button>
         </div>
@@ -60,6 +61,25 @@
             </div>
             
             <button id="save-settings-btn" class="primary-btn">Save Settings</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- History Panel -->
+      <div id="history-panel" class="settings-panel" style="display: none;">
+        <div class="settings-content">
+          <div class="settings-header">
+            <h2>Download History</h2>
+            <button id="close-history-btn" class="close-btn">✕</button>
+          </div>
+          
+          <div class="history-content">
+            <div class="history-actions">
+              <button id="clear-history-btn" class="secondary-btn">🗑️ Clear History</button>
+            </div>
+            <div id="history-list" class="history-list">
+              <div class="empty-state">No download history yet.</div>
+            </div>
           </div>
         </div>
       </div>
