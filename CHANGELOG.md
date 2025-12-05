@@ -5,6 +5,15 @@ All notable changes to ARMGDDN Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.8] - 2025-12-05
+
+### Fixed
+- **Deep Link Launch**: App now handles deep links when launched from browser
+- **Protocol Registration**: NSIS installer hooks properly register armgddn:// protocol
+
+### Changed
+- **Branding**: Replaced controller icon (🎮) with skull logo (💀)
+
 ## [1.0.7] - 2025-12-05
 
 ### Fixed

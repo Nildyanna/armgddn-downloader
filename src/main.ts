@@ -392,15 +392,27 @@ async function setupDeepLinkHandler() {
     // Dynamic import to handle plugin availability
     // @ts-ignore - Plugin loaded at runtime by Tauri
     const deepLinkModule = await import("@tauri-apps/plugin-deep-link");
+    
+    // Register listener for future deep links (when app is already running)
     await deepLinkModule.onOpenUrl((urls: string[]) => {
-      console.log("Deep link received:", urls);
+      console.log("🔗 Deep link received while app running:", urls);
       for (const url of urls) {
         handleDeepLink(url);
       }
     });
-    console.log("Deep link handler registered successfully");
+    
+    // Check if app was launched with a deep link URL
+    const initialUrls = await deepLinkModule.getCurrent();
+    if (initialUrls && initialUrls.length > 0) {
+      console.log("🚀 App launched with deep link:", initialUrls);
+      for (const url of initialUrls) {
+        handleDeepLink(url);
+      }
+    }
+    
+    console.log("✅ Deep link handler registered successfully");
   } catch (error) {
-    console.log("Deep link plugin not available - manual URL entry only");
+    console.log("⚠️ Deep link plugin not available - manual URL entry only");
   }
 }
 
