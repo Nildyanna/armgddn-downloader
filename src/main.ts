@@ -16,37 +16,6 @@ let downloads: DownloadStatus[] = [];
 // @ts-ignore - Used for setInterval, TS doesn't detect usage
 let refreshInterval: ReturnType<typeof setInterval> | null = null;
 
-async function fetchManifest() {
-  const urlInput = document.getElementById("manifest-url") as HTMLInputElement;
-  const url = urlInput.value.trim();
-  
-  if (!url) {
-    alert("Please enter a manifest URL");
-    return;
-  }
-
-  try {
-    const manifest = await invoke("fetch_manifest", { url });
-    console.log("Manifest:", manifest);
-    
-    // Add downloads from manifest
-    const files = (manifest as any).files || [];
-    for (const file of files) {
-      await invoke("add_download", {
-        url: file.url,
-        filename: file.name,
-        size: file.size || 0,
-      });
-    }
-    
-    await refreshDownloads();
-    alert(`Added ${files.length} downloads to queue`);
-  } catch (error) {
-    console.error("Failed to fetch manifest:", error);
-    alert(`Failed to fetch manifest: ${error}`);
-  }
-}
-
 let previousDownloads: DownloadStatus[] = [];
 
 async function refreshDownloads() {
@@ -365,7 +334,6 @@ async function clearHistory() {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
-  document.getElementById("fetch-manifest-btn")?.addEventListener("click", fetchManifest);
   document.getElementById("settings-btn")?.addEventListener("click", openSettings);
   document.getElementById("close-settings-btn")?.addEventListener("click", closeSettings);
   document.getElementById("save-settings-btn")?.addEventListener("click", saveSettings);
@@ -391,10 +359,10 @@ window.addEventListener("DOMContentLoaded", async () => {
   window.setInterval(async () => {
     try {
       const serverUrl = "https://www.armgddnbrowser.com";
-      const authToken = localStorage.getItem('authToken') || null;
+      const sessionToken = localStorage.getItem('sessionToken') || null;
       await invoke("report_progress", { 
         serverUrl, 
-        authToken 
+        authToken: sessionToken 
       });
     } catch (error) {
       // Silently fail - don't spam console
@@ -433,25 +401,62 @@ async function setupDeepLinkHandler() {
 async function handleDeepLink(url: string) {
   console.log("Handling deep link:", url);
   
-  // Parse armgddn://download?manifest=<url>
+  // Parse armgddn://download?manifest=<url>&token=<token>
   try {
     const parsed = new URL(url);
     if (parsed.protocol === "armgddn:" && parsed.hostname === "download") {
       const manifestUrl = parsed.searchParams.get("manifest");
+      const token = parsed.searchParams.get("token");
+      
       if (manifestUrl) {
-        // Decode and set the manifest URL
-        const decodedUrl = decodeURIComponent(manifestUrl);
-        const input = document.getElementById("manifest-url") as HTMLInputElement;
-        if (input) {
-          input.value = decodedUrl;
+        // Store the session token if provided
+        if (token) {
+          localStorage.setItem('sessionToken', token);
+          console.log("📝 Session token stored");
         }
         
+        // Decode the manifest URL
+        const decodedUrl = decodeURIComponent(manifestUrl);
+        
         // Auto-fetch the manifest
-        await fetchManifest();
+        await fetchManifestFromUrl(decodedUrl);
         console.log("📥 Download started from website link");
       }
     }
   } catch (error) {
-    console.error("Failed to parse deep link:", error);
+    console.error("Failed to handle deep link:", error);
+  }
+}
+
+async function fetchManifestFromUrl(url: string) {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`HTTP error! status: ${response.status}`);
+    }
+    const manifest = await response.json();
+    
+    // Add the download
+    await invoke("add_download", {
+      request: {
+        url: manifest.url,
+        filename: manifest.filename,
+        size: manifest.size,
+        scheduled_start: null,
+        category: null
+      }
+    });
+    
+    // Start the download
+    const downloads: any[] = await invoke("get_downloads");
+    const latestDownload = downloads[downloads.length - 1];
+    if (latestDownload) {
+      await invoke("start_download", { id: latestDownload.id });
+    }
+    
+    await refreshDownloads();
+  } catch (error) {
+    console.error("Failed to fetch manifest:", error);
+    alert(`Failed to fetch manifest: ${error}`);
   }
 }
