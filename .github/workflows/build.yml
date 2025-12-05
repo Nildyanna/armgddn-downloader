@@ -98,13 +98,18 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: linux-build
-          path: ./linux-artifacts
+          path: ./artifacts
 
       - name: Download Windows artifacts
         uses: actions/download-artifact@v4
         with:
           name: windows-build
-          path: ./windows-artifacts
+          path: ./artifacts
+
+      - name: List artifacts
+        run: |
+          echo "Listing all downloaded artifacts:"
+          find ./artifacts -type f -ls
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -131,7 +136,9 @@ jobs:
             ### Features
             See [CHANGELOG.md](https://github.com/Nildyanna/armgddn-downloader/blob/main/CHANGELOG.md) for full feature list.
           files: |
-            linux-artifacts/**/*
-            windows-artifacts/**/*
+            artifacts/**/*.deb
+            artifacts/**/*.AppImage
+            artifacts/**/*.msi
+            artifacts/**/*.exe
           draft: false
           prerelease: false
