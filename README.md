@@ -67,6 +67,7 @@ npm run tauri build
 ### Configuration
 
 Settings are stored in:
+
 - **Linux**: `~/.config/armgddn-downloader/config.json`
 - **Windows**: `%APPDATA%\armgddn-downloader\config.json`
 
