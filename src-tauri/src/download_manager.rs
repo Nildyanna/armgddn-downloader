@@ -446,7 +446,7 @@ impl DownloadManager {
         Ok(to_start)
     }
 
-    async fn check_disk_space(download_path: &std::path::Path, required_bytes: u64) -> Result<()> {
+    async fn check_disk_space(_download_path: &std::path::Path, required_bytes: u64) -> Result<()> {
         // Add 100MB buffer for safety
         let required_with_buffer = required_bytes + (100 * 1024 * 1024);
         
