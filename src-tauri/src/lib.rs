@@ -7,6 +7,7 @@ use state::AppState;
 use std::sync::Arc;
 use tauri::Manager;
 use tokio::sync::Mutex;
+use tauri_plugin_notification::NotificationExt;
 
 // Helper to report progress to server (reserved for future use)
 #[allow(dead_code)]
@@ -89,6 +90,8 @@ async fn add_download(
         url,
         filename,
         size,
+        scheduled_start: None,
+        category: None,
     };
     
     let download_id = app_state.download_manager.add_download(request).await
