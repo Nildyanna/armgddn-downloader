@@ -1,5 +1,4 @@
 import { invoke } from "@tauri-apps/api/core";
-import { listen } from "@tauri-apps/api/event";
 import { t, setLanguage, getLanguage, type Language } from "./i18n";
 
 interface DownloadStatus {
