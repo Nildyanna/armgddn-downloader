@@ -29,7 +29,7 @@ export default defineConfig(async () => ({
   // Externalize Tauri plugins so they're loaded at runtime
   build: {
     rollupOptions: {
-      external: ["@tauri-apps/plugin-deep-link"],
+      external: ["@tauri-apps/plugin-deep-link", "@tauri-apps/plugin-updater", "@tauri-apps/plugin-process"],
     },
   },
 }));
