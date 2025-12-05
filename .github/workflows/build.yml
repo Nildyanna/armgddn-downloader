@@ -36,6 +36,26 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf libgtk-3-dev libsoup-3.0-dev libjavascriptcoregtk-4.1-dev
 
+      - name: Download rclone (Linux)
+        if: matrix.platform == 'ubuntu-22.04'
+        run: |
+          cd src-tauri
+          wget -q https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip -q rclone-current-linux-amd64.zip
+          mv rclone-*-linux-amd64/rclone ./rclone
+          chmod +x rclone
+          rm -rf rclone-*-linux-amd64*
+
+      - name: Download rclone (Windows)
+        if: matrix.platform == 'windows-latest'
+        run: |
+          cd src-tauri
+          curl -L -o rclone.zip https://downloads.rclone.org/rclone-current-windows-amd64.zip
+          tar -xf rclone.zip
+          move rclone-*-windows-amd64\rclone.exe rclone.exe
+          rmdir /s /q rclone-*-windows-amd64
+          del rclone.zip
+
       - name: Install frontend dependencies
         run: npm install
 
