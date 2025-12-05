@@ -25,8 +25,7 @@
     },
     "trayIcon": {
       "id": "main",
-      "iconPath": "icons/icon.png",
-      "menuOnLeftClick": false
+      "iconPath": "icons/icon.png"
     }
   },
   "bundle": {
