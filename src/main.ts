@@ -213,9 +213,49 @@ window.addEventListener("DOMContentLoaded", async () => {
   (window as any).closeSettings = closeSettings;
   (window as any).saveSettings = saveSettings;
 
-  // Deep link support will be added in a future update
-  console.log("App initialized successfully");
+  // Deep link support - listen for armgddn:// URLs from website
+  setupDeepLinkHandler();
 });
 
-// Deep link handler - will be re-enabled when plugin is properly configured
-// async function handleDeepLink(url: string) { ... }
+async function setupDeepLinkHandler() {
+  try {
+    // Dynamic import to handle plugin availability
+    // @ts-ignore - Plugin loaded at runtime by Tauri
+    const deepLinkModule = await import("@tauri-apps/plugin-deep-link");
+    await deepLinkModule.onOpenUrl((urls: string[]) => {
+      console.log("Deep link received:", urls);
+      for (const url of urls) {
+        handleDeepLink(url);
+      }
+    });
+    console.log("Deep link handler registered successfully");
+  } catch (error) {
+    console.log("Deep link plugin not available - manual URL entry only");
+  }
+}
+
+async function handleDeepLink(url: string) {
+  console.log("Handling deep link:", url);
+  
+  // Parse armgddn://download?manifest=<url>
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol === "armgddn:" && parsed.hostname === "download") {
+      const manifestUrl = parsed.searchParams.get("manifest");
+      if (manifestUrl) {
+        // Decode and set the manifest URL
+        const decodedUrl = decodeURIComponent(manifestUrl);
+        const input = document.getElementById("manifest-url") as HTMLInputElement;
+        if (input) {
+          input.value = decodedUrl;
+        }
+        
+        // Auto-fetch the manifest
+        await fetchManifest();
+        console.log("📥 Download started from website link");
+      }
+    }
+  } catch (error) {
+    console.error("Failed to parse deep link:", error);
+  }
+}
