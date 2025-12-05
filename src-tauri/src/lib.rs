@@ -282,12 +282,29 @@ pub fn run() {
         .setup(|app| {
             // Setup system tray
             let tray = app.tray_by_id("main").expect("Failed to get tray");
+            
+            // Handle tray icon left-click to restore window
+            let app_handle = app.handle().clone();
+            tray.on_tray_icon_event(move |_tray, event| {
+                if let tray_icon::TrayIconEvent::Click { button, .. } = event {
+                    if button == tray_icon::MouseButton::Left {
+                        if let Some(window) = app_handle.get_webview_window("main") {
+                            let _ = window.show();
+                            let _ = window.set_focus();
+                            let _ = window.unminimize();
+                        }
+                    }
+                }
+            });
+            
+            // Handle tray menu events (right-click menu)
             tray.on_menu_event(|app, event| {
                 match event.id().as_ref() {
                     "show" => {
                         if let Some(window) = app.get_webview_window("main") {
                             let _ = window.show();
                             let _ = window.set_focus();
+                            let _ = window.unminimize();
                         }
                     }
                     "quit" => {
