@@ -11,7 +11,7 @@
   <body>
     <div class="app-container">
       <header class="app-header">
-        <h1>💀 ARMGDDN Downloader</h1>
+        <h1><img src="/skull-logo.png" alt="ARMGDDN" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;" /> ARMGDDN Downloader</h1>
         <div class="header-buttons">
           <button id="history-btn" class="settings-btn">📜 History</button>
           <button id="check-updates-btn" class="settings-btn">🔄 Check for Updates</button>
@@ -45,17 +45,15 @@
           <div class="settings-form">
             <div class="form-group">
               <label for="download-path">Download Location</label>
-              <input type="text" id="download-path" placeholder="/path/to/downloads" />
+              <div style="display: flex; gap: 8px;">
+                <input type="text" id="download-path" placeholder="/path/to/downloads" style="flex: 1;" />
+                <button type="button" id="browse-path-btn" class="settings-btn">Browse...</button>
+              </div>
             </div>
             
             <div class="form-group">
               <label for="concurrent-downloads">Max Concurrent Downloads</label>
-              <input type="number" id="concurrent-downloads" value="3" min="1" max="10" />
-            </div>
-            
-            <div class="form-group">
-              <label for="auth-token">Auth Token (optional)</label>
-              <input type="password" id="auth-token" placeholder="Your auth token" />
+              <input type="number" id="concurrent-downloads" value="3" min="1" max="3" />
             </div>
             
             <div class="form-group">
