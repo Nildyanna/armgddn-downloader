@@ -35,8 +35,7 @@
       "icons/icon.ico"
     ],
     "resources": [
-      "rclone",
-      "rclone.exe"
+      "rclone*"
     ]
   },
   "plugins": {
