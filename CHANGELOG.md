@@ -5,6 +5,13 @@ All notable changes to ARMGDDN Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.17] - 2025-12-05
+
+### Fixed
+- **Protocol Registration**: Register armgddn:// protocol on app startup using Rust
+- **Update Checker**: Added better error handling and logging
+- **Deep Links**: Protocol now registered every time app runs
+
 ## [1.0.16] - 2025-12-05
 
 ### Fixed

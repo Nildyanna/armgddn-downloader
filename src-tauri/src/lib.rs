@@ -9,6 +9,39 @@ use tauri::Manager;
 use tokio::sync::Mutex;
 use tauri_plugin_notification::NotificationExt;
 
+#[cfg(windows)]
+fn register_protocol() -> Result<(), Box<dyn std::error::Error>> {
+    use winreg::enums::*;
+    use winreg::RegKey;
+    
+    let hkcu = RegKey::predef(HKEY_CURRENT_USER);
+    let path = r"Software\Classes\armgddn";
+    
+    // Get the executable path
+    let exe_path = std::env::current_exe()?;
+    let exe_str = exe_path.to_string_lossy().to_string();
+    
+    // Create the protocol key
+    let (key, _) = hkcu.create_subkey(path)?;
+    key.set_value("", &"URL:ARMGDDN Protocol")?;
+    key.set_value("URL Protocol", &"")?;
+    
+    // Set the icon
+    let (icon_key, _) = hkcu.create_subkey(format!("{}\\DefaultIcon", path))?;
+    icon_key.set_value("", &format!("{},0", exe_str))?;
+    
+    // Set the command
+    let (command_key, _) = hkcu.create_subkey(format!("{}\\shell\\open\\command", path))?;
+    command_key.set_value("", &format!("\"{}\" \"%1\"", exe_str))?;
+    
+    Ok(())
+}
+
+#[cfg(not(windows))]
+fn register_protocol() -> Result<(), Box<dyn std::error::Error>> {
+    Ok(()) // No-op on non-Windows platforms
+}
+
 // Helper to report progress to server (reserved for future use)
 #[allow(dead_code)]
 async fn report_progress_to_server(
@@ -310,6 +343,11 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
+            // Register protocol on Windows
+            if let Err(e) = register_protocol() {
+                eprintln!("Failed to register protocol: {}", e);
+            }
+            
             // Setup system tray with menu
             use tauri::menu::{MenuBuilder, MenuItemBuilder};
             
