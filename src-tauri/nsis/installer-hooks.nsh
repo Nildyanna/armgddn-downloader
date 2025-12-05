@@ -12,4 +12,11 @@
 !macro customUnInstall
   ; Unregister armgddn:// protocol
   DeleteRegKey HKCR "armgddn"
+  
+  ; Remove all app data
+  RMDir /r "$APPDATA\com.armgddn.downloader"
+  RMDir /r "$LOCALAPPDATA\com.armgddn.downloader"
+  
+  ; Remove installation directory completely
+  RMDir /r "$INSTDIR"
 !macroend
