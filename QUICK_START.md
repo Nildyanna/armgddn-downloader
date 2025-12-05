@@ -37,11 +37,13 @@ Once the build completes:
 ## Step 4: Test the Apps
 
 **Windows**:
+
 - Run the `.exe` installer
 - App installs to Program Files
 - Test manifest fetching and downloads
 
 **Linux**:
+
 - Install `.deb`: `sudo dpkg -i armgddn-downloader_*.deb`
 - Or run `.AppImage` directly (no install needed)
 - Test manifest fetching and downloads
@@ -49,6 +51,7 @@ Once the build completes:
 ## Step 5: Distribute to Users
 
 Upload the installers to:
+
 - Your website downloads page
 - GitHub Releases (for version tags)
 - Direct links to users
@@ -65,6 +68,7 @@ git push origin v1.0.0
 ```
 
 GitHub will automatically:
+
 - Build both platforms
 - Create a GitHub Release
 - Attach installers to the release
@@ -103,14 +107,17 @@ function showManifestUrl(folderName) {
 ## Troubleshooting
 
 **Build fails on GitHub**:
+
 - Check Actions logs for errors
 - Ensure all files are committed
 
 **Can't create GitHub repo**:
+
 - Make sure you're logged into GitHub
 - Repository name must be unique
 
 **App doesn't work**:
+
 - Check that `/api/download-manifest` endpoint is accessible
 - Verify signed URLs in manifest are valid
 - Test with a small file first
