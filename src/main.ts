@@ -360,6 +360,12 @@ window.addEventListener("DOMContentLoaded", async () => {
     try {
       const serverUrl = "https://www.armgddnbrowser.com";
       const sessionToken = localStorage.getItem('sessionToken') || null;
+      
+      // Debug: log token status
+      if (!sessionToken) {
+        console.log("⚠️ No session token found - progress reporting will not be authenticated");
+      }
+      
       await invoke("report_progress", { 
         serverUrl, 
         authToken: sessionToken 
@@ -399,7 +405,7 @@ async function setupDeepLinkHandler() {
 }
 
 async function handleDeepLink(url: string) {
-  console.log("Handling deep link:", url);
+  console.log("📨 Handling deep link:", url);
   
   // Parse armgddn://download?manifest=<url>&token=<token>
   try {
@@ -408,11 +414,15 @@ async function handleDeepLink(url: string) {
       const manifestUrl = parsed.searchParams.get("manifest");
       const token = parsed.searchParams.get("token");
       
+      console.log("🔍 Deep link parsed - manifest:", manifestUrl ? "✓" : "✗", "token:", token ? "✓" : "✗");
+      
       if (manifestUrl) {
         // Store the session token if provided
         if (token) {
           localStorage.setItem('sessionToken', token);
-          console.log("📝 Session token stored");
+          console.log("✅ Session token stored successfully");
+        } else {
+          console.warn("⚠️ No session token in deep link - progress reporting will fail");
         }
         
         // Decode the manifest URL
@@ -424,7 +434,7 @@ async function handleDeepLink(url: string) {
       }
     }
   } catch (error) {
-    console.error("Failed to handle deep link:", error);
+    console.error("❌ Failed to handle deep link:", error);
   }
 }
 
