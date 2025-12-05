@@ -299,14 +299,13 @@ pub fn run() {
 
             // Handle window close event - hide to tray instead of closing
             if let Some(window) = app.get_webview_window("main") {
-                window.on_window_event(|event| {
+                let window_clone = window.clone();
+                window.on_window_event(move |event| {
                     if let tauri::WindowEvent::CloseRequested { api, .. } = event {
                         // Prevent the window from closing
                         api.prevent_close();
                         // Hide the window instead
-                        if let Some(window) = event.window().get_webview_window() {
-                            let _ = window.hide();
-                        }
+                        let _ = window_clone.hide();
                     }
                 });
             }
