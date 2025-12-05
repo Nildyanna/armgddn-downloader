@@ -5,6 +5,21 @@ All notable changes to ARMGDDN Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.15] - 2025-12-05
+
+### Added
+- **Browse Button**: Added folder picker for download location selection
+- **Skull Logo**: Using actual icon image instead of emoji
+- **GitHub Update Checker**: Replaced broken updater plugin with GitHub API check
+
+### Fixed
+- **Centered Panels**: Settings and history panels now properly centered
+- **Empty State Message**: Fixed JavaScript hardcoded message
+- **Max Downloads**: Capped at 3, users can lower to 1 or 2
+
+### Removed
+- **Auth Token Field**: Removed from settings UI
+
 ## [1.0.14] - 2025-12-05
 
 ### Fixed
