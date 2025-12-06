@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.22] - 2025-12-06
+
+### Fixed
+- **Download Command**: Use snake_case `download_id` parameter to match Rust backend
+- **Parameter Consistency**: Fixed all start_download calls to use correct parameter name
+
 ## [1.0.21] - 2025-12-06
 
 ### Added
