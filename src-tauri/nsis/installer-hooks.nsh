@@ -2,6 +2,19 @@
 ; This file adds protocol registration to the default Tauri installer
 
 !macro customInstall
+  ; Kill any running instances before installing
+  nsExec::ExecToLog 'taskkill /F /IM "ARMGDDN Downloader.exe"'
+  Sleep 1000
+  
+  ; Force delete old files to prevent caching
+  Delete "$INSTDIR\ARMGDDN Downloader.exe"
+  Delete "$INSTDIR\*.dll"
+  RMDir /r "$INSTDIR\resources"
+  
+  ; Clear app data cache
+  RMDir /r "$APPDATA\com.armgddn.downloader\webview"
+  RMDir /r "$LOCALAPPDATA\com.armgddn.downloader\webview"
+  
   ; Register armgddn:// protocol in HKCU (doesn't require admin)
   WriteRegStr HKCU "Software\Classes\armgddn" "" "URL:ARMGDDN Protocol"
   WriteRegStr HKCU "Software\Classes\armgddn" "URL Protocol" ""
