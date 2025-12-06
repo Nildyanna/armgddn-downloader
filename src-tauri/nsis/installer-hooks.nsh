@@ -1,17 +1,14 @@
 ; Custom NSIS hooks for ARMGDDN Downloader
 ; This file adds protocol registration to the default Tauri installer
 
-!macro customInstall
+!macro customInit
   ; Kill any running instances before installing
   nsExec::ExecToLog 'taskkill /F /IM "ARMGDDN Downloader.exe"'
-  Sleep 1000
-  
-  ; Force delete old files to prevent caching
-  Delete "$INSTDIR\ARMGDDN Downloader.exe"
-  Delete "$INSTDIR\*.dll"
-  RMDir /r "$INSTDIR\resources"
-  
-  ; Clear app data cache
+  Sleep 2000
+!macroend
+
+!macro customInstall
+  ; Clear app data cache to force fresh load
   RMDir /r "$APPDATA\com.armgddn.downloader\webview"
   RMDir /r "$LOCALAPPDATA\com.armgddn.downloader\webview"
   
