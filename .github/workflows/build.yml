@@ -69,12 +69,23 @@ jobs:
       - name: Install frontend dependencies
         run: npm install
 
-      - name: Clean build artifacts
+      - name: Clean ALL build artifacts
         run: |
           rm -rf dist
           rm -rf node_modules/.vite
-          rm -rf src-tauri/target/release/bundle
-          rm -rf src-tauri/target/release/build
+          rm -rf src-tauri/target
+        shell: bash
+
+      - name: Build frontend (force fresh)
+        run: npm run build
+        shell: bash
+
+      - name: Verify frontend built
+        run: |
+          echo "Checking dist folder..."
+          ls -la dist/
+          echo "Checking for alert in HTML..."
+          grep -o "v3.6.3" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
         shell: bash
 
       - name: Build Tauri app
