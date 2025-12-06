@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { t, setLanguage, getLanguage, type Language } from "./i18n";
 
-interface DownloadStatus {
+interface DownloadStatus{
   id: string;
   filename: string;
   url: string;
@@ -277,7 +277,7 @@ async function checkForUpdates(silent = false) {
     const latestVersion = release.tag_name.replace('v', '');
     
     // Get current version from package
-    const currentVersion = "3.5.7"; // This will be updated during build
+    const currentVersion = "3.5.8"; // This will be updated during build
     
     console.log(`Current: v${currentVersion}, Latest: v${latestVersion}`);
     
@@ -365,7 +365,7 @@ async function clearHistory() {
 }
 
 // Show version immediately when script loads
-alert(`ARMGDDN Downloader v3.5.7 loaded! Deep link debugging enabled.`);
+alert(`ARMGDDN Downloader v3.5.8 loaded! Deep link debugging enabled.`);
 
 window.addEventListener("DOMContentLoaded", async () => {
   
