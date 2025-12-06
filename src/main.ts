@@ -277,7 +277,7 @@ async function checkForUpdates(silent = false) {
     const latestVersion = release.tag_name.replace('v', '');
     
     // Get current version from package
-    const currentVersion = "1.0.22"; // This will be updated during build
+    const currentVersion = "1.0.23"; // This will be updated during build
     
     console.log(`Current: v${currentVersion}, Latest: v${latestVersion}`);
     
@@ -450,15 +450,20 @@ async function setupDeepLinkHandler() {
 
 async function handleDeepLink(url: string) {
   console.log("📨 Handling deep link:", url);
+  alert(`Deep link received: ${url}`);
   
   // Parse armgddn://download?manifest=<url>&token=<token>
   try {
     const parsed = new URL(url);
+    console.log("Parsed URL:", parsed);
+    alert(`Protocol: ${parsed.protocol}, Host: ${parsed.hostname}`);
+    
     if (parsed.protocol === "armgddn:" && parsed.hostname === "download") {
       const manifestUrl = parsed.searchParams.get("manifest");
       const token = parsed.searchParams.get("token");
       
       console.log("🔍 Deep link parsed - manifest:", manifestUrl ? "✓" : "✗", "token:", token ? "✓" : "✗");
+      alert(`Manifest: ${manifestUrl ? "Found" : "Missing"}, Token: ${token ? "Found" : "Missing"}`);
       
       if (manifestUrl) {
         // Store the session token if provided
@@ -471,14 +476,20 @@ async function handleDeepLink(url: string) {
         
         // Decode the manifest URL
         const decodedUrl = decodeURIComponent(manifestUrl);
+        alert(`Starting download from: ${decodedUrl}`);
         
         // Auto-fetch the manifest
         await fetchManifestFromUrl(decodedUrl);
         console.log("📥 Download started from website link");
+      } else {
+        alert("No manifest URL found in deep link!");
       }
+    } else {
+      alert(`Wrong protocol or hostname! Expected armgddn://download, got ${parsed.protocol}//${parsed.hostname}`);
     }
   } catch (error) {
     console.error("❌ Failed to handle deep link:", error);
+    alert(`Deep link error: ${error}`);
   }
 }
 
