@@ -277,7 +277,7 @@ async function checkForUpdates(silent = false) {
     const latestVersion = release.tag_name.replace('v', '');
     
     // Get current version from package
-    const currentVersion = "3.5.5"; // This will be updated during build
+    const currentVersion = "3.5.6"; // This will be updated during build
     
     console.log(`Current: v${currentVersion}, Latest: v${latestVersion}`);
     
@@ -366,7 +366,7 @@ async function clearHistory() {
 
 window.addEventListener("DOMContentLoaded", async () => {
   // Show version on startup to confirm correct build is running
-  alert(`ARMGDDN Downloader v3.5.2 loaded! Deep link debugging enabled.`);
+  alert(`ARMGDDN Downloader v3.5.5 loaded! Deep link debugging enabled.`);
   
   document.getElementById("settings-btn")?.addEventListener("click", openSettings);
   document.getElementById("close-settings-btn")?.addEventListener("click", closeSettings);
