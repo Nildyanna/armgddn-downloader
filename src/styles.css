@@ -287,10 +287,14 @@ body {
   height: 100% !important;
   background: rgba(0, 0, 0, 0.85);
   backdrop-filter: blur(8px);
-  display: flex !important;
+  display: none;
   align-items: center !important;
   justify-content: center !important;
   z-index: 1000;
+}
+
+.settings-panel[style*="display: block"] {
+  display: flex !important;
 }
 
 .settings-content {
