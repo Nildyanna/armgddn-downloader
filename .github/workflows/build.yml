@@ -74,18 +74,27 @@ jobs:
           rm -rf dist
           rm -rf node_modules/.vite
           rm -rf src-tauri/target
+          rm -rf src-tauri/dist
         shell: bash
 
       - name: Build frontend (force fresh)
         run: npm run build
         shell: bash
 
+      - name: Sync dist into src-tauri (for bundling)
+        run: |
+          rm -rf src-tauri/dist
+          cp -r dist src-tauri/dist
+        shell: bash
+
       - name: Verify frontend built
         run: |
           echo "Checking dist folder..."
           ls -la dist/
+          echo "Checking copied dist in src-tauri..."
+          ls -la src-tauri/dist/ || true
           echo "Checking for alert in HTML..."
-          grep -o "v3.6.4" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
+          grep -o "v3.6.5" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
         shell: bash
 
       - name: Build Tauri app
