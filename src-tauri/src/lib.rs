@@ -42,6 +42,11 @@ fn register_protocol() -> Result<(), Box<dyn std::error::Error>> {
     Ok(()) // No-op on non-Windows platforms
 }
 
+#[tauri::command]
+fn open_devtools(window: tauri::Window) {
+    window.open_devtools();
+}
+
 // Helper to report progress to server (reserved for future use)
 #[allow(dead_code)]
 async fn report_progress_to_server(
@@ -492,6 +497,7 @@ pub fn run() {
             clear_download_history,
             check_scheduled_downloads,
             report_progress,
+            open_devtools,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
