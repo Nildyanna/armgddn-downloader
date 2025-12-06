@@ -358,6 +358,12 @@ pub fn run() {
                 eprintln!("Failed to register protocol: {}", e);
             }
             
+            // Force main window to load bundled assets (avoids stale cached sources)
+            if let Some(window) = app.get_webview_window("main") {
+                // Best-effort navigate to bundled index
+                let _ = window.navigate("app://index.html");
+            }
+            
             // Setup system tray with menu
             use tauri::menu::{MenuBuilder, MenuItemBuilder};
             
