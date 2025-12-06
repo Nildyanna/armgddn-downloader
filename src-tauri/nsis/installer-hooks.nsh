@@ -5,12 +5,16 @@
   ; Kill any running instances before installing
   nsExec::ExecToLog 'taskkill /F /IM "ARMGDDN Downloader.exe"'
   Sleep 2000
+  
+  ; Force delete the old exe if it exists
+  Delete "$INSTDIR\ARMGDDN Downloader.exe"
+  Delete "$INSTDIR\*.dll"
 !macroend
 
 !macro customInstall
-  ; Clear app data cache to force fresh load
-  RMDir /r "$APPDATA\com.armgddn.downloader\webview"
-  RMDir /r "$LOCALAPPDATA\com.armgddn.downloader\webview"
+  ; Clear ALL app data to force fresh load
+  RMDir /r "$APPDATA\com.armgddn.downloader"
+  RMDir /r "$LOCALAPPDATA\com.armgddn.downloader"
   
   ; Register armgddn:// protocol in HKCU (doesn't require admin)
   WriteRegStr HKCU "Software\Classes\armgddn" "" "URL:ARMGDDN Protocol"
