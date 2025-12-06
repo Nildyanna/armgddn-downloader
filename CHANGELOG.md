@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Downloader will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.20] - 2025-12-06
+
+### Fixed
+- **Panel Display**: Fixed CSS so panels respect inline display:none while staying centered when visible
+- **Auto-open Issue**: Panels no longer auto-open on app launch
+
 ## [1.0.19] - 2025-12-06
 
 ### Fixed

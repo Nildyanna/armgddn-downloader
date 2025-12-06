@@ -1,6 +1,6 @@
 [package]
 name = "tauri-app"
-version = "1.0.19"
+version = "1.0.20"
 description = "ARMGDDN Downloader - Fast rclone-powered download manager"
 authors = ["Armgddn Games"]
 edition = "2021"
