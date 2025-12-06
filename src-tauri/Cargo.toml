@@ -1,6 +1,6 @@
 [package]
 name = "armgddn-downloader"
-version = "3.6.4"
+version = "3.6.5"
 description = "ARMGDDN Downloader - Fast rclone-powered download manager"
 authors = ["Armgddn Games"]
 edition = "2021"
