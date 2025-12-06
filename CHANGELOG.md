@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Panel Display**: Fixed CSS so panels respect inline display:none while staying centered when visible
 - **Auto-open Issue**: Panels no longer auto-open on app launch
 
+### Added
+- **Dev Tools**: Enabled dev console (F12) for debugging
+
 ## [1.0.19] - 2025-12-06
 
 ### Fixed
