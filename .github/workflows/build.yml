@@ -87,7 +87,7 @@ jobs:
           echo "Checking copied dist in src-tauri..."
           ls -la src-tauri/dist/ || true
           echo "Checking for alert in HTML..."
-          grep -o "v3.6.10" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
+          grep -o "v3.6.11" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
         shell: bash
 
       - name: Build Tauri app
