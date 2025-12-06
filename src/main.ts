@@ -277,7 +277,7 @@ async function checkForUpdates(silent = false) {
     const latestVersion = release.tag_name.replace('v', '');
     
     // Get current version from package
-    const currentVersion = "1.0.20"; // This will be updated during build
+    const currentVersion = "1.0.21"; // This will be updated during build
     
     console.log(`Current: v${currentVersion}, Latest: v${latestVersion}`);
     
@@ -365,6 +365,18 @@ async function clearHistory() {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  // F12 to open dev tools
+  document.addEventListener("keydown", async (e) => {
+    if (e.key === "F12") {
+      e.preventDefault();
+      try {
+        await invoke("open_devtools");
+      } catch (error) {
+        console.error("Failed to open dev tools:", error);
+      }
+    }
+  });
+  
   document.getElementById("settings-btn")?.addEventListener("click", openSettings);
   document.getElementById("close-settings-btn")?.addEventListener("click", closeSettings);
   document.getElementById("save-settings-btn")?.addEventListener("click", saveSettings);
