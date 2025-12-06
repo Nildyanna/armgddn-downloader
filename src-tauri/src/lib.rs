@@ -361,7 +361,9 @@ pub fn run() {
             // Force main window to load bundled assets (avoids stale cached sources)
             if let Some(window) = app.get_webview_window("main") {
                 // Best-effort navigate to bundled index
-                let _ = window.navigate("app://index.html");
+                if let Ok(url) = tauri::Url::parse("app://index.html") {
+                    let _ = window.navigate(url);
+                }
             }
             
             // Setup system tray with menu
