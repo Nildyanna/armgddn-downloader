@@ -8,8 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.21] - 2025-12-06
 
 ### Added
-- **Dev Tools Command**: Added F12 keyboard shortcut to open dev tools via Tauri command
-- **Production Debugging**: Dev tools now work in production builds
+- **Dev Tools**: Enabled via config (right-click → Inspect)
+- **Production Debugging**: Dev tools available in production builds
 
 ## [1.0.20] - 2025-12-06
 

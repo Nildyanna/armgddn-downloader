@@ -365,18 +365,6 @@ async function clearHistory() {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
-  // F12 to open dev tools
-  document.addEventListener("keydown", async (e) => {
-    if (e.key === "F12") {
-      e.preventDefault();
-      try {
-        await invoke("open_devtools");
-      } catch (error) {
-        console.error("Failed to open dev tools:", error);
-      }
-    }
-  });
-  
   document.getElementById("settings-btn")?.addEventListener("click", openSettings);
   document.getElementById("close-settings-btn")?.addEventListener("click", closeSettings);
   document.getElementById("save-settings-btn")?.addEventListener("click", saveSettings);
