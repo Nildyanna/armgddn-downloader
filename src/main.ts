@@ -124,7 +124,7 @@ function escapeHtml(text: string): string {
 
 (window as any).startDownload = async (id: string) => {
   try {
-    await invoke("start_download", { downloadId: id });
+    await invoke("start_download", { download_id: id });
     await refreshDownloads();
   } catch (error) {
     alert(`Failed to start download: ${error}`);
@@ -277,7 +277,7 @@ async function checkForUpdates(silent = false) {
     const latestVersion = release.tag_name.replace('v', '');
     
     // Get current version from package
-    const currentVersion = "1.0.21"; // This will be updated during build
+    const currentVersion = "1.0.22"; // This will be updated during build
     
     console.log(`Current: v${currentVersion}, Latest: v${latestVersion}`);
     
@@ -515,7 +515,7 @@ async function fetchManifestFromUrl(url: string) {
     const latestDownload = downloads[downloads.length - 1];
     if (latestDownload) {
       console.log("Starting download:", latestDownload.id);
-      await invoke("start_download", { downloadId: latestDownload.id });
+      await invoke("start_download", { download_id: latestDownload.id });
       console.log("✅ Download started");
     }
     
