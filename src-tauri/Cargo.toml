@@ -1,6 +1,6 @@
 [package]
 name = "tauri-app"
-version = "1.0.17"
+version = "1.0.18"
 description = "ARMGDDN Downloader - Fast rclone-powered download manager"
 authors = ["Armgddn Games"]
 edition = "2021"
@@ -24,6 +24,8 @@ tauri-plugin-deep-link = "2"
 tauri-plugin-updater = "2"
 tauri-plugin-notification = "2"
 tauri-plugin-dialog = "2"
+tauri-plugin-single-instance = "2"
+tauri-plugin-http = "2"
 tray-icon = "0.19"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

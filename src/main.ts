@@ -259,7 +259,7 @@ async function checkForUpdates(silent = false) {
     const latestVersion = release.tag_name.replace('v', '');
     
     // Get current version from package
-    const currentVersion = "1.0.17"; // This will be updated during build
+    const currentVersion = "1.0.18"; // This will be updated during build
     
     console.log(`Current: v${currentVersion}, Latest: v${latestVersion}`);
     
