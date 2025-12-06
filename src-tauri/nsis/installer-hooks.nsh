@@ -3,11 +3,13 @@
 
 !macro customInit
   ; Kill any running instances before installing
-  nsExec::ExecToLog 'taskkill /F /IM "ARMGDDN Downloader.exe"'
+  nsExec::ExecToLog 'taskkill /F /IM "armgddn-downloader.exe"'
+  nsExec::ExecToLog 'taskkill /F /IM "tauri-app.exe"'
   Sleep 2000
   
-  ; Force delete the old exe if it exists
-  Delete "$INSTDIR\ARMGDDN Downloader.exe"
+  ; Force delete old exe files if they exist
+  Delete "$INSTDIR\armgddn-downloader.exe"
+  Delete "$INSTDIR\tauri-app.exe"
   Delete "$INSTDIR\*.dll"
 !macroend
 
@@ -19,18 +21,18 @@
   ; Register armgddn:// protocol in HKCU (doesn't require admin)
   WriteRegStr HKCU "Software\Classes\armgddn" "" "URL:ARMGDDN Protocol"
   WriteRegStr HKCU "Software\Classes\armgddn" "URL Protocol" ""
-  WriteRegStr HKCU "Software\Classes\armgddn\DefaultIcon" "" "$INSTDIR\ARMGDDN Downloader.exe,0"
-  WriteRegStr HKCU "Software\Classes\armgddn\shell\open\command" "" '"$INSTDIR\ARMGDDN Downloader.exe" "%1"'
+  WriteRegStr HKCU "Software\Classes\armgddn\DefaultIcon" "" "$INSTDIR\armgddn-downloader.exe,0"
+  WriteRegStr HKCU "Software\Classes\armgddn\shell\open\command" "" '"$INSTDIR\armgddn-downloader.exe" "%1"'
   
   ; Also try HKCR for system-wide registration (may fail without admin, but that's ok)
   WriteRegStr HKCR "armgddn" "" "URL:ARMGDDN Protocol"
   WriteRegStr HKCR "armgddn" "URL Protocol" ""
-  WriteRegStr HKCR "armgddn\DefaultIcon" "" "$INSTDIR\ARMGDDN Downloader.exe,0"
-  WriteRegStr HKCR "armgddn\shell\open\command" "" '"$INSTDIR\ARMGDDN Downloader.exe" "%1"'
+  WriteRegStr HKCR "armgddn\DefaultIcon" "" "$INSTDIR\armgddn-downloader.exe,0"
+  WriteRegStr HKCR "armgddn\shell\open\command" "" '"$INSTDIR\armgddn-downloader.exe" "%1"'
   
   ; Fix desktop shortcut icon
   SetOutPath "$INSTDIR"
-  CreateShortcut "$DESKTOP\ARMGDDN Downloader.lnk" "$INSTDIR\ARMGDDN Downloader.exe" "" "$INSTDIR\ARMGDDN Downloader.exe" 0
+  CreateShortcut "$DESKTOP\ARMGDDN Downloader.lnk" "$INSTDIR\armgddn-downloader.exe" "" "$INSTDIR\armgddn-downloader.exe" 0
 !macroend
 
 !macro customUnInstall
