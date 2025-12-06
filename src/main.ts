@@ -199,21 +199,29 @@ function closeSettings() {
 }
 
 async function browseDownloadPath() {
+  console.log("Browse button clicked!");
   try {
+    console.log("Importing dialog plugin...");
     // @ts-ignore - Tauri dialog API
     const { open } = await import("@tauri-apps/plugin-dialog");
+    console.log("Opening directory picker...");
+    
     const selected = await open({
       directory: true,
       multiple: false,
       title: "Select Download Location"
     });
     
+    console.log("Selected path:", selected);
+    
     if (selected) {
       const pathInput = document.getElementById("download-path") as HTMLInputElement;
       pathInput.value = selected as string;
+      console.log("Path input updated");
     }
   } catch (error) {
     console.error("Failed to open directory picker:", error);
+    alert(`Failed to open folder picker: ${error}`);
   }
 }
 
@@ -243,23 +251,33 @@ async function saveSettings() {
 }
 
 async function checkForUpdates(silent = false) {
+  if (!silent) {
+    console.log("Update button clicked!");
+  }
+  
   try {
     if (!silent) {
-      console.log("Checking for updates...");
       alert("Checking for updates...");
     }
     
+    console.log("Fetching from GitHub API...");
+    
     // Check GitHub releases for latest version
     const response = await fetch("https://api.github.com/repos/Nildyanna/armgddn-downloader/releases/latest");
+    
+    console.log("Response status:", response.status);
+    
     if (!response.ok) {
       throw new Error(`HTTP ${response.status}: ${response.statusText}`);
     }
     
     const release = await response.json();
+    console.log("Release data:", release);
+    
     const latestVersion = release.tag_name.replace('v', '');
     
     // Get current version from package
-    const currentVersion = "1.0.18"; // This will be updated during build
+    const currentVersion = "1.0.19"; // This will be updated during build
     
     console.log(`Current: v${currentVersion}, Latest: v${latestVersion}`);
     
@@ -465,14 +483,19 @@ async function handleDeepLink(url: string) {
 }
 
 async function fetchManifestFromUrl(url: string) {
+  console.log("📡 Fetching manifest from:", url);
   try {
     const response = await fetch(url);
+    console.log("Manifest response status:", response.status);
+    
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
     const manifest = await response.json();
+    console.log("📦 Manifest data:", manifest);
     
     // Add the download
+    console.log("Adding download to queue...");
     await invoke("add_download", {
       request: {
         url: manifest.url,
@@ -482,17 +505,24 @@ async function fetchManifestFromUrl(url: string) {
         category: null
       }
     });
+    console.log("✅ Download added");
     
     // Start the download
+    console.log("Getting downloads list...");
     const downloads: any[] = await invoke("get_downloads");
+    console.log("Downloads:", downloads);
+    
     const latestDownload = downloads[downloads.length - 1];
     if (latestDownload) {
-      await invoke("start_download", { id: latestDownload.id });
+      console.log("Starting download:", latestDownload.id);
+      await invoke("start_download", { downloadId: latestDownload.id });
+      console.log("✅ Download started");
     }
     
     await refreshDownloads();
+    alert("Download started successfully!");
   } catch (error) {
-    console.error("Failed to fetch manifest:", error);
-    alert(`Failed to fetch manifest: ${error}`);
+    console.error("❌ Failed to fetch manifest:", error);
+    alert(`Failed to start download: ${error}`);
   }
 }
