@@ -43,8 +43,10 @@ fn register_protocol() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[tauri::command]
-fn open_devtools(window: tauri::Window) {
-    window.open_devtools();
+fn open_devtools(app: tauri::AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        window.open_devtools();
+    }
 }
 
 // Helper to report progress to server (reserved for future use)
