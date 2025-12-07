@@ -27,16 +27,16 @@
       "renderer/**/*",
       "assets/**/*"
     ],
-    "extraResources": [
-      {
-        "from": "rclone/${os}",
-        "to": "rclone",
-        "filter": ["**/*"]
-      }
-    ],
     "win": {
       "target": ["nsis"],
-      "icon": "assets/icon.ico"
+      "icon": "assets/icon.ico",
+      "extraResources": [
+        {
+          "from": "rclone/win32",
+          "to": "rclone",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "nsis": {
       "oneClick": false,
@@ -48,7 +48,14 @@
     "linux": {
       "target": ["AppImage", "deb"],
       "icon": "assets/icon.png",
-      "category": "Utility"
+      "category": "Utility",
+      "extraResources": [
+        {
+          "from": "rclone/linux",
+          "to": "rclone",
+          "filter": ["**/*"]
+        }
+      ]
     },
     "protocols": {
       "name": "ARMGDDN Protocol",
