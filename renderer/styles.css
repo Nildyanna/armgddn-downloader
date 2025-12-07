@@ -237,6 +237,14 @@ body {
   color: #ff6b6b;
 }
 
+.download-disclaimer {
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  font-style: italic;
+  padding: 0.5rem 0;
+  opacity: 0.8;
+}
+
 .download-actions {
   display: flex;
   gap: 0.5rem;

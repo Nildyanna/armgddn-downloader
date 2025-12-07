@@ -19,9 +19,10 @@ async function init() {
   // Load history
   await loadHistory();
   
-  // Display version
+  // Display version in UI and title bar
   const version = await api.getVersion();
   document.getElementById('version-display').textContent = `Version ${version}`;
+  document.title = `ARMGDDN Downloader v${version}`;
   
   // Setup event listeners
   setupEventListeners();
@@ -175,6 +176,9 @@ function renderDownloads() {
       <div class="download-info">
         <span>${download.progress || 0}% ${download.currentFile ? `- ${escapeHtml(download.currentFile)}` : ''}</span>
         <span>${download.speed || ''} ${download.eta ? `ETA: ${download.eta}` : ''}</span>
+      </div>
+      <div class="download-disclaimer">
+        It is normal for downloads to pause for periods of time - especially at the end. This is the server verifying the transfer in real time.
       </div>
       <div class="download-actions">
         ${download.status === 'downloading' ? `<button class="cancel-btn" onclick="cancelDownload('${id}')">Cancel</button>` : ''}
