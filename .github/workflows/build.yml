@@ -76,19 +76,32 @@ jobs:
           rm -rf src-tauri/target
         shell: bash
 
-      - name: Build Tauri app (beforeBuildCommand will build frontend)
-        run: |
-          echo "Current directory: $(pwd)"
-          echo "Building with tauri CLI (beforeBuildCommand will run npm run build)..."
-          npx tauri build -v
+      - name: Build frontend first
+        run: npm run build
         shell: bash
 
-      - name: Verify embedded assets
+      - name: Verify dist exists before Tauri build
         run: |
-          echo "Checking dist folder after build..."
+          echo "=== Checking dist folder ==="
           ls -la dist/
-          echo "Checking for version in HTML..."
-          grep -o "v3.6.18" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
+          echo "=== dist/index.html content ==="
+          cat dist/index.html | head -50
+          echo "=== Checking for v3.6.19 ==="
+          grep "3.6.19" dist/index.html || echo "VERSION NOT FOUND!"
+        shell: bash
+
+      - name: Build Tauri app (no beforeBuildCommand since we built manually)
+        run: npx tauri build --ci
+        env:
+          TAURI_CLI_NO_DEV_SERVER_WAIT: true
+        shell: bash
+
+      - name: Verify build output
+        run: |
+          echo "=== Checking build output ==="
+          ls -la src-tauri/target/release/ | head -20
+          echo "=== Binary size ==="
+          ls -lh src-tauri/target/release/armgddn-downloader* 2>/dev/null || ls -lh src-tauri/target/release/*.exe 2>/dev/null || echo "Binary not found"
         shell: bash
 
       - name: Upload artifacts (Linux)
