@@ -281,6 +281,8 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
   }
   
   return new Promise((resolve, reject) => {
+    console.log('Raw manifest URL:', manifestUrl);
+    
     const parsedUrl = new URL(manifestUrl);
     
     // Security: Enforce HTTPS only
@@ -293,11 +295,19 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
     // Extract query params to send as POST body
     const remote = parsedUrl.searchParams.get('remote');
     const pathParam = parsedUrl.searchParams.get('path');
+    
+    console.log('Parsed params - remote:', remote, 'path:', pathParam);
+    
+    if (!remote || !pathParam) {
+      reject(new Error(`Missing remote or path in manifest URL. Got remote="${remote}", path="${pathParam}"`));
+      return;
+    }
+    
     const postData = JSON.stringify({ remote, path: pathParam });
     
     const options = {
       hostname: parsedUrl.hostname,
-      port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+      port: parsedUrl.port || 443,
       path: parsedUrl.pathname,
       method: 'POST',
       headers: {
@@ -307,7 +317,7 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
       }
     };
     
-    console.log('Fetching manifest:', options.hostname, options.path, { remote, path: pathParam });
+    console.log('POST request:', options.hostname + options.path, 'body:', postData);
     
     const req = protocol.request(options, (res) => {
       let data = '';
