@@ -388,10 +388,12 @@ ipcMain.handle('start-download', async (event, manifest) => {
   let totalSize = 0;
   
   if (manifest.files && Array.isArray(manifest.files)) {
-    // Standard format: { files: [...], name: "..." }
+    // Standard format: { files: [...], path: "...", ... }
     files = manifest.files;
-    name = manifest.name || 'Unknown';
-    totalSize = manifest.totalSize || 0;
+    // Extract folder name from path (e.g., "PC1/Game Name" -> "Game Name")
+    const folderPath = manifest.path || manifest.name || '';
+    name = folderPath.split('/').pop() || 'Download';
+    totalSize = manifest.totalSize || files.reduce((sum, f) => sum + (f.size || 0), 0);
   } else if (manifest.url) {
     // Single file format: { url: "...", name: "...", size: ... }
     files = [{ url: manifest.url, name: manifest.name || 'download', size: manifest.size || 0 }];
