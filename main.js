@@ -289,18 +289,44 @@ ipcMain.handle('fetch-manifest', async (event, url, token) => {
 
 // Start download
 ipcMain.handle('start-download', async (event, manifest) => {
+  console.log('Received manifest:', JSON.stringify(manifest, null, 2));
+  
   const downloadId = crypto.randomUUID();
+  
+  // Handle different manifest structures
+  let files = [];
+  let name = 'Unknown';
+  let totalSize = 0;
+  
+  if (manifest.files && Array.isArray(manifest.files)) {
+    // Standard format: { files: [...], name: "..." }
+    files = manifest.files;
+    name = manifest.name || 'Unknown';
+    totalSize = manifest.totalSize || 0;
+  } else if (manifest.url) {
+    // Single file format: { url: "...", name: "...", size: ... }
+    files = [{ url: manifest.url, name: manifest.name || 'download', size: manifest.size || 0 }];
+    name = manifest.name || 'download';
+    totalSize = manifest.size || 0;
+  } else if (Array.isArray(manifest)) {
+    // Array of files directly
+    files = manifest;
+    name = manifest[0]?.name || 'download';
+  } else {
+    console.error('Unknown manifest format:', manifest);
+    throw new Error('Unknown manifest format. Expected files array or url property.');
+  }
   
   const download = {
     id: downloadId,
-    name: manifest.name || 'Unknown',
+    name: name,
     status: 'starting',
     progress: 0,
     speed: '',
     eta: '',
-    totalSize: manifest.totalSize || 0,
+    totalSize: totalSize,
     downloadedSize: 0,
-    files: manifest.files || [],
+    files: files,
     startTime: new Date().toISOString()
   };
 
@@ -308,13 +334,13 @@ ipcMain.handle('start-download', async (event, manifest) => {
   mainWindow.webContents.send('download-started', download);
 
   // Create download directory
-  const downloadDir = path.join(settings.downloadPath, manifest.name || 'download');
+  const downloadDir = path.join(settings.downloadPath, name);
   if (!fs.existsSync(downloadDir)) {
     fs.mkdirSync(downloadDir, { recursive: true });
   }
 
   // Start rclone for each file
-  for (const file of manifest.files) {
+  for (const file of files) {
     await downloadFile(downloadId, file, downloadDir);
   }
 
