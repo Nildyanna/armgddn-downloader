@@ -391,10 +391,19 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
   });
 });
 
+// Debug log to file for troubleshooting
+function debugLog(message) {
+  const logPath = path.join(app.getPath('userData'), 'debug.log');
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] ${message}\n`;
+  fs.appendFileSync(logPath, logLine);
+  console.log(message);
+}
+
 // Report progress to website server
 async function reportProgressToServer(download, token) {
   if (!token) {
-    console.log('No token for progress reporting');
+    debugLog('No token for progress reporting');
     return;
   }
   
@@ -408,7 +417,7 @@ async function reportProgressToServer(download, token) {
       error: download.error || null
     });
     
-    console.log('Reporting progress to server:', postData);
+    debugLog(`Reporting progress: ${postData.substring(0, 100)}...`);
     
     const options = {
       hostname: 'www.armgddnbrowser.com',
@@ -426,25 +435,25 @@ async function reportProgressToServer(download, token) {
       let responseData = '';
       res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
-        console.log('Progress report response:', res.statusCode, responseData);
+        debugLog(`Progress response: ${res.statusCode} ${responseData}`);
       });
     });
     
     req.on('error', (err) => {
-      console.log('Progress report failed (non-critical):', err.message);
+      debugLog(`Progress report error: ${err.message}`);
     });
     
     req.write(postData);
     req.end();
   } catch (err) {
-    console.log('Progress report error (non-critical):', err.message);
+    debugLog(`Progress report exception: ${err.message}`);
   }
 }
 
 // Start download
 ipcMain.handle('start-download', async (event, manifest, token) => {
+  debugLog(`Download started - Token: ${token ? `[${token.substring(0, 8)}...]` : '[MISSING]'}`);
   console.log('Received manifest:', JSON.stringify(manifest, null, 2));
-  console.log('Session token for progress reporting:', token ? `[${token.substring(0, 8)}...]` : '[missing]');
   
   const downloadId = crypto.randomUUID();
   
