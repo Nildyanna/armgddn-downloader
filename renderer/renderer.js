@@ -150,8 +150,37 @@ async function handleDeepLink(url) {
   }
 }
 
-// Render downloads list
+// Throttle rendering to prevent flashing
+let renderScheduled = false;
+let lastRenderTime = 0;
+const RENDER_THROTTLE = 500; // Render at most every 500ms
+
+function scheduleRender() {
+  if (renderScheduled) return;
+  
+  const now = Date.now();
+  const timeSinceLastRender = now - lastRenderTime;
+  
+  if (timeSinceLastRender >= RENDER_THROTTLE) {
+    // Render immediately
+    renderDownloadsNow();
+  } else {
+    // Schedule render
+    renderScheduled = true;
+    setTimeout(() => {
+      renderScheduled = false;
+      renderDownloadsNow();
+    }, RENDER_THROTTLE - timeSinceLastRender);
+  }
+}
+
+// Render downloads list - updates in place when possible
 function renderDownloads() {
+  scheduleRender();
+}
+
+function renderDownloadsNow() {
+  lastRenderTime = Date.now();
   const container = document.getElementById('downloads-list');
   
   if (downloads.size === 0) {
@@ -159,11 +188,23 @@ function renderDownloads() {
     return;
   }
   
-  container.innerHTML = '';
+  // Update existing items or create new ones
+  const existingItems = container.querySelectorAll('.download-item');
+  const existingIds = new Set();
+  existingItems.forEach(item => existingIds.add(item.dataset.id));
   
   for (const [id, download] of downloads) {
-    const item = document.createElement('div');
-    item.className = `download-item ${download.status}`;
+    let item = container.querySelector(`.download-item[data-id="${id}"]`);
+    
+    if (!item) {
+      // Create new item
+      item = document.createElement('div');
+      item.className = `download-item ${download.status}`;
+      item.dataset.id = id;
+      container.appendChild(item);
+    } else {
+      item.className = `download-item ${download.status}`;
+    }
     
     // Build active files list
     let activeFilesHtml = '';
@@ -195,6 +236,8 @@ function renderDownloads() {
       'error': 'Error'
     }[download.status] || download.status;
     
+    const isActive = download.status === 'downloading' || download.status === 'in_progress';
+    
     item.innerHTML = `
       <div class="download-header">
         <span class="download-filename">${escapeHtml(download.name)}</span>
@@ -214,14 +257,33 @@ function renderDownloads() {
         It is normal for downloads to pause for periods of time - especially at the end. This is the server verifying the transfer in real time.
       </div>
       <div class="download-actions">
-        ${download.status === 'downloading' || download.status === 'in_progress' ? `<button class="cancel-btn" onclick="cancelDownload('${id}')">Cancel</button>` : ''}
-        ${download.status === 'completed' ? `<button onclick="openDownloadFolder()">Open Folder</button>` : ''}
-        ${download.status === 'error' ? `<button class="retry-btn" onclick="retryDownload('${id}')">Retry</button>` : ''}
+        ${isActive ? `<button class="cancel-btn" data-download-id="${id}">Cancel</button>` : ''}
+        ${download.status === 'completed' ? `<button class="open-folder-btn">Open Folder</button>` : ''}
+        ${download.status === 'error' ? `<button class="retry-btn" data-download-id="${id}">Retry</button>` : ''}
       </div>
     `;
     
-    container.appendChild(item);
+    // Attach event listeners directly instead of using onclick
+    const cancelBtn = item.querySelector('.cancel-btn');
+    if (cancelBtn) {
+      cancelBtn.onclick = () => cancelDownload(id);
+    }
+    const openBtn = item.querySelector('.open-folder-btn');
+    if (openBtn) {
+      openBtn.onclick = () => openDownloadFolder();
+    }
+    const retryBtn = item.querySelector('.retry-btn');
+    if (retryBtn) {
+      retryBtn.onclick = () => retryDownload(id);
+    }
   }
+  
+  // Remove items that no longer exist
+  existingItems.forEach(item => {
+    if (!downloads.has(item.dataset.id)) {
+      item.remove();
+    }
+  });
 }
 
 // Cancel download

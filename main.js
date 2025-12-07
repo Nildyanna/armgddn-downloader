@@ -514,8 +514,8 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   // Report initial progress to server
   reportProgressToServer(download, token);
 
-  // Download files in parallel (up to 4 concurrent downloads)
-  const PARALLEL_DOWNLOADS = 4;
+  // Download files in parallel (up to 6 concurrent downloads for better speed)
+  const PARALLEL_DOWNLOADS = 6;
   const fileQueue = [...files];
   const activePromises = [];
   
@@ -612,9 +612,11 @@ async function downloadFile(downloadId, file, downloadDir) {
       outputPath,
       '--progress',
       '-v',
-      '--multi-thread-streams', '16',  // Use 16 parallel streams per file for faster downloads
-      '--multi-thread-cutoff', '1M',   // Enable multi-thread for files > 1MB
-      '--buffer-size', '64M',          // Larger buffer for better throughput
+      '--buffer-size', '128M',         // Large buffer for better throughput
+      '--no-check-certificate',        // Skip SSL verification for speed
+      '--contimeout', '30s',           // Connection timeout
+      '--timeout', '300s',             // Overall timeout
+      '--low-level-retries', '3',      // Retry on low-level errors
       '--drive-acknowledge-abuse'      // Bypass Google Drive virus scan warnings
     ];
 
