@@ -76,29 +76,19 @@ jobs:
           rm -rf src-tauri/target
         shell: bash
 
-      - name: Build frontend (force fresh)
-        run: npm run build
-        shell: bash
-
-      - name: Verify frontend built
-        run: |
-          echo "Checking dist folder..."
-          ls -la dist/
-          echo "Checking for version in HTML..."
-          grep -o "v3.6.17" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
-          echo "Contents of dist/index.html head:"
-          head -30 dist/index.html
-        shell: bash
-
-      - name: Build Tauri app
+      - name: Build Tauri app (beforeBuildCommand will build frontend)
         run: |
           echo "Current directory: $(pwd)"
-          echo "Contents of dist (project root):"
-          ls -la dist/
-          echo "Checking ../dist from src-tauri perspective:"
-          cd src-tauri && ls -la ../dist/ && cd ..
-          echo "Building with tauri CLI..."
+          echo "Building with tauri CLI (beforeBuildCommand will run npm run build)..."
           npx tauri build -v
+        shell: bash
+
+      - name: Verify embedded assets
+        run: |
+          echo "Checking dist folder after build..."
+          ls -la dist/
+          echo "Checking for version in HTML..."
+          grep -o "v3.6.18" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
         shell: bash
 
       - name: Upload artifacts (Linux)
