@@ -298,19 +298,23 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
     const params = {};
     
     for (const pair of queryString.split('&')) {
-      const [key, value] = pair.split('=');
-      if (key && value) {
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex > 0) {
+        const key = pair.substring(0, eqIndex);
+        const value = pair.substring(eqIndex + 1);
         // Decode: first replace + with space, then decode URI components
-        params[decodeURIComponent(key)] = decodeURIComponent(value.replace(/\+/g, ' '));
+        params[decodeURIComponent(key.replace(/\+/g, ' '))] = decodeURIComponent(value.replace(/\+/g, ' '));
       }
     }
     
     const remote = params.remote;
     const pathParam = params.path;
     
-    console.log('Parsed params - remote:', remote, 'path:', pathParam);
+    console.log('Parsed params - remote:', JSON.stringify(remote), 'path:', JSON.stringify(pathParam));
     
     if (!remote || !pathParam) {
+      console.log('Full params object:', JSON.stringify(params));
+      console.log('Query string was:', queryString);
       reject(new Error(`Missing remote or path in manifest URL. Got remote="${remote}", path="${pathParam}"`));
       return;
     }
