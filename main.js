@@ -439,10 +439,45 @@ ipcMain.handle('start-download', async (event, manifest) => {
     fs.mkdirSync(downloadDir, { recursive: true });
   }
 
-  // Start rclone for each file
-  for (const file of files) {
-    await downloadFile(downloadId, file, downloadDir);
+  // Update status to in_progress
+  download.status = 'in_progress';
+  mainWindow.webContents.send('download-progress', {
+    id: downloadId,
+    status: 'in_progress',
+    progress: 0
+  });
+
+  // Download files in parallel (up to 4 concurrent downloads)
+  const PARALLEL_DOWNLOADS = 4;
+  const fileQueue = [...files];
+  const activePromises = [];
+  
+  const processNext = async () => {
+    while (fileQueue.length > 0) {
+      const file = fileQueue.shift();
+      try {
+        await downloadFile(downloadId, file, downloadDir);
+      } catch (err) {
+        console.error('File download error:', err);
+        // Continue with other files even if one fails
+      }
+    }
+  };
+  
+  // Start parallel download workers
+  for (let i = 0; i < Math.min(PARALLEL_DOWNLOADS, files.length); i++) {
+    activePromises.push(processNext());
   }
+  
+  await Promise.all(activePromises);
+  
+  // Mark as completed
+  download.status = 'completed';
+  mainWindow.webContents.send('download-progress', {
+    id: downloadId,
+    status: 'completed',
+    progress: 100
+  });
 
   return downloadId;
 });
@@ -494,7 +529,9 @@ async function downloadFile(downloadId, file, downloadDir) {
       file.url,
       outputPath,
       '--progress',
-      '-v'
+      '-v',
+      '--multi-thread-streams', '8',  // Use 8 parallel streams per file
+      '--multi-thread-cutoff', '10M'  // Enable multi-thread for files > 10MB
     ];
 
     const proc = spawn(rclonePath, args);
