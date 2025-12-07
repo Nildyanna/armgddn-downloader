@@ -292,14 +292,23 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
     }
     const protocol = https; // Always use HTTPS
     
-    // Use Node's querystring module which properly handles + as space
-    const querystring = require('querystring');
+    // Parse query params using decodeURIComponent (preserves + as literal +)
+    // Note: We use encodeURIComponent on the website which encodes + as %2B and space as %20
     const queryString = parsedUrl.search.substring(1); // Remove leading ?
     
     // Debug: log the raw query string
     console.log('Raw query string:', queryString);
     
-    const params = querystring.parse(queryString);
+    // Parse manually using decodeURIComponent (not querystring which treats + as space)
+    const params = {};
+    for (const pair of queryString.split('&')) {
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex > 0) {
+        const key = decodeURIComponent(pair.substring(0, eqIndex));
+        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+        params[key] = value;
+      }
+    }
     
     // Debug: log all parsed params
     console.log('All parsed params:', JSON.stringify(params, null, 2));
