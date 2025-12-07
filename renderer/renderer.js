@@ -101,12 +101,23 @@ async function handleDeepLink(url) {
   try {
     // Parse the URL: armgddn://download?manifest=BASE64_ENCODED_JSON
     const urlObj = new URL(url);
-    const manifestParam = urlObj.searchParams.get('manifest');
+    let manifestParam = urlObj.searchParams.get('manifest');
     
     if (!manifestParam) {
       console.error('No manifest in deep link');
       return;
     }
+    
+    // Handle URL-safe base64 (replace - with + and _ with /)
+    manifestParam = manifestParam.replace(/-/g, '+').replace(/_/g, '/');
+    
+    // Add padding if needed
+    while (manifestParam.length % 4) {
+      manifestParam += '=';
+    }
+    
+    // URL decode in case it was percent-encoded
+    manifestParam = decodeURIComponent(manifestParam);
     
     // Decode manifest
     const manifestJson = atob(manifestParam);
