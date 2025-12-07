@@ -165,6 +165,26 @@ function renderDownloads() {
     const item = document.createElement('div');
     item.className = `download-item ${download.status}`;
     
+    // Build active files list
+    let activeFilesHtml = '';
+    if (download.activeFiles && download.activeFiles.length > 0) {
+      activeFilesHtml = download.activeFiles.map(f => `
+        <div class="file-progress">
+          <div class="file-progress-header">
+            <span class="file-name">${escapeHtml(f.name)}</span>
+            <span class="file-speed">${f.speed || ''}</span>
+          </div>
+          <div class="progress-bar small">
+            <div class="progress-fill" style="width: ${f.progress || 0}%"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+    
+    const fileCountText = download.fileCount > 1 
+      ? `${download.completedFiles || 0}/${download.fileCount} files` 
+      : '';
+    
     item.innerHTML = `
       <div class="download-header">
         <span class="download-filename">${escapeHtml(download.name)}</span>
@@ -174,14 +194,17 @@ function renderDownloads() {
         <div class="progress-fill" style="width: ${download.progress || 0}%"></div>
       </div>
       <div class="download-info">
-        <span>${download.progress || 0}% ${download.currentFile ? `- ${escapeHtml(download.currentFile)}` : ''}</span>
-        <span>${download.speed || ''} ${download.eta ? `ETA: ${download.eta}` : ''}</span>
+        <span>${download.progress || 0}% ${fileCountText}</span>
+        <span class="total-speed">${download.totalSpeed ? `Total: ${download.totalSpeed}` : ''}</span>
+      </div>
+      <div class="active-files">
+        ${activeFilesHtml}
       </div>
       <div class="download-disclaimer">
         It is normal for downloads to pause for periods of time - especially at the end. This is the server verifying the transfer in real time.
       </div>
       <div class="download-actions">
-        ${download.status === 'downloading' ? `<button class="cancel-btn" onclick="cancelDownload('${id}')">Cancel</button>` : ''}
+        ${download.status === 'downloading' || download.status === 'in_progress' ? `<button class="cancel-btn" onclick="cancelDownload('${id}')">Cancel</button>` : ''}
         ${download.status === 'completed' ? `<button onclick="openDownloadFolder()">Open Folder</button>` : ''}
         ${download.status === 'error' ? `<button class="retry-btn" onclick="retryDownload('${id}')">Retry</button>` : ''}
       </div>

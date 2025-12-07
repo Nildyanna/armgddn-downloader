@@ -393,7 +393,10 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
 
 // Report progress to website server
 async function reportProgressToServer(download, token) {
-  if (!token) return;
+  if (!token) {
+    console.log('No token for progress reporting');
+    return;
+  }
   
   try {
     const postData = JSON.stringify({
@@ -404,6 +407,8 @@ async function reportProgressToServer(download, token) {
       status: download.status === 'in_progress' ? 'downloading' : download.status,
       error: download.error || null
     });
+    
+    console.log('Reporting progress to server:', postData);
     
     const options = {
       hostname: 'www.armgddnbrowser.com',
@@ -418,8 +423,11 @@ async function reportProgressToServer(download, token) {
     };
     
     const req = https.request(options, (res) => {
-      // Silently consume response
-      res.on('data', () => {});
+      let responseData = '';
+      res.on('data', (chunk) => { responseData += chunk; });
+      res.on('end', () => {
+        console.log('Progress report response:', res.statusCode, responseData);
+      });
     });
     
     req.on('error', (err) => {
@@ -436,6 +444,7 @@ async function reportProgressToServer(download, token) {
 // Start download
 ipcMain.handle('start-download', async (event, manifest, token) => {
   console.log('Received manifest:', JSON.stringify(manifest, null, 2));
+  console.log('Session token for progress reporting:', token ? `[${token.substring(0, 8)}...]` : '[missing]');
   
   const downloadId = crypto.randomUUID();
   
@@ -475,12 +484,16 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
     totalSize: totalSize,
     downloadedSize: 0,
     files: files,
+    fileCount: files.length,
+    completedFiles: 0,
+    activeFiles: {},  // Track per-file progress: { fileName: { progress, speed, eta } }
+    totalSpeed: 0,
     startTime: new Date().toISOString(),
     token: token  // Store token for progress reporting
   };
 
   activeDownloads.set(downloadId, download);
-  mainWindow.webContents.send('download-started', download);
+  mainWindow.webContents.send('download-started', { ...download, fileCount: files.length });
 
   // Create download directory
   const downloadDir = path.join(settings.downloadPath, name);
@@ -495,6 +508,9 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
     status: 'in_progress',
     progress: 0
   });
+  
+  // Report initial progress to server
+  reportProgressToServer(download, token);
 
   // Download files in parallel (up to 4 concurrent downloads)
   const PARALLEL_DOWNLOADS = 4;
@@ -563,6 +579,16 @@ async function downloadFile(downloadId, file, downloadDir) {
 
     download.status = 'downloading';
     download.currentFile = file.name;
+    
+    // Initialize per-file tracking
+    download.activeFiles[file.name] = {
+      name: file.name,
+      size: file.size || 0,
+      progress: 0,
+      speed: '',
+      eta: '',
+      status: 'downloading'
+    };
 
     const rclonePath = getRclonePath();
     const outputPath = path.join(downloadDir, file.name);
@@ -592,18 +618,25 @@ async function downloadFile(downloadId, file, downloadDir) {
     
     proc.stdout.on('data', (data) => {
       const output = data.toString();
-      parseRcloneProgress(downloadId, output);
+      parseRcloneProgress(downloadId, file.name, output);
     });
 
     proc.stderr.on('data', (data) => {
       const output = data.toString();
       errorOutput += output;
-      parseRcloneProgress(downloadId, output);
+      parseRcloneProgress(downloadId, file.name, output);
     });
 
     proc.on('close', (code) => {
       if (code === 0) {
         download.downloadedSize += file.size || 0;
+        download.completedFiles++;
+        // Mark file as completed and remove from active
+        if (download.activeFiles[file.name]) {
+          download.activeFiles[file.name].status = 'completed';
+          download.activeFiles[file.name].progress = 100;
+          delete download.activeFiles[file.name];
+        }
         updateProgress(downloadId);
         resolve();
       } else {
@@ -631,35 +664,78 @@ async function downloadFile(downloadId, file, downloadDir) {
 }
 
 // Parse rclone progress output
-function parseRcloneProgress(downloadId, output) {
+function parseRcloneProgress(downloadId, fileName, output) {
   const download = activeDownloads.get(downloadId);
   if (!download) return;
+
+  // Get or create file tracking
+  const fileInfo = download.activeFiles[fileName];
+  if (!fileInfo) return;
 
   // Parse progress percentage
   const percentMatch = output.match(/(\d+)%/);
   if (percentMatch) {
-    download.progress = parseInt(percentMatch[1]);
+    fileInfo.progress = parseInt(percentMatch[1]);
   }
 
-  // Parse speed
-  const speedMatch = output.match(/(\d+\.?\d*\s*[KMG]?i?B\/s)/i);
+  // Parse speed (e.g., "123.4 MiB/s" or "45 KiB/s")
+  const speedMatch = output.match(/(\d+\.?\d*)\s*([KMG]i?B)\/s/i);
   if (speedMatch) {
-    download.speed = speedMatch[1];
+    fileInfo.speed = `${speedMatch[1]} ${speedMatch[2]}/s`;
+    fileInfo.speedBytes = parseSpeedToBytes(speedMatch[1], speedMatch[2]);
   }
 
   // Parse ETA
   const etaMatch = output.match(/ETA\s+(\S+)/);
   if (etaMatch) {
-    download.eta = etaMatch[1];
+    fileInfo.eta = etaMatch[1];
   }
+
+  // Calculate total speed from all active files
+  let totalSpeedBytes = 0;
+  const activeFilesList = Object.values(download.activeFiles);
+  for (const f of activeFilesList) {
+    totalSpeedBytes += f.speedBytes || 0;
+  }
+  download.totalSpeed = formatSpeed(totalSpeedBytes);
+
+  // Calculate overall progress based on completed + active file progress
+  let totalProgress = download.completedFiles * 100;
+  for (const f of activeFilesList) {
+    totalProgress += f.progress || 0;
+  }
+  download.progress = Math.round(totalProgress / download.fileCount);
 
   mainWindow.webContents.send('download-progress', {
     id: downloadId,
     progress: download.progress,
-    speed: download.speed,
-    eta: download.eta,
-    currentFile: download.currentFile
+    totalSpeed: download.totalSpeed,
+    activeFiles: activeFilesList,
+    completedFiles: download.completedFiles,
+    fileCount: download.fileCount
   });
+}
+
+// Parse speed string to bytes per second
+function parseSpeedToBytes(value, unit) {
+  const num = parseFloat(value);
+  const unitLower = unit.toLowerCase();
+  if (unitLower.startsWith('g')) return num * 1024 * 1024 * 1024;
+  if (unitLower.startsWith('m')) return num * 1024 * 1024;
+  if (unitLower.startsWith('k')) return num * 1024;
+  return num;
+}
+
+// Format bytes per second to human readable
+function formatSpeed(bytesPerSec) {
+  if (bytesPerSec >= 1024 * 1024 * 1024) {
+    return (bytesPerSec / (1024 * 1024 * 1024)).toFixed(1) + ' GiB/s';
+  } else if (bytesPerSec >= 1024 * 1024) {
+    return (bytesPerSec / (1024 * 1024)).toFixed(1) + ' MiB/s';
+  } else if (bytesPerSec >= 1024) {
+    return (bytesPerSec / 1024).toFixed(1) + ' KiB/s';
+  }
+  return bytesPerSec.toFixed(0) + ' B/s';
 }
 
 // Update overall progress
