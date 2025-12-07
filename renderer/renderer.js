@@ -124,6 +124,18 @@ async function handleDeepLink(url) {
     
     console.log('Decoded manifest URL:', manifestUrl);
     
+    // Parse and log the URL components for debugging
+    try {
+      const testUrl = new URL(manifestUrl);
+      console.log('URL hostname:', testUrl.hostname);
+      console.log('URL pathname:', testUrl.pathname);
+      console.log('URL search:', testUrl.search);
+      console.log('URL remote param:', testUrl.searchParams.get('remote'));
+      console.log('URL path param:', testUrl.searchParams.get('path'));
+    } catch (e) {
+      console.error('Failed to parse URL:', e);
+    }
+    
     // Fetch the manifest via main process (bypasses CORS)
     const manifest = await api.fetchManifest(manifestUrl, token);
     console.log('Manifest received:', manifest);
