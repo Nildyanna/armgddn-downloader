@@ -99,31 +99,32 @@ function setupIPCListeners() {
 // Handle deep link
 async function handleDeepLink(url) {
   try {
-    // Parse the URL: armgddn://download?manifest=BASE64_ENCODED_JSON
-    const urlObj = new URL(url);
-    let manifestParam = urlObj.searchParams.get('manifest');
+    console.log('Processing deep link:', url);
     
-    if (!manifestParam) {
-      console.error('No manifest in deep link');
+    // Parse the URL: armgddn://download?manifest=MANIFEST_URL&token=TOKEN
+    const urlObj = new URL(url);
+    const manifestUrl = urlObj.searchParams.get('manifest');
+    const token = urlObj.searchParams.get('token');
+    
+    if (!manifestUrl) {
+      console.error('No manifest URL in deep link');
+      alert('Invalid download link: no manifest URL');
       return;
     }
     
-    // Handle URL-safe base64 (replace - with + and _ with /)
-    manifestParam = manifestParam.replace(/-/g, '+').replace(/_/g, '/');
+    console.log('Fetching manifest from:', manifestUrl);
     
-    // Add padding if needed
-    while (manifestParam.length % 4) {
-      manifestParam += '=';
+    // Fetch the manifest from the URL
+    const response = await fetch(manifestUrl, {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch manifest: ${response.status} ${response.statusText}`);
     }
     
-    // URL decode in case it was percent-encoded
-    manifestParam = decodeURIComponent(manifestParam);
-    
-    // Decode manifest
-    const manifestJson = atob(manifestParam);
-    const manifest = JSON.parse(manifestJson);
-    
-    console.log('Starting download from manifest:', manifest);
+    const manifest = await response.json();
+    console.log('Manifest received:', manifest);
     
     // Start download
     await api.startDownload(manifest);
