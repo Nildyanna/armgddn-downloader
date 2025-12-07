@@ -385,8 +385,50 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
   });
 });
 
+// Report progress to website server
+async function reportProgressToServer(download, token) {
+  if (!token) return;
+  
+  try {
+    const postData = JSON.stringify({
+      downloadId: download.id,
+      fileName: download.name,
+      bytesDownloaded: download.downloadedSize,
+      totalBytes: download.totalSize,
+      status: download.status === 'in_progress' ? 'downloading' : download.status,
+      error: download.error || null
+    });
+    
+    const options = {
+      hostname: 'www.armgddnbrowser.com',
+      port: 443,
+      path: '/api/app-progress',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'Authorization': `Bearer ${token}`
+      }
+    };
+    
+    const req = https.request(options, (res) => {
+      // Silently consume response
+      res.on('data', () => {});
+    });
+    
+    req.on('error', (err) => {
+      console.log('Progress report failed (non-critical):', err.message);
+    });
+    
+    req.write(postData);
+    req.end();
+  } catch (err) {
+    console.log('Progress report error (non-critical):', err.message);
+  }
+}
+
 // Start download
-ipcMain.handle('start-download', async (event, manifest) => {
+ipcMain.handle('start-download', async (event, manifest, token) => {
   console.log('Received manifest:', JSON.stringify(manifest, null, 2));
   
   const downloadId = crypto.randomUUID();
@@ -427,7 +469,8 @@ ipcMain.handle('start-download', async (event, manifest) => {
     totalSize: totalSize,
     downloadedSize: 0,
     files: files,
-    startTime: new Date().toISOString()
+    startTime: new Date().toISOString(),
+    token: token  // Store token for progress reporting
   };
 
   activeDownloads.set(downloadId, download);
@@ -614,6 +657,7 @@ function parseRcloneProgress(downloadId, output) {
 }
 
 // Update overall progress
+let lastProgressReport = 0;
 function updateProgress(downloadId) {
   const download = activeDownloads.get(downloadId);
   if (!download) return;
@@ -627,6 +671,13 @@ function updateProgress(downloadId) {
     progress: download.progress,
     downloadedSize: download.downloadedSize
   });
+  
+  // Report to server every 2 seconds (throttled)
+  const now = Date.now();
+  if (now - lastProgressReport > 2000) {
+    lastProgressReport = now;
+    reportProgressToServer(download, download.token);
+  }
 }
 
 // Cancel download
@@ -648,7 +699,11 @@ function completeDownload(downloadId) {
 
   download.status = 'completed';
   download.progress = 100;
+  download.downloadedSize = download.totalSize;
   download.endTime = new Date().toISOString();
+
+  // Report completion to server
+  reportProgressToServer(download, download.token);
 
   // Add to history
   downloadHistory.unshift({
