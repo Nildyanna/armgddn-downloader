@@ -43,15 +43,13 @@ jobs:
 
       - name: Download rclone (Windows)
         if: matrix.platform == 'win32'
-        shell: pwsh
+        shell: bash
         run: |
-          New-Item -ItemType Directory -Force -Path "rclone\win32"
-          Invoke-WebRequest -Uri "https://downloads.rclone.org/rclone-current-windows-amd64.zip" -OutFile "rclone.zip"
-          Expand-Archive -Path "rclone.zip" -DestinationPath "."
-          $rcloneDir = Get-ChildItem -Directory -Filter "rclone-*-windows-amd64" | Select-Object -First 1
-          Move-Item "$($rcloneDir.FullName)\rclone.exe" "rclone\win32\rclone.exe"
-          Remove-Item -Recurse -Force $rcloneDir
-          Remove-Item "rclone.zip"
+          mkdir -p rclone/win32
+          curl -L -o rclone.zip https://downloads.rclone.org/rclone-current-windows-amd64.zip
+          unzip -q rclone.zip
+          mv rclone-*-windows-amd64/rclone.exe rclone/win32/rclone.exe
+          rm -rf rclone-*-windows-amd64 rclone.zip
 
       - name: Build Electron app (Linux)
         if: matrix.platform == 'linux'
