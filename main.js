@@ -292,14 +292,21 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
     }
     const protocol = https; // Always use HTTPS
     
-    // Extract query params to send as POST body
-    // Note: URLSearchParams already decodes %XX but we need to handle + as space
-    let remote = parsedUrl.searchParams.get('remote');
-    let pathParam = parsedUrl.searchParams.get('path');
+    // Parse query params manually to properly handle + as space
+    // URLSearchParams.get() doesn't decode + as space in all environments
+    const queryString = parsedUrl.search.substring(1); // Remove leading ?
+    const params = {};
     
-    // URL decode + signs that represent spaces (common in query strings)
-    if (remote) remote = remote.replace(/\+/g, ' ');
-    if (pathParam) pathParam = pathParam.replace(/\+/g, ' ');
+    for (const pair of queryString.split('&')) {
+      const [key, value] = pair.split('=');
+      if (key && value) {
+        // Decode: first replace + with space, then decode URI components
+        params[decodeURIComponent(key)] = decodeURIComponent(value.replace(/\+/g, ' '));
+      }
+    }
+    
+    const remote = params.remote;
+    const pathParam = params.path;
     
     console.log('Parsed params - remote:', remote, 'path:', pathParam);
     
