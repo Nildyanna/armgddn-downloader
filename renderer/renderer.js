@@ -114,16 +114,8 @@ async function handleDeepLink(url) {
     
     console.log('Fetching manifest from:', manifestUrl);
     
-    // Fetch the manifest from the URL
-    const response = await fetch(manifestUrl, {
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to fetch manifest: ${response.status} ${response.statusText}`);
-    }
-    
-    const manifest = await response.json();
+    // Fetch the manifest via main process (bypasses CORS)
+    const manifest = await api.fetchManifest(manifestUrl, token);
     console.log('Manifest received:', manifest);
     
     // Start download

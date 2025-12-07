@@ -262,6 +262,31 @@ ipcMain.handle('get-downloads', () => {
   return downloads;
 });
 
+// Fetch manifest from URL (handles CORS)
+ipcMain.handle('fetch-manifest', async (event, url, token) => {
+  const https = require('https');
+  const http = require('http');
+  
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith('https') ? https : http;
+    const options = {
+      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+    };
+    
+    protocol.get(url, options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve(JSON.parse(data));
+        } catch (e) {
+          reject(new Error('Invalid JSON response'));
+        }
+      });
+    }).on('error', reject);
+  });
+});
+
 // Start download
 ipcMain.handle('start-download', async (event, manifest) => {
   const downloadId = crypto.randomUUID();
