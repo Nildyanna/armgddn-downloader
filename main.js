@@ -262,15 +262,33 @@ ipcMain.handle('get-downloads', () => {
   return downloads;
 });
 
+// Validate token format (basic check)
+function isValidToken(token) {
+  if (!token || typeof token !== 'string') return false;
+  // Token should be non-empty and reasonable length
+  return token.length >= 10 && token.length <= 500;
+}
+
 // Fetch manifest from URL (handles CORS)
 ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
   const https = require('https');
   const http = require('http');
   const url = require('url');
   
+  // Security: Validate token
+  if (!isValidToken(token)) {
+    throw new Error('Invalid or missing authentication token');
+  }
+  
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(manifestUrl);
-    const protocol = parsedUrl.protocol === 'https:' ? https : http;
+    
+    // Security: Enforce HTTPS only
+    if (parsedUrl.protocol !== 'https:') {
+      reject(new Error('Security error: Only HTTPS connections are allowed'));
+      return;
+    }
+    const protocol = https; // Always use HTTPS
     
     // Extract query params to send as POST body
     const remote = parsedUrl.searchParams.get('remote');
@@ -378,12 +396,33 @@ ipcMain.handle('start-download', async (event, manifest) => {
   return downloadId;
 });
 
+// Check if URL contains expired token indicators
+function isTokenExpiredError(output) {
+  const expiredIndicators = [
+    'token expired',
+    'token invalid',
+    '401',
+    '403',
+    'unauthorized',
+    'forbidden',
+    'access denied'
+  ];
+  const lowerOutput = output.toLowerCase();
+  return expiredIndicators.some(indicator => lowerOutput.includes(indicator));
+}
+
 // Download a single file using rclone
 async function downloadFile(downloadId, file, downloadDir) {
   return new Promise((resolve, reject) => {
     const download = activeDownloads.get(downloadId);
     if (!download) {
       reject(new Error('Download not found'));
+      return;
+    }
+    
+    // Security: Validate file URL is HTTPS
+    if (!file.url || !file.url.startsWith('https://')) {
+      reject(new Error('Security error: File URL must use HTTPS'));
       return;
     }
 
@@ -410,6 +449,8 @@ async function downloadFile(downloadId, file, downloadDir) {
     const proc = spawn(rclonePath, args);
     download.process = proc;
 
+    let errorOutput = '';
+    
     proc.stdout.on('data', (data) => {
       const output = data.toString();
       parseRcloneProgress(downloadId, output);
@@ -417,6 +458,7 @@ async function downloadFile(downloadId, file, downloadDir) {
 
     proc.stderr.on('data', (data) => {
       const output = data.toString();
+      errorOutput += output;
       parseRcloneProgress(downloadId, output);
     });
 
@@ -427,7 +469,14 @@ async function downloadFile(downloadId, file, downloadDir) {
         resolve();
       } else {
         download.status = 'error';
-        download.error = `rclone exited with code ${code}`;
+        
+        // Check for token expiry
+        if (isTokenExpiredError(errorOutput)) {
+          download.error = 'Download link expired. Please try downloading again from the website.';
+        } else {
+          download.error = `Download failed (code ${code}). Please try again.`;
+        }
+        
         mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
         reject(new Error(download.error));
       }
