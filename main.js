@@ -332,9 +332,20 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
     console.log('POST request:', options.hostname + options.path, 'body:', postData);
     
     const req = protocol.request(options, (res) => {
+      console.log('Response status:', res.statusCode, res.statusMessage);
+      console.log('Response headers:', JSON.stringify(res.headers));
+      
+      // Handle redirects
+      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
+        console.log('Redirect to:', res.headers.location);
+        reject(new Error(`Server redirected to ${res.headers.location}. This may indicate an authentication issue.`));
+        return;
+      }
+      
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
+        console.log('Raw response body:', data.substring(0, 500));
         try {
           const json = JSON.parse(data);
           console.log('Manifest response:', JSON.stringify(json, null, 2));
@@ -347,12 +358,17 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
           resolve(json);
         } catch (e) {
           console.error('Failed to parse manifest:', data);
-          reject(new Error('Invalid JSON response'));
+          reject(new Error('Invalid JSON response: ' + data.substring(0, 100)));
         }
       });
     });
     
-    req.on('error', reject);
+    req.on('error', (err) => {
+      console.error('Request error:', err);
+      reject(err);
+    });
+    
+    console.log('Sending POST body:', postData);
     req.write(postData);
     req.end();
   });
