@@ -3,7 +3,10 @@
   "version": "4.0.0",
   "description": "ARMGDDN Downloader - Fast rclone-powered download manager",
   "main": "main.js",
-  "author": "Armgddn Games",
+  "author": {
+    "name": "Armgddn Games",
+    "email": "support@armgddnbrowser.com"
+  },
   "license": "MIT",
   "scripts": {
     "start": "electron .",
