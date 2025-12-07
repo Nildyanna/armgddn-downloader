@@ -605,10 +605,10 @@ async function downloadFile(downloadId, file, downloadDir) {
       outputPath,
       '--progress',
       '-v',
-      '--multi-thread-streams', '8',  // Use 8 parallel streams per file
-      '--multi-thread-cutoff', '10M', // Enable multi-thread for files > 10MB
-      '--fast-list',
-      '--drive-acknowledge-abuse'     // Bypass Google Drive virus scan warnings
+      '--multi-thread-streams', '16',  // Use 16 parallel streams per file for faster downloads
+      '--multi-thread-cutoff', '1M',   // Enable multi-thread for files > 1MB
+      '--buffer-size', '64M',          // Larger buffer for better throughput
+      '--drive-acknowledge-abuse'      // Bypass Google Drive virus scan warnings
     ];
 
     const proc = spawn(rclonePath, args);
@@ -663,6 +663,10 @@ async function downloadFile(downloadId, file, downloadDir) {
   });
 }
 
+// Throttle UI updates per download
+const lastUIUpdate = new Map();
+const UI_UPDATE_INTERVAL = 500; // Update UI every 500ms max
+
 // Parse rclone progress output
 function parseRcloneProgress(downloadId, fileName, output) {
   const download = activeDownloads.get(downloadId);
@@ -690,6 +694,14 @@ function parseRcloneProgress(downloadId, fileName, output) {
   if (etaMatch) {
     fileInfo.eta = etaMatch[1];
   }
+
+  // Throttle UI updates to prevent flashing
+  const now = Date.now();
+  const lastUpdate = lastUIUpdate.get(downloadId) || 0;
+  if (now - lastUpdate < UI_UPDATE_INTERVAL) {
+    return; // Skip this update
+  }
+  lastUIUpdate.set(downloadId, now);
 
   // Calculate total speed from all active files
   let totalSpeedBytes = 0;
