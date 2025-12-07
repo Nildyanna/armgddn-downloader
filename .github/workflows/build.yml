@@ -11,116 +11,74 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [ubuntu-22.04, windows-latest]
+        include:
+          - os: ubuntu-22.04
+            platform: linux
+          - os: windows-latest
+            platform: win32
 
-    runs-on: ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-        with:
-          clean: true
 
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: Install dependencies (Ubuntu)
-        if: matrix.platform == 'ubuntu-22.04'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libwebkit2gtk-4.1-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev \
-            patchelf \
-            libgtk-3-dev \
-            libsoup-3.0-dev \
-            libjavascriptcoregtk-4.1-dev \
-            libgdk3.0-cil-dev \
-            libpango1.0-dev
+      - name: Install dependencies
+        run: npm install
 
       - name: Download rclone (Linux)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'linux'
         run: |
-          cd src-tauri
           wget -q https://downloads.rclone.org/rclone-current-linux-amd64.zip
           unzip -q rclone-current-linux-amd64.zip
-          mv rclone-*-linux-amd64/rclone ./rclone
-          chmod +x rclone
+          mv rclone-*-linux-amd64/rclone rclone/linux/rclone
+          chmod +x rclone/linux/rclone
           rm -rf rclone-*-linux-amd64*
 
       - name: Download rclone (Windows)
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'win32'
         shell: pwsh
         run: |
-          cd src-tauri
           Invoke-WebRequest -Uri "https://downloads.rclone.org/rclone-current-windows-amd64.zip" -OutFile "rclone.zip"
           Expand-Archive -Path "rclone.zip" -DestinationPath "."
           $rcloneDir = Get-ChildItem -Directory -Filter "rclone-*-windows-amd64" | Select-Object -First 1
-          Move-Item "$($rcloneDir.FullName)\rclone.exe" "rclone.exe"
+          Move-Item "$($rcloneDir.FullName)\rclone.exe" "rclone\win32\rclone.exe"
           Remove-Item -Recurse -Force $rcloneDir
           Remove-Item "rclone.zip"
 
-      - name: Install frontend dependencies
-        run: npm install
-
-      - name: Clean ALL build artifacts
-        run: |
-          rm -rf dist
-          rm -rf node_modules/.vite
-          rm -rf src-tauri/target
-        shell: bash
-
-      - name: Build frontend first
-        run: npm run build
-        shell: bash
-
-      - name: Verify dist exists before Tauri build
-        run: |
-          echo "=== Checking dist folder ==="
-          ls -la dist/
-          echo "=== dist/index.html content ==="
-          cat dist/index.html | head -50
-          echo "=== Checking for v3.6.21 ==="
-          grep "3.6.21" dist/index.html || echo "VERSION NOT FOUND!"
-        shell: bash
-
-      - name: Build Tauri app (no beforeBuildCommand since we built manually)
-        run: npx tauri build --ci
+      - name: Build Electron app (Linux)
+        if: matrix.platform == 'linux'
+        run: npm run build:linux
         env:
-          TAURI_CLI_NO_DEV_SERVER_WAIT: true
-        shell: bash
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Verify build output
-        run: |
-          echo "=== Checking build output ==="
-          ls -la src-tauri/target/release/ | head -20
-          echo "=== Binary size ==="
-          ls -lh src-tauri/target/release/armgddn-downloader* 2>/dev/null || ls -lh src-tauri/target/release/*.exe 2>/dev/null || echo "Binary not found"
-        shell: bash
+      - name: Build Electron app (Windows)
+        if: matrix.platform == 'win32'
+        run: npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload artifacts (Linux)
-        if: matrix.platform == 'ubuntu-22.04'
+        if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
         with:
           name: linux-build
           path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
+            dist/*.AppImage
+            dist/*.deb
 
       - name: Upload artifacts (Windows)
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'win32'
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
           path: |
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/*.exe
+            dist/*.exe
 
   release:
     needs: build
@@ -146,9 +104,7 @@ jobs:
           path: ./artifacts
 
       - name: List artifacts
-        run: |
-          echo "Listing all downloaded artifacts:"
-          find ./artifacts -type f -ls
+        run: find ./artifacts -type f -ls
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
@@ -160,24 +116,20 @@ jobs:
             ### Installation
             
             **Windows:**
-            - Download `ARMGDDN-Downloader_*_x64_en-US.msi`
+            - Download the `.exe` installer
             - Run the installer
             
             **Linux (Debian/Ubuntu):**
-            - Download `armgddn-downloader_*_amd64.deb`
-            - Install: `sudo dpkg -i armgddn-downloader_*_amd64.deb`
+            - Download `.deb` file
+            - Install: `sudo dpkg -i armgddn-downloader_*.deb`
             
             **Linux (Universal):**
-            - Download `armgddn-downloader_*_amd64.AppImage`
-            - Make executable: `chmod +x armgddn-downloader_*_amd64.AppImage`
-            - Run: `./armgddn-downloader_*_amd64.AppImage`
-            
-            ### Features
-            See [CHANGELOG.md](https://github.com/Nildyanna/armgddn-downloader/blob/main/CHANGELOG.md) for full feature list.
+            - Download `.AppImage` file
+            - Make executable: `chmod +x ARMGDDN*.AppImage`
+            - Run: `./ARMGDDN*.AppImage`
           files: |
-            artifacts/**/*.deb
-            artifacts/**/*.AppImage
-            artifacts/**/*.msi
-            artifacts/**/*.exe
+            artifacts/*.deb
+            artifacts/*.AppImage
+            artifacts/*.exe
           draft: false
           prerelease: false
