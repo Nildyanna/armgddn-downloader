@@ -80,25 +80,23 @@ jobs:
         run: npm run build
         shell: bash
 
-      - name: Copy dist into src-tauri
-        run: |
-          cp -r dist src-tauri/dist
-          echo "Copied dist into src-tauri/dist"
-          ls -la src-tauri/dist/
-        shell: bash
-
       - name: Verify frontend built
         run: |
           echo "Checking dist folder..."
           ls -la dist/
-          echo "Checking src-tauri/dist..."
-          ls -la src-tauri/dist/
-          echo "Checking for alert in HTML..."
-          grep -o "v3.6.15" src-tauri/dist/index.html || echo "VERSION NOT FOUND IN HTML!"
+          echo "Checking for version in HTML..."
+          grep -o "v3.6.16" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
+          echo "Contents of dist/index.html head:"
+          head -30 dist/index.html
         shell: bash
 
       - name: Build Tauri app
-        run: npm run tauri build
+        run: |
+          echo "Current directory: $(pwd)"
+          echo "Contents of dist (project root):"
+          ls -la dist/
+          echo "Building with verbose..."
+          npm run tauri build -- -v
         shell: bash
 
       - name: Upload artifacts (Linux)
