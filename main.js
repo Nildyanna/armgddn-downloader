@@ -580,13 +580,80 @@ ipcMain.handle('open-folder', (event, folderPath) => {
   shell.openPath(folderPath || settings.downloadPath);
 });
 
+// Open external URL in browser
+ipcMain.handle('open-external', (event, url) => {
+  // Security: Only allow HTTPS URLs
+  if (url && url.startsWith('https://')) {
+    shell.openExternal(url);
+  }
+});
+
 // Get app version
 ipcMain.handle('get-version', () => {
   return app.getVersion();
 });
 
-// Check for updates (placeholder)
+// Check for updates via GitHub releases
 ipcMain.handle('check-updates', async () => {
-  // TODO: Implement auto-updater
-  return { hasUpdate: false, version: app.getVersion() };
+  const https = require('https');
+  
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'api.github.com',
+      path: '/repos/Nildyanna/armgddn-downloader/releases/latest',
+      method: 'GET',
+      headers: {
+        'User-Agent': 'ARMGDDN-Downloader',
+        'Accept': 'application/vnd.github.v3+json'
+      }
+    };
+    
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const release = JSON.parse(data);
+          const latestVersion = (release.tag_name || '').replace(/^v/, '');
+          const currentVersion = app.getVersion();
+          
+          // Compare versions
+          const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+          
+          resolve({
+            hasUpdate,
+            version: currentVersion,
+            latestVersion,
+            releaseUrl: release.html_url || 'https://github.com/Nildyanna/armgddn-downloader/releases',
+            releaseNotes: release.body || ''
+          });
+        } catch (e) {
+          console.error('Failed to check for updates:', e);
+          resolve({ hasUpdate: false, version: app.getVersion(), error: 'Failed to check for updates' });
+        }
+      });
+    });
+    
+    req.on('error', (err) => {
+      console.error('Update check failed:', err);
+      resolve({ hasUpdate: false, version: app.getVersion(), error: err.message });
+    });
+    
+    req.end();
+  });
 });
+
+// Compare semantic versions (returns 1 if a > b, -1 if a < b, 0 if equal)
+function compareVersions(a, b) {
+  if (!a || !b) return 0;
+  const partsA = a.split('.').map(n => parseInt(n, 10) || 0);
+  const partsB = b.split('.').map(n => parseInt(n, 10) || 0);
+  
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
+    const numA = partsA[i] || 0;
+    const numB = partsB[i] || 0;
+    if (numA > numB) return 1;
+    if (numA < numB) return -1;
+  }
+  return 0;
+}
