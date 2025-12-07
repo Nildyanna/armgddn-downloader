@@ -80,14 +80,21 @@ jobs:
         run: npm run build
         shell: bash
 
+      - name: Copy dist into src-tauri
+        run: |
+          cp -r dist src-tauri/dist
+          echo "Copied dist into src-tauri/dist"
+          ls -la src-tauri/dist/
+        shell: bash
+
       - name: Verify frontend built
         run: |
           echo "Checking dist folder..."
           ls -la dist/
-          echo "Checking copied dist in src-tauri..."
-          ls -la src-tauri/dist/ || true
+          echo "Checking src-tauri/dist..."
+          ls -la src-tauri/dist/
           echo "Checking for alert in HTML..."
-          grep -o "v3.6.12" dist/index.html || echo "VERSION NOT FOUND IN HTML!"
+          grep -o "v3.6.13" src-tauri/dist/index.html || echo "VERSION NOT FOUND IN HTML!"
         shell: bash
 
       - name: Build Tauri app
