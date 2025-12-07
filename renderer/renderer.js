@@ -1,6 +1,8 @@
 // ARMGDDN Downloader - Electron Renderer
+(function() {
+'use strict';
 
-const { electronAPI } = window;
+const api = window.electronAPI;
 
 // State
 let downloads = new Map();
@@ -11,14 +13,14 @@ async function init() {
   console.log('ARMGDDN Downloader v4.0.0 initializing...');
   
   // Load settings
-  settings = await electronAPI.getSettings();
+  settings = await api.getSettings();
   updateSettingsUI();
   
   // Load history
   await loadHistory();
   
   // Display version
-  const version = await electronAPI.getVersion();
+  const version = await api.getVersion();
   document.getElementById('version-display').textContent = `Version ${version}`;
   
   // Setup event listeners
@@ -50,19 +52,19 @@ function setupEventListeners() {
 // Setup IPC listeners from main process
 function setupIPCListeners() {
   // Deep link handler
-  electronAPI.onDeepLink((url) => {
+  api.onDeepLink((url) => {
     console.log('Deep link received:', url);
     handleDeepLink(url);
   });
   
   // Download events
-  electronAPI.onDownloadStarted((data) => {
+  api.onDownloadStarted((data) => {
     console.log('Download started:', data);
     downloads.set(data.id, data);
     renderDownloads();
   });
   
-  electronAPI.onDownloadProgress((data) => {
+  api.onDownloadProgress((data) => {
     const download = downloads.get(data.id);
     if (download) {
       Object.assign(download, data);
@@ -70,7 +72,7 @@ function setupIPCListeners() {
     }
   });
   
-  electronAPI.onDownloadCompleted((data) => {
+  api.onDownloadCompleted((data) => {
     const download = downloads.get(data.id);
     if (download) {
       download.status = 'completed';
@@ -79,7 +81,7 @@ function setupIPCListeners() {
     }
   });
   
-  electronAPI.onDownloadError((data) => {
+  api.onDownloadError((data) => {
     const download = downloads.get(data.id);
     if (download) {
       download.status = 'error';
@@ -88,7 +90,7 @@ function setupIPCListeners() {
     }
   });
   
-  electronAPI.onDownloadCancelled((data) => {
+  api.onDownloadCancelled((data) => {
     downloads.delete(data.id);
     renderDownloads();
   });
@@ -113,7 +115,7 @@ async function handleDeepLink(url) {
     console.log('Starting download from manifest:', manifest);
     
     // Start download
-    await electronAPI.startDownload(manifest);
+    await api.startDownload(manifest);
     
   } catch (error) {
     console.error('Failed to handle deep link:', error);
@@ -161,7 +163,7 @@ function renderDownloads() {
 
 // Cancel download
 async function cancelDownload(id) {
-  await electronAPI.cancelDownload(id);
+  await api.cancelDownload(id);
   downloads.delete(id);
   renderDownloads();
 }
@@ -174,7 +176,7 @@ function retryDownload(id) {
 
 // Open download folder
 async function openDownloadFolder() {
-  await electronAPI.openFolder(settings.downloadPath);
+  await api.openFolder(settings.downloadPath);
 }
 
 // Settings
@@ -197,12 +199,12 @@ async function saveSettings() {
   settings.maxConcurrentDownloads = parseInt(document.getElementById('max-concurrent').value);
   settings.showNotifications = document.getElementById('show-notifications').checked;
   
-  await electronAPI.saveSettings(settings);
+  await api.saveSettings(settings);
   closeSettings();
 }
 
 async function browseDownloadPath() {
-  const path = await electronAPI.browseFolder();
+  const path = await api.browseFolder();
   if (path) {
     document.getElementById('download-path').value = path;
   }
@@ -219,7 +221,7 @@ function closeHistory() {
 }
 
 async function loadHistory() {
-  const history = await electronAPI.getHistory();
+  const history = await api.getHistory();
   renderHistory(history);
 }
 
@@ -256,14 +258,14 @@ function renderHistory(history) {
 
 async function clearHistory() {
   if (confirm('Are you sure you want to clear download history?')) {
-    await electronAPI.clearHistory();
+    await api.clearHistory();
     await loadHistory();
   }
 }
 
 // Check for updates
 async function checkForUpdates() {
-  const result = await electronAPI.checkUpdates();
+  const result = await api.checkUpdates();
   if (result.hasUpdate) {
     alert(`Update available: ${result.latestVersion}`);
   } else {
@@ -293,3 +295,5 @@ window.openDownloadFolder = openDownloadFolder;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', init);
+
+})();
