@@ -563,15 +563,22 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   return downloadId;
 });
 
+// Check if output indicates quota exceeded
+function isQuotaError(output) {
+  const lowerOutput = output.toLowerCase();
+  return lowerOutput.includes('quota') || 
+         lowerOutput.includes('rate limit') ||
+         lowerOutput.includes('too many requests') ||
+         lowerOutput.includes('429');
+}
+
 // Check if URL contains expired token indicators
 function isTokenExpiredError(output) {
   const expiredIndicators = [
     'token expired',
     'token invalid',
     '401',
-    '403',
     'unauthorized',
-    'forbidden',
     'access denied'
   ];
   const lowerOutput = output.toLowerCase();
@@ -660,8 +667,10 @@ async function downloadFile(downloadId, file, downloadDir) {
       } else {
         download.status = 'error';
         
-        // Check for token expiry
-        if (isTokenExpiredError(errorOutput)) {
+        // Check for specific error types
+        if (isQuotaError(errorOutput)) {
+          download.error = 'Download quota exceeded. This file is temporarily unavailable due to high demand. Please try again later or try a different game.';
+        } else if (isTokenExpiredError(errorOutput)) {
           download.error = 'Download link expired. Please try downloading again from the website.';
         } else {
           download.error = `Download failed (code ${code}). Please try again.`;
