@@ -197,11 +197,11 @@ function renderDownloadsNow() {
     let item = container.querySelector(`.download-item[data-id="${id}"]`);
     
     if (!item) {
-      // Create new item
+      // Create new item - prepend to show newest first
       item = document.createElement('div');
       item.className = `download-item ${download.status}`;
       item.dataset.id = id;
-      container.appendChild(item);
+      container.prepend(item);
     } else {
       item.className = `download-item ${download.status}`;
     }
