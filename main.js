@@ -95,9 +95,13 @@ function saveSettings() {
 function loadHistory() {
   try {
     const historyPath = getHistoryPath();
+    console.log('History path:', historyPath);
     if (fs.existsSync(historyPath)) {
       const data = fs.readFileSync(historyPath, 'utf8');
       downloadHistory = JSON.parse(data);
+      console.log('Loaded history:', downloadHistory.length, 'items');
+    } else {
+      console.log('No history file found');
     }
   } catch (e) {
     console.error('Failed to load history:', e);
@@ -108,7 +112,9 @@ function loadHistory() {
 function saveHistory() {
   try {
     const historyPath = getHistoryPath();
+    console.log('Saving history to:', historyPath, 'items:', downloadHistory.length);
     fs.writeFileSync(historyPath, JSON.stringify(downloadHistory, null, 2));
+    console.log('History saved successfully');
   } catch (e) {
     console.error('Failed to save history:', e);
   }
