@@ -1,25 +1,59 @@
 {
-  "name": "tauri-app",
-  "private": true,
-  "version": "3.6.21",
-  "type": "module",
+  "name": "armgddn-downloader",
+  "version": "4.0.0",
+  "description": "ARMGDDN Downloader - Fast rclone-powered download manager",
+  "main": "main.js",
+  "author": "Armgddn Games",
+  "license": "MIT",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc && vite build",
-    "preview": "vite preview",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "build:mac": "electron-builder --mac"
   },
-  "dependencies": {
-    "@tauri-apps/api": "^2",
-    "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-deep-link": "^2",
-    "@tauri-apps/plugin-dialog": "^2"
+  "build": {
+    "appId": "com.armgddn.downloader",
+    "productName": "ARMGDDN Downloader",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "rclone/${os}",
+        "to": "rclone",
+        "filter": ["**/*"]
+      }
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "assets/icon.png",
+      "category": "Utility"
+    },
+    "protocols": {
+      "name": "ARMGDDN Protocol",
+      "schemes": ["armgddn"]
+    }
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2",
-    "vite": "^6.0.3",
-    "typescript": "~5.6.2"
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12"
   }
 }
