@@ -295,7 +295,14 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
     // Use Node's querystring module which properly handles + as space
     const querystring = require('querystring');
     const queryString = parsedUrl.search.substring(1); // Remove leading ?
+    
+    // Debug: log the raw query string
+    console.log('Raw query string:', queryString);
+    
     const params = querystring.parse(queryString);
+    
+    // Debug: log all parsed params
+    console.log('All parsed params:', JSON.stringify(params, null, 2));
     
     const remote = params.remote;
     const pathParam = params.path;
@@ -303,13 +310,14 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
     console.log('Parsed params - remote:', JSON.stringify(remote), 'path:', JSON.stringify(pathParam));
     
     if (!remote || !pathParam) {
-      console.log('Full params object:', JSON.stringify(params));
-      console.log('Query string was:', queryString);
-      reject(new Error(`Missing remote or path in manifest URL. Got remote="${remote}", path="${pathParam}"`));
+      const errorMsg = `Missing remote or path. Query="${queryString}", Params=${JSON.stringify(params)}, remote="${remote}", path="${pathParam}"`;
+      console.error(errorMsg);
+      reject(new Error(errorMsg));
       return;
     }
     
     const postData = JSON.stringify({ remote, path: pathParam });
+    console.log('POST body:', postData);
     
     const options = {
       hostname: parsedUrl.hostname,
