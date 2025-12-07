@@ -263,27 +263,58 @@ ipcMain.handle('get-downloads', () => {
 });
 
 // Fetch manifest from URL (handles CORS)
-ipcMain.handle('fetch-manifest', async (event, url, token) => {
+ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
   const https = require('https');
   const http = require('http');
+  const url = require('url');
   
   return new Promise((resolve, reject) => {
-    const protocol = url.startsWith('https') ? https : http;
+    const parsedUrl = new URL(manifestUrl);
+    const protocol = parsedUrl.protocol === 'https:' ? https : http;
+    
+    // Extract query params to send as POST body
+    const remote = parsedUrl.searchParams.get('remote');
+    const pathParam = parsedUrl.searchParams.get('path');
+    const postData = JSON.stringify({ remote, path: pathParam });
+    
     const options = {
-      headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || (parsedUrl.protocol === 'https:' ? 443 : 80),
+      path: parsedUrl.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
     };
     
-    protocol.get(url, options, (res) => {
+    console.log('Fetching manifest:', options.hostname, options.path, { remote, path: pathParam });
+    
+    const req = protocol.request(options, (res) => {
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', () => {
         try {
-          resolve(JSON.parse(data));
+          const json = JSON.parse(data);
+          console.log('Manifest response:', JSON.stringify(json, null, 2));
+          
+          if (json.success === false) {
+            reject(new Error(json.error || 'Server returned error'));
+            return;
+          }
+          
+          resolve(json);
         } catch (e) {
+          console.error('Failed to parse manifest:', data);
           reject(new Error('Invalid JSON response'));
         }
       });
-    }).on('error', reject);
+    });
+    
+    req.on('error', reject);
+    req.write(postData);
+    req.end();
   });
 });
 
