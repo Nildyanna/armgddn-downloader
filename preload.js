@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Utility
   openFolder: (path) => ipcRenderer.invoke('open-folder', path),
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
   getVersion: () => ipcRenderer.invoke('get-version'),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
 

@@ -269,11 +269,31 @@ async function clearHistory() {
 
 // Check for updates
 async function checkForUpdates() {
-  const result = await api.checkUpdates();
-  if (result.hasUpdate) {
-    alert(`Update available: ${result.latestVersion}`);
-  } else {
-    alert(`You're running the latest version (${result.version})`);
+  try {
+    const result = await api.checkUpdates();
+    
+    if (result.error) {
+      alert(`Could not check for updates: ${result.error}`);
+      return;
+    }
+    
+    if (result.hasUpdate) {
+      const shouldOpen = confirm(
+        `Update available!\n\n` +
+        `Current version: v${result.version}\n` +
+        `Latest version: v${result.latestVersion}\n\n` +
+        `Would you like to open the download page?`
+      );
+      
+      if (shouldOpen && result.releaseUrl) {
+        // Open release page in browser via main process
+        await api.openExternal(result.releaseUrl);
+      }
+    } else {
+      alert(`You're running the latest version (v${result.version})`);
+    }
+  } catch (error) {
+    alert(`Failed to check for updates: ${error.message}`);
   }
 }
 
