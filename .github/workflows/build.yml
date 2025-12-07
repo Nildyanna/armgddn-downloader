@@ -34,6 +34,7 @@ jobs:
       - name: Download rclone (Linux)
         if: matrix.platform == 'linux'
         run: |
+          mkdir -p rclone/linux
           wget -q https://downloads.rclone.org/rclone-current-linux-amd64.zip
           unzip -q rclone-current-linux-amd64.zip
           mv rclone-*-linux-amd64/rclone rclone/linux/rclone
@@ -44,6 +45,7 @@ jobs:
         if: matrix.platform == 'win32'
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force -Path "rclone\win32"
           Invoke-WebRequest -Uri "https://downloads.rclone.org/rclone-current-windows-amd64.zip" -OutFile "rclone.zip"
           Expand-Archive -Path "rclone.zip" -DestinationPath "."
           $rcloneDir = Get-ChildItem -Directory -Filter "rclone-*-windows-amd64" | Select-Object -First 1
