@@ -531,7 +531,9 @@ async function downloadFile(downloadId, file, downloadDir) {
       '--progress',
       '-v',
       '--multi-thread-streams', '8',  // Use 8 parallel streams per file
-      '--multi-thread-cutoff', '10M'  // Enable multi-thread for files > 10MB
+      '--multi-thread-cutoff', '10M', // Enable multi-thread for files > 10MB
+      '--fast-list',
+      '--drive-acknowledge-abuse'     // Bypass Google Drive virus scan warnings
     ];
 
     const proc = spawn(rclonePath, args);
