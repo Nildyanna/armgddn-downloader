@@ -185,10 +185,20 @@ function renderDownloads() {
       ? `${download.completedFiles || 0}/${download.fileCount} files` 
       : '';
     
+    // Format status for display
+    const statusDisplay = {
+      'starting': 'Starting',
+      'in_progress': 'In Progress',
+      'downloading': 'Downloading',
+      'completed': 'Completed',
+      'cancelled': 'Cancelled',
+      'error': 'Error'
+    }[download.status] || download.status;
+    
     item.innerHTML = `
       <div class="download-header">
         <span class="download-filename">${escapeHtml(download.name)}</span>
-        <span class="download-state">${download.status}</span>
+        <span class="download-state">${statusDisplay}</span>
       </div>
       <div class="progress-bar">
         <div class="progress-fill" style="width: ${download.progress || 0}%"></div>

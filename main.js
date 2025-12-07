@@ -487,9 +487,11 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
     fileCount: files.length,
     completedFiles: 0,
     activeFiles: {},  // Track per-file progress: { fileName: { progress, speed, eta } }
+    activeProcesses: [],  // Track all active rclone processes for cancellation
     totalSpeed: 0,
     startTime: new Date().toISOString(),
-    token: token  // Store token for progress reporting
+    token: token,  // Store token for progress reporting
+    cancelled: false  // Flag to stop new downloads when cancelled
   };
 
   activeDownloads.set(downloadId, download);
@@ -518,13 +520,16 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   const activePromises = [];
   
   const processNext = async () => {
-    while (fileQueue.length > 0) {
+    while (fileQueue.length > 0 && !download.cancelled) {
       const file = fileQueue.shift();
+      if (!file) break;
       try {
         await downloadFile(downloadId, file, downloadDir);
       } catch (err) {
-        console.error('File download error:', err);
-        // Continue with other files even if one fails
+        if (!download.cancelled) {
+          console.error('File download error:', err);
+        }
+        // Continue with other files even if one fails (unless cancelled)
       }
     }
   };
@@ -536,13 +541,15 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   
   await Promise.all(activePromises);
   
-  // Mark as completed
-  download.status = 'completed';
-  mainWindow.webContents.send('download-progress', {
-    id: downloadId,
-    status: 'completed',
-    progress: 100
-  });
+  // Only mark as completed if not cancelled
+  if (!download.cancelled) {
+    download.status = 'completed';
+    mainWindow.webContents.send('download-progress', {
+      id: downloadId,
+      status: 'completed',
+      progress: 100
+    });
+  }
 
   return downloadId;
 });
@@ -612,7 +619,7 @@ async function downloadFile(downloadId, file, downloadDir) {
     ];
 
     const proc = spawn(rclonePath, args);
-    download.process = proc;
+    download.activeProcesses.push(proc);  // Track for cancellation
 
     let errorOutput = '';
     
@@ -726,6 +733,13 @@ function parseRcloneProgress(downloadId, fileName, output) {
     completedFiles: download.completedFiles,
     fileCount: download.fileCount
   });
+  
+  // Report to server (throttled separately from UI updates)
+  const now2 = Date.now();
+  if (now2 - lastProgressReport > 2000) {
+    lastProgressReport = now2;
+    reportProgressToServer(download, download.token);
+  }
 }
 
 // Parse speed string to bytes per second
@@ -777,12 +791,24 @@ function updateProgress(downloadId) {
 // Cancel download
 ipcMain.handle('cancel-download', (event, downloadId) => {
   const download = activeDownloads.get(downloadId);
-  if (download && download.process) {
-    download.process.kill();
+  if (download) {
+    download.cancelled = true;
     download.status = 'cancelled';
+    
+    // Kill all active processes
+    if (download.activeProcesses && download.activeProcesses.length > 0) {
+      for (const proc of download.activeProcesses) {
+        try {
+          proc.kill('SIGTERM');
+        } catch (e) {
+          console.log('Error killing process:', e.message);
+        }
+      }
+    }
+    
     mainWindow.webContents.send('download-cancelled', { id: downloadId });
+    activeDownloads.delete(downloadId);
   }
-  activeDownloads.delete(downloadId);
   return true;
 });
 
