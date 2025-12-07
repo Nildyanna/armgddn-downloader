@@ -1,13 +1,13 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "ARMGDDN Downloader",
-  "version": "3.6.12",
+  "version": "3.6.13",
   "identifier": "com.armgddn.downloader",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "npm run build",
-    "frontendDist": "../dist"
+    "frontendDist": "dist"
   },
   "app": {
     "withGlobalTauri": true,
@@ -51,6 +51,7 @@
       "icons/icon.ico"
     ],
     "resources": [
+      "dist/**",
       "rclone*"
     ],
     "windows": {
