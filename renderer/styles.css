@@ -237,6 +237,46 @@ body {
   color: #ff6b6b;
 }
 
+.active-files {
+  margin: 0.5rem 0;
+}
+
+.file-progress {
+  margin-bottom: 0.5rem;
+  padding: 0.4rem;
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+.file-progress-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  margin-bottom: 0.25rem;
+}
+
+.file-name {
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 70%;
+}
+
+.file-speed {
+  color: var(--accent-primary);
+  font-weight: 500;
+}
+
+.progress-bar.small {
+  height: 4px;
+}
+
+.total-speed {
+  color: var(--accent-primary);
+  font-weight: 600;
+}
+
 .download-disclaimer {
   font-size: 0.75rem;
   color: var(--text-secondary);
