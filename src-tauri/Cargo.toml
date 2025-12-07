@@ -1,6 +1,6 @@
 [package]
 name = "armgddn-downloader"
-version = "3.6.20"
+version = "3.6.21"
 description = "ARMGDDN Downloader - Fast rclone-powered download manager"
 authors = ["Armgddn Games"]
 edition = "2021"
@@ -19,7 +19,7 @@ name = "tauri_app_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
-tauri-build = { version = "2", features = [] }
+tauri-build = { version = "2", features = ["codegen"] }
 
 [dependencies]
 tauri = { version = "2", features = ["protocol-asset"] }
