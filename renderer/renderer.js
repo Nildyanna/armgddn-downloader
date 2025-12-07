@@ -103,8 +103,11 @@ async function handleDeepLink(url) {
     
     // Parse the URL: armgddn://download?manifest=MANIFEST_URL&token=TOKEN
     const urlObj = new URL(url);
-    const manifestUrl = urlObj.searchParams.get('manifest');
+    let manifestUrl = urlObj.searchParams.get('manifest');
     const token = urlObj.searchParams.get('token');
+    
+    console.log('Raw manifest param:', manifestUrl);
+    console.log('Token:', token ? '[present]' : '[missing]');
     
     if (!manifestUrl) {
       console.error('No manifest URL in deep link');
@@ -112,7 +115,14 @@ async function handleDeepLink(url) {
       return;
     }
     
-    console.log('Fetching manifest from:', manifestUrl);
+    // Ensure URL is properly decoded (searchParams should do this, but be safe)
+    try {
+      manifestUrl = decodeURIComponent(manifestUrl);
+    } catch (e) {
+      // Already decoded
+    }
+    
+    console.log('Decoded manifest URL:', manifestUrl);
     
     // Fetch the manifest via main process (bypasses CORS)
     const manifest = await api.fetchManifest(manifestUrl, token);
