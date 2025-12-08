@@ -275,15 +275,13 @@ function isValidToken(token) {
   return token.length >= 10 && token.length <= 500;
 }
 
-// Fetch manifest from URL (handles CORS)
-ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
+// Internal function to fetch manifest (can be called recursively for redirects)
+async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
   const https = require('https');
-  const http = require('http');
-  const url = require('url');
   
-  // Security: Validate token
-  if (!isValidToken(token)) {
-    throw new Error('Invalid or missing authentication token');
+  // Prevent infinite redirect loops
+  if (redirectCount > 3) {
+    throw new Error('Too many redirects while fetching manifest');
   }
   
   return new Promise((resolve, reject) => {
@@ -296,16 +294,11 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
       reject(new Error('Security error: Only HTTPS connections are allowed'));
       return;
     }
-    const protocol = https; // Always use HTTPS
     
     // Parse query params using decodeURIComponent (preserves + as literal +)
-    // Note: We use encodeURIComponent on the website which encodes + as %2B and space as %20
-    const queryString = parsedUrl.search.substring(1); // Remove leading ?
-    
-    // Debug: log the raw query string
+    const queryString = parsedUrl.search.substring(1);
     console.log('Raw query string:', queryString);
     
-    // Parse manually using decodeURIComponent (not querystring which treats + as space)
     const params = {};
     for (const pair of queryString.split('&')) {
       const eqIndex = pair.indexOf('=');
@@ -316,7 +309,6 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
       }
     }
     
-    // Debug: log all parsed params
     console.log('All parsed params:', JSON.stringify(params, null, 2));
     
     const remote = params.remote;
@@ -348,24 +340,34 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
     
     console.log('POST request:', options.hostname + options.path, 'body:', postData);
     
-    const req = protocol.request(options, (res) => {
+    const req = https.request(options, (res) => {
       console.log('Response status:', res.statusCode, res.statusMessage);
       console.log('Response headers:', JSON.stringify(res.headers));
       
-      // Handle redirects
-      if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
-        console.log('Redirect to:', res.headers.location);
-        reject(new Error(`Server redirected to ${res.headers.location}. This may indicate an authentication issue.`));
-        return;
-      }
-      
       let data = '';
       res.on('data', chunk => data += chunk);
-      res.on('end', () => {
+      res.on('end', async () => {
         console.log('Raw response body:', data.substring(0, 500));
         try {
           const json = JSON.parse(data);
           console.log('Manifest response:', JSON.stringify(json, null, 2));
+          
+          // Handle game moved to new location (server returns 302 with redirect info)
+          if (json.redirect && json.newRemote && json.newPath) {
+            console.log(`Game moved! Retrying with new location: ${json.newRemote}:${json.newPath}`);
+            
+            // Build new manifest URL with updated remote and path
+            const newManifestUrl = `https://${parsedUrl.hostname}${parsedUrl.pathname}?remote=${encodeURIComponent(json.newRemote)}&path=${encodeURIComponent(json.newPath)}`;
+            
+            try {
+              // Recursively fetch from new location
+              const newManifest = await fetchManifestInternal(newManifestUrl, token, redirectCount + 1);
+              resolve(newManifest);
+            } catch (retryErr) {
+              reject(new Error(`Game was moved but failed to fetch from new location: ${retryErr.message}`));
+            }
+            return;
+          }
           
           if (json.success === false) {
             reject(new Error(json.error || 'Server returned error'));
@@ -389,6 +391,16 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
     req.write(postData);
     req.end();
   });
+}
+
+// Fetch manifest from URL (handles CORS)
+ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
+  // Security: Validate token
+  if (!isValidToken(token)) {
+    throw new Error('Invalid or missing authentication token');
+  }
+  
+  return fetchManifestInternal(manifestUrl, token);
 });
 
 // Debug log to file for troubleshooting
