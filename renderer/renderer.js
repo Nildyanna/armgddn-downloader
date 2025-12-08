@@ -30,6 +30,9 @@ async function init() {
   // Setup IPC listeners
   setupIPCListeners();
   
+  // Auto-check for updates on startup (silent - only notify if update available)
+  checkForUpdatesSilent();
+  
   console.log('ARMGDDN Downloader ready!');
 }
 
@@ -388,7 +391,7 @@ async function clearHistory() {
   }
 }
 
-// Check for updates
+// Check for updates (manual - shows all results)
 async function checkForUpdates() {
   try {
     const result = await api.checkUpdates();
@@ -399,22 +402,44 @@ async function checkForUpdates() {
     }
     
     if (result.hasUpdate) {
-      const shouldOpen = confirm(
-        `Update available!\n\n` +
-        `Current version: v${result.version}\n` +
-        `Latest version: v${result.latestVersion}\n\n` +
-        `Would you like to open the download page?`
-      );
-      
-      if (shouldOpen && result.releaseUrl) {
-        // Open release page in browser via main process
-        await api.openExternal(result.releaseUrl);
-      }
+      showUpdateNotification(result);
     } else {
       alert(`You're running the latest version (v${result.version})`);
     }
   } catch (error) {
     alert(`Failed to check for updates: ${error.message}`);
+  }
+}
+
+// Check for updates silently (auto - only shows if update available)
+async function checkForUpdatesSilent() {
+  try {
+    const result = await api.checkUpdates();
+    
+    if (result.hasUpdate) {
+      console.log(`Update available: v${result.latestVersion}`);
+      showUpdateNotification(result);
+    } else {
+      console.log(`Running latest version: v${result.version}`);
+    }
+  } catch (error) {
+    console.error('Silent update check failed:', error.message);
+    // Don't show error to user for silent checks
+  }
+}
+
+// Show update notification
+function showUpdateNotification(result) {
+  const shouldOpen = confirm(
+    `Update available!\n\n` +
+    `Current version: v${result.version}\n` +
+    `Latest version: v${result.latestVersion}\n\n` +
+    `Would you like to open the download page?`
+  );
+  
+  if (shouldOpen && result.releaseUrl) {
+    // Open release page in browser via main process
+    api.openExternal(result.releaseUrl);
   }
 }
 
