@@ -212,6 +212,10 @@ function renderDownloadsNow() {
       container.prepend(item);
     } else {
       item.className = `download-item ${download.status}`;
+      // Move completed downloads to top
+      if (download.status === 'completed' && item !== container.firstElementChild) {
+        container.prepend(item);
+      }
     }
     
     // Build active files list - only show if more than 1 file (otherwise redundant)
