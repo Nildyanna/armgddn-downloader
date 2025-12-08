@@ -933,8 +933,8 @@ ipcMain.handle('check-connection', async () => {
     };
     
     const req = https.request(options, (res) => {
-      // Connected if server responds with 2xx status
-      resolve(res.statusCode >= 200 && res.statusCode < 300);
+      // Connected if server responds with 2xx or 3xx status (redirects still mean server is up)
+      resolve(res.statusCode >= 200 && res.statusCode < 400);
       res.resume(); // Consume response to free up memory
     });
     
