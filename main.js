@@ -3,6 +3,7 @@ const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
+const https = require('https');
 
 // Set app name for dialogs and window titles
 app.name = 'ARMGDDN Downloader';
@@ -280,8 +281,6 @@ function isValidToken(token) {
 
 // Internal function to fetch manifest (can be called recursively for redirects)
 async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
-  const https = require('https');
-  
   // Prevent infinite redirect loops
   if (redirectCount > 3) {
     throw new Error('Too many redirects while fetching manifest');
@@ -902,8 +901,6 @@ ipcMain.handle('get-version', () => {
 
 // Check for updates via GitHub releases
 ipcMain.handle('check-updates', async () => {
-  const https = require('https');
-  
   return new Promise((resolve) => {
     const options = {
       hostname: 'api.github.com',
