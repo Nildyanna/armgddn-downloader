@@ -272,7 +272,7 @@ async function verifySession() {
       method: 'GET',
       headers: {
         'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion(),
-        'Cookie': sessionCookie
+        'Authorization': 'Bearer ' + sessionCookie
       },
       timeout: 5000
     };
@@ -657,6 +657,12 @@ async function reportProgressToServer(download, token) {
 ipcMain.handle('start-download', async (event, manifest, token) => {
   debugLog(`Download started - Token: ${token ? `[${token.substring(0, 8)}...]` : '[MISSING]'}`);
   console.log('Received manifest:', JSON.stringify(manifest, null, 2));
+  
+  // Save the token as session for connection status
+  if (token && !sessionCookie) {
+    saveSession(token);
+    logToFile('Session token saved from download');
+  }
   
   const downloadId = crypto.randomUUID();
   

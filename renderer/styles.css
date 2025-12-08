@@ -81,6 +81,11 @@ body {
   color: #ef4444;
 }
 
+.connection-status.pending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+}
+
 .connection-status .status-dot {
   width: 8px;
   height: 8px;
@@ -95,6 +100,11 @@ body {
 .connection-status.disconnected .status-dot {
   background: #ef4444;
   box-shadow: 0 0 6px #ef4444;
+}
+
+.connection-status.pending .status-dot {
+  background: #f59e0b;
+  box-shadow: 0 0 6px #f59e0b;
 }
 
 .header-buttons {
