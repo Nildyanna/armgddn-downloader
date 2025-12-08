@@ -47,6 +47,15 @@ let settings = {
   showNotifications: true
 };
 
+// Debug log file for troubleshooting
+const getDebugLogPath = () => path.join(app.getPath('userData'), 'debug.log');
+function logToFile(message) {
+  try {
+    const timestamp = new Date().toISOString();
+    fs.appendFileSync(getDebugLogPath(), `[${timestamp}] ${message}\n`);
+  } catch (e) { /* ignore */ }
+}
+
 // Paths
 const getResourcePath = () => {
   if (app.isPackaged) {
@@ -416,8 +425,11 @@ function debugLog(message) {
 
 // Report progress to website server
 async function reportProgressToServer(download, token) {
+  logToFile(`reportProgressToServer called - token: ${token ? 'present' : 'MISSING'}, download: ${download?.name}`);
+  
   if (!token) {
     console.log('[Progress] No token for progress reporting');
+    logToFile('[Progress] No token for progress reporting');
     debugLog('No token for progress reporting');
     return;
   }
@@ -432,6 +444,7 @@ async function reportProgressToServer(download, token) {
       error: download.error || null
     });
     
+    logToFile(`[Progress] Sending: ${postData.substring(0, 150)}`);
     console.log(`[Progress] Reporting to server: ${download.name} - ${download.status}`);
     debugLog(`Reporting progress: ${postData.substring(0, 100)}...`);
     
@@ -451,6 +464,7 @@ async function reportProgressToServer(download, token) {
       let responseData = '';
       res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
+        logToFile(`[Progress] Server response: ${res.statusCode} - ${responseData}`);
         console.log(`[Progress] Server response: ${res.statusCode}`);
         debugLog(`Progress response: ${res.statusCode} ${responseData}`);
         if (res.statusCode !== 200) {
@@ -460,13 +474,16 @@ async function reportProgressToServer(download, token) {
     });
     
     req.on('error', (err) => {
+      logToFile(`[Progress] Request error: ${err.message}`);
       console.log(`[Progress] Request error: ${err.message}`);
       debugLog(`Progress report error: ${err.message}`);
     });
     
     req.write(postData);
     req.end();
+    logToFile(`[Progress] Request sent`);
   } catch (err) {
+    logToFile(`[Progress] Exception: ${err.message} - ${err.stack}`);
     console.log(`[Progress] Exception: ${err.message}`);
     console.error('[Progress] Stack:', err.stack);
     debugLog(`Progress report exception: ${err.message}`);
