@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "4.0.42",
+  "version": "4.0.43",
   "description": "ARMGDDN Downloader - Fast rclone-powered download manager",
   "main": "main.js",
   "author": {
@@ -52,6 +52,18 @@
       "extraResources": [
         {
           "from": "rclone/linux",
+          "to": "rclone",
+          "filter": ["**/*"]
+        }
+      ]
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "assets/skull-logo.png",
+      "category": "public.app-category.utilities",
+      "extraResources": [
+        {
+          "from": "rclone/darwin",
           "to": "rclone",
           "filter": ["**/*"]
         }
