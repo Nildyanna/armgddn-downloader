@@ -4,6 +4,9 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 
+// Set app name for dialogs and window titles
+app.name = 'ARMGDDN Downloader';
+
 // Handle deep links
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
