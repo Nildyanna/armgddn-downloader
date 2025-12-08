@@ -1219,8 +1219,9 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
             // Run the installer after app exits
             try {
               if (platform === 'win32') {
-                // Write a batch file to wait and run installer
+                // Write a batch file to wait for app to fully exit, then run installer
                 const batchPath = path.join(tempDir, `update-${timestamp}.bat`);
+                // ping -n 3 waits ~2 seconds for app to close
                 const batchContent = `@echo off\r\nping 127.0.0.1 -n 3 >nul\r\nstart "" "${filePath}"\r\ndel "%~f0"\r\n`;
                 fs.writeFileSync(batchPath, batchContent);
                 
