@@ -435,10 +435,15 @@ async function reportProgressToServer(download, token) {
   }
   
   try {
+    // Calculate bytes downloaded from progress percentage
+    const bytesDownloaded = download.totalSize > 0 
+      ? Math.round((download.progress / 100) * download.totalSize)
+      : (download.downloadedSize || 0);
+    
     const postData = JSON.stringify({
       downloadId: download.id,
       fileName: download.name,
-      bytesDownloaded: download.downloadedSize || 0,
+      bytesDownloaded: bytesDownloaded,
       totalBytes: download.totalSize || 0,
       status: download.status === 'in_progress' ? 'downloading' : download.status,
       error: download.error || null
