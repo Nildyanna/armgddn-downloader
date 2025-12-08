@@ -1178,14 +1178,18 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
   
   const tempDir = app.getPath('temp');
   const platform = process.platform;
+  const timestamp = Date.now();
   let fileName;
   
   if (platform === 'win32') {
-    fileName = 'ARMGDDN-Downloader-Setup.exe';
+    // Use unique filename to avoid EBUSY errors
+    fileName = `ARMGDDN-Downloader-Setup-${timestamp}.exe`;
   } else if (platform === 'linux') {
-    fileName = installerUrl.endsWith('.deb') ? 'armgddn-downloader.deb' : 'ARMGDDN-Downloader.AppImage';
+    fileName = installerUrl.endsWith('.deb') 
+      ? `armgddn-downloader-${timestamp}.deb` 
+      : `ARMGDDN-Downloader-${timestamp}.AppImage`;
   } else {
-    fileName = 'ARMGDDN-Downloader.dmg';
+    fileName = `ARMGDDN-Downloader-${timestamp}.dmg`;
   }
   
   const filePath = path.join(tempDir, fileName);
@@ -1210,35 +1214,43 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
         res.pipe(fileStream);
         
         fileStream.on('finish', () => {
-          fileStream.close();
-          
-          // Run the installer
-          try {
-            if (platform === 'win32') {
-              // Run the NSIS installer
-              spawn(filePath, [], { detached: true, stdio: 'ignore' }).unref();
-              app.quit();
-            } else if (platform === 'linux') {
-              if (filePath.endsWith('.AppImage')) {
-                // Make executable and run
-                fs.chmodSync(filePath, '755');
-                spawn(filePath, [], { detached: true, stdio: 'ignore' }).unref();
-                app.quit();
+          fileStream.close(() => {
+            // Run the installer after file is fully closed
+            try {
+              if (platform === 'win32') {
+                // Run the NSIS installer with /S for silent install
+                const proc = spawn(filePath, [], { 
+                  detached: true, 
+                  stdio: 'ignore',
+                  windowsHide: false
+                });
+                proc.unref();
+                // Give installer time to start before quitting
+                setTimeout(() => app.quit(), 500);
+              } else if (platform === 'linux') {
+                if (filePath.endsWith('.AppImage')) {
+                  // Make executable and run
+                  fs.chmodSync(filePath, '755');
+                  spawn(filePath, [], { detached: true, stdio: 'ignore' }).unref();
+                  setTimeout(() => app.quit(), 500);
+                } else {
+                  // For .deb, open file manager or show location
+                  shell.showItemInFolder(filePath);
+                  resolve({ success: true, message: 'Installer downloaded. Please install manually.' });
+                  return;
+                }
               } else {
-                // For .deb, open file manager or show location
-                shell.showItemInFolder(filePath);
-                resolve({ success: true, message: 'Installer downloaded. Please install manually.' });
+                // macOS - open the DMG
+                shell.openPath(filePath);
+                resolve({ success: true, message: 'Installer opened. Please complete installation.' });
+                return;
               }
-            } else {
-              // macOS - open the DMG
-              shell.openPath(filePath);
-              resolve({ success: true, message: 'Installer opened. Please complete installation.' });
+              
+              resolve({ success: true });
+            } catch (e) {
+              resolve({ success: false, error: e.message });
             }
-            
-            resolve({ success: true });
-          } catch (e) {
-            resolve({ success: false, error: e.message });
-          }
+          });
         });
         
         fileStream.on('error', (err) => {
