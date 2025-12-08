@@ -199,17 +199,43 @@ function renderDownloadsNow() {
   // We have downloads - clear and fully rebuild list
   container.innerHTML = '';
 
+  // Create a sorted list: active/in-progress first (newest first), then completed
+  const items = Array.from(downloads.entries());
+  items.sort((a, b) => {
+    const da = a[1];
+    const db = b[1];
+
+    const isActive = (d) => d && (d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting');
+    const aActive = isActive(da);
+    const bActive = isActive(db);
+    if (aActive !== bActive) {
+      return aActive ? -1 : 1; // active first
+    }
+
+    const aTime = da && da.startTime ? new Date(da.startTime).getTime() : 0;
+    const bTime = db && db.startTime ? new Date(db.startTime).getTime() : 0;
+    return bTime - aTime; // newest first
+  });
+
   // Render each download item
-  for (const [id, download] of downloads) {
+  for (const [id, download] of items) {
     const item = document.createElement('div');
     item.className = `download-item ${download.status}`;
     item.dataset.id = id;
     container.appendChild(item);
     
-    // Build active files list - only show if more than 1 file (otherwise redundant)
-    let activeFilesHtml = '';
     const hasMultipleFiles = download.fileCount > 1;
-    if (hasMultipleFiles && download.activeFiles && download.activeFiles.length > 0) {
+
+    // Clamp completedFiles for completed downloads so header always shows N/N
+    let completedFiles = download.completedFiles || 0;
+    if (download.status === 'completed' && hasMultipleFiles && download.fileCount) {
+      completedFiles = download.fileCount;
+    }
+
+    // Build active files list - only show when not fully completed
+    let activeFilesHtml = '';
+    const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && download.activeFiles && download.activeFiles.length > 0;
+    if (showActiveFiles) {
       activeFilesHtml = download.activeFiles.map(f => `
         <div class="file-progress">
           <div class="file-progress-header">
@@ -224,7 +250,7 @@ function renderDownloadsNow() {
     }
     
     const fileCountText = hasMultipleFiles 
-      ? `${download.completedFiles || 0}/${download.fileCount} files` 
+      ? `${completedFiles}/${download.fileCount} files` 
       : '';
     
     // Format status for display
