@@ -679,6 +679,7 @@ async function reportProgressToServer(download, token) {
     const postData = JSON.stringify({
       downloadId: download.id,
       fileName: download.name,
+      remotePath: download.remotePath || '',  // For trending (e.g., "PC1/Game Name")
       bytesDownloaded: bytesDownloaded,
       totalBytes: download.totalSize || 0,
       status: download.status === 'in_progress' ? 'downloading' : download.status,
@@ -749,13 +750,15 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   let files = [];
   let name = 'Unknown';
   let totalSize = 0;
+  let remotePath = '';  // Full path like "PC1/Game Name" for trending
   
   if (manifest.files && Array.isArray(manifest.files)) {
     // Standard format: { files: [...], path: "...", ... }
     files = manifest.files;
+    // Store full path for trending (e.g., "PC1/Game Name")
+    remotePath = manifest.path || manifest.name || '';
     // Extract folder name from path (e.g., "PC1/Game Name" -> "Game Name")
-    const folderPath = manifest.path || manifest.name || '';
-    name = folderPath.split('/').pop() || 'Download';
+    name = remotePath.split('/').pop() || 'Download';
     totalSize = manifest.totalSize || files.reduce((sum, f) => sum + (f.size || 0), 0);
   } else if (manifest.url) {
     // Single file format: { url: "...", name: "...", size: ... }
@@ -774,6 +777,7 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   const download = {
     id: downloadId,
     name: name,
+    remotePath: remotePath,  // Store for trending reporting
     status: 'starting',
     progress: 0,
     speed: '',
