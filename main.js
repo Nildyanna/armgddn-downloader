@@ -1219,19 +1219,17 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
             // Run the installer after app exits
             try {
               if (platform === 'win32') {
-                // Write a VBScript to wait and run installer (avoids cmd.exe path issues)
-                const vbsPath = path.join(tempDir, `update-${timestamp}.vbs`);
-                const vbsContent = [
-                  'WScript.Sleep 2000',
-                  `Set objShell = CreateObject("WScript.Shell")`,
-                  `objShell.Run """${filePath.replace(/\\/g, '\\\\')}""", 1, False`
-                ].join('\r\n');
-                fs.writeFileSync(vbsPath, vbsContent);
+                // Log paths for debugging
+                logToFile(`Update - tempDir: ${tempDir}`);
+                logToFile(`Update - filePath: ${filePath}`);
                 
-                spawn('wscript.exe', [vbsPath], {
+                // Use PowerShell to wait and run installer (more reliable than VBS/batch)
+                const psCommand = `Start-Sleep -Seconds 2; Start-Process -FilePath '${filePath.replace(/'/g, "''")}'`;
+                logToFile(`Update - PS command: ${psCommand}`);
+                
+                spawn('powershell.exe', ['-WindowStyle', 'Hidden', '-Command', psCommand], {
                   detached: true,
-                  stdio: 'ignore',
-                  windowsHide: true
+                  stdio: 'ignore'
                 }).unref();
               } else if (platform === 'linux') {
                 if (filePath.endsWith('.AppImage')) {
