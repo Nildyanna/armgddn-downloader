@@ -416,6 +416,12 @@ async function checkForUpdatesSilent() {
   try {
     const result = await api.checkUpdates();
     
+    if (result.error) {
+      console.error('Update check failed:', result.error);
+      showUpdateError();
+      return;
+    }
+    
     if (result.hasUpdate) {
       console.log(`Update available: v${result.latestVersion}`);
       showUpdateNotification(result);
@@ -424,8 +430,13 @@ async function checkForUpdatesSilent() {
     }
   } catch (error) {
     console.error('Silent update check failed:', error.message);
-    // Don't show error to user for silent checks
+    showUpdateError();
   }
+}
+
+// Show update error message
+function showUpdateError() {
+  alert('Update check not available. Please try again later.');
 }
 
 // Show update notification

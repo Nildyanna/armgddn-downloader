@@ -403,6 +403,7 @@ function debugLog(message) {
 // Report progress to website server
 async function reportProgressToServer(download, token) {
   if (!token) {
+    console.log('[Progress] No token for progress reporting');
     debugLog('No token for progress reporting');
     return;
   }
@@ -411,12 +412,13 @@ async function reportProgressToServer(download, token) {
     const postData = JSON.stringify({
       downloadId: download.id,
       fileName: download.name,
-      bytesDownloaded: download.downloadedSize,
-      totalBytes: download.totalSize,
+      bytesDownloaded: download.downloadedSize || 0,
+      totalBytes: download.totalSize || 0,
       status: download.status === 'in_progress' ? 'downloading' : download.status,
       error: download.error || null
     });
     
+    console.log(`[Progress] Reporting to server: ${download.name} - ${download.status}`);
     debugLog(`Reporting progress: ${postData.substring(0, 100)}...`);
     
     const options = {
@@ -435,11 +437,16 @@ async function reportProgressToServer(download, token) {
       let responseData = '';
       res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
+        console.log(`[Progress] Server response: ${res.statusCode}`);
         debugLog(`Progress response: ${res.statusCode} ${responseData}`);
+        if (res.statusCode !== 200) {
+          console.log(`[Progress] Response body: ${responseData}`);
+        }
       });
     });
     
     req.on('error', (err) => {
+      console.log(`[Progress] Request error: ${err.message}`);
       debugLog(`Progress report error: ${err.message}`);
     });
     
@@ -693,6 +700,7 @@ async function downloadFile(downloadId, file, downloadDir) {
 // Throttle UI updates per download
 const lastUIUpdate = new Map();
 const UI_UPDATE_INTERVAL = 500; // Update UI every 500ms max
+let lastProgressReport = 0; // Throttle server progress reports
 
 // Parse rclone progress output
 function parseRcloneProgress(downloadId, fileName, output) {
@@ -785,7 +793,6 @@ function formatSpeed(bytesPerSec) {
 }
 
 // Update overall progress
-let lastProgressReport = 0;
 function updateProgress(downloadId) {
   const download = activeDownloads.get(downloadId);
   if (!download) return;
