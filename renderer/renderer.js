@@ -335,12 +335,16 @@ function updateSettingsUI() {
   document.getElementById('download-path').value = settings.downloadPath || '';
   document.getElementById('max-concurrent').value = settings.maxConcurrentDownloads || 3;
   document.getElementById('show-notifications').checked = settings.showNotifications !== false;
+  document.getElementById('minimize-to-tray-on-minimize').checked = !!settings.minimizeToTrayOnMinimize;
+  document.getElementById('minimize-to-tray-on-exit').checked = !!settings.minimizeToTrayOnClose;
 }
 
 async function saveSettings() {
   settings.downloadPath = document.getElementById('download-path').value;
   settings.maxConcurrentDownloads = parseInt(document.getElementById('max-concurrent').value);
   settings.showNotifications = document.getElementById('show-notifications').checked;
+  settings.minimizeToTrayOnMinimize = document.getElementById('minimize-to-tray-on-minimize').checked;
+  settings.minimizeToTrayOnClose = document.getElementById('minimize-to-tray-on-exit').checked;
   
   await api.saveSettings(settings);
   closeSettings();
@@ -349,7 +353,12 @@ async function saveSettings() {
 async function browseDownloadPath() {
   const path = await api.browseFolder();
   if (path) {
+    // Update UI field
     document.getElementById('download-path').value = path;
+
+    // Persist immediately so this location sticks until changed again
+    settings.downloadPath = path;
+    await api.saveSettings(settings);
   }
 }
 

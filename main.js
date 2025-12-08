@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, safeStorage } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, safeStorage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -46,8 +46,37 @@ let sessionCookie = null;
 let settings = {
   downloadPath: path.join(app.getPath('downloads'), 'ARMGDDN'),
   maxConcurrentDownloads: 3,
-  showNotifications: true
+  showNotifications: true,
+  minimizeToTrayOnMinimize: false,
+  minimizeToTrayOnClose: false
 };
+
+// Helper: show OS-level notification (tray balloon vs toast)
+function showDownloadNotification(title, body) {
+  try {
+    // Respect user setting
+    if (settings && settings.showNotifications === false) return;
+
+    const windowHidden = !mainWindow || !mainWindow.isVisible();
+
+    // On Windows, if app is hidden to tray, prefer tray balloon
+    if (process.platform === 'win32' && tray && windowHidden && typeof tray.displayBalloon === 'function') {
+      tray.displayBalloon({
+        title: title,
+        content: body
+      });
+      return;
+    }
+
+    // Fallback to Electron Notification (OS toast where supported)
+    if (Notification && Notification.isSupported && Notification.isSupported()) {
+      const notif = new Notification({ title, body });
+      notif.show();
+    }
+  } catch (e) {
+    logToFile('Notification error: ' + e.message);
+  }
+}
 
 // Debug log file for troubleshooting
 const getDebugLogPath = () => path.join(app.getPath('userData'), 'debug.log');
@@ -400,9 +429,18 @@ function createWindow() {
     mainWindow.show();
   });
 
-  // Handle close to tray
+  // Minimize / close behavior (configurable via settings)
+  mainWindow.on('minimize', (event) => {
+    if (settings && settings.minimizeToTrayOnMinimize) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
+  });
+
   mainWindow.on('close', (event) => {
-    if (!app.isQuitting) {
+    // Default behavior: actually close the window / quit the app
+    // Only hide to tray when explicitly enabled in settings
+    if (!app.isQuitting && settings && settings.minimizeToTrayOnClose) {
       event.preventDefault();
       mainWindow.hide();
     }
@@ -970,6 +1008,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         }
         
         mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
+        showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
         reject(new Error(download.error));
       }
     });
@@ -978,6 +1017,7 @@ async function downloadFile(downloadId, file, downloadDir) {
       download.status = 'error';
       download.error = err.message;
       mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
+      showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
       reject(err);
     });
   });
@@ -1162,6 +1202,7 @@ function completeDownload(downloadId) {
   saveHistory();
 
   mainWindow.webContents.send('download-completed', { id: downloadId });
+  showDownloadNotification('Download completed', download.name || 'Download finished');
   activeDownloads.delete(downloadId);
 }
 
