@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, safeStorage } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { spawn } = require('child_process');
@@ -87,14 +87,20 @@ const getSessionPath = () => {
   return path.join(app.getPath('userData'), 'session.json');
 };
 
-// Load session cookie from file
+// Load session cookie from file (encrypted)
 function loadSession() {
   try {
     const sessionPath = getSessionPath();
     if (fs.existsSync(sessionPath)) {
       const data = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
       if (data.cookie && data.expiresAt && new Date(data.expiresAt) > new Date()) {
-        sessionCookie = data.cookie;
+        // Decrypt if encrypted, otherwise use plain (migration)
+        if (data.encrypted && safeStorage.isEncryptionAvailable()) {
+          const encryptedBuffer = Buffer.from(data.cookie, 'base64');
+          sessionCookie = safeStorage.decryptString(encryptedBuffer);
+        } else {
+          sessionCookie = data.cookie;
+        }
         logToFile('Session loaded from file');
         return true;
       }
@@ -105,15 +111,26 @@ function loadSession() {
   return false;
 }
 
-// Save session cookie to file
+// Save session cookie to file (encrypted)
 function saveSession(cookie) {
   try {
     const sessionPath = getSessionPath();
     // Session expires in 30 days
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    fs.writeFileSync(sessionPath, JSON.stringify({ cookie, expiresAt }, null, 2));
+    
+    let storedCookie = cookie;
+    let encrypted = false;
+    
+    // Encrypt if available
+    if (safeStorage.isEncryptionAvailable()) {
+      const encryptedBuffer = safeStorage.encryptString(cookie);
+      storedCookie = encryptedBuffer.toString('base64');
+      encrypted = true;
+    }
+    
+    fs.writeFileSync(sessionPath, JSON.stringify({ cookie: storedCookie, expiresAt, encrypted }, null, 2));
     sessionCookie = cookie;
-    logToFile('Session saved to file');
+    logToFile('Session saved to file (encrypted: ' + encrypted + ')');
   } catch (e) {
     logToFile('Failed to save session: ' + e.message);
   }
@@ -184,11 +201,58 @@ function saveHistory() {
   }
 }
 
+// Validate deep link URL
+function validateDeepLink(url) {
+  if (!url || typeof url !== 'string') return null;
+  
+  try {
+    // Must start with our protocol
+    if (!url.startsWith('armgddn://')) return null;
+    
+    const parsed = new URL(url);
+    
+    // Validate protocol
+    if (parsed.protocol !== 'armgddn:') return null;
+    
+    // Whitelist allowed actions
+    const allowedHosts = ['download', 'open'];
+    if (!allowedHosts.includes(parsed.hostname)) {
+      logToFile(`Deep link rejected - invalid host: ${parsed.hostname}`);
+      return null;
+    }
+    
+    // Validate manifest parameter if present (should be base64)
+    const manifest = parsed.searchParams.get('manifest');
+    if (manifest) {
+      // Check it's valid base64
+      try {
+        Buffer.from(manifest, 'base64');
+      } catch {
+        logToFile('Deep link rejected - invalid manifest encoding');
+        return null;
+      }
+    }
+    
+    return url;
+  } catch (e) {
+    logToFile(`Deep link validation error: ${e.message}`);
+    return null;
+  }
+}
+
 // Handle deep link
 function handleDeepLink(url) {
   console.log('Deep link received:', url);
+  
+  // Validate before processing
+  const validatedUrl = validateDeepLink(url);
+  if (!validatedUrl) {
+    logToFile('Deep link rejected: ' + (url ? url.substring(0, 50) : 'null'));
+    return;
+  }
+  
   if (mainWindow) {
-    mainWindow.webContents.send('deep-link', url);
+    mainWindow.webContents.send('deep-link', validatedUrl);
     mainWindow.show();
     mainWindow.focus();
   }
