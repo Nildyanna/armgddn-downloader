@@ -755,6 +755,12 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   if (manifest.files && Array.isArray(manifest.files)) {
     // Standard format: { files: [...], path: "...", ... }
     files = manifest.files;
+    
+    // Check if no files were found
+    if (files.length === 0) {
+      throw new Error('No files found for this game. The game may not be available on any mirror.');
+    }
+    
     // Store full path for trending (e.g., "PC1/Game Name")
     remotePath = manifest.path || manifest.name || '';
     // Extract folder name from path (e.g., "PC1/Game Name" -> "Game Name")
