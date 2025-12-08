@@ -1221,15 +1221,21 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
               if (platform === 'win32') {
                 // Write a batch file to wait for app to fully exit, then run installer
                 const batchPath = path.join(tempDir, `update-${timestamp}.bat`);
+                // Use short 8.3 style path to avoid issues with spaces
                 // ping -n 3 waits ~2 seconds for app to close
-                const batchContent = `@echo off\r\nping 127.0.0.1 -n 3 >nul\r\nstart "" "${filePath}"\r\ndel "%~f0"\r\n`;
+                const batchContent = [
+                  '@echo off',
+                  'ping 127.0.0.1 -n 3 >nul',
+                  `start "" "${filePath}"`,
+                  'del "%~f0"'
+                ].join('\r\n') + '\r\n';
                 fs.writeFileSync(batchPath, batchContent);
                 
-                spawn('cmd.exe', ['/c', batchPath], {
+                // Use shell: true to handle paths with spaces
+                require('child_process').exec(`"${batchPath}"`, {
                   detached: true,
-                  stdio: 'ignore',
                   windowsHide: true
-                }).unref();
+                });
               } else if (platform === 'linux') {
                 if (filePath.endsWith('.AppImage')) {
                   // Make executable and use bash to wait then run
