@@ -1267,6 +1267,8 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
               }
               
               // Quit app immediately - installer will run after delay
+              // Set isQuitting to bypass minimize-to-tray behavior
+              app.isQuitting = true;
               app.quit();
               resolve({ success: true });
             } catch (e) {
