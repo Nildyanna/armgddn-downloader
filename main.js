@@ -38,9 +38,11 @@ if (!gotTheLock) {
 }
 
 let mainWindow;
+let authWindow;
 let tray;
 let activeDownloads = new Map();
 let downloadHistory = [];
+let sessionCookie = null;
 let settings = {
   downloadPath: path.join(app.getPath('downloads'), 'ARMGDDN'),
   maxConcurrentDownloads: 3,
@@ -80,6 +82,55 @@ const getConfigPath = () => {
 const getHistoryPath = () => {
   return path.join(app.getPath('userData'), 'history.json');
 };
+
+const getSessionPath = () => {
+  return path.join(app.getPath('userData'), 'session.json');
+};
+
+// Load session cookie from file
+function loadSession() {
+  try {
+    const sessionPath = getSessionPath();
+    if (fs.existsSync(sessionPath)) {
+      const data = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+      if (data.cookie && data.expiresAt && new Date(data.expiresAt) > new Date()) {
+        sessionCookie = data.cookie;
+        logToFile('Session loaded from file');
+        return true;
+      }
+    }
+  } catch (e) {
+    logToFile('Failed to load session: ' + e.message);
+  }
+  return false;
+}
+
+// Save session cookie to file
+function saveSession(cookie) {
+  try {
+    const sessionPath = getSessionPath();
+    // Session expires in 30 days
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+    fs.writeFileSync(sessionPath, JSON.stringify({ cookie, expiresAt }, null, 2));
+    sessionCookie = cookie;
+    logToFile('Session saved to file');
+  } catch (e) {
+    logToFile('Failed to save session: ' + e.message);
+  }
+}
+
+// Clear session
+function clearSession() {
+  try {
+    const sessionPath = getSessionPath();
+    if (fs.existsSync(sessionPath)) {
+      fs.unlinkSync(sessionPath);
+    }
+    sessionCookie = null;
+  } catch (e) {
+    logToFile('Failed to clear session: ' + e.message);
+  }
+}
 
 // Load settings
 function loadSettings() {
@@ -143,6 +194,112 @@ function handleDeepLink(url) {
   }
 }
 
+// Open auth window to login and grab session cookie
+function openAuthWindow() {
+  return new Promise((resolve) => {
+    if (authWindow) {
+      authWindow.focus();
+      return resolve(false);
+    }
+
+    authWindow = new BrowserWindow({
+      width: 500,
+      height: 700,
+      parent: mainWindow,
+      modal: true,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      },
+      icon: path.join(__dirname, 'assets', 'icon.png'),
+      title: 'Login to ARMGDDN Browser'
+    });
+
+    authWindow.loadURL('https://armgddnbrowser.com/');
+
+    // Check for successful login by monitoring cookies
+    const checkAuth = async () => {
+      try {
+        const cookies = await authWindow.webContents.session.cookies.get({ 
+          domain: 'armgddnbrowser.com' 
+        });
+        
+        // Look for the session cookie (usually named 'session' or similar)
+        const sessionCookieObj = cookies.find(c => 
+          c.name === 'tg_auth' || c.name === 'session' || c.name === 'PHPSESSID'
+        );
+        
+        if (sessionCookieObj) {
+          // Build cookie string
+          const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+          saveSession(cookieStr);
+          logToFile('Auth successful, session cookie saved');
+          authWindow.close();
+          resolve(true);
+        }
+      } catch (e) {
+        logToFile('Auth check error: ' + e.message);
+      }
+    };
+
+    // Check auth status when page finishes loading
+    authWindow.webContents.on('did-finish-load', () => {
+      // Give a moment for cookies to be set
+      setTimeout(checkAuth, 1000);
+    });
+
+    // Also check on navigation
+    authWindow.webContents.on('did-navigate', () => {
+      setTimeout(checkAuth, 1000);
+    });
+
+    authWindow.on('closed', () => {
+      authWindow = null;
+      resolve(!!sessionCookie);
+    });
+  });
+}
+
+// Verify session is still valid
+async function verifySession() {
+  if (!sessionCookie) return false;
+  
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'armgddnbrowser.com',
+      port: 443,
+      path: '/api/auth-status',
+      method: 'GET',
+      headers: {
+        'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion(),
+        'Cookie': sessionCookie
+      },
+      timeout: 5000
+    };
+    
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', () => {
+        try {
+          const result = JSON.parse(data);
+          resolve(result.authenticated === true);
+        } catch (e) {
+          resolve(false);
+        }
+      });
+    });
+    
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+    
+    req.end();
+  });
+}
+
 // Create main window
 function createWindow() {
   mainWindow = new BrowserWindow({
@@ -203,6 +360,7 @@ function createTray() {
 app.whenReady().then(() => {
   loadSettings();
   loadHistory();
+  loadSession();
   createWindow();
   createTray();
 
@@ -918,34 +1076,22 @@ ipcMain.handle('get-version', () => {
   return app.getVersion();
 });
 
-// Check connection to server
+// Check connection to server (verifies session is valid)
 ipcMain.handle('check-connection', async () => {
-  return new Promise((resolve) => {
-    const options = {
-      hostname: 'armgddnbrowser.com',
-      port: 443,
-      path: '/api/health',
-      method: 'GET',
-      headers: {
-        'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion()
-      },
-      timeout: 5000
-    };
-    
-    const req = https.request(options, (res) => {
-      // Connected if server responds with 2xx or 3xx status (redirects still mean server is up)
-      resolve(res.statusCode >= 200 && res.statusCode < 400);
-      res.resume(); // Consume response to free up memory
-    });
-    
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(false);
-    });
-    
-    req.end();
-  });
+  return verifySession();
+});
+
+// Open login window
+ipcMain.handle('open-login', async () => {
+  return openAuthWindow();
+});
+
+// Get session status
+ipcMain.handle('get-session-status', async () => {
+  return {
+    hasSession: !!sessionCookie,
+    isValid: await verifySession()
+  };
 });
 
 // Check for updates via GitHub releases
