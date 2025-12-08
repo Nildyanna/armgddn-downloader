@@ -1087,10 +1087,22 @@ function updateProgress(downloadId) {
     download.progress = Math.round((download.downloadedSize / download.totalSize) * 100);
   }
 
+  const activeFilesList = Object.values(download.activeFiles || {});
+  let totalSpeedBytes = 0;
+  for (const f of activeFilesList) {
+    totalSpeedBytes += f.speedBytes || 0;
+  }
+  download.totalSpeed = formatSpeed(totalSpeedBytes);
+
   mainWindow.webContents.send('download-progress', {
     id: downloadId,
+    status: download.status,
     progress: download.progress,
-    downloadedSize: download.downloadedSize
+    downloadedSize: download.downloadedSize,
+    totalSpeed: download.totalSpeed,
+    activeFiles: activeFilesList,
+    completedFiles: download.completedFiles,
+    fileCount: download.fileCount
   });
   
   // Report to server every 2 seconds (throttled)
