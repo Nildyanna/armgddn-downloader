@@ -24,6 +24,11 @@ async function init() {
   document.getElementById('version-display').textContent = `Version ${version}`;
   document.title = `ARMGDDN Downloader v${version}`;
   
+  // Check connection status
+  checkConnectionStatus();
+  // Re-check connection status periodically
+  setInterval(checkConnectionStatus, 30000);
+  
   // Setup event listeners
   setupEventListeners();
   
@@ -466,6 +471,26 @@ function formatBytes(bytes) {
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
   const i = Math.floor(Math.log(bytes) / Math.log(k));
   return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+}
+
+// Check connection status with server
+async function checkConnectionStatus() {
+  const statusEl = document.getElementById('connection-status');
+  if (!statusEl) return;
+  
+  try {
+    const isConnected = await api.checkConnection();
+    if (isConnected) {
+      statusEl.className = 'connection-status connected';
+      statusEl.querySelector('.status-text').textContent = 'Connected';
+    } else {
+      statusEl.className = 'connection-status disconnected';
+      statusEl.querySelector('.status-text').textContent = 'Disconnected';
+    }
+  } catch (e) {
+    statusEl.className = 'connection-status disconnected';
+    statusEl.querySelector('.status-text').textContent = 'Disconnected';
+  }
 }
 
 // Make functions available globally for onclick handlers

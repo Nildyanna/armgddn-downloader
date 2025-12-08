@@ -918,6 +918,36 @@ ipcMain.handle('get-version', () => {
   return app.getVersion();
 });
 
+// Check connection to server
+ipcMain.handle('check-connection', async () => {
+  return new Promise((resolve) => {
+    const options = {
+      hostname: 'armgddnbrowser.com',
+      port: 443,
+      path: '/api/health',
+      method: 'GET',
+      headers: {
+        'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion()
+      },
+      timeout: 5000
+    };
+    
+    const req = https.request(options, (res) => {
+      // Connected if server responds with 2xx status
+      resolve(res.statusCode >= 200 && res.statusCode < 300);
+      res.resume(); // Consume response to free up memory
+    });
+    
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+    
+    req.end();
+  });
+});
+
 // Check for updates via GitHub releases
 ipcMain.handle('check-updates', async () => {
   return new Promise((resolve) => {

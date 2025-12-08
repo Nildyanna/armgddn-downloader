@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
-  <title>ARMGDDN Downloader</title>
+  <title>ARMGDDN Downloader Beta</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -12,8 +12,12 @@
     <header class="app-header">
       <h1>
         <img src="../assets/skull-logo.png" alt="ARMGDDN" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">
-        ARMGDDN Downloader
+        ARMGDDN Downloader <span style="font-size: 0.6em; color: #f59e0b; font-weight: normal;">Beta</span>
       </h1>
+      <div id="connection-status" class="connection-status disconnected">
+        <span class="status-dot"></span>
+        <span class="status-text">Disconnected</span>
+      </div>
       <div class="header-buttons">
         <button id="history-btn" class="settings-btn">📜 History</button>
         <button id="check-updates-btn" class="settings-btn">🔄 Check for Updates</button>
