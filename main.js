@@ -265,38 +265,52 @@ async function verifySession() {
   if (!sessionCookie) return false;
   
   return new Promise((resolve) => {
-    const options = {
-      hostname: 'armgddnbrowser.com',
-      port: 443,
-      path: '/api/auth-status',
-      method: 'GET',
-      headers: {
-        'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion(),
-        'Authorization': 'Bearer ' + sessionCookie
-      },
-      timeout: 5000
+    const makeRequest = (url) => {
+      const urlObj = new URL(url);
+      const options = {
+        hostname: urlObj.hostname,
+        port: 443,
+        path: urlObj.pathname,
+        method: 'GET',
+        headers: {
+          'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion(),
+          'Authorization': 'Bearer ' + sessionCookie
+        },
+        timeout: 5000
+      };
+      
+      const req = https.request(options, (res) => {
+        // Follow redirects
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          const location = res.headers.location;
+          if (location) {
+            const redirectUrl = location.startsWith('http') ? location : `https://${urlObj.hostname}${location}`;
+            return makeRequest(redirectUrl);
+          }
+        }
+        
+        let data = '';
+        res.on('data', chunk => data += chunk);
+        res.on('end', () => {
+          try {
+            const result = JSON.parse(data);
+            resolve(result.authenticated === true);
+          } catch (e) {
+            resolve(false);
+          }
+        });
+      });
+      
+      req.on('error', () => resolve(false));
+      req.on('timeout', () => {
+        req.destroy();
+        resolve(false);
+      });
+      
+      req.end();
     };
     
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', chunk => data += chunk);
-      res.on('end', () => {
-        try {
-          const result = JSON.parse(data);
-          resolve(result.authenticated === true);
-        } catch (e) {
-          resolve(false);
-        }
-      });
-    });
-    
-    req.on('error', () => resolve(false));
-    req.on('timeout', () => {
-      req.destroy();
-      resolve(false);
-    });
-    
-    req.end();
+    makeRequest('https://armgddnbrowser.com/api/auth-status');
   });
 }
 
