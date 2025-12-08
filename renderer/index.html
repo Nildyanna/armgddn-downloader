@@ -14,10 +14,6 @@
         <img src="../assets/skull-logo.png" alt="ARMGDDN" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">
         ARMGDDN Downloader <span style="font-size: 0.6em; color: #f59e0b; font-weight: normal;">Beta</span>
       </h1>
-      <div id="connection-status" class="connection-status disconnected">
-        <span class="status-dot"></span>
-        <span class="status-text">Disconnected</span>
-      </div>
       <div class="header-buttons">
         <button id="history-btn" class="settings-btn">📜 History</button>
         <button id="check-updates-btn" class="settings-btn">🔄 Check for Updates</button>
@@ -27,6 +23,10 @@
 
     <div class="manifest-input-section">
       <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+        <div id="connection-status" class="connection-status disconnected" style="margin: 0 auto 1.5rem auto;">
+          <span class="status-dot"></span>
+          <span class="status-text">Disconnected</span>
+        </div>
         <h2 style="color: var(--text-primary); margin-bottom: 1rem;">📥 ARMGDDN Downloader</h2>
         <p>Click "Download with App" button on the website to start downloading.</p>
         <p style="margin-top: 0.5rem; font-size: 0.9rem;">The app will automatically open and begin the download.</p>
