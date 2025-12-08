@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   getVersion: () => ipcRenderer.invoke('get-version'),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
+  installUpdate: (url) => ipcRenderer.invoke('install-update', url),
   checkConnection: () => ipcRenderer.invoke('check-connection'),
   openLogin: () => ipcRenderer.invoke('open-login'),
   getSessionStatus: () => ipcRenderer.invoke('get-session-status'),

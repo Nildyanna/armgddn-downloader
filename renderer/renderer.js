@@ -444,17 +444,44 @@ function showUpdateError() {
 }
 
 // Show update notification
-function showUpdateNotification(result) {
-  const shouldOpen = confirm(
-    `Update available!\n\n` +
-    `Current version: v${result.version}\n` +
-    `Latest version: v${result.latestVersion}\n\n` +
-    `Would you like to open the download page?`
-  );
+async function showUpdateNotification(result) {
+  const hasAutoInstall = !!result.installerUrl;
   
-  if (shouldOpen && result.releaseUrl) {
-    // Open release page in browser via main process
-    api.openExternal(result.releaseUrl);
+  const message = hasAutoInstall
+    ? `Update available!\n\n` +
+      `Current version: v${result.version}\n` +
+      `Latest version: v${result.latestVersion}\n\n` +
+      `Would you like to download and install the update now?`
+    : `Update available!\n\n` +
+      `Current version: v${result.version}\n` +
+      `Latest version: v${result.latestVersion}\n\n` +
+      `Would you like to open the download page?`;
+  
+  const shouldUpdate = confirm(message);
+  
+  if (shouldUpdate) {
+    if (hasAutoInstall) {
+      // Show downloading status
+      alert('Downloading update... The app will restart when ready.');
+      
+      try {
+        const installResult = await api.installUpdate(result.installerUrl);
+        
+        if (installResult.message) {
+          alert(installResult.message);
+        } else if (!installResult.success) {
+          alert(`Update failed: ${installResult.error}\n\nOpening download page instead.`);
+          api.openExternal(result.releaseUrl);
+        }
+        // If success without message, app will quit and installer will run
+      } catch (e) {
+        alert(`Update failed: ${e.message}\n\nOpening download page instead.`);
+        api.openExternal(result.releaseUrl);
+      }
+    } else if (result.releaseUrl) {
+      // Fallback to opening release page
+      api.openExternal(result.releaseUrl);
+    }
   }
 }
 
