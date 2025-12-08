@@ -1219,23 +1219,20 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
             // Run the installer after app exits
             try {
               if (platform === 'win32') {
-                // Write a batch file to wait for app to fully exit, then run installer
-                const batchPath = path.join(tempDir, `update-${timestamp}.bat`);
-                // Use short 8.3 style path to avoid issues with spaces
-                // ping -n 3 waits ~2 seconds for app to close
-                const batchContent = [
-                  '@echo off',
-                  'ping 127.0.0.1 -n 3 >nul',
-                  `start "" "${filePath}"`,
-                  'del "%~f0"'
-                ].join('\r\n') + '\r\n';
-                fs.writeFileSync(batchPath, batchContent);
+                // Write a VBScript to wait and run installer (avoids cmd.exe path issues)
+                const vbsPath = path.join(tempDir, `update-${timestamp}.vbs`);
+                const vbsContent = [
+                  'WScript.Sleep 2000',
+                  `Set objShell = CreateObject("WScript.Shell")`,
+                  `objShell.Run """${filePath.replace(/\\/g, '\\\\')}""", 1, False`
+                ].join('\r\n');
+                fs.writeFileSync(vbsPath, vbsContent);
                 
-                // Use shell: true to handle paths with spaces
-                require('child_process').exec(`"${batchPath}"`, {
+                spawn('wscript.exe', [vbsPath], {
                   detached: true,
+                  stdio: 'ignore',
                   windowsHide: true
-                });
+                }).unref();
               } else if (platform === 'linux') {
                 if (filePath.endsWith('.AppImage')) {
                   // Make executable and use bash to wait then run
