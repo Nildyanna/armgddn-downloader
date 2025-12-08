@@ -467,6 +467,8 @@ async function reportProgressToServer(download, token) {
     req.write(postData);
     req.end();
   } catch (err) {
+    console.log(`[Progress] Exception: ${err.message}`);
+    console.error('[Progress] Stack:', err.stack);
     debugLog(`Progress report exception: ${err.message}`);
   }
 }
