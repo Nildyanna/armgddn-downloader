@@ -209,9 +209,10 @@ function renderDownloadsNow() {
       item.className = `download-item ${download.status}`;
     }
     
-    // Build active files list
+    // Build active files list - only show if more than 1 file (otherwise redundant)
     let activeFilesHtml = '';
-    if (download.activeFiles && download.activeFiles.length > 0) {
+    const hasMultipleFiles = download.fileCount > 1;
+    if (hasMultipleFiles && download.activeFiles && download.activeFiles.length > 0) {
       activeFilesHtml = download.activeFiles.map(f => `
         <div class="file-progress">
           <div class="file-progress-header">
@@ -225,7 +226,7 @@ function renderDownloadsNow() {
       `).join('');
     }
     
-    const fileCountText = download.fileCount > 1 
+    const fileCountText = hasMultipleFiles 
       ? `${download.completedFiles || 0}/${download.fileCount} files` 
       : '';
     
@@ -251,11 +252,9 @@ function renderDownloadsNow() {
       </div>
       <div class="download-info">
         <span>${download.progress || 0}% ${fileCountText}</span>
-        <span class="total-speed">${download.totalSpeed ? `Total: ${download.totalSpeed}` : ''}</span>
+        <span class="total-speed">${download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : ''}</span>
       </div>
-      <div class="active-files">
-        ${activeFilesHtml}
-      </div>
+      ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
       <div class="download-disclaimer">
         It is normal for downloads to pause for periods of time - especially at the end. This is the server verifying the transfer in real time.
       </div>
