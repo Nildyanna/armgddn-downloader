@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "4.0.33",
+  "version": "4.0.34",
   "description": "ARMGDDN Downloader - Fast rclone-powered download manager",
   "main": "main.js",
   "author": {
