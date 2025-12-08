@@ -213,14 +213,27 @@ body {
 }
 
 .download-item:hover {
-  background: rgba(96, 165, 250, 0.05);
-  border-color: var(--accent-primary);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 12px rgba(96, 165, 250, 0.15);
+  /* Keep hover visually stable to avoid flicker when items re-render */
+  background: var(--card-bg);
+  border-color: var(--border-color);
+  transform: none;
+  box-shadow: none;
 }
 
-.download-item.downloading {
+.download-item.downloading,
+.download-item.in_progress {
   border-color: var(--accent-primary);
+  box-shadow: 0 0 20px rgba(96, 165, 250, 0.2);
+  transition: none;
+}
+
+/* Disable hover animation for active downloads to avoid flicker
+   when multiple files are updating rapidly */
+.download-item.downloading:hover,
+.download-item.in_progress:hover {
+  background: var(--card-bg);
+  border-color: var(--accent-primary);
+  transform: none;
   box-shadow: 0 0 20px rgba(96, 165, 250, 0.2);
 }
 
