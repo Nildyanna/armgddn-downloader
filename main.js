@@ -1215,24 +1215,25 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
         
         fileStream.on('finish', () => {
           fileStream.close(() => {
-            // Run the installer after file is fully closed
+            // Run the installer after app exits
             try {
               if (platform === 'win32') {
-                // Run the NSIS installer with /S for silent install
-                const proc = spawn(filePath, [], { 
-                  detached: true, 
+                // Use cmd to wait 2 seconds then run installer after app exits
+                const cmd = `cmd.exe /c "timeout /t 2 /nobreak >nul && start "" "${filePath}""`;
+                spawn('cmd.exe', ['/c', `timeout /t 2 /nobreak >nul && start "" "${filePath}"`], {
+                  detached: true,
                   stdio: 'ignore',
-                  windowsHide: false
-                });
-                proc.unref();
-                // Give installer time to start before quitting
-                setTimeout(() => app.quit(), 500);
+                  shell: true,
+                  windowsHide: true
+                }).unref();
               } else if (platform === 'linux') {
                 if (filePath.endsWith('.AppImage')) {
-                  // Make executable and run
+                  // Make executable and use bash to wait then run
                   fs.chmodSync(filePath, '755');
-                  spawn(filePath, [], { detached: true, stdio: 'ignore' }).unref();
-                  setTimeout(() => app.quit(), 500);
+                  spawn('bash', ['-c', `sleep 2 && "${filePath}"`], {
+                    detached: true,
+                    stdio: 'ignore'
+                  }).unref();
                 } else {
                   // For .deb, open file manager or show location
                   shell.showItemInFolder(filePath);
@@ -1246,6 +1247,8 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
                 return;
               }
               
+              // Quit app immediately - installer will run after delay
+              app.quit();
               resolve({ success: true });
             } catch (e) {
               resolve({ success: false, error: e.message });
