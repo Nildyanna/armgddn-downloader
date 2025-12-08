@@ -256,7 +256,7 @@ function renderDownloadsNow() {
         <div class="progress-fill" style="width: ${download.progress || 0}%"></div>
       </div>
       <div class="download-info">
-        <span>${download.progress || 0}% ${fileCountText}</span>
+        <span>${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}</span>
         <span class="total-speed">${download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : ''}</span>
       </div>
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
@@ -515,9 +515,9 @@ async function checkConnectionStatus() {
       statusEl.onclick = null;
       statusEl.style.cursor = 'default';
     } else if (status.hasSession) {
-      // Has session but it's invalid/expired
-      statusEl.className = 'connection-status disconnected';
-      statusEl.querySelector('.status-text').textContent = 'Session Expired';
+      // Has session but server may have restarted - show as pending, will refresh on next download
+      statusEl.className = 'connection-status pending';
+      statusEl.querySelector('.status-text').textContent = 'Reconnecting...';
       statusEl.style.cursor = 'default';
       statusEl.onclick = null;
     } else {
