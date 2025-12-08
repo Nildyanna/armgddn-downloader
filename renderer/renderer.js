@@ -201,21 +201,18 @@ function renderDownloadsNow() {
   const existingIds = new Set();
   existingItems.forEach(item => existingIds.add(item.dataset.id));
   
+  // First, ensure all items exist
   for (const [id, download] of downloads) {
     let item = container.querySelector(`.download-item[data-id="${id}"]`);
     
     if (!item) {
-      // Create new item - prepend to show newest first
+      // Create new item
       item = document.createElement('div');
       item.className = `download-item ${download.status}`;
       item.dataset.id = id;
-      container.prepend(item);
+      container.appendChild(item);
     } else {
       item.className = `download-item ${download.status}`;
-      // Move completed downloads to top
-      if (download.status === 'completed' && item !== container.firstElementChild) {
-        container.prepend(item);
-      }
     }
     
     // Build active files list - only show if more than 1 file (otherwise redundant)
@@ -288,6 +285,28 @@ function renderDownloadsNow() {
       retryBtn.onclick = () => retryDownload(id);
     }
   }
+  
+  // Reorder items: active/in-progress first (newest), then completed
+  const allItems = container.querySelectorAll('.download-item');
+  const sortedItems = Array.from(allItems).sort((a, b) => {
+    const downloadA = downloads.get(a.dataset.id);
+    const downloadB = downloads.get(b.dataset.id);
+    
+    // If one is completed and other isn't, non-completed comes first
+    const aCompleted = downloadA && downloadA.status === 'completed';
+    const bCompleted = downloadB && downloadB.status === 'completed';
+    if (aCompleted !== bCompleted) {
+      return aCompleted ? 1 : -1;
+    }
+    
+    // For same status, sort by start time (newest first)
+    const aTime = downloadA ? downloadA.startTime || 0 : 0;
+    const bTime = downloadB ? downloadB.startTime || 0 : 0;
+    return bTime - aTime;
+  });
+  
+  // Re-append in sorted order
+  sortedItems.forEach(item => container.appendChild(item));
   
   // Remove items that no longer exist
   existingItems.forEach(item => {
