@@ -18,6 +18,8 @@ jobs:
             platform: linux
           - os: windows-latest
             platform: win32
+          - os: macos-13
+            platform: mac
 
     runs-on: ${{ matrix.os }}
 
@@ -53,6 +55,16 @@ jobs:
           mv rclone-*-windows-amd64/rclone.exe rclone/win32/rclone.exe
           rm -rf rclone-*-windows-amd64 rclone.zip
 
+      - name: Download rclone (macOS)
+        if: matrix.platform == 'mac'
+        run: |
+          mkdir -p rclone/darwin
+          curl -L -o rclone.zip https://downloads.rclone.org/rclone-current-osx-amd64.zip
+          unzip -q rclone.zip
+          mv rclone-*-osx-amd64/rclone rclone/darwin/rclone
+          chmod +x rclone/darwin/rclone
+          rm -rf rclone-*-osx-amd64 rclone.zip
+
       - name: Build Electron app (Linux)
         if: matrix.platform == 'linux'
         run: npm run build:linux -- --publish never
@@ -60,6 +72,10 @@ jobs:
       - name: Build Electron app (Windows)
         if: matrix.platform == 'win32'
         run: npm run build:win -- --publish never
+
+      - name: Build Electron app (macOS)
+        if: matrix.platform == 'mac'
+        run: npm run build:mac -- --publish never
 
       - name: Upload artifacts (Linux)
         if: matrix.platform == 'linux'
@@ -77,6 +93,14 @@ jobs:
           name: windows-build
           path: |
             dist/*.exe
+
+      - name: Upload artifacts (macOS)
+        if: matrix.platform == 'mac'
+        uses: actions/upload-artifact@v4
+        with:
+          name: mac-build
+          path: |
+            dist/*.dmg
 
   release:
     needs: build
@@ -99,6 +123,12 @@ jobs:
         uses: actions/download-artifact@v4
         with:
           name: windows-build
+          path: ./artifacts
+
+      - name: Download macOS artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mac-build
           path: ./artifacts
 
       - name: List artifacts
@@ -129,5 +159,6 @@ jobs:
             artifacts/*.deb
             artifacts/*.AppImage
             artifacts/*.exe
+            artifacts/*.dmg
           draft: false
           prerelease: false
