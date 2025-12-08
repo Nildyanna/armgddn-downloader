@@ -592,12 +592,7 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   
   // Only mark as completed if not cancelled
   if (!download.cancelled) {
-    download.status = 'completed';
-    mainWindow.webContents.send('download-progress', {
-      id: downloadId,
-      status: 'completed',
-      progress: 100
-    });
+    completeDownload(downloadId);
   }
 
   return downloadId;
