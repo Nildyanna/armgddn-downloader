@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getVersion: () => ipcRenderer.invoke('get-version'),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
   checkConnection: () => ipcRenderer.invoke('check-connection'),
+  openLogin: () => ipcRenderer.invoke('open-login'),
+  getSessionStatus: () => ipcRenderer.invoke('get-session-status'),
 
   // Events
   onDeepLink: (callback) => ipcRenderer.on('deep-link', (event, url) => callback(url)),

@@ -483,20 +483,40 @@ async function checkConnectionStatus() {
     if (isConnected) {
       statusEl.className = 'connection-status connected';
       statusEl.querySelector('.status-text').textContent = 'Connected';
+      statusEl.onclick = null;
+      statusEl.style.cursor = 'default';
     } else {
       statusEl.className = 'connection-status disconnected';
-      statusEl.querySelector('.status-text').textContent = 'Disconnected';
+      statusEl.querySelector('.status-text').textContent = 'Click to Login';
+      statusEl.style.cursor = 'pointer';
+      statusEl.onclick = openLoginWindow;
     }
   } catch (e) {
     statusEl.className = 'connection-status disconnected';
-    statusEl.querySelector('.status-text').textContent = 'Disconnected';
+    statusEl.querySelector('.status-text').textContent = 'Click to Login';
+    statusEl.style.cursor = 'pointer';
+    statusEl.onclick = openLoginWindow;
   }
+}
+
+// Open login window
+async function openLoginWindow() {
+  const statusEl = document.getElementById('connection-status');
+  if (statusEl) {
+    statusEl.querySelector('.status-text').textContent = 'Logging in...';
+  }
+  
+  const success = await api.openLogin();
+  
+  // Re-check connection status after login attempt
+  await checkConnectionStatus();
 }
 
 // Make functions available globally for onclick handlers
 window.cancelDownload = cancelDownload;
 window.retryDownload = retryDownload;
 window.openDownloadFolder = openDownloadFolder;
+window.openLoginWindow = openLoginWindow;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', init);
