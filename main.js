@@ -669,7 +669,7 @@ async function reportProgressToServer(download, token) {
 
 // Start download
 ipcMain.handle('start-download', async (event, manifest, token) => {
-  debugLog(`Download started - Token: ${token ? `[${token.substring(0, 8)}...]` : '[MISSING]'}`);
+  debugLog(`Download started - Token: ${token ? '[PRESENT]' : '[MISSING]'}`);
   console.log('Received manifest:', JSON.stringify(manifest, null, 2));
   
   // Save/update the token as session for connection status
