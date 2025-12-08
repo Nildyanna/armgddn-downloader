@@ -1219,12 +1219,14 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
             // Run the installer after app exits
             try {
               if (platform === 'win32') {
-                // Use cmd to wait 2 seconds then run installer after app exits
-                const cmd = `cmd.exe /c "timeout /t 2 /nobreak >nul && start "" "${filePath}""`;
-                spawn('cmd.exe', ['/c', `timeout /t 2 /nobreak >nul && start "" "${filePath}"`], {
+                // Write a batch file to wait and run installer
+                const batchPath = path.join(tempDir, `update-${timestamp}.bat`);
+                const batchContent = `@echo off\r\nping 127.0.0.1 -n 3 >nul\r\nstart "" "${filePath}"\r\ndel "%~f0"\r\n`;
+                fs.writeFileSync(batchPath, batchContent);
+                
+                spawn('cmd.exe', ['/c', batchPath], {
                   detached: true,
                   stdio: 'ignore',
-                  shell: true,
                   windowsHide: true
                 }).unref();
               } else if (platform === 'linux') {
