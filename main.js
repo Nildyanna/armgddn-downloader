@@ -1119,11 +1119,33 @@ ipcMain.handle('check-updates', async () => {
           // Compare versions
           const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
           
+          // Find the appropriate installer asset
+          let installerUrl = null;
+          const assets = release.assets || [];
+          const platform = process.platform;
+          
+          if (platform === 'win32') {
+            // Look for .exe installer
+            const exeAsset = assets.find(a => a.name.endsWith('.exe'));
+            if (exeAsset) installerUrl = exeAsset.browser_download_url;
+          } else if (platform === 'linux') {
+            // Look for .AppImage or .deb
+            const appImageAsset = assets.find(a => a.name.endsWith('.AppImage'));
+            const debAsset = assets.find(a => a.name.endsWith('.deb'));
+            if (appImageAsset) installerUrl = appImageAsset.browser_download_url;
+            else if (debAsset) installerUrl = debAsset.browser_download_url;
+          } else if (platform === 'darwin') {
+            // Look for .dmg
+            const dmgAsset = assets.find(a => a.name.endsWith('.dmg'));
+            if (dmgAsset) installerUrl = dmgAsset.browser_download_url;
+          }
+          
           resolve({
             hasUpdate,
             version: currentVersion,
             latestVersion,
             releaseUrl: release.html_url || 'https://github.com/Nildyanna/armgddn-downloader/releases',
+            installerUrl,
             releaseNotes: release.body || ''
           });
         } catch (e) {
@@ -1139,6 +1161,89 @@ ipcMain.handle('check-updates', async () => {
     });
     
     req.end();
+  });
+});
+
+// Download and install update
+ipcMain.handle('install-update', async (event, installerUrl) => {
+  if (!installerUrl) {
+    return { success: false, error: 'No installer URL provided' };
+  }
+  
+  const tempDir = app.getPath('temp');
+  const platform = process.platform;
+  let fileName;
+  
+  if (platform === 'win32') {
+    fileName = 'ARMGDDN-Downloader-Setup.exe';
+  } else if (platform === 'linux') {
+    fileName = installerUrl.endsWith('.deb') ? 'armgddn-downloader.deb' : 'ARMGDDN-Downloader.AppImage';
+  } else {
+    fileName = 'ARMGDDN-Downloader.dmg';
+  }
+  
+  const filePath = path.join(tempDir, fileName);
+  
+  return new Promise((resolve) => {
+    // Download the installer
+    const downloadInstaller = (url) => {
+      const protocol = url.startsWith('https') ? https : require('http');
+      
+      protocol.get(url, { headers: { 'User-Agent': 'ARMGDDN-Downloader' } }, (res) => {
+        // Handle redirects
+        if (res.statusCode === 301 || res.statusCode === 302) {
+          return downloadInstaller(res.headers.location);
+        }
+        
+        if (res.statusCode !== 200) {
+          resolve({ success: false, error: `Download failed with status ${res.statusCode}` });
+          return;
+        }
+        
+        const fileStream = fs.createWriteStream(filePath);
+        res.pipe(fileStream);
+        
+        fileStream.on('finish', () => {
+          fileStream.close();
+          
+          // Run the installer
+          try {
+            if (platform === 'win32') {
+              // Run the NSIS installer
+              spawn(filePath, [], { detached: true, stdio: 'ignore' }).unref();
+              app.quit();
+            } else if (platform === 'linux') {
+              if (filePath.endsWith('.AppImage')) {
+                // Make executable and run
+                fs.chmodSync(filePath, '755');
+                spawn(filePath, [], { detached: true, stdio: 'ignore' }).unref();
+                app.quit();
+              } else {
+                // For .deb, open file manager or show location
+                shell.showItemInFolder(filePath);
+                resolve({ success: true, message: 'Installer downloaded. Please install manually.' });
+              }
+            } else {
+              // macOS - open the DMG
+              shell.openPath(filePath);
+              resolve({ success: true, message: 'Installer opened. Please complete installation.' });
+            }
+            
+            resolve({ success: true });
+          } catch (e) {
+            resolve({ success: false, error: e.message });
+          }
+        });
+        
+        fileStream.on('error', (err) => {
+          resolve({ success: false, error: err.message });
+        });
+      }).on('error', (err) => {
+        resolve({ success: false, error: err.message });
+      });
+    };
+    
+    downloadInstaller(installerUrl);
   });
 });
 
