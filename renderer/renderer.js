@@ -506,44 +506,40 @@ async function checkConnectionStatus() {
   if (!statusEl) return;
   
   try {
-    const isConnected = await api.checkConnection();
-    if (isConnected) {
+    const status = await api.getSessionStatus();
+    
+    if (status.isValid) {
+      // Session is valid - connected
       statusEl.className = 'connection-status connected';
       statusEl.querySelector('.status-text').textContent = 'Connected';
       statusEl.onclick = null;
       statusEl.style.cursor = 'default';
-    } else {
+    } else if (status.hasSession) {
+      // Has session but it's invalid/expired
       statusEl.className = 'connection-status disconnected';
-      statusEl.querySelector('.status-text').textContent = 'Click to Login';
-      statusEl.style.cursor = 'pointer';
-      statusEl.onclick = openLoginWindow;
+      statusEl.querySelector('.status-text').textContent = 'Session Expired';
+      statusEl.style.cursor = 'default';
+      statusEl.onclick = null;
+    } else {
+      // No session yet - awaiting first download
+      statusEl.className = 'connection-status pending';
+      statusEl.querySelector('.status-text').textContent = 'Awaiting First Download';
+      statusEl.onclick = null;
+      statusEl.style.cursor = 'default';
     }
   } catch (e) {
-    statusEl.className = 'connection-status disconnected';
-    statusEl.querySelector('.status-text').textContent = 'Click to Login';
-    statusEl.style.cursor = 'pointer';
-    statusEl.onclick = openLoginWindow;
+    // Error checking status - show pending
+    statusEl.className = 'connection-status pending';
+    statusEl.querySelector('.status-text').textContent = 'Awaiting First Download';
+    statusEl.onclick = null;
+    statusEl.style.cursor = 'default';
   }
-}
-
-// Open login window
-async function openLoginWindow() {
-  const statusEl = document.getElementById('connection-status');
-  if (statusEl) {
-    statusEl.querySelector('.status-text').textContent = 'Logging in...';
-  }
-  
-  const success = await api.openLogin();
-  
-  // Re-check connection status after login attempt
-  await checkConnectionStatus();
 }
 
 // Make functions available globally for onclick handlers
 window.cancelDownload = cancelDownload;
 window.retryDownload = retryDownload;
 window.openDownloadFolder = openDownloadFolder;
-window.openLoginWindow = openLoginWindow;
 
 // Initialize when DOM is ready
 document.addEventListener('DOMContentLoaded', init);
