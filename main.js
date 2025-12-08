@@ -1304,23 +1304,47 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
                 // Log paths for debugging
                 logToFile(`Update - tempDir: ${tempDir}`);
                 logToFile(`Update - filePath: ${filePath}`);
+                logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
                 
-                // Use PowerShell to wait and run installer (more reliable than VBS/batch)
-                const psCommand = `Start-Sleep -Seconds 2; Start-Process -FilePath '${filePath.replace(/'/g, "''")}'`;
-                logToFile(`Update - PS command: ${psCommand}`);
+                // Simply open the installer - Windows will run it
+                // The NSIS installer will handle closing the old app if needed
+                shell.openPath(filePath).then((error) => {
+                  if (error) {
+                    logToFile(`Update - shell.openPath error: ${error}`);
+                  } else {
+                    logToFile('Update - installer launched successfully');
+                  }
+                });
                 
-                spawn('powershell.exe', ['-WindowStyle', 'Hidden', '-Command', psCommand], {
-                  detached: true,
-                  stdio: 'ignore'
-                }).unref();
+                // Give the installer a moment to start, then quit
+                setTimeout(() => {
+                  app.isQuitting = true;
+                  app.quit();
+                }, 1000);
+                
+                resolve({ success: true });
+                return;
               } else if (platform === 'linux') {
+                logToFile(`Update - filePath: ${filePath}`);
+                logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
+                
                 if (filePath.endsWith('.AppImage')) {
-                  // Make executable and use bash to wait then run
+                  // Make executable and run directly
                   fs.chmodSync(filePath, '755');
-                  spawn('bash', ['-c', `sleep 2 && "${filePath}"`], {
+                  logToFile('Update - launching AppImage');
+                  
+                  spawn(filePath, [], {
                     detached: true,
                     stdio: 'ignore'
                   }).unref();
+                  
+                  setTimeout(() => {
+                    app.isQuitting = true;
+                    app.quit();
+                  }, 1000);
+                  
+                  resolve({ success: true });
+                  return;
                 } else {
                   // For .deb, open file manager or show location
                   shell.showItemInFolder(filePath);
@@ -1333,12 +1357,6 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
                 resolve({ success: true, message: 'Installer opened. Please complete installation.' });
                 return;
               }
-              
-              // Quit app immediately - installer will run after delay
-              // Set isQuitting to bypass minimize-to-tray behavior
-              app.isQuitting = true;
-              app.quit();
-              resolve({ success: true });
             } catch (e) {
               resolve({ success: false, error: e.message });
             }
