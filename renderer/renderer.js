@@ -518,14 +518,8 @@ async function checkConnectionStatus() {
       statusEl.querySelector('.status-text').textContent = 'Connected';
       statusEl.onclick = null;
       statusEl.style.cursor = 'default';
-    } else if (status.hasSession) {
-      // Has session but server may have restarted - show as pending, will refresh on next download
-      statusEl.className = 'connection-status pending';
-      statusEl.querySelector('.status-text').textContent = 'Reconnecting...';
-      statusEl.style.cursor = 'default';
-      statusEl.onclick = null;
     } else {
-      // No session yet - awaiting first download
+      // No valid session - awaiting first download (or token expired)
       statusEl.className = 'connection-status pending';
       statusEl.querySelector('.status-text').textContent = 'Awaiting First Download';
       statusEl.onclick = null;
