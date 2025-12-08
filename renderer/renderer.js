@@ -196,24 +196,15 @@ function renderDownloadsNow() {
     return;
   }
   
-  // Update existing items or create new ones
-  const existingItems = container.querySelectorAll('.download-item');
-  const existingIds = new Set();
-  existingItems.forEach(item => existingIds.add(item.dataset.id));
-  
-  // First, ensure all items exist
+  // We have downloads - clear and fully rebuild list
+  container.innerHTML = '';
+
+  // Render each download item
   for (const [id, download] of downloads) {
-    let item = container.querySelector(`.download-item[data-id="${id}"]`);
-    
-    if (!item) {
-      // Create new item
-      item = document.createElement('div');
-      item.className = `download-item ${download.status}`;
-      item.dataset.id = id;
-      container.appendChild(item);
-    } else {
-      item.className = `download-item ${download.status}`;
-    }
+    const item = document.createElement('div');
+    item.className = `download-item ${download.status}`;
+    item.dataset.id = id;
+    container.appendChild(item);
     
     // Build active files list - only show if more than 1 file (otherwise redundant)
     let activeFilesHtml = '';
@@ -285,35 +276,6 @@ function renderDownloadsNow() {
       retryBtn.onclick = () => retryDownload(id);
     }
   }
-  
-  // Reorder items: active/in-progress first (newest), then completed
-  const allItems = container.querySelectorAll('.download-item');
-  const sortedItems = Array.from(allItems).sort((a, b) => {
-    const downloadA = downloads.get(a.dataset.id);
-    const downloadB = downloads.get(b.dataset.id);
-    
-    // If one is completed and other isn't, non-completed comes first
-    const aCompleted = downloadA && downloadA.status === 'completed';
-    const bCompleted = downloadB && downloadB.status === 'completed';
-    if (aCompleted !== bCompleted) {
-      return aCompleted ? 1 : -1;
-    }
-    
-    // For same status, sort by start time (newest first)
-    const aTime = downloadA ? downloadA.startTime || 0 : 0;
-    const bTime = downloadB ? downloadB.startTime || 0 : 0;
-    return bTime - aTime;
-  });
-  
-  // Re-append in sorted order
-  sortedItems.forEach(item => container.appendChild(item));
-  
-  // Remove items that no longer exist
-  existingItems.forEach(item => {
-    if (!downloads.has(item.dataset.id)) {
-      item.remove();
-    }
-  });
 }
 
 // Cancel download
