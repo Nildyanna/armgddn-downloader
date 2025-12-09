@@ -261,10 +261,13 @@ function renderDownloadsNow() {
       'downloading': 'Downloading',
       'completed': 'Completed',
       'cancelled': 'Cancelled',
-      'error': 'Error'
+      'error': 'Error',
+      'paused': 'Paused'
     }[download.status] || download.status;
     
-    const isActive = download.status === 'downloading' || download.status === 'in_progress';
+    const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting';
+    const isPaused = download.status === 'paused';
+    const canCancel = isRunning || isPaused;
     
     item.innerHTML = `
       <div class="download-header">
@@ -278,12 +281,15 @@ function renderDownloadsNow() {
         <span>${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}</span>
         <span class="total-speed">${download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : ''}</span>
       </div>
+      ${download.status === 'error' && download.error ? `<div class="download-error-message">${escapeHtml(download.error)}</div>` : ''}
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
       <div class="download-disclaimer">
-        It is normal for downloads to pause for periods of time - especially at the end. This is the server verifying the transfer in real time.
+        It is normal for downloads to pause for periods of time - especially at the end. This is the server verifying the transfer in real time. If you use Pause/Resume, files that already finished will not be downloaded again, but the file that was in progress may restart from the beginning.
       </div>
       <div class="download-actions">
-        ${isActive ? `<button class="cancel-btn" data-download-id="${id}">Cancel</button>` : ''}
+        ${isRunning ? `<button class="pause-btn" data-download-id="${id}">Pause</button>` : ''}
+        ${isPaused ? `<button class="resume-btn" data-download-id="${id}">Resume</button>` : ''}
+        ${canCancel ? `<button class="cancel-btn" data-download-id="${id}">Cancel</button>` : ''}
         ${download.status === 'completed' ? `<button class="open-folder-btn">Open Folder</button>` : ''}
         ${download.status === 'error' ? `<button class="retry-btn" data-download-id="${id}">Retry</button>` : ''}
       </div>
@@ -293,6 +299,14 @@ function renderDownloadsNow() {
     const cancelBtn = item.querySelector('.cancel-btn');
     if (cancelBtn) {
       cancelBtn.onclick = () => cancelDownload(id);
+    }
+    const pauseBtn = item.querySelector('.pause-btn');
+    if (pauseBtn) {
+      pauseBtn.onclick = () => pauseDownload(id);
+    }
+    const resumeBtn = item.querySelector('.resume-btn');
+    if (resumeBtn) {
+      resumeBtn.onclick = () => resumeDownload(id);
     }
     const openBtn = item.querySelector('.open-folder-btn');
     if (openBtn) {
@@ -310,6 +324,26 @@ async function cancelDownload(id) {
   await api.cancelDownload(id);
   downloads.delete(id);
   renderDownloads();
+}
+
+async function pauseDownload(id) {
+  const ok = await api.pauseDownload(id);
+  if (!ok) return;
+  const download = downloads.get(id);
+  if (download) {
+    download.status = 'paused';
+    renderDownloads();
+  }
+}
+
+async function resumeDownload(id) {
+  const ok = await api.resumeDownload(id);
+  if (!ok) return;
+  const download = downloads.get(id);
+  if (download) {
+    download.status = 'in_progress';
+    renderDownloads();
+  }
 }
 
 // Retry download (placeholder)
