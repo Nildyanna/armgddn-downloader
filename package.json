@@ -1,0 +1,81 @@
+{
+  "name": "armgddn-downloader",
+  "version": "4.0.49",
+  "description": "ARMGDDN Downloader - Fast rclone-powered download manager",
+  "main": "main.js",
+  "author": {
+    "name": "Armgddn Games",
+    "email": "armgddn@armgddn.com"
+  },
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder",
+    "build:win": "electron-builder --win",
+    "build:linux": "electron-builder --linux",
+    "build:mac": "electron-builder --mac"
+  },
+  "build": {
+    "appId": "com.armgddn.downloader",
+    "productName": "ARMGDDN Downloader",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "target": ["nsis"],
+      "icon": "assets/icon.ico",
+      "extraResources": [
+        {
+          "from": "rclone/win32",
+          "to": "rclone",
+          "filter": ["**/*"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "assets/icon.ico",
+      "uninstallerIcon": "assets/icon.ico",
+      "installerHeaderIcon": "assets/icon.ico"
+    },
+    "linux": {
+      "target": ["AppImage", "deb"],
+      "icon": "assets/icon.png",
+      "category": "Utility",
+      "extraResources": [
+        {
+          "from": "rclone/linux",
+          "to": "rclone",
+          "filter": ["**/*"]
+        }
+      ]
+    },
+    "mac": {
+      "target": ["dmg"],
+      "icon": "assets/skull-logo-512.png",
+      "category": "public.app-category.utilities",
+      "extraResources": [
+        {
+          "from": "rclone/darwin",
+          "to": "rclone",
+          "filter": ["**/*"]
+        }
+      ]
+    },
+    "protocols": {
+      "name": "ARMGDDN Protocol",
+      "schemes": ["armgddn"]
+    }
+  },
+  "devDependencies": {
+    "electron": "^39.2.6",
+    "electron-builder": "^26.0.12"
+  }
+}

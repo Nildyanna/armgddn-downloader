@@ -1,0 +1,135 @@
+name: Build ARMGDDN Downloader
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            platform: linux
+          - os: windows-latest
+            platform: win32
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Download rclone (Linux)
+        if: matrix.platform == 'linux'
+        run: |
+          wget -q https://downloads.rclone.org/rclone-current-linux-amd64.zip
+          unzip -q rclone-current-linux-amd64.zip
+          mv rclone-*-linux-amd64/rclone rclone/linux/rclone
+          chmod +x rclone/linux/rclone
+          rm -rf rclone-*-linux-amd64*
+
+      - name: Download rclone (Windows)
+        if: matrix.platform == 'win32'
+        shell: pwsh
+        run: |
+          Invoke-WebRequest -Uri "https://downloads.rclone.org/rclone-current-windows-amd64.zip" -OutFile "rclone.zip"
+          Expand-Archive -Path "rclone.zip" -DestinationPath "."
+          $rcloneDir = Get-ChildItem -Directory -Filter "rclone-*-windows-amd64" | Select-Object -First 1
+          Move-Item "$($rcloneDir.FullName)\rclone.exe" "rclone\win32\rclone.exe"
+          Remove-Item -Recurse -Force $rcloneDir
+          Remove-Item "rclone.zip"
+
+      - name: Build Electron app (Linux)
+        if: matrix.platform == 'linux'
+        run: npm run build:linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Electron app (Windows)
+        if: matrix.platform == 'win32'
+        run: npm run build:win
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload artifacts (Linux)
+        if: matrix.platform == 'linux'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: |
+            dist/*.AppImage
+            dist/*.deb
+
+      - name: Upload artifacts (Windows)
+        if: matrix.platform == 'win32'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            dist/*.exe
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Linux artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: linux-build
+          path: ./artifacts
+
+      - name: Download Windows artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: ./artifacts
+
+      - name: List artifacts
+        run: find ./artifacts -type f -ls
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "ARMGDDN Downloader ${{ github.ref_name }}"
+          body: |
+            ## ARMGDDN Downloader ${{ github.ref_name }}
+            
+            ### Installation
+            
+            **Windows:**
+            - Download the `.exe` installer
+            - Run the installer
+            
+            **Linux (Debian/Ubuntu):**
+            - Download `.deb` file
+            - Install: `sudo dpkg -i armgddn-downloader_*.deb`
+            
+            **Linux (Universal):**
+            - Download `.AppImage` file
+            - Make executable: `chmod +x ARMGDDN*.AppImage`
+            - Run: `./ARMGDDN*.AppImage`
+          files: |
+            artifacts/*.deb
+            artifacts/*.AppImage
+            artifacts/*.exe
+          draft: false
+          prerelease: false
