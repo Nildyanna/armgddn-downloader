@@ -1364,23 +1364,29 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
                 logToFile(`Update - tempDir: ${tempDir}`);
                 logToFile(`Update - filePath: ${filePath}`);
                 logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
-                
-                // Simply open the installer - Windows will run it
-                // The NSIS installer will handle closing the old app if needed
-                shell.openPath(filePath).then((error) => {
-                  if (error) {
-                    logToFile(`Update - shell.openPath error: ${error}`);
-                  } else {
-                    logToFile('Update - installer launched successfully');
-                  }
-                });
-                
-                // Give the installer a moment to start, then quit
+
+                // Spawn the installer as a detached process so it keeps running
+                // after this Electron app exits.
+                try {
+                  const child = spawn(filePath, [], {
+                    detached: true,
+                    stdio: 'ignore'
+                  });
+                  child.unref();
+                  logToFile('Update - spawned installer process successfully');
+                } catch (spawnErr) {
+                  logToFile(`Update - failed to spawn installer: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
+                  resolve({ success: false, error: 'Failed to launch installer process' });
+                  return;
+                }
+
+                // Immediately mark app as quitting and exit, so the installer
+                // can safely replace files without the app still running.
                 setTimeout(() => {
                   app.isQuitting = true;
                   app.quit();
-                }, 1000);
-                
+                }, 500);
+
                 resolve({ success: true });
                 return;
               } else if (platform === 'linux') {
