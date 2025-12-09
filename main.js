@@ -403,7 +403,7 @@ async function verifySession() {
       req.end();
     };
     
-    makeRequest('https://armgddnbrowser.com/api/auth-status');
+    makeRequest('https://www.armgddnbrowser.com/api/auth-status');
   });
 }
 
