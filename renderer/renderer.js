@@ -71,6 +71,7 @@ function setupIPCListeners() {
     console.log('Download started:', data);
     downloads.set(data.id, data);
     renderDownloads();
+    checkConnectionStatus();
   });
   
   api.onDownloadProgress((data) => {
