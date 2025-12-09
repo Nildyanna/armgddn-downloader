@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
+  <title>ARMGDDN Downloader Beta</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <header class="app-header">
+      <h1>
+        <img src="../assets/skull-logo.png" alt="ARMGDDN" style="width: 24px; height: 24px; vertical-align: middle; margin-right: 8px;">
+        ARMGDDN Downloader <span style="font-size: 0.6em; color: #f59e0b; font-weight: normal;">Beta</span>
+      </h1>
+      <div class="header-buttons">
+        <button id="history-btn" class="settings-btn">📜 History</button>
+        <button id="check-updates-btn" class="settings-btn">🔄 Check for Updates</button>
+        <button id="settings-btn" class="settings-btn">⚙️ Settings</button>
+      </div>
+    </header>
+
+    <div class="manifest-input-section">
+      <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+        <div id="connection-status" class="connection-status disconnected" style="margin: 0 auto 1.5rem auto;">
+          <span class="status-dot"></span>
+          <span class="status-text">Disconnected</span>
+        </div>
+        <h2 style="color: var(--text-primary); margin-bottom: 1rem;">📥 ARMGDDN Downloader</h2>
+        <p>Click "Download with App" button on the website to start downloading.</p>
+        <p style="margin-top: 0.5rem; font-size: 0.9rem;">The app will automatically open and begin the download.</p>
+        <p id="version-display" style="margin-top: 1rem; font-size: 0.8rem; color: var(--accent-primary);"></p>
+      </div>
+    </div>
+
+    <div class="downloads-section">
+      <h2>Downloads</h2>
+      <div id="downloads-list" class="downloads-list">
+        <div class="empty-state">No downloads yet. Click "Download with App" on the website to get started.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings Panel -->
+  <div id="settings-panel" class="settings-panel">
+    <div class="settings-content">
+      <div class="settings-header">
+        <h2>⚙️ Settings</h2>
+        <button id="close-settings-btn" class="close-btn">×</button>
+      </div>
+      <div class="settings-form">
+        <div class="form-group">
+          <label for="download-path">Download Location</label>
+          <div style="display: flex; gap: 0.5rem;">
+            <input type="text" id="download-path" readonly style="flex: 1;">
+            <button id="browse-path-btn" class="secondary-btn">Browse</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label for="max-concurrent">Max Concurrent Downloads</label>
+          <select id="max-concurrent">
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3" selected>3</option>
+            <option value="5">5</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="show-notifications" checked>
+            Show notifications
+          </label>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="minimize-to-tray-on-minimize">
+            Minimize button hides to tray
+          </label>
+        </div>
+        <div class="form-group">
+          <label>
+            <input type="checkbox" id="minimize-to-tray-on-exit">
+            Close button hides to tray instead of exiting
+          </label>
+        </div>
+        <button id="save-settings-btn" class="primary-btn">Save Settings</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- History Panel -->
+  <div id="history-panel" class="settings-panel">
+    <div class="settings-content" style="max-width: 600px;">
+      <div class="settings-header">
+        <h2>📜 Download History</h2>
+        <button id="close-history-btn" class="close-btn">×</button>
+      </div>
+      <div class="history-content">
+        <div class="history-actions">
+          <button id="clear-history-btn" class="secondary-btn">Clear History</button>
+        </div>
+        <div id="history-list" class="history-list">
+          <div class="empty-state">No download history yet.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>
