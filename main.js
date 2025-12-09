@@ -836,7 +836,8 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
     totalSpeed: 0,
     startTime: new Date().toISOString(),
     token: token,  // Store token for progress reporting
-    cancelled: false  // Flag to stop new downloads when cancelled
+    cancelled: false,  // Flag to stop new downloads when cancelled
+    paused: false
   };
 
   activeDownloads.set(downloadId, download);
@@ -865,7 +866,7 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   const activePromises = [];
   
   const processNext = async () => {
-    while (fileQueue.length > 0 && !download.cancelled) {
+    while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
       const file = fileQueue.shift();
       if (!file) break;
       try {
@@ -886,8 +887,8 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   
   await Promise.all(activePromises);
   
-  // Only mark as completed if not cancelled
-  if (!download.cancelled) {
+  // Only mark as completed if not cancelled or paused
+  if (!download.cancelled && !download.paused) {
     completeDownload(downloadId);
   }
 
@@ -984,6 +985,30 @@ async function downloadFile(downloadId, file, downloadDir) {
     });
 
     proc.on('close', (code) => {
+      const idx = download.activeProcesses.indexOf(proc);
+      if (idx !== -1) {
+        download.activeProcesses.splice(idx, 1);
+      }
+
+      if (download.cancelled) {
+        if (download.activeFiles[file.name]) {
+          download.activeFiles[file.name].status = 'cancelled';
+          delete download.activeFiles[file.name];
+        }
+        updateProgress(downloadId);
+        resolve();
+        return;
+      }
+
+      if (download.paused) {
+        if (download.activeFiles[file.name]) {
+          download.activeFiles[file.name].status = 'paused';
+        }
+        updateProgress(downloadId);
+        resolve();
+        return;
+      }
+
       if (code === 0) {
         download.downloadedSize += file.size || 0;
         download.completedFiles++;
@@ -1175,6 +1200,46 @@ ipcMain.handle('cancel-download', (event, downloadId) => {
     activeDownloads.delete(downloadId);
   }
   return true;
+});
+
+ipcMain.handle('pause-download', (event, downloadId) => {
+  const download = activeDownloads.get(downloadId);
+  if (!download) return false;
+
+  if (download.status === 'completed' || download.status === 'error' || download.status === 'cancelled') {
+    return false;
+  }
+
+  download.paused = true;
+  download.status = 'paused';
+
+  if (download.activeProcesses && download.activeProcesses.length > 0) {
+    for (const proc of download.activeProcesses) {
+      try {
+        proc.kill('SIGTERM');
+      } catch (e) {}
+    }
+  }
+
+  updateProgress(downloadId);
+  return true;
+});
+
+ipcMain.handle('resume-download', async (event, downloadId) => {
+  const download = activeDownloads.get(downloadId);
+  if (!download) return false;
+
+  if (!download.paused) {
+    return false;
+  }
+
+  try {
+    await resumeDownloadFiles(downloadId);
+    return true;
+  } catch (e) {
+    console.error('Resume download error:', e);
+    return false;
+  }
 });
 
 // Complete download

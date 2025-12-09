@@ -297,6 +297,12 @@ body {
   color: #ff6b6b;
 }
 
+.download-error-message {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.8rem;
+  color: #fecaca; /* light red for readability on dark bg */
+}
+
 .active-files {
   margin: 0.5rem 0;
 }

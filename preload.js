@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   fetchManifest: (url, token) => ipcRenderer.invoke('fetch-manifest', url, token),
   startDownload: (manifest, token) => ipcRenderer.invoke('start-download', manifest, token),
   cancelDownload: (id) => ipcRenderer.invoke('cancel-download', id),
+  pauseDownload: (id) => ipcRenderer.invoke('pause-download', id),
+  resumeDownload: (id) => ipcRenderer.invoke('resume-download', id),
   getDownloads: () => ipcRenderer.invoke('get-downloads'),
 
   // History
