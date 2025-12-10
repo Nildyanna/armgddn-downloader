@@ -417,7 +417,17 @@ async function openHelp7z() {
       video.src = src;
       video.load();
       video.currentTime = 0;
-      video.pause();
+      try {
+        await video.play();
+        console.log('[7z-video] autoplay started', {
+          currentSrc: video.currentSrc,
+          readyState: video.readyState,
+          networkState: video.networkState,
+          paused: video.paused
+        });
+      } catch (playErr) {
+        console.warn('[7z-video] autoplay failed, video will remain paused', playErr);
+      }
       console.log('[7z-video] openHelp7z video state after src set', {
         currentSrc: video.currentSrc,
         readyState: video.readyState,
