@@ -52,6 +52,10 @@ let settings = {
   minimizeToTrayOnClose: false
 };
 
+// DevTools policy: allow in dev always, and in packaged builds only when explicitly enabled
+// via environment variable on the owner's machine.
+const isOwnerDevToolsAllowed = !app.isPackaged || process.env.DOWNLOADER_OWNER_DEVTOOLS === '1';
+
 // Helper: show OS-level notification (tray balloon vs toast)
 function showDownloadNotification(title, body) {
   try {
@@ -426,7 +430,8 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
-      nodeIntegration: false
+      nodeIntegration: false,
+      devTools: isOwnerDevToolsAllowed
     },
     icon: path.join(__dirname, 'assets', 'icon.png'),
     show: false
@@ -455,8 +460,8 @@ function createWindow() {
     }
   });
 
-  // Open DevTools in development
-  if (!app.isPackaged) {
+  // Open DevTools automatically only in development builds
+  if (!app.isPackaged && isOwnerDevToolsAllowed) {
     mainWindow.webContents.openDevTools();
   }
 }
