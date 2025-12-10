@@ -422,6 +422,10 @@ body {
   backdrop-filter: blur(20px);
 }
 
+#help-7z-panel .settings-content {
+  max-width: 900px;
+}
+
 .settings-header {
   display: flex;
   justify-content: space-between;
@@ -622,7 +626,8 @@ body {
 
 .help-7z-video {
   width: 100%;
-  max-height: 405px;
+  height: auto;
+  aspect-ratio: 16 / 9;
   border-radius: 8px;
   border: 1px solid var(--border-color);
   background: #000;
