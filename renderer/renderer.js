@@ -56,6 +56,30 @@ function setupEventListeners() {
   if (closeHelp7zBtn) {
     closeHelp7zBtn.addEventListener('click', closeHelp7z);
   }
+  const help7zVideo = document.getElementById('help-7z-video');
+  if (help7zVideo) {
+    console.log('[7z-video] element found, currentSrc:', help7zVideo.currentSrc);
+    help7zVideo.addEventListener('loadedmetadata', () => {
+      console.log('[7z-video] loadedmetadata', {
+        duration: help7zVideo.duration,
+        videoWidth: help7zVideo.videoWidth,
+        videoHeight: help7zVideo.videoHeight
+      });
+    });
+    help7zVideo.addEventListener('canplay', () => {
+      console.log('[7z-video] canplay, readyState:', help7zVideo.readyState, 'currentSrc:', help7zVideo.currentSrc);
+    });
+    help7zVideo.addEventListener('error', () => {
+      const err = help7zVideo.error;
+      if (err) {
+        console.error('[7z-video] error event', { code: err.code, message: err.message });
+      } else {
+        console.error('[7z-video] error event with no mediaError object');
+      }
+    });
+  } else {
+    console.warn('[7z-video] element not found when initializing event listeners');
+  }
   
   // History
   document.getElementById('history-btn').addEventListener('click', openHistory);
@@ -377,10 +401,17 @@ function closeSettings() {
 function openHelp7z() {
   const panel = document.getElementById('help-7z-panel');
   if (!panel) return;
+  console.log('[7z-video] openHelp7z called');
   panel.style.display = 'block';
   const video = document.getElementById('help-7z-video');
   if (video) {
     try {
+      console.log('[7z-video] openHelp7z video state', {
+        src: video.currentSrc,
+        readyState: video.readyState,
+        networkState: video.networkState,
+        paused: video.paused
+      });
       video.currentTime = 0;
       video.pause();
     } catch (e) {}
@@ -390,10 +421,12 @@ function openHelp7z() {
 function closeHelp7z() {
   const panel = document.getElementById('help-7z-panel');
   if (!panel) return;
+  console.log('[7z-video] closeHelp7z called');
   panel.style.display = 'none';
   const video = document.getElementById('help-7z-video');
   if (video && typeof video.pause === 'function') {
     try {
+      console.log('[7z-video] pausing video on close', { currentTime: video.currentTime, readyState: video.readyState });
       video.pause();
     } catch (e) {}
   }
