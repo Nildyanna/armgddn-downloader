@@ -48,6 +48,14 @@ function setupEventListeners() {
   document.getElementById('close-settings-btn').addEventListener('click', closeSettings);
   document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
   document.getElementById('browse-path-btn').addEventListener('click', browseDownloadPath);
+  const help7zBtn = document.getElementById('help-7z-btn');
+  if (help7zBtn) {
+    help7zBtn.addEventListener('click', openHelp7z);
+  }
+  const closeHelp7zBtn = document.getElementById('close-help-7z-btn');
+  if (closeHelp7zBtn) {
+    closeHelp7zBtn.addEventListener('click', closeHelp7z);
+  }
   
   // History
   document.getElementById('history-btn').addEventListener('click', openHistory);
@@ -364,6 +372,34 @@ function openSettings() {
 
 function closeSettings() {
   document.getElementById('settings-panel').style.display = 'none';
+}
+
+function openHelp7z() {
+  const panel = document.getElementById('help-7z-panel');
+  if (!panel) return;
+  panel.style.display = 'block';
+  const video = document.getElementById('help-7z-video');
+  if (video && typeof video.play === 'function') {
+    try {
+      video.currentTime = 0;
+      const playResult = video.play();
+      if (playResult && typeof playResult.catch === 'function') {
+        playResult.catch(function() {});
+      }
+    } catch (e) {}
+  }
+}
+
+function closeHelp7z() {
+  const panel = document.getElementById('help-7z-panel');
+  if (!panel) return;
+  panel.style.display = 'none';
+  const video = document.getElementById('help-7z-video');
+  if (video && typeof video.pause === 'function') {
+    try {
+      video.pause();
+    } catch (e) {}
+  }
 }
 
 function updateSettingsUI() {

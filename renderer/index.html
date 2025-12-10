@@ -31,6 +31,9 @@
         <p>Click "Download with App" button on the website to start downloading.</p>
         <p style="margin-top: 0.5rem; font-size: 0.9rem;">The app will automatically open and begin the download.</p>
         <p id="version-display" style="margin-top: 1rem; font-size: 0.8rem; color: var(--accent-primary);"></p>
+        <button id="help-7z-btn" class="secondary-btn" style="margin-top: 1.5rem;">
+          New to .7z files?
+        </button>
       </div>
     </div>
 
@@ -103,6 +106,25 @@
         <div id="history-list" class="history-list">
           <div class="empty-state">No download history yet.</div>
         </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7z Help Panel -->
+  <div id="help-7z-panel" class="settings-panel">
+    <div class="settings-content" style="max-width: 720px;">
+      <div class="settings-header">
+        <h2>New to .7z files?</h2>
+        <button id="close-help-7z-btn" class="close-btn">×</button>
+      </div>
+      <div class="help-7z-content">
+        <p class="help-7z-text">
+          This short video shows how to open and extract multi-part .7z archives after your download completes.
+        </p>
+        <video id="help-7z-video" class="help-7z-video" controls>
+          <source src="../assets/newmultipartzip.mp4" type="video/mp4">
+          Your system does not support embedded video playback.
+        </video>
       </div>
     </div>
   </div>
