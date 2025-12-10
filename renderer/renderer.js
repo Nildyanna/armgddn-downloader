@@ -379,13 +379,10 @@ function openHelp7z() {
   if (!panel) return;
   panel.style.display = 'block';
   const video = document.getElementById('help-7z-video');
-  if (video && typeof video.play === 'function') {
+  if (video) {
     try {
       video.currentTime = 0;
-      const playResult = video.play();
-      if (playResult && typeof playResult.catch === 'function') {
-        playResult.catch(function() {});
-      }
+      video.pause();
     } catch (e) {}
   }
 }
