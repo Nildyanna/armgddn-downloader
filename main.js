@@ -4,6 +4,7 @@ const fs = require('fs');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 const https = require('https');
+const { pathToFileURL } = require('url');
 
 // Set app name for dialogs and window titles
 app.name = 'ARMGDDN Downloader';
@@ -93,6 +94,14 @@ const getResourcePath = () => {
     return process.resourcesPath;
   }
   return __dirname;
+};
+
+const getHelp7zVideoFilePath = () => {
+  const resourcesPath = getResourcePath();
+  if (app.isPackaged) {
+    return path.join(resourcesPath, 'app.asar.unpacked', 'assets', 'newmultipartzip.mp4');
+  }
+  return path.join(resourcesPath, 'assets', 'newmultipartzip.mp4');
 };
 
 const getRclonePath = () => {
@@ -528,6 +537,19 @@ ipcMain.handle('browse-folder', async () => {
     return result.filePaths[0];
   }
   return null;
+});
+
+// Get 7z help video file URL for renderer
+ipcMain.handle('get-help-7z-video-src', () => {
+  try {
+    const filePath = getHelp7zVideoFilePath();
+    const fileUrl = pathToFileURL(filePath).toString();
+    logToFile('[7z-video] resolved help video URL: ' + fileUrl);
+    return fileUrl;
+  } catch (e) {
+    logToFile('[7z-video] failed to resolve help video URL: ' + e.message);
+    throw e;
+  }
 });
 
 // Get download history

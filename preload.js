@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkConnection: () => ipcRenderer.invoke('check-connection'),
   openLogin: () => ipcRenderer.invoke('open-login'),
   getSessionStatus: () => ipcRenderer.invoke('get-session-status'),
+  getHelp7zVideoSrc: () => ipcRenderer.invoke('get-help-7z-video-src'),
 
   // Events
   onDeepLink: (callback) => ipcRenderer.on('deep-link', (event, url) => callback(url)),
