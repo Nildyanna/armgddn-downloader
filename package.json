@@ -18,6 +18,9 @@
   "build": {
     "appId": "com.armgddn.downloader",
     "productName": "ARMGDDN Downloader",
+    "asarUnpack": [
+      "assets/**/*.mp4"
+    ],
     "directories": {
       "output": "dist"
     },
