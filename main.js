@@ -837,7 +837,8 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
     startTime: new Date().toISOString(),
     token: token,  // Store token for progress reporting
     cancelled: false,  // Flag to stop new downloads when cancelled
-    paused: false
+    paused: false,
+    failedFiles: []
   };
 
   activeDownloads.set(downloadId, download);
@@ -887,9 +888,13 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   
   await Promise.all(activePromises);
   
-  // Only mark as completed if not cancelled or paused
-  if (!download.cancelled && !download.paused) {
+  const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
+  // Only mark as completed if not cancelled, not paused, and with no failed files
+  if (!download.cancelled && !download.paused && !hasErrors) {
     completeDownload(downloadId);
+  } else if (hasErrors) {
+    // Ensure final progress is sent for partial/error downloads
+    updateProgress(downloadId);
   }
 
   return downloadId;
@@ -1022,6 +1027,14 @@ async function downloadFile(downloadId, file, downloadDir) {
         resolve();
       } else {
         download.status = 'error';
+
+        if (!Array.isArray(download.failedFiles)) {
+          download.failedFiles = [];
+        }
+        download.failedFiles.push(file.name);
+        if (download.activeFiles[file.name]) {
+          download.activeFiles[file.name].status = 'error';
+        }
         
         // Check for specific error types
         if (isQuotaError(errorOutput)) {
@@ -1032,6 +1045,7 @@ async function downloadFile(downloadId, file, downloadDir) {
           download.error = `Download failed (code ${code}). Please try again.`;
         }
         
+        updateProgress(downloadId);
         mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
         showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
         reject(new Error(download.error));
