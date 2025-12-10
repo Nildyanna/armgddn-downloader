@@ -398,7 +398,7 @@ function closeSettings() {
   document.getElementById('settings-panel').style.display = 'none';
 }
 
-function openHelp7z() {
+async function openHelp7z() {
   const panel = document.getElementById('help-7z-panel');
   if (!panel) return;
   console.log('[7z-video] openHelp7z called');
@@ -406,15 +406,27 @@ function openHelp7z() {
   const video = document.getElementById('help-7z-video');
   if (video) {
     try {
-      console.log('[7z-video] openHelp7z video state', {
-        src: video.currentSrc,
+      const src = await api.getHelp7zVideoSrc();
+      console.log('[7z-video] openHelp7z video state before src set', {
+        currentSrc: video.currentSrc,
         readyState: video.readyState,
         networkState: video.networkState,
         paused: video.paused
       });
+      console.log('[7z-video] setting src to', src);
+      video.src = src;
+      video.load();
       video.currentTime = 0;
       video.pause();
-    } catch (e) {}
+      console.log('[7z-video] openHelp7z video state after src set', {
+        currentSrc: video.currentSrc,
+        readyState: video.readyState,
+        networkState: video.networkState,
+        paused: video.paused
+      });
+    } catch (e) {
+      console.error('[7z-video] failed to set help video src', e);
+    }
   }
 }
 
