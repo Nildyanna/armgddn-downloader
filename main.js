@@ -865,7 +865,8 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
     token: token,  // Store token for progress reporting
     cancelled: false,  // Flag to stop new downloads when cancelled
     paused: false,
-    failedFiles: []
+    failedFiles: [],
+    quotaNotified: false
   };
 
   activeDownloads.set(downloadId, download);
@@ -1064,7 +1065,8 @@ async function downloadFile(downloadId, file, downloadDir) {
         }
         
         // Check for specific error types
-        if (isQuotaError(errorOutput)) {
+        const quota = isQuotaError(errorOutput);
+        if (quota) {
           download.error = 'Download quota exceeded. This file is temporarily unavailable due to high demand. Please try again later or try a different game.';
         } else if (isTokenExpiredError(errorOutput)) {
           download.error = 'Download link expired. Please try downloading again from the website.';
@@ -1074,7 +1076,17 @@ async function downloadFile(downloadId, file, downloadDir) {
         
         updateProgress(downloadId);
         mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
-        showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
+        let shouldShowNotification = true;
+        if (quota) {
+          if (download.quotaNotified) {
+            shouldShowNotification = false;
+          } else {
+            download.quotaNotified = true;
+          }
+        }
+        if (shouldShowNotification) {
+          showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
+        }
         reject(new Error(download.error));
       }
     });
