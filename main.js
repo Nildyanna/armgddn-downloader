@@ -1049,6 +1049,9 @@ async function downloadFile(downloadId, file, downloadDir) {
         download.activeProcesses.splice(idx, 1);
       }
 
+      // @ts-ignore
+      const stopReason = proc.__armgddnStopReason;
+
       if (download.cancelled) {
         if (download.activeFiles[file.name]) {
           download.activeFiles[file.name].status = 'cancelled';
@@ -1059,7 +1062,9 @@ async function downloadFile(downloadId, file, downloadDir) {
         return;
       }
 
-      if (download.paused) {
+      // If this process was intentionally killed due to pause, treat as paused
+      // even if the pause flag has already been cleared by a resume.
+      if (download.paused || stopReason === 'pause') {
         if (download.activeFiles[file.name]) {
           download.activeFiles[file.name].status = 'paused';
         }
@@ -1295,6 +1300,11 @@ ipcMain.handle('pause-download', (event, downloadId) => {
   if (download.activeProcesses && download.activeProcesses.length > 0) {
     for (const proc of download.activeProcesses) {
       try {
+        // Mark this process as intentionally stopped due to pause.
+        // Its close handler may fire after resume (when download.paused is false)
+        // and should not be treated as a real error.
+        // @ts-ignore
+        proc.__armgddnStopReason = 'pause';
         proc.kill('SIGTERM');
       } catch (e) {}
     }
