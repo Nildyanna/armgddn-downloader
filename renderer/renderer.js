@@ -108,10 +108,14 @@ function setupIPCListeners() {
   
   api.onDownloadProgress((data) => {
     const download = downloads.get(data.id);
-    if (download) {
-      Object.assign(download, data);
+    if (!download) {
+      // IPC ordering can occasionally deliver progress before started; don't drop the update.
+      downloads.set(data.id, { id: data.id, ...data });
       renderDownloads();
+      return;
     }
+    Object.assign(download, data);
+    renderDownloads();
   });
   
   api.onDownloadCompleted((data) => {
@@ -123,17 +127,23 @@ function setupIPCListeners() {
       download.progress = 100;
       renderDownloads();
     } else {
-      console.log('[Renderer] Download NOT found in Map!');
+      // If completion arrives before started/progress, create it so the UI reflects completion.
+      console.log('[Renderer] Download NOT found in Map! Creating completed entry.');
+      downloads.set(data.id, { id: data.id, status: 'completed', progress: 100 });
+      renderDownloads();
     }
   });
   
   api.onDownloadError((data) => {
     const download = downloads.get(data.id);
-    if (download) {
-      download.status = 'error';
-      download.error = data.error;
+    if (!download) {
+      downloads.set(data.id, { id: data.id, status: 'error', error: data.error, progress: 0 });
       renderDownloads();
+      return;
     }
+    download.status = 'error';
+    download.error = data.error;
+    renderDownloads();
   });
   
   api.onDownloadCancelled((data) => {
