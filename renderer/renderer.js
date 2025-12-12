@@ -378,10 +378,15 @@ async function resumeDownload(id) {
   }
 }
 
-// Retry download (placeholder)
-function retryDownload(id) {
-  // TODO: Implement retry
-  alert('Retry not implemented yet');
+async function retryDownload(id) {
+  const ok = await api.retryDownload(id);
+  if (!ok) return;
+  const download = downloads.get(id);
+  if (download) {
+    download.status = 'in_progress';
+    download.error = '';
+    renderDownloads();
+  }
 }
 
 // Open download folder

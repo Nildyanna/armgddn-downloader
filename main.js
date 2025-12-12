@@ -507,6 +507,32 @@ app.whenReady().then(() => {
   }
 });
 
+ipcMain.handle('retry-download', async (event, downloadId) => {
+  const download = activeDownloads.get(downloadId);
+  if (!download) return false;
+
+  if (download.status !== 'error') {
+    return false;
+  }
+
+  try {
+    // Treat retry as "resume remaining files" from disk state.
+    // Ensure paused flag is cleared so workers run.
+    download.paused = false;
+    download.cancelled = false;
+    download.status = 'in_progress';
+    download.error = '';
+    download.failedFiles = [];
+    updateProgress(downloadId);
+
+    await resumeDownloadFiles(downloadId);
+    return true;
+  } catch (e) {
+    console.error('Retry download error:', e);
+    return false;
+  }
+});
+
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
     app.quit();
@@ -1277,6 +1303,100 @@ ipcMain.handle('pause-download', (event, downloadId) => {
   updateProgress(downloadId);
   return true;
 });
+
+async function resumeDownloadFiles(downloadId) {
+  const download = activeDownloads.get(downloadId);
+  if (!download) {
+    throw new Error('Download not found');
+  }
+
+  const downloadDir = path.join(settings.downloadPath, download.name || 'Download');
+  if (!fs.existsSync(downloadDir)) {
+    fs.mkdirSync(downloadDir, { recursive: true });
+  }
+
+  const isFileComplete = (file) => {
+    try {
+      const outputPath = path.join(downloadDir, file.name);
+      if (!fs.existsSync(outputPath)) return false;
+      const st = fs.statSync(outputPath);
+      const expected = typeof file.size === 'number' ? file.size : 0;
+      if (expected > 0) {
+        return (st.size || 0) >= expected;
+      }
+      // If size unknown, treat any non-empty file as complete.
+      return (st.size || 0) > 0;
+    } catch (e) {
+      return false;
+    }
+  };
+
+  // Figure out what still needs to be downloaded.
+  const allFiles = Array.isArray(download.files) ? download.files : [];
+  const remainingFiles = allFiles.filter(f => f && f.name && !isFileComplete(f));
+
+  // Reset state
+  download.paused = false;
+  download.status = 'in_progress';
+  download.cancelled = false;
+  download.error = '';
+  download.quotaNotified = false;
+  download.failedFiles = [];
+  download.activeFiles = {};
+  download.activeProcesses = [];
+
+  // Recompute downloaded/completed counts based on disk.
+  let completedFiles = 0;
+  let downloadedSize = 0;
+  for (const f of allFiles) {
+    if (!f || !f.name) continue;
+    if (!isFileComplete(f)) continue;
+    completedFiles++;
+    downloadedSize += (typeof f.size === 'number' ? f.size : 0);
+  }
+  download.completedFiles = completedFiles;
+  download.downloadedSize = downloadedSize;
+
+  // Notify UI immediately.
+  updateProgress(downloadId);
+
+  // Nothing left to do.
+  if (remainingFiles.length === 0) {
+    completeDownload(downloadId);
+    return;
+  }
+
+  const PARALLEL_DOWNLOADS = 6;
+  const fileQueue = [...remainingFiles];
+  const activePromises = [];
+
+  const processNext = async () => {
+    while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
+      const file = fileQueue.shift();
+      if (!file) break;
+      try {
+        await downloadFile(downloadId, file, downloadDir);
+      } catch (err) {
+        if (!download.cancelled) {
+          console.error('File download error (resume):', err);
+        }
+      }
+    }
+  };
+
+  for (let i = 0; i < Math.min(PARALLEL_DOWNLOADS, remainingFiles.length); i++) {
+    activePromises.push(processNext());
+  }
+
+  await Promise.all(activePromises);
+
+  const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
+  if (!download.cancelled && !download.paused && !hasErrors) {
+    completeDownload(downloadId);
+  } else {
+    updateProgress(downloadId);
+  }
+}
 
 ipcMain.handle('resume-download', async (event, downloadId) => {
   const download = activeDownloads.get(downloadId);

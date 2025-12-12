@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   cancelDownload: (id) => ipcRenderer.invoke('cancel-download', id),
   pauseDownload: (id) => ipcRenderer.invoke('pause-download', id),
   resumeDownload: (id) => ipcRenderer.invoke('resume-download', id),
+  retryDownload: (id) => ipcRenderer.invoke('retry-download', id),
   getDownloads: () => ipcRenderer.invoke('get-downloads'),
 
   // History
