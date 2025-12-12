@@ -1202,10 +1202,40 @@ function parseRcloneProgress(downloadId, fileName, output) {
   const fileInfo = download.activeFiles[fileName];
   if (!fileInfo) return;
 
-  // Parse progress percentage
-  const percentMatch = output.match(/(\d+)%/);
-  if (percentMatch) {
-    fileInfo.progress = parseInt(percentMatch[1]);
+  // Parse progress percentage.
+  // NOTE: rclone emits many lines that can contain a percentage-like token.
+  // We only trust percentages from either:
+  // - The aggregate "Transferred:" stats line, or
+  // - A line that includes this file's name.
+  // Otherwise we can jump 0->100 instantly from unrelated output.
+  const lines = String(output).split(/\r?\n/);
+  let parsedPercent = null;
+  for (const line of lines) {
+    if (!line) continue;
+    const trimmed = line.trim();
+
+    // Prefer aggregate stats line (works reliably even for copyurl)
+    if (trimmed.startsWith('Transferred:')) {
+      const m = trimmed.match(/,\s*(\d{1,3})%/);
+      if (m) {
+        parsedPercent = parseInt(m[1], 10);
+        break;
+      }
+    }
+
+    // Fall back to file-specific line if present
+    if (line.includes(fileName)) {
+      const m = line.match(/(\d{1,3})%/);
+      if (m) {
+        parsedPercent = parseInt(m[1], 10);
+        break;
+      }
+    }
+  }
+  if (typeof parsedPercent === 'number' && Number.isFinite(parsedPercent)) {
+    if (parsedPercent < 0) parsedPercent = 0;
+    if (parsedPercent > 100) parsedPercent = 100;
+    fileInfo.progress = parsedPercent;
   }
 
   // Parse speed (e.g., "123.4 MiB/s" or "45 KiB/s")
