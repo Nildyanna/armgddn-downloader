@@ -1176,13 +1176,17 @@ function shouldFinalizeDownload(download) {
   const fileCount = typeof download.fileCount === 'number' ? download.fileCount : 0;
   const completed = typeof download.completedFiles === 'number' ? download.completedFiles : 0;
 
+  const totalSize = typeof download.totalSize === 'number' ? download.totalSize : 0;
+  const downloadedSize = typeof download.downloadedSize === 'number' ? download.downloadedSize : 0;
+  const isByteComplete = totalSize > 0 && downloadedSize >= totalSize;
+  const isFileCountComplete = fileCount > 0 && completed >= fileCount;
+
   return (
     !download.cancelled &&
     !download.paused &&
     !hasErrors &&
     !hasActive &&
-    fileCount > 0 &&
-    completed >= fileCount
+    (isByteComplete || isFileCountComplete)
   );
 }
 
