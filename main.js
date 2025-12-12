@@ -810,13 +810,25 @@ async function reportProgressToServer(download, token) {
     if (download.totalSize > 0 && bytesDownloaded > download.totalSize) {
       bytesDownloaded = download.totalSize;
     }
+
+    // IMPORTANT: Keep server-side progress consistent with the UI clamp.
+    // The website derives percent from bytesDownloaded/totalBytes; if we report 100% bytes
+    // while the download is still 'downloading'/'paused' (e.g. waiting on process close or
+    // post-processing), the website can show 100% but still "In Progress".
+    // Only allow bytesDownloaded==totalBytes when the download is truly finalized.
+    const totalBytes = download.totalSize || 0;
+    const isFinal = (download.status === 'completed') || shouldFinalizeDownload(download);
+    if (!isFinal && totalBytes > 0 && bytesDownloaded >= totalBytes) {
+      const step = Math.max(1, Math.floor(totalBytes / 100)); // subtract ~1% so Math.round() won't hit 100
+      bytesDownloaded = Math.max(0, totalBytes - step);
+    }
     
     const postData = JSON.stringify({
       downloadId: download.id,
       fileName: download.name,
       remotePath: download.remotePath || '',  // For trending (e.g., "PC1/Game Name")
       bytesDownloaded: bytesDownloaded,
-      totalBytes: download.totalSize || 0,
+      totalBytes: totalBytes,
       status: download.status === 'in_progress' ? 'downloading' : download.status,
       error: download.error || null
     });
