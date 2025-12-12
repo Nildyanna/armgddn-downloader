@@ -1181,13 +1181,18 @@ function shouldFinalizeDownload(download) {
   const isByteComplete = totalSize > 0 && downloadedSize >= totalSize;
   const isFileCountComplete = fileCount > 0 && completed >= fileCount;
 
-  return (
+  const result = (
     !download.cancelled &&
     !download.paused &&
     !hasErrors &&
     !hasActive &&
     (isByteComplete || isFileCountComplete)
   );
+
+  console.log(`[shouldFinalizeDownload] cancelled=${download.cancelled}, paused=${download.paused}, hasErrors=${hasErrors}, hasActive=${hasActive}, isByteComplete=${isByteComplete}, isFileCountComplete=${isFileCountComplete}, result=${result}`);
+  console.log(`[shouldFinalizeDownload] downloadedSize=${downloadedSize}, totalSize=${totalSize}, completedFiles=${completed}, fileCount=${fileCount}`);
+
+  return result;
 }
 
 function clampProgressUnlessFinal(download) {
@@ -1456,15 +1461,22 @@ async function resumeDownloadFiles(downloadId) {
   const isFileComplete = (file) => {
     try {
       const outputPath = path.join(downloadDir, file.name);
-      if (!fs.existsSync(outputPath)) return false;
+      if (!fs.existsSync(outputPath)) {
+        console.log(`[isFileComplete] ${file.name}: file does not exist`);
+        return false;
+      }
       const st = fs.statSync(outputPath);
       const expected = typeof file.size === 'number' ? file.size : 0;
       if (expected > 0) {
-        return (st.size || 0) >= expected;
+        const result = (st.size || 0) >= expected;
+        console.log(`[isFileComplete] ${file.name}: size=${st.size}, expected=${expected}, complete=${result}`);
+        return result;
       }
       // If size unknown, do NOT assume partial files are complete.
+      console.log(`[isFileComplete] ${file.name}: expected size unknown, returning false`);
       return false;
     } catch (e) {
+      console.log(`[isFileComplete] ${file.name}: error - ${e.message}`);
       return false;
     }
   };
@@ -1495,14 +1507,28 @@ async function resumeDownloadFiles(downloadId) {
   download.completedFiles = completedFiles;
   download.downloadedSize = downloadedSize;
 
-  // Notify UI immediately.
-  updateProgress(downloadId);
+  console.log(`[Resume] remainingFiles.length: ${remainingFiles.length}, allFiles.length: ${allFiles.length}`);
+  console.log(`[Resume] completedFiles: ${download.completedFiles}, downloadedSize: ${download.downloadedSize}, totalSize: ${download.totalSize}`);
 
-  // Nothing left to do.
+  // Nothing left to do - complete immediately without going through updateProgress
+  // to avoid race conditions with shouldFinalizeDownload.
   if (remainingFiles.length === 0) {
+    console.log(`[Resume] No remaining files - calling completeDownload directly`);
     completeDownload(downloadId);
     return;
   }
+
+  // Notify UI that we're resuming (but don't check finalization yet since we have files to download)
+  mainWindow.webContents.send('download-progress', {
+    id: downloadId,
+    status: download.status,
+    progress: download.progress,
+    downloadedSize: download.downloadedSize,
+    totalSpeed: download.totalSpeed,
+    activeFiles: [],
+    completedFiles: download.completedFiles,
+    fileCount: download.fileCount
+  });
 
   const PARALLEL_DOWNLOADS = 6;
   const fileQueue = [...remainingFiles];
@@ -1529,9 +1555,13 @@ async function resumeDownloadFiles(downloadId) {
   await Promise.all(activePromises);
 
   const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
+  console.log(`[Resume] After Promise.all - cancelled: ${download.cancelled}, paused: ${download.paused}, hasErrors: ${hasErrors}, failedFiles: ${JSON.stringify(download.failedFiles)}`);
+  console.log(`[Resume] downloadedSize: ${download.downloadedSize}, totalSize: ${download.totalSize}, completedFiles: ${download.completedFiles}, fileCount: ${download.fileCount}`);
   if (!download.cancelled && !download.paused && !hasErrors) {
+    console.log(`[Resume] Calling completeDownload for ${downloadId}`);
     completeDownload(downloadId);
   } else {
+    console.log(`[Resume] NOT completing - updating progress instead`);
     updateProgress(downloadId);
   }
 }
@@ -1555,9 +1585,20 @@ ipcMain.handle('resume-download', async (event, downloadId) => {
 
 // Complete download
 function completeDownload(downloadId) {
+  console.log(`[completeDownload] Called for ${downloadId}`);
   const download = activeDownloads.get(downloadId);
-  if (!download) return;
+  if (!download) {
+    console.log(`[completeDownload] Download not found in activeDownloads!`);
+    return;
+  }
 
+  // Guard against double-completion
+  if (download.status === 'completed') {
+    console.log(`[completeDownload] Already completed, skipping`);
+    return;
+  }
+
+  console.log(`[completeDownload] Setting status to completed and sending event`);
   download.status = 'completed';
   download.progress = 100;
   download.downloadedSize = download.totalSize;
@@ -1577,9 +1618,15 @@ function completeDownload(downloadId) {
   });
   saveHistory();
 
-  mainWindow.webContents.send('download-completed', { id: downloadId });
+  if (mainWindow && mainWindow.webContents) {
+    console.log(`[completeDownload] Sending download-completed event to renderer`);
+    mainWindow.webContents.send('download-completed', { id: downloadId });
+  } else {
+    console.log(`[completeDownload] ERROR: mainWindow or webContents is null!`);
+  }
   showDownloadNotification('Download completed', download.name || 'Download finished');
   activeDownloads.delete(downloadId);
+  console.log(`[completeDownload] Done, download removed from activeDownloads`);
 }
 
 // Open folder

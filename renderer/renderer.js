@@ -115,11 +115,15 @@ function setupIPCListeners() {
   });
   
   api.onDownloadCompleted((data) => {
+    console.log('[Renderer] download-completed event received:', data.id);
     const download = downloads.get(data.id);
     if (download) {
+      console.log('[Renderer] Found download in Map, setting status to completed');
       download.status = 'completed';
       download.progress = 100;
       renderDownloads();
+    } else {
+      console.log('[Renderer] Download NOT found in Map!');
     }
   });
   
