@@ -1,6 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, safeStorage, Notification } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { spawn } = require('child_process');
 const crypto = require('crypto');
 const https = require('https');
@@ -84,12 +85,35 @@ function showDownloadNotification(title, body) {
 }
 
 // Debug log file for troubleshooting
-const getDebugLogPath = () => path.join(app.getPath('userData'), 'debug.log');
+let cachedDebugLogPath = null;
+function getDebugLogPath() {
+  if (cachedDebugLogPath) return cachedDebugLogPath;
+  try {
+    const userData = app.getPath('userData');
+    cachedDebugLogPath = path.join(userData, 'debug.log');
+    return cachedDebugLogPath;
+  } catch (e) {
+    // app.getPath('userData') can fail before the app is ready in some packaged environments.
+    // Fall back to a best-effort location.
+    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
+    cachedDebugLogPath = path.join(appData, 'ARMGDDN Downloader', 'debug.log');
+    return cachedDebugLogPath;
+  }
+}
 function logToFile(message) {
   try {
     const timestamp = new Date().toISOString();
-    fs.appendFileSync(getDebugLogPath(), `[${timestamp}] ${message}\n`);
-  } catch (e) { /* ignore */ }
+    const logPath = getDebugLogPath();
+    const dir = path.dirname(logPath);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.appendFileSync(logPath, `[${timestamp}] ${message}\n`);
+  } catch (e) {
+    try {
+      // Last-resort fallback to temp directory
+      const fallbackPath = path.join(os.tmpdir(), 'armgddn-downloader-debug.log');
+      fs.appendFileSync(fallbackPath, `[${new Date().toISOString()}] [logToFile fallback] ${message} (original error: ${e && e.message ? e.message : e})\n`);
+    } catch (e2) {}
+  }
 }
 
 // Paths
@@ -474,6 +498,12 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show', click: () => mainWindow.show() },
+    { label: 'Open Log Folder', click: () => {
+      try {
+        const folder = path.dirname(getDebugLogPath());
+        shell.openPath(folder);
+      } catch (e) {}
+    } },
     { type: 'separator' },
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
   ]);
@@ -488,6 +518,7 @@ function createTray() {
 
 // App ready
 app.whenReady().then(() => {
+  logToFile(`[Startup] debug.log path: ${getDebugLogPath()}`);
   loadSettings();
   loadHistory();
   loadSession();
