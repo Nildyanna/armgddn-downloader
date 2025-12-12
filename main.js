@@ -1635,6 +1635,26 @@ function completeDownload(downloadId) {
   download.downloadedSize = download.totalSize;
   download.endTime = new Date().toISOString();
 
+  // Send a final progress event marking completion.
+  // This makes the UI update even if the dedicated 'download-completed' event is missed.
+  try {
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('download-progress', {
+        id: downloadId,
+        status: 'completed',
+        progress: 100,
+        downloadedSize: download.downloadedSize,
+        totalSpeed: '0 B/s',
+        activeFiles: [],
+        completedFiles: download.completedFiles,
+        fileCount: download.fileCount
+      });
+      logToFile(`[completeDownload] Sent final download-progress status=completed`);
+    }
+  } catch (e) {
+    logToFile(`[completeDownload] Failed to send final download-progress: ${e && e.message ? e.message : e}`);
+  }
+
   // Report completion to server
   reportProgressToServer(download, download.token);
 
