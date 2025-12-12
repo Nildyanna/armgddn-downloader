@@ -182,8 +182,9 @@ async function handleDeepLink(url) {
     const manifest = await api.fetchManifest(manifestUrl, token);
     console.log('Manifest received:', manifest);
     
-    // Start download with token for progress reporting to website
-    await api.startDownload(manifest, token);
+    // Start download with token for progress reporting
+    // Pass manifestUrl so main process can report to the same server.
+    await api.startDownload(manifest, token, manifestUrl);
     
   } catch (error) {
     console.error('Failed to handle deep link:', error);

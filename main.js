@@ -762,10 +762,23 @@ async function reportProgressToServer(download, token) {
   }
   
   try {
-    // Calculate bytes downloaded from progress percentage
-    const bytesDownloaded = download.totalSize > 0 
-      ? Math.round((download.progress / 100) * download.totalSize)
-      : (download.downloadedSize || 0);
+    // Calculate bytes downloaded based on completed bytes plus partial progress
+    // of active files, so server-side progress matches the UI.
+    let bytesDownloaded = download.downloadedSize || 0;
+    const activeFiles = download.activeFiles ? Object.values(download.activeFiles) : [];
+    if (Array.isArray(activeFiles) && activeFiles.length > 0) {
+      for (const f of activeFiles) {
+        if (!f) continue;
+        const size = typeof f.size === 'number' ? f.size : 0;
+        const p = typeof f.progress === 'number' ? f.progress : 0;
+        if (size > 0 && p > 0 && p < 100) {
+          bytesDownloaded += Math.round((p / 100) * size);
+        }
+      }
+    }
+    if (download.totalSize > 0 && bytesDownloaded > download.totalSize) {
+      bytesDownloaded = download.totalSize;
+    }
     
     const postData = JSON.stringify({
       downloadId: download.id,
@@ -782,9 +795,9 @@ async function reportProgressToServer(download, token) {
     debugLog(`Reporting progress: ${postData.substring(0, 100)}...`);
     
     const options = {
-      hostname: 'www.armgddnbrowser.com',
-      port: 443,
-      path: '/api/app-progress',
+      hostname: download.progressHost || 'www.armgddnbrowser.com',
+      port: download.progressPort || 443,
+      path: download.progressPath || '/api/app-progress',
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -824,7 +837,7 @@ async function reportProgressToServer(download, token) {
 }
 
 // Start download
-ipcMain.handle('start-download', async (event, manifest, token) => {
+ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => {
   debugLog(`Download started - Token: ${token ? '[PRESENT]' : '[MISSING]'}`);
   console.log('Received manifest:', JSON.stringify(manifest, null, 2));
   
@@ -836,6 +849,22 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
   }
   
   const downloadId = crypto.randomUUID();
+
+  // Default progress reporting target
+  let progressHost = 'www.armgddnbrowser.com';
+  let progressPort = 443;
+  let progressPath = '/api/app-progress';
+  try {
+    if (typeof manifestUrl === 'string' && manifestUrl) {
+      const u = new URL(manifestUrl);
+      if (u && u.hostname) {
+        progressHost = u.hostname;
+        progressPort = u.port ? Number(u.port) : (u.protocol === 'http:' ? 80 : 443);
+      }
+    }
+  } catch (e) {
+    // ignore parse failure, fall back to default
+  }
   
   // Handle different manifest structures
   let files = [];
@@ -875,6 +904,9 @@ ipcMain.handle('start-download', async (event, manifest, token) => {
     id: downloadId,
     name: name,
     remotePath: remotePath,  // Store for trending reporting
+    progressHost,
+    progressPort,
+    progressPath,
     status: 'starting',
     progress: 0,
     speed: '',
@@ -1137,6 +1169,30 @@ const lastUIUpdate = new Map();
 const UI_UPDATE_INTERVAL = 500; // Update UI every 500ms max
 let lastProgressReport = 0; // Throttle server progress reports
 
+function shouldFinalizeDownload(download) {
+  if (!download) return false;
+  const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
+  const hasActive = Array.isArray(download.activeProcesses) && download.activeProcesses.length > 0;
+  const fileCount = typeof download.fileCount === 'number' ? download.fileCount : 0;
+  const completed = typeof download.completedFiles === 'number' ? download.completedFiles : 0;
+
+  return (
+    !download.cancelled &&
+    !download.paused &&
+    !hasErrors &&
+    !hasActive &&
+    fileCount > 0 &&
+    completed >= fileCount
+  );
+}
+
+function clampProgressUnlessFinal(download) {
+  if (!download) return;
+  if (download.progress >= 100 && !shouldFinalizeDownload(download)) {
+    download.progress = 99;
+  }
+}
+
 // Parse rclone progress output
 function parseRcloneProgress(downloadId, fileName, output) {
   const download = activeDownloads.get(downloadId);
@@ -1181,12 +1237,29 @@ function parseRcloneProgress(downloadId, fileName, output) {
   }
   download.totalSpeed = formatSpeed(totalSpeedBytes);
 
-  // Calculate overall progress based on completed + active file progress
-  let totalProgress = download.completedFiles * 100;
-  for (const f of activeFilesList) {
-    totalProgress += f.progress || 0;
+  // Calculate overall progress based on bytes, not file-count averaging.
+  if (download.totalSize > 0) {
+    let bytesSoFar = download.downloadedSize || 0;
+    for (const f of activeFilesList) {
+      if (!f) continue;
+      const size = typeof f.size === 'number' ? f.size : 0;
+      const p = typeof f.progress === 'number' ? f.progress : 0;
+      if (size > 0 && p > 0 && p < 100) {
+        bytesSoFar += Math.round((p / 100) * size);
+      }
+    }
+    if (bytesSoFar > download.totalSize) bytesSoFar = download.totalSize;
+    download.progress = Math.round((bytesSoFar / download.totalSize) * 100);
+  } else {
+    // Fallback when totalSize is unknown
+    let totalProgress = download.completedFiles * 100;
+    for (const f of activeFilesList) {
+      totalProgress += f.progress || 0;
+    }
+    download.progress = Math.round(totalProgress / download.fileCount);
   }
-  download.progress = Math.round(totalProgress / download.fileCount);
+
+  clampProgressUnlessFinal(download);
 
   mainWindow.webContents.send('download-progress', {
     id: downloadId,
@@ -1202,6 +1275,10 @@ function parseRcloneProgress(downloadId, fileName, output) {
   if (now2 - lastProgressReport > 2000) {
     lastProgressReport = now2;
     reportProgressToServer(download, download.token);
+  }
+
+  if (shouldFinalizeDownload(download)) {
+    completeDownload(downloadId);
   }
 }
 
@@ -1233,8 +1310,21 @@ function updateProgress(downloadId) {
   if (!download) return;
 
   if (download.totalSize > 0) {
-    download.progress = Math.round((download.downloadedSize / download.totalSize) * 100);
+    let bytesSoFar = download.downloadedSize || 0;
+    const activeFilesList0 = Object.values(download.activeFiles || {});
+    for (const f of activeFilesList0) {
+      if (!f) continue;
+      const size = typeof f.size === 'number' ? f.size : 0;
+      const p = typeof f.progress === 'number' ? f.progress : 0;
+      if (size > 0 && p > 0 && p < 100) {
+        bytesSoFar += Math.round((p / 100) * size);
+      }
+    }
+    if (bytesSoFar > download.totalSize) bytesSoFar = download.totalSize;
+    download.progress = Math.round((bytesSoFar / download.totalSize) * 100);
   }
+
+  clampProgressUnlessFinal(download);
 
   const activeFilesList = Object.values(download.activeFiles || {});
   let totalSpeedBytes = 0;
@@ -1259,6 +1349,10 @@ function updateProgress(downloadId) {
   if (now - lastProgressReport > 2000) {
     lastProgressReport = now;
     reportProgressToServer(download, download.token);
+  }
+
+  if (shouldFinalizeDownload(download)) {
+    completeDownload(downloadId);
   }
 }
 
@@ -1334,8 +1428,8 @@ async function resumeDownloadFiles(downloadId) {
       if (expected > 0) {
         return (st.size || 0) >= expected;
       }
-      // If size unknown, treat any non-empty file as complete.
-      return (st.size || 0) > 0;
+      // If size unknown, do NOT assume partial files are complete.
+      return false;
     } catch (e) {
       return false;
     }
