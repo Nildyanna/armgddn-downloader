@@ -370,7 +370,7 @@ body {
 .download-actions button:hover {
   background: rgba(96, 165, 250, 0.15);
   border-color: var(--accent-primary);
-  transform: translateY(-1px);
+  transform: none;
 }
 
 .download-actions button.retry-btn {
