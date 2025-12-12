@@ -196,8 +196,28 @@ let renderScheduled = false;
 let lastRenderTime = 0;
 const RENDER_THROTTLE = 500; // Render at most every 500ms
 
+let lastStructureKey = '';
+
+function hasHoveredActionButton() {
+  try {
+    return !!document.querySelector('.download-actions button:hover');
+  } catch (e) {
+    return false;
+  }
+}
+
 function scheduleRender() {
   if (renderScheduled) return;
+
+  // If the user is hovering a button, avoid rebuilding the DOM under the cursor.
+  if (hasHoveredActionButton()) {
+    renderScheduled = true;
+    setTimeout(() => {
+      renderScheduled = false;
+      scheduleRender();
+    }, 100);
+    return;
+  }
   
   const now = Date.now();
   const timeSinceLastRender = now - lastRenderTime;
@@ -229,9 +249,6 @@ function renderDownloadsNow() {
     return;
   }
   
-  // We have downloads - clear and fully rebuild list
-  container.innerHTML = '';
-
   // Create a sorted list: active/in-progress first (newest first), then completed
   const items = Array.from(downloads.entries());
   items.sort((a, b) => {
@@ -249,6 +266,89 @@ function renderDownloadsNow() {
     const bTime = db && db.startTime ? new Date(db.startTime).getTime() : 0;
     return bTime - aTime; // newest first
   });
+
+  // If only progress numbers are changing, update the existing DOM in-place to
+  // avoid hover flicker (Pause button re-created under the cursor).
+  const structureKey = items.map(([id, d]) => {
+    const activeLen = d && Array.isArray(d.activeFiles) ? d.activeFiles.length : 0;
+    const hasErr = d && d.error ? 1 : 0;
+    const fc = d && typeof d.fileCount === 'number' ? d.fileCount : 0;
+    return `${id}:${d && d.status ? d.status : ''}:${fc}:${activeLen}:${hasErr}`;
+  }).join('|');
+
+  const canUpdateInPlace = container.children.length > 0 && lastStructureKey && structureKey === lastStructureKey;
+  lastStructureKey = structureKey;
+
+  if (canUpdateInPlace) {
+    for (const [id, download] of items) {
+      const item = container.querySelector(`.download-item[data-id="${CSS.escape(String(id))}"]`);
+      if (!item) continue;
+
+      // Keep classes in sync (no structure rebuild).
+      item.className = `download-item ${download.status}`;
+
+      const progressFill = item.querySelector('.progress-bar .progress-fill');
+      if (progressFill) {
+        progressFill.style.width = `${download.progress || 0}%`;
+      }
+
+      const stateEl = item.querySelector('.download-header .download-state');
+      if (stateEl) {
+        const statusDisplay = {
+          'starting': 'Starting',
+          'in_progress': 'In Progress',
+          'downloading': 'Downloading',
+          'completed': 'Completed',
+          'cancelled': 'Cancelled',
+          'error': 'Error',
+          'paused': 'Paused'
+        }[download.status] || download.status;
+        stateEl.textContent = statusDisplay;
+      }
+
+      const infoSpans = item.querySelectorAll('.download-info span');
+      const leftInfo = infoSpans && infoSpans.length ? infoSpans[0] : null;
+      const rightInfo = item.querySelector('.download-info .total-speed');
+
+      const hasMultipleFiles = download.fileCount > 1;
+      let completedFiles = download.completedFiles || 0;
+      if (download.status === 'completed' && hasMultipleFiles && download.fileCount) {
+        completedFiles = download.fileCount;
+      }
+      const fileCountText = hasMultipleFiles ? `${completedFiles}/${download.fileCount} files` : '';
+
+      if (leftInfo) {
+        leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}`;
+      }
+      if (rightInfo) {
+        rightInfo.textContent = download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '';
+      }
+
+      const activeFilesEl = item.querySelector('.active-files');
+      if (activeFilesEl) {
+        const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && download.activeFiles && download.activeFiles.length > 0;
+        if (showActiveFiles) {
+          activeFilesEl.innerHTML = download.activeFiles.map(f => `
+            <div class="file-progress">
+              <div class="file-progress-header">
+                <span class="file-name">${escapeHtml(f.name)}</span>
+                <span class="file-speed">${f.speed || ''}</span>
+              </div>
+              <div class="progress-bar small">
+                <div class="progress-fill" style="width: ${f.progress || 0}%"></div>
+              </div>
+            </div>
+          `).join('');
+        } else {
+          activeFilesEl.innerHTML = '';
+        }
+      }
+    }
+    return;
+  }
+
+  // Structure changed; clear and fully rebuild list.
+  container.innerHTML = '';
 
   // Render each download item
   for (const [id, download] of items) {
