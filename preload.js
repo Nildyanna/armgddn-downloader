@@ -9,7 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Downloads
   fetchManifest: (url, token) => ipcRenderer.invoke('fetch-manifest', url, token),
-  startDownload: (manifest, token) => ipcRenderer.invoke('start-download', manifest, token),
+  startDownload: (manifest, token, manifestUrl) => ipcRenderer.invoke('start-download', manifest, token, manifestUrl),
   cancelDownload: (id) => ipcRenderer.invoke('cancel-download', id),
   pauseDownload: (id) => ipcRenderer.invoke('pause-download', id),
   resumeDownload: (id) => ipcRenderer.invoke('resume-download', id),
