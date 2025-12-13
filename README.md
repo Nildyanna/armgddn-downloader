@@ -1,38 +1,120 @@
 # ARMGDDN Downloader
 
-Fast rclone-powered download manager for ARMGDDN content.
+ARMGDDN Downloader is a desktop download manager for ARMGDDN content.
+
+It uses `rclone` under the hood to download files reliably and quickly, while providing a simple UI for managing download progress, pausing/resuming, and history.
+
+## What this app does
+
+- Accepts ARMGDDN download requests (including via the `armgddn://` deep-link protocol)
+- Downloads the files to a local folder using `rclone`
+- Shows progress, transfer speed, and completion state in the UI
+- Keeps a local download history
 
 ## Features
 
-- Deep link support (`armgddn://` protocol)
-- Fast downloads using rclone
-- Download history
-- System tray integration
-- Cross-platform (Windows, Linux)
+- **Deep link support**
+  - Registers the `armgddn://` protocol so the Browser/website can open the Downloader directly.
+- **Fast downloads via rclone**
+  - Uses `rclone` for resilient transfers and good performance.
+- **Pause / Resume**
+  - You can pause in-progress downloads and resume later.
+- **Download history**
+  - Completed downloads are recorded locally.
+- **System tray integration**
+  - Minimization-to-tray behavior is configurable in Settings.
+- **Bandwidth throttling**
+  - Optional overall download speed limit (MB/s).
+- **Cross-platform packaging**
+  - Windows, Linux (and macOS support in the build config).
+
+## Getting started (users)
+
+1. Install the latest release for your OS.
+2. Launch **ARMGDDN Downloader**.
+3. Open Settings and confirm:
+   - Download folder
+   - Max concurrent downloads
+   - Optional download speed limit
+4. Start a download from the ARMGDDN Browser/website (or open an `armgddn://...` link).
+
+## Settings
+
+The Settings panel controls how downloads are performed.
+
+- **Download Path**
+  - Where files will be saved on disk.
+- **Max Concurrent Downloads**
+  - Maximum number of parallel file transfers the app will run per download.
+  - Higher values may improve speed on fast connections, but can increase CPU usage and stress your connection.
+- **Download Speed Limit (MB/s)**
+  - Caps overall download speed (useful to avoid saturating your home bandwidth).
+  - This is applied by dividing the cap across concurrent workers and passing `--bwlimit` to each `rclone` process.
+  - Set to `0` to disable the limit.
+- **Notifications**
+  - Enables/disables OS-level notifications.
+- **Minimize to tray on minimize / close**
+  - Controls whether the window hides to tray rather than quitting.
+
+## Troubleshooting
+
+- **Where is the log file?**
+  - The app writes a `debug.log` file under the Electron `userData` directory.
+  - The tray menu includes an **Open Log Folder** shortcut.
+
+- **Downloads are slow**
+  - Check your **Max Concurrent Downloads** setting.
+  - If you enabled **Download Speed Limit (MB/s)**, try raising it or setting it to `0`.
+  - Your ISP/router may also limit many concurrent connections.
+
+- **Deep links don’t open the app**
+  - Reinstall the app so the `armgddn://` protocol handler is registered again.
+  - On Linux, desktop environments can require a log out / log in after installing protocol handlers.
+
+## Support
+
+- Telegram: [https://t.me/ARMGDDNGames](https://t.me/ARMGDDNGames)
 
 ## Development
 
+### Prerequisites
+
+- Node.js + npm
+- `rclone` binaries in the `rclone/` directory (see below)
+
+### Install + run
+
 ```bash
-# Install dependencies
 npm install
-
-# Run in development
 npm start
+```
 
+### Build
+
+```bash
 # Build for current platform
 npm run build
 
 # Build for specific platform
 npm run build:win
 npm run build:linux
+npm run build:mac
 ```
 
-## Building
+## Packaging requirements (rclone)
 
-The app requires rclone binaries in the `rclone/` directory:
-- `rclone/win32/rclone.exe` for Windows
-- `rclone/linux/rclone` for Linux
-- `rclone/darwin/rclone` for macOS
+The app bundles platform-specific `rclone` binaries. Ensure these paths exist before building:
+
+- `rclone/win32/rclone.exe` (Windows)
+- `rclone/linux/rclone` (Linux)
+- `rclone/darwin/rclone` (macOS)
+
+## Release process (high level)
+
+1. Bump `package.json` version.
+2. Commit and push to `main`.
+3. Create and push a tag in the form `vX.Y.Z`.
+4. CI will build release artifacts from the tag.
 
 ## License
 
