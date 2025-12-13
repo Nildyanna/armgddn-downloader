@@ -1,0 +1,62 @@
+name: Sync Browser Version
+
+"on":
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout downloader repository
+        uses: actions/checkout@v4
+
+      - name: Sync version to ArmgddnBrowser
+        env:
+          BROWSER_SYNC_PAT: ${{ secrets.BROWSER_SYNC_PAT }}
+          BROWSER_REPO: Nildyanna/ArmgddnBrowser
+        run: |
+          set -euo pipefail
+
+          if [ -z "${BROWSER_SYNC_PAT:-}" ]; then
+            echo "Missing required secret BROWSER_SYNC_PAT (a PAT with write access to ${BROWSER_REPO})." >&2
+            exit 1
+          fi
+
+          VERSION="${GITHUB_REF_NAME#v}"
+          if [ -z "$VERSION" ]; then
+            echo "Failed to extract version from tag: $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+          echo "Syncing Browser site_version to $VERSION"
+
+          git clone "https://${BROWSER_SYNC_PAT}@github.com/${BROWSER_REPO}.git" browser
+
+          cd browser
+
+          if [ ! -f "default.php" ]; then
+            echo "default.php not found in browser repo" >&2
+            exit 1
+          fi
+
+          # Update browser UI version string
+          sed -i "s/\$site_version = '.*';/\$site_version = '${VERSION}';/" default.php
+
+          # Commit only if there are changes
+          if git diff --quiet; then
+            echo "No changes to commit (already at $VERSION)"
+            exit 0
+          fi
+
+          git config user.name "armgddn-bot"
+          git config user.email "armgddn-bot@users.noreply.github.com"
+
+          git add default.php
+          git commit -m "Sync site_version to ${VERSION}"
+          git push origin HEAD:main
