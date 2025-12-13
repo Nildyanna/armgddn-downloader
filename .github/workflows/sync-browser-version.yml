@@ -48,6 +48,9 @@ jobs:
           # Update browser UI version string
           sed -i "s/\$site_version = '.*';/\$site_version = '${VERSION}';/" default.php
 
+          # Update credit line text (keeps dynamic version output)
+          sed -i 's|Created by [^<]* v<?= $site_version ?>|Created by Old Man of the Hills (Beta) v<?= $site_version ?>|g' default.php
+
           # Commit only if there are changes
           if git diff --quiet; then
             echo "No changes to commit (already at $VERSION)"
