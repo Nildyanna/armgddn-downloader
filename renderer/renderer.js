@@ -599,6 +599,11 @@ function closeHelp7z() {
 function updateSettingsUI() {
   document.getElementById('download-path').value = settings.downloadPath || '';
   document.getElementById('max-concurrent').value = settings.maxConcurrentDownloads || 3;
+  const maxSpeedEl = document.getElementById('max-speed-mbps');
+  if (maxSpeedEl) {
+    const v = Number(settings.maxDownloadSpeedMBps);
+    maxSpeedEl.value = Number.isFinite(v) && v > 0 ? String(Math.round(v)) : '';
+  }
   document.getElementById('show-notifications').checked = settings.showNotifications !== false;
   document.getElementById('minimize-to-tray-on-minimize').checked = !!settings.minimizeToTrayOnMinimize;
   document.getElementById('minimize-to-tray-on-exit').checked = !!settings.minimizeToTrayOnClose;
@@ -607,6 +612,12 @@ function updateSettingsUI() {
 async function saveSettings() {
   settings.downloadPath = document.getElementById('download-path').value;
   settings.maxConcurrentDownloads = parseInt(document.getElementById('max-concurrent').value);
+  const maxSpeedEl = document.getElementById('max-speed-mbps');
+  if (maxSpeedEl) {
+    const raw = String(maxSpeedEl.value || '').trim();
+    const v = raw === '' ? 0 : Number(raw);
+    settings.maxDownloadSpeedMBps = Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
+  }
   settings.showNotifications = document.getElementById('show-notifications').checked;
   settings.minimizeToTrayOnMinimize = document.getElementById('minimize-to-tray-on-minimize').checked;
   settings.minimizeToTrayOnClose = document.getElementById('minimize-to-tray-on-exit').checked;
