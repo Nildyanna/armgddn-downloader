@@ -48,6 +48,7 @@ let sessionCookie = null;
 let settings = {
   downloadPath: path.join(app.getPath('downloads'), 'ARMGDDN'),
   maxConcurrentDownloads: 3,
+  maxDownloadSpeedMBps: 0,
   showNotifications: true,
   minimizeToTrayOnMinimize: false,
   minimizeToTrayOnClose: false
@@ -586,6 +587,9 @@ ipcMain.handle('get-settings', () => {
 // Save settings
 ipcMain.handle('save-settings', (event, newSettings) => {
   settings = { ...settings, ...newSettings };
+  if (!Number.isFinite(Number(settings.maxDownloadSpeedMBps)) || Number(settings.maxDownloadSpeedMBps) < 0) {
+    settings.maxDownloadSpeedMBps = 0;
+  }
   saveSettings();
   return settings;
 });
@@ -1139,6 +1143,17 @@ async function downloadFile(downloadId, file, downloadDir) {
       '--low-level-retries', '3',      // Retry on low-level errors
       '--drive-acknowledge-abuse'      // Bypass Google Drive virus scan warnings
     ];
+
+    const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
+    if (Number.isFinite(maxMb) && maxMb > 0) {
+      const workersSetting = Number(settings && settings.maxConcurrentDownloads);
+      const workers = Math.min(6, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+      const perWorker = maxMb / workers;
+      const perWorkerStr = Number.isFinite(perWorker) && perWorker > 0 ? perWorker.toFixed(1).replace(/\.0$/, '') : '';
+      if (perWorkerStr) {
+        args.push('--bwlimit', `${perWorkerStr}M`);
+      }
+    }
 
     const proc = spawn(rclonePath, args);
     download.activeProcesses.push(proc);  // Track for cancellation
