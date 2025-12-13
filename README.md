@@ -18,7 +18,9 @@ It uses `rclone` under the hood to download files reliably and quickly, while pr
 - **Fast downloads via rclone**
   - Uses `rclone` for resilient transfers and good performance.
 - **Pause / Resume**
-  - You can pause in-progress downloads and resume later.
+  - You can pause in-progress downloads and resume later - With caveats.
+  - Pausing a download will stop all concurrent workers and pause the download.
+  - Resuming a download will keep all completed files of a multi-part download but restart any files that hadn't yet reached completion.
 - **Download history**
   - Completed downloads are recorded locally.
 - **System tray integration**
