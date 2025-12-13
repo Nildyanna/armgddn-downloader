@@ -484,23 +484,45 @@ async function pauseDownload(id) {
 }
 
 async function resumeDownload(id) {
-  const ok = await api.resumeDownload(id);
-  if (!ok) return;
   const download = downloads.get(id);
-  if (download) {
+  const prevStatus = download ? download.status : null;
+  if (download && download.status !== 'completed') {
     download.status = 'in_progress';
     renderDownloads();
+  }
+
+  const ok = await api.resumeDownload(id);
+  if (!ok) {
+    // If resume was rejected, restore previous status (unless it already completed via IPC).
+    const d2 = downloads.get(id);
+    if (d2 && d2.status !== 'completed' && prevStatus) {
+      d2.status = prevStatus;
+      renderDownloads();
+    }
+    return;
   }
 }
 
 async function retryDownload(id) {
-  const ok = await api.retryDownload(id);
-  if (!ok) return;
   const download = downloads.get(id);
-  if (download) {
+  const prevStatus = download ? download.status : null;
+  const prevError = download ? download.error : null;
+
+  if (download && download.status !== 'completed') {
     download.status = 'in_progress';
     download.error = '';
     renderDownloads();
+  }
+
+  const ok = await api.retryDownload(id);
+  if (!ok) {
+    const d2 = downloads.get(id);
+    if (d2 && d2.status !== 'completed') {
+      if (prevStatus) d2.status = prevStatus;
+      if (typeof prevError === 'string') d2.error = prevError;
+      renderDownloads();
+    }
+    return;
   }
 }
 
