@@ -517,6 +517,62 @@ function createTray() {
   });
 }
 
+ function createAppMenu() {
+   const template = [
+     ...(process.platform === 'darwin'
+       ? [
+           {
+             label: app.name,
+             submenu: [
+               { role: 'about' },
+               { type: 'separator' },
+               { role: 'services' },
+               { type: 'separator' },
+               { role: 'hide' },
+               { role: 'hideOthers' },
+               { role: 'unhide' },
+               { type: 'separator' },
+               { role: 'quit' }
+             ]
+           }
+         ]
+       : []),
+     {
+       label: 'File',
+       submenu: [
+         ...(process.platform === 'darwin' ? [{ role: 'close' }] : [{ role: 'quit' }])
+       ]
+     },
+     {
+       label: 'View',
+       submenu: [
+         { role: 'reload' },
+         { role: 'forceReload' },
+         { type: 'separator' },
+         { role: 'resetZoom' },
+         { role: 'zoomIn' },
+         { role: 'zoomOut' },
+         { type: 'separator' },
+         { role: 'togglefullscreen' }
+       ]
+     },
+     {
+       role: 'help',
+       submenu: [
+         {
+           label: 'Telegram',
+           click: async () => {
+             await shell.openExternal('https://t.me/ARMGDDNGames');
+           }
+         }
+       ]
+     }
+   ];
+
+   const menu = Menu.buildFromTemplate(template);
+   Menu.setApplicationMenu(menu);
+ }
+
 // App ready
 app.whenReady().then(() => {
   logToFile(`[Startup] debug.log path: ${getDebugLogPath()}`);
@@ -525,6 +581,7 @@ app.whenReady().then(() => {
   loadSession();
   createWindow();
   createTray();
+  createAppMenu();
 
   // Handle deep link on macOS
   app.on('open-url', (event, url) => {
