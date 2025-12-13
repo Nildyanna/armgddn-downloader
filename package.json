@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "4.0.81",
+  "version": "4.0.82",
   "description": "ARMGDDN Downloader - Fast rclone-powered download manager",
   "main": "main.js",
   "author": {
@@ -38,6 +38,11 @@
           "from": "rclone/win32",
           "to": "rclone",
           "filter": ["**/*"]
+        },
+        {
+          "from": "node_modules/7zip-bin/win",
+          "to": "7z/win",
+          "filter": ["**/*"]
         }
       ]
     },
@@ -57,6 +62,11 @@
           "from": "rclone/linux",
           "to": "rclone",
           "filter": ["**/*"]
+        },
+        {
+          "from": "node_modules/7zip-bin/linux",
+          "to": "7z/linux",
+          "filter": ["**/*"]
         }
       ]
     },
@@ -68,6 +78,11 @@
         {
           "from": "rclone/darwin",
           "to": "rclone",
+          "filter": ["**/*"]
+        },
+        {
+          "from": "node_modules/7zip-bin/mac",
+          "to": "7z/mac",
           "filter": ["**/*"]
         }
       ]

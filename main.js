@@ -45,10 +45,14 @@ let tray;
 let activeDownloads = new Map();
 let downloadHistory = [];
 let sessionCookie = null;
+
+const DEBUG_LOGGING = process.env.ARMGDDN_DEBUG === '1';
+
 let settings = {
   downloadPath: path.join(app.getPath('downloads'), 'ARMGDDN'),
   maxConcurrentDownloads: 3,
   maxDownloadSpeedMBps: 0,
+  autoExtract7z: false,
   showNotifications: true,
   minimizeToTrayOnMinimize: false,
   minimizeToTrayOnClose: false
@@ -140,6 +144,34 @@ const getRclonePath = () => {
     return path.join(resourcePath, 'rclone', 'rclone.exe');
   }
   return path.join(resourcePath, 'rclone', 'rclone');
+};
+
+const get7zPath = () => {
+  const platform = process.platform;
+  const arch = process.arch;
+
+  if (app.isPackaged) {
+    const resourcePath = getResourcePath();
+    if (platform === 'win32') {
+      const winArch = arch === 'arm64' ? 'arm64' : (arch === 'ia32' ? 'ia32' : 'x64');
+      return path.join(resourcePath, '7z', 'win', winArch, '7za.exe');
+    }
+    if (platform === 'darwin') {
+      const macArch = arch === 'arm64' ? 'arm64' : 'x64';
+      return path.join(resourcePath, '7z', 'mac', macArch, '7za');
+    }
+    const linuxArch = arch === 'arm64' ? 'arm64' : (arch === 'arm' ? 'arm' : (arch === 'ia32' ? 'ia32' : 'x64'));
+    return path.join(resourcePath, '7z', 'linux', linuxArch, '7za');
+  }
+
+  try {
+    const sevenZipBin = require('7zip-bin');
+    if (sevenZipBin && sevenZipBin.path7za) {
+      return sevenZipBin.path7za;
+    }
+  } catch (e) {}
+
+  return null;
 };
 
 const getConfigPath = () => {
@@ -243,13 +275,10 @@ function saveSettings() {
 function loadHistory() {
   try {
     const historyPath = getHistoryPath();
-    console.log('History path:', historyPath);
     if (fs.existsSync(historyPath)) {
       const data = fs.readFileSync(historyPath, 'utf8');
       downloadHistory = JSON.parse(data);
-      console.log('Loaded history:', downloadHistory.length, 'items');
     } else {
-      console.log('No history file found');
     }
   } catch (e) {
     console.error('Failed to load history:', e);
@@ -260,9 +289,7 @@ function loadHistory() {
 function saveHistory() {
   try {
     const historyPath = getHistoryPath();
-    console.log('Saving history to:', historyPath, 'items:', downloadHistory.length);
     fs.writeFileSync(historyPath, JSON.stringify(downloadHistory, null, 2));
-    console.log('History saved successfully');
   } catch (e) {
     console.error('Failed to save history:', e);
   }
@@ -309,8 +336,6 @@ function validateDeepLink(url) {
 
 // Handle deep link
 function handleDeepLink(url) {
-  console.log('Deep link received:', url);
-  
   // Validate before processing
   const validatedUrl = validateDeepLink(url);
   if (!validatedUrl) {
@@ -647,6 +672,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
   if (!Number.isFinite(Number(settings.maxDownloadSpeedMBps)) || Number(settings.maxDownloadSpeedMBps) < 0) {
     settings.maxDownloadSpeedMBps = 0;
   }
+  settings.autoExtract7z = !!settings.autoExtract7z;
   saveSettings();
   return settings;
 });
@@ -715,8 +741,6 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
   }
   
   return new Promise((resolve, reject) => {
-    console.log('Raw manifest URL:', manifestUrl);
-    
     const parsedUrl = new URL(manifestUrl);
     
     // Security: Enforce HTTPS only
@@ -727,8 +751,6 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
     
     // Parse query params using decodeURIComponent (preserves + as literal +)
     const queryString = parsedUrl.search.substring(1);
-    console.log('Raw query string:', queryString);
-    
     const params = {};
     for (const pair of queryString.split('&')) {
       const eqIndex = pair.indexOf('=');
@@ -739,12 +761,8 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
       }
     }
     
-    console.log('All parsed params:', JSON.stringify(params, null, 2));
-    
     const remote = params.remote;
     const pathParam = params.path;
-    
-    console.log('Parsed params - remote:', JSON.stringify(remote), 'path:', JSON.stringify(pathParam));
     
     if (!remote || !pathParam) {
       const errorMsg = `Missing remote or path. Query="${queryString}", Params=${JSON.stringify(params)}, remote="${remote}", path="${pathParam}"`;
@@ -754,7 +772,6 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
     }
     
     const postData = JSON.stringify({ remote, path: pathParam });
-    console.log('POST body:', postData);
     
     const options = {
       hostname: parsedUrl.hostname,
@@ -768,24 +785,16 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
       }
     };
     
-    console.log('POST request:', options.hostname + options.path, 'body:', postData);
-    
     const req = https.request(options, (res) => {
-      console.log('Response status:', res.statusCode, res.statusMessage);
-      console.log('Response headers:', JSON.stringify(res.headers));
       
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', async () => {
-        console.log('Raw response body:', data.substring(0, 500));
         try {
           const json = JSON.parse(data);
-          console.log('Manifest response:', JSON.stringify(json, null, 2));
           
           // Handle game moved to new location (server returns 302 with redirect info)
           if (json.redirect && json.newRemote && json.newPath) {
-            console.log(`Game moved! Retrying with new location: ${json.newRemote}:${json.newPath}`);
-            
             // Build new manifest URL with updated remote and path
             const newManifestUrl = `https://${parsedUrl.hostname}${parsedUrl.pathname}?remote=${encodeURIComponent(json.newRemote)}&path=${encodeURIComponent(json.newPath)}`;
             
@@ -816,8 +825,6 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
       console.error('Request error:', err);
       reject(err);
     });
-    
-    console.log('Sending POST body:', postData);
     req.write(postData);
     req.end();
   });
@@ -835,11 +842,11 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
 
 // Debug log to file for troubleshooting
 function debugLog(message) {
+  if (!DEBUG_LOGGING) return;
   const logPath = path.join(app.getPath('userData'), 'debug.log');
   const timestamp = new Date().toISOString();
   const logLine = `[${timestamp}] ${message}\n`;
   fs.appendFileSync(logPath, logLine);
-  console.log(message);
 }
 
 // Report progress to website server
@@ -847,7 +854,6 @@ async function reportProgressToServer(download, token) {
   logToFile(`reportProgressToServer called - token: ${token ? 'present' : 'MISSING'}, download: ${download?.name}`);
   
   if (!token) {
-    console.log('[Progress] No token for progress reporting');
     logToFile('[Progress] No token for progress reporting');
     debugLog('No token for progress reporting');
     return;
@@ -895,7 +901,6 @@ async function reportProgressToServer(download, token) {
     });
     
     logToFile(`[Progress] Sending: ${postData.substring(0, 150)}`);
-    console.log(`[Progress] Reporting to server: ${download.name} - ${download.status}`);
     debugLog(`Reporting progress: ${postData.substring(0, 100)}...`);
     
     const options = {
@@ -915,17 +920,12 @@ async function reportProgressToServer(download, token) {
       res.on('data', (chunk) => { responseData += chunk; });
       res.on('end', () => {
         logToFile(`[Progress] Server response: ${res.statusCode} - ${responseData}`);
-        console.log(`[Progress] Server response: ${res.statusCode}`);
         debugLog(`Progress response: ${res.statusCode} ${responseData}`);
-        if (res.statusCode !== 200) {
-          console.log(`[Progress] Response body: ${responseData}`);
-        }
       });
     });
     
     req.on('error', (err) => {
       logToFile(`[Progress] Request error: ${err.message}`);
-      console.log(`[Progress] Request error: ${err.message}`);
       debugLog(`Progress report error: ${err.message}`);
     });
     
@@ -934,7 +934,6 @@ async function reportProgressToServer(download, token) {
     logToFile(`[Progress] Request sent`);
   } catch (err) {
     logToFile(`[Progress] Exception: ${err.message} - ${err.stack}`);
-    console.log(`[Progress] Exception: ${err.message}`);
     console.error('[Progress] Stack:', err.stack);
     debugLog(`Progress report exception: ${err.message}`);
   }
@@ -943,7 +942,6 @@ async function reportProgressToServer(download, token) {
 // Start download
 ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => {
   debugLog(`Download started - Token: ${token ? '[PRESENT]' : '[MISSING]'}`);
-  console.log('Received manifest:', JSON.stringify(manifest, null, 2));
   
   // Save/update the token as session for connection status
   // Always update on new download to refresh token if server restarted
@@ -1421,6 +1419,87 @@ function clampProgressUnlessFinal(download) {
   }
 }
 
+function find7zArchivesInDir(rootDir) {
+  const results = [];
+  const seen = new Set();
+
+  const walk = (dir) => {
+    let entries = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (e) {
+      return;
+    }
+    for (const ent of entries) {
+      if (!ent) continue;
+      const full = path.join(dir, ent.name);
+      if (ent.isDirectory()) {
+        walk(full);
+        continue;
+      }
+      if (!ent.isFile()) continue;
+      const lower = String(ent.name || '').toLowerCase();
+      if (lower.endsWith('.7z.001')) {
+        const base = lower.slice(0, -('.001'.length));
+        if (!seen.has(full)) {
+          results.push(full);
+          seen.add(full);
+        }
+        seen.add(path.join(dir, base));
+        continue;
+      }
+      if (lower.endsWith('.7z')) {
+        if (seen.has(full)) continue;
+        results.push(full);
+        seen.add(full);
+      }
+    }
+  };
+
+  walk(rootDir);
+  return results;
+}
+
+function run7zExtract(archivePath, outputDir) {
+  return new Promise((resolve, reject) => {
+    const exe = get7zPath();
+    if (!exe) {
+      reject(new Error('7z extraction tool not found'));
+      return;
+    }
+
+    try {
+      if (process.platform !== 'win32') {
+        try {
+          fs.chmodSync(exe, 0o755);
+        } catch (e) {}
+      }
+    } catch (e) {}
+
+    const args = [
+      'x',
+      '-y',
+      '-aos',
+      `-o${outputDir}`,
+      archivePath
+    ];
+
+    const proc = spawn(exe, args, { cwd: outputDir });
+    let out = '';
+    let err = '';
+    proc.stdout.on('data', (d) => { out += d.toString(); });
+    proc.stderr.on('data', (d) => { err += d.toString(); });
+    proc.on('error', (e) => reject(e));
+    proc.on('close', (code) => {
+      if (code === 0) {
+        resolve({ out, err });
+        return;
+      }
+      reject(new Error(`7z extraction failed (code ${code})${err ? `: ${err.trim()}` : ''}`));
+    });
+  });
+}
+
 // Parse rclone progress output
 function parseRcloneProgress(downloadId, fileName, output) {
   const download = activeDownloads.get(downloadId);
@@ -1627,7 +1706,7 @@ ipcMain.handle('cancel-download', (event, downloadId) => {
         try {
           proc.kill('SIGTERM');
         } catch (e) {
-          console.log('Error killing process:', e.message);
+          logToFile('Error killing process: ' + e.message);
         }
       }
     }
@@ -1804,7 +1883,7 @@ ipcMain.handle('resume-download', async (event, downloadId) => {
 });
 
 // Complete download
-function completeDownload(downloadId) {
+function finalizeCompletedDownload(downloadId) {
   logToFile(`[completeDownload] Called for ${downloadId}`);
   const download = activeDownloads.get(downloadId);
   if (!download) {
@@ -1836,7 +1915,8 @@ function completeDownload(downloadId) {
         totalSpeed: '0 B/s',
         activeFiles: [],
         completedFiles: download.completedFiles,
-        fileCount: download.fileCount
+        fileCount: download.fileCount,
+        extractionError: download.extractionError || ''
       });
       logToFile(`[completeDownload] Sent final download-progress status=completed`);
     }
@@ -1864,9 +1944,89 @@ function completeDownload(downloadId) {
   } else {
     logToFile(`[completeDownload] ERROR: mainWindow or webContents is null!`);
   }
-  showDownloadNotification('Download completed', download.name || 'Download finished');
+  if (download.extractionError) {
+    showDownloadNotification('Download completed (extraction failed)', `${download.name || 'Download finished'}: ${download.extractionError}`);
+  } else {
+    showDownloadNotification('Download completed', download.name || 'Download finished');
+  }
   activeDownloads.delete(downloadId);
   logToFile(`[completeDownload] Done, download removed from activeDownloads`);
+}
+
+function completeDownload(downloadId) {
+  logToFile(`[completeDownload] Called for ${downloadId}`);
+  const download = activeDownloads.get(downloadId);
+  if (!download) {
+    logToFile(`[completeDownload] Download not found in activeDownloads!`);
+    return;
+  }
+
+  if (download.status === 'completed') {
+    logToFile(`[completeDownload] Already completed, skipping`);
+    return;
+  }
+
+  if (download.__armgddnFinalizing) {
+    return;
+  }
+
+  const shouldExtract = !!(settings && settings.autoExtract7z);
+  const downloadDir = path.join(settings.downloadPath, download.name || 'Download');
+
+  if (shouldExtract) {
+    const archives = find7zArchivesInDir(downloadDir);
+    if (archives && archives.length > 0) {
+      download.__armgddnFinalizing = true;
+      download.status = 'extracting';
+      download.progress = 99;
+      download.totalSpeed = '0 B/s';
+      try {
+        if (mainWindow && mainWindow.webContents) {
+          mainWindow.webContents.send('download-progress', {
+            id: downloadId,
+            status: 'extracting',
+            progress: download.progress,
+            downloadedSize: download.downloadedSize,
+            totalSpeed: '0 B/s',
+            activeFiles: [],
+            completedFiles: download.completedFiles,
+            fileCount: download.fileCount
+          });
+        }
+      } catch (e) {}
+
+      (async () => {
+        try {
+          for (const a of archives) {
+            await run7zExtract(a, downloadDir);
+          }
+        } catch (e) {
+          download.extractionError = e && e.message ? e.message : String(e);
+          try {
+            if (mainWindow && mainWindow.webContents) {
+              mainWindow.webContents.send('download-progress', {
+                id: downloadId,
+                status: 'extracting',
+                progress: download.progress,
+                downloadedSize: download.downloadedSize,
+                totalSpeed: '0 B/s',
+                activeFiles: [],
+                completedFiles: download.completedFiles,
+                fileCount: download.fileCount,
+                extractionError: download.extractionError
+              });
+            }
+          } catch (e2) {}
+        } finally {
+          download.__armgddnFinalizing = false;
+          finalizeCompletedDownload(downloadId);
+        }
+      })();
+      return;
+    }
+  }
+
+  finalizeCompletedDownload(downloadId);
 }
 
 // Open folder
