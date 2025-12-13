@@ -990,8 +990,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   // Report initial progress to server
   reportProgressToServer(download, token);
 
-  // Download files in parallel (up to 6 concurrent downloads for better speed)
-  const PARALLEL_DOWNLOADS = 6;
+  // Download files in parallel (controlled by user setting)
+  const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
+  const PARALLEL_DOWNLOADS = Math.min(6, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
   const fileQueue = [...files];
   const activePromises = [];
   
@@ -1676,7 +1677,8 @@ async function resumeDownloadFiles(downloadId) {
     fileCount: download.fileCount
   });
 
-  const PARALLEL_DOWNLOADS = 6;
+  const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
+  const PARALLEL_DOWNLOADS = Math.min(6, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
   const fileQueue = [...remainingFiles];
   const activePromises = [];
 
