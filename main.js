@@ -1032,10 +1032,47 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 // Check if output indicates quota exceeded
 function isQuotaError(output) {
   const lowerOutput = output.toLowerCase();
-  return lowerOutput.includes('quota') || 
-         lowerOutput.includes('rate limit') ||
-         lowerOutput.includes('too many requests') ||
-         lowerOutput.includes('429');
+  // Strong upstream quota signals (Google Drive / provider throttling)
+  const strongTokens = [
+    'downloadquotaexceeded',
+    'download quota exceeded',
+    'too many users have viewed or downloaded this file',
+    'exceeded your current quota',
+    'bandwidth limit exceeded',
+    'download limit exceeded',
+    'suspicious activity',
+    'suspicious downloads detected'
+  ];
+
+  for (const t of strongTokens) {
+    if (lowerOutput.includes(t)) return true;
+  }
+
+  // Weak tokens can appear in unrelated errors. Only treat as quota if
+  // there's evidence it's coming from the upstream provider.
+  const weakTokens = [
+    'quota exceeded',
+    'rate limit exceeded',
+    'user rate limit exceeded'
+  ];
+
+  const mentionsProvider = lowerOutput.includes('google') || lowerOutput.includes('drive') || lowerOutput.includes('gdrive');
+  const mentionsHttpQuota = lowerOutput.includes(' 403') || lowerOutput.includes(' 429') || lowerOutput.includes('status code 403') || lowerOutput.includes('status code 429');
+
+  for (const t of weakTokens) {
+    if (lowerOutput.includes(t) && (mentionsProvider || mentionsHttpQuota)) return true;
+  }
+
+  return false;
+}
+
+// Check if output indicates our server is busy / concurrency-limited
+function isServerBusyError(output) {
+  const lowerOutput = output.toLowerCase();
+  return lowerOutput.includes('too many active downloads') ||
+         lowerOutput.includes('download rejected due to concurrency') ||
+         lowerOutput.includes('global concurrency') ||
+         lowerOutput.includes('please try again shortly');
 }
 
 // Check if URL contains expired token indicators
@@ -1172,7 +1209,10 @@ async function downloadFile(downloadId, file, downloadDir) {
         
         // Check for specific error types
         const quota = isQuotaError(errorOutput);
-        if (quota) {
+        const busy = isServerBusyError(errorOutput);
+        if (busy) {
+          download.error = 'Server is busy due to high demand. Please wait a moment and try again.';
+        } else if (quota) {
           download.error = 'Download quota exceeded. This file is temporarily unavailable due to high demand. Please try again later or try a different game.';
         } else if (isTokenExpiredError(errorOutput)) {
           download.error = 'Download link expired. Please try downloading again from the website.';
