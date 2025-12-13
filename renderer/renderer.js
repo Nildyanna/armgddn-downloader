@@ -247,6 +247,72 @@ function renderDownloads() {
   scheduleRender();
 }
 
+function updateItemsInPlace(items, container) {
+  for (const [id, download] of items) {
+    const item = container.querySelector(`.download-item[data-id="${CSS.escape(String(id))}"]`);
+    if (!item) continue;
+
+    item.className = `download-item ${download.status}`;
+
+    const progressFill = item.querySelector('.progress-bar .progress-fill');
+    if (progressFill) {
+      progressFill.style.width = `${download.progress || 0}%`;
+    }
+
+    const stateEl = item.querySelector('.download-header .download-state');
+    if (stateEl) {
+      const statusDisplay = {
+        'starting': 'Starting',
+        'in_progress': 'In Progress',
+        'downloading': 'Downloading',
+        'completed': 'Completed',
+        'cancelled': 'Cancelled',
+        'error': 'Error',
+        'paused': 'Paused'
+      }[download.status] || download.status;
+      stateEl.textContent = statusDisplay;
+    }
+
+    const infoSpans = item.querySelectorAll('.download-info span');
+    const leftInfo = infoSpans && infoSpans.length ? infoSpans[0] : null;
+    const rightInfo = item.querySelector('.download-info .total-speed');
+
+    const hasMultipleFiles = download.fileCount > 1;
+    let completedFiles = download.completedFiles || 0;
+    if (download.status === 'completed' && hasMultipleFiles && download.fileCount) {
+      completedFiles = download.fileCount;
+    }
+    const fileCountText = hasMultipleFiles ? `${completedFiles}/${download.fileCount} files` : '';
+
+    if (leftInfo) {
+      leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}`;
+    }
+    if (rightInfo) {
+      rightInfo.textContent = download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '';
+    }
+
+    const activeFilesEl = item.querySelector('.active-files');
+    if (activeFilesEl) {
+      const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && download.activeFiles && download.activeFiles.length > 0;
+      if (showActiveFiles) {
+        activeFilesEl.innerHTML = download.activeFiles.map(f => `
+          <div class="file-progress">
+            <div class="file-progress-header">
+              <span class="file-name">${escapeHtml(f.name)}</span>
+              <span class="file-speed">${f.speed || ''}</span>
+            </div>
+            <div class="progress-bar small">
+              <div class="progress-fill" style="width: ${f.progress || 0}%"></div>
+            </div>
+          </div>
+        `).join('');
+      } else {
+        activeFilesEl.innerHTML = '';
+      }
+    }
+  }
+}
+
 function renderDownloadsNow() {
   const now = Date.now();
   const container = document.getElementById('downloads-list');
@@ -288,6 +354,7 @@ function renderDownloadsNow() {
   const hovering = hasHoveredActionButton();
 
   if (hovering && structureChanged && container.children.length > 0) {
+    updateItemsInPlace(items, container);
     if (!deferredStructureRender) {
       deferredStructureRender = true;
       setTimeout(() => {
@@ -295,6 +362,7 @@ function renderDownloadsNow() {
         renderDownloadsNow();
       }, 100);
     }
+    lastRenderTime = now;
     return;
   }
 
@@ -302,70 +370,7 @@ function renderDownloadsNow() {
   lastStructureKey = structureKey;
 
   if (canUpdateInPlace) {
-    for (const [id, download] of items) {
-      const item = container.querySelector(`.download-item[data-id="${CSS.escape(String(id))}"]`);
-      if (!item) continue;
-
-      // Keep classes in sync (no structure rebuild).
-      item.className = `download-item ${download.status}`;
-
-      const progressFill = item.querySelector('.progress-bar .progress-fill');
-      if (progressFill) {
-        progressFill.style.width = `${download.progress || 0}%`;
-      }
-
-      const stateEl = item.querySelector('.download-header .download-state');
-      if (stateEl) {
-        const statusDisplay = {
-          'starting': 'Starting',
-          'in_progress': 'In Progress',
-          'downloading': 'Downloading',
-          'completed': 'Completed',
-          'cancelled': 'Cancelled',
-          'error': 'Error',
-          'paused': 'Paused'
-        }[download.status] || download.status;
-        stateEl.textContent = statusDisplay;
-      }
-
-      const infoSpans = item.querySelectorAll('.download-info span');
-      const leftInfo = infoSpans && infoSpans.length ? infoSpans[0] : null;
-      const rightInfo = item.querySelector('.download-info .total-speed');
-
-      const hasMultipleFiles = download.fileCount > 1;
-      let completedFiles = download.completedFiles || 0;
-      if (download.status === 'completed' && hasMultipleFiles && download.fileCount) {
-        completedFiles = download.fileCount;
-      }
-      const fileCountText = hasMultipleFiles ? `${completedFiles}/${download.fileCount} files` : '';
-
-      if (leftInfo) {
-        leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}`;
-      }
-      if (rightInfo) {
-        rightInfo.textContent = download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '';
-      }
-
-      const activeFilesEl = item.querySelector('.active-files');
-      if (activeFilesEl) {
-        const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && download.activeFiles && download.activeFiles.length > 0;
-        if (showActiveFiles) {
-          activeFilesEl.innerHTML = download.activeFiles.map(f => `
-            <div class="file-progress">
-              <div class="file-progress-header">
-                <span class="file-name">${escapeHtml(f.name)}</span>
-                <span class="file-speed">${f.speed || ''}</span>
-              </div>
-              <div class="progress-bar small">
-                <div class="progress-fill" style="width: ${f.progress || 0}%"></div>
-              </div>
-            </div>
-          `).join('');
-        } else {
-          activeFilesEl.innerHTML = '';
-        }
-      }
-    }
+    updateItemsInPlace(items, container);
     lastRenderTime = now;
     return;
   }
