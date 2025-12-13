@@ -10,8 +10,6 @@ let settings = {};
 
 // Initialize
 async function init() {
-  console.log('ARMGDDN Downloader v4.0.0 initializing...');
-  
   // Load settings
   settings = await api.getSettings();
   updateSettingsUI();
@@ -37,8 +35,6 @@ async function init() {
   
   // Auto-check for updates on startup (silent - only notify if update available)
   checkForUpdatesSilent();
-  
-  console.log('ARMGDDN Downloader ready!');
 }
 
 // Setup UI event listeners
@@ -58,16 +54,9 @@ function setupEventListeners() {
   }
   const help7zVideo = document.getElementById('help-7z-video');
   if (help7zVideo) {
-    console.log('[7z-video] element found, currentSrc:', help7zVideo.currentSrc);
     help7zVideo.addEventListener('loadedmetadata', () => {
-      console.log('[7z-video] loadedmetadata', {
-        duration: help7zVideo.duration,
-        videoWidth: help7zVideo.videoWidth,
-        videoHeight: help7zVideo.videoHeight
-      });
     });
     help7zVideo.addEventListener('canplay', () => {
-      console.log('[7z-video] canplay, readyState:', help7zVideo.readyState, 'currentSrc:', help7zVideo.currentSrc);
     });
     help7zVideo.addEventListener('error', () => {
       const err = help7zVideo.error;
@@ -94,13 +83,11 @@ function setupEventListeners() {
 function setupIPCListeners() {
   // Deep link handler
   api.onDeepLink((url) => {
-    console.log('Deep link received:', url);
     handleDeepLink(url);
   });
   
   // Download events
   api.onDownloadStarted((data) => {
-    console.log('Download started:', data);
     downloads.set(data.id, data);
     renderDownloads();
     checkConnectionStatus();
@@ -119,16 +106,13 @@ function setupIPCListeners() {
   });
   
   api.onDownloadCompleted((data) => {
-    console.log('[Renderer] download-completed event received:', data.id);
     const download = downloads.get(data.id);
     if (download) {
-      console.log('[Renderer] Found download in Map, setting status to completed');
       download.status = 'completed';
       download.progress = 100;
       renderDownloads();
     } else {
       // If completion arrives before started/progress, create it so the UI reflects completion.
-      console.log('[Renderer] Download NOT found in Map! Creating completed entry.');
       downloads.set(data.id, { id: data.id, status: 'completed', progress: 100 });
       renderDownloads();
     }
@@ -155,15 +139,10 @@ function setupIPCListeners() {
 // Handle deep link
 async function handleDeepLink(url) {
   try {
-    console.log('Processing deep link:', url);
-    
     // Parse the URL: armgddn://download?manifest=MANIFEST_URL&token=TOKEN
     const urlObj = new URL(url);
     let manifestUrl = urlObj.searchParams.get('manifest');
     const token = urlObj.searchParams.get('token');
-    
-    console.log('Raw manifest param:', manifestUrl);
-    console.log('Token:', token ? '[present]' : '[missing]');
     
     if (!manifestUrl) {
       console.error('No manifest URL in deep link');
@@ -178,23 +157,8 @@ async function handleDeepLink(url) {
       // Already decoded
     }
     
-    console.log('Decoded manifest URL:', manifestUrl);
-    
-    // Parse and log the URL components for debugging
-    try {
-      const testUrl = new URL(manifestUrl);
-      console.log('URL hostname:', testUrl.hostname);
-      console.log('URL pathname:', testUrl.pathname);
-      console.log('URL search:', testUrl.search);
-      console.log('URL remote param:', testUrl.searchParams.get('remote'));
-      console.log('URL path param:', testUrl.searchParams.get('path'));
-    } catch (e) {
-      console.error('Failed to parse URL:', e);
-    }
-    
     // Fetch the manifest via main process (bypasses CORS)
     const manifest = await api.fetchManifest(manifestUrl, token);
-    console.log('Manifest received:', manifest);
     
     // Start download with token for progress reporting
     // Pass manifestUrl so main process can report to the same server.
@@ -265,12 +229,25 @@ function updateItemsInPlace(items, container) {
         'starting': 'Starting',
         'in_progress': 'In Progress',
         'downloading': 'Downloading',
+        'extracting': 'Extracting',
         'completed': 'Completed',
         'cancelled': 'Cancelled',
         'error': 'Error',
         'paused': 'Paused'
       }[download.status] || download.status;
       stateEl.textContent = statusDisplay;
+    }
+
+    const extractionErr = download && typeof download.extractionError === 'string' ? download.extractionError : '';
+    const transferErr = download && typeof download.error === 'string' ? download.error : '';
+    const showErr = (download.status === 'error' && transferErr) || extractionErr;
+    const errMsg = (download.status === 'error' && transferErr) ? transferErr : extractionErr;
+    const errEl = item.querySelector('.download-error-message');
+    if (errEl) {
+      errEl.style.display = showErr ? '' : 'none';
+      if (showErr) {
+        errEl.textContent = errMsg;
+      }
     }
 
     const infoSpans = item.querySelectorAll('.download-info span');
@@ -345,8 +322,9 @@ function renderDownloadsNow() {
   // avoid hover flicker (Pause button re-created under the cursor).
   const structureKey = items.map(([id, d]) => {
     const hasErr = d && d.error ? 1 : 0;
+    const hasExtractionErr = d && d.extractionError ? 1 : 0;
     const fc = d && typeof d.fileCount === 'number' ? d.fileCount : 0;
-    return `${id}:${d && d.status ? d.status : ''}:${fc}:${hasErr}`;
+    return `${id}:${d && d.status ? d.status : ''}:${fc}:${hasErr}:${hasExtractionErr}`;
   }).join('|');
 
   const prevStructureKey = lastStructureKey;
@@ -419,6 +397,7 @@ function renderDownloadsNow() {
       'starting': 'Starting',
       'in_progress': 'In Progress',
       'downloading': 'Downloading',
+      'extracting': 'Extracting',
       'completed': 'Completed',
       'cancelled': 'Cancelled',
       'error': 'Error',
@@ -429,6 +408,11 @@ function renderDownloadsNow() {
     const isPaused = download.status === 'paused';
     const canCancel = isRunning || isPaused;
     
+    const extractionErr = download && typeof download.extractionError === 'string' ? download.extractionError : '';
+    const transferErr = download && typeof download.error === 'string' ? download.error : '';
+    const errMsg = (download.status === 'error' && transferErr) ? transferErr : extractionErr;
+    const showErrMsg = (download.status === 'error' && transferErr) || extractionErr;
+
     item.innerHTML = `
       <div class="download-header">
         <span class="download-filename">${escapeHtml(download.name)}</span>
@@ -441,7 +425,7 @@ function renderDownloadsNow() {
         <span>${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}</span>
         <span class="total-speed">${download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : ''}</span>
       </div>
-      ${download.status === 'error' && download.error ? `<div class="download-error-message">${escapeHtml(download.error)}</div>` : ''}
+      ${showErrMsg ? `<div class="download-error-message">${escapeHtml(errMsg)}</div>` : ''}
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
       <div class="download-disclaimer">
         It is normal for downloads to pause for periods of time - especially at the end. This is the server verifying the transfer in real time. If you use Pause/Resume, files that already finished will not be downloaded again, but the file that was in progress may restart from the beginning.
@@ -558,39 +542,19 @@ function closeSettings() {
 async function openHelp7z() {
   const panel = document.getElementById('help-7z-panel');
   if (!panel) return;
-  console.log('[7z-video] openHelp7z called');
   panel.style.display = 'block';
   const video = document.getElementById('help-7z-video');
   if (video) {
     try {
       const src = await api.getHelp7zVideoSrc();
-      console.log('[7z-video] openHelp7z video state before src set', {
-        currentSrc: video.currentSrc,
-        readyState: video.readyState,
-        networkState: video.networkState,
-        paused: video.paused
-      });
-      console.log('[7z-video] setting src to', src);
       video.src = src;
       video.load();
       video.currentTime = 0;
       try {
         await video.play();
-        console.log('[7z-video] autoplay started', {
-          currentSrc: video.currentSrc,
-          readyState: video.readyState,
-          networkState: video.networkState,
-          paused: video.paused
-        });
       } catch (playErr) {
         console.warn('[7z-video] autoplay failed, video will remain paused', playErr);
       }
-      console.log('[7z-video] openHelp7z video state after src set', {
-        currentSrc: video.currentSrc,
-        readyState: video.readyState,
-        networkState: video.networkState,
-        paused: video.paused
-      });
     } catch (e) {
       console.error('[7z-video] failed to set help video src', e);
     }
@@ -600,12 +564,10 @@ async function openHelp7z() {
 function closeHelp7z() {
   const panel = document.getElementById('help-7z-panel');
   if (!panel) return;
-  console.log('[7z-video] closeHelp7z called');
   panel.style.display = 'none';
   const video = document.getElementById('help-7z-video');
   if (video && typeof video.pause === 'function') {
     try {
-      console.log('[7z-video] pausing video on close', { currentTime: video.currentTime, readyState: video.readyState });
       video.pause();
     } catch (e) {}
   }
@@ -618,6 +580,10 @@ function updateSettingsUI() {
   if (maxSpeedEl) {
     const v = Number(settings.maxDownloadSpeedMBps);
     maxSpeedEl.value = Number.isFinite(v) && v > 0 ? String(Math.round(v)) : '';
+  }
+  const autoExtractEl = document.getElementById('auto-extract-7z');
+  if (autoExtractEl) {
+    autoExtractEl.checked = !!settings.autoExtract7z;
   }
   document.getElementById('show-notifications').checked = settings.showNotifications !== false;
   document.getElementById('minimize-to-tray-on-minimize').checked = !!settings.minimizeToTrayOnMinimize;
@@ -632,6 +598,10 @@ async function saveSettings() {
     const raw = String(maxSpeedEl.value || '').trim();
     const v = raw === '' ? 0 : Number(raw);
     settings.maxDownloadSpeedMBps = Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
+  }
+  const autoExtractEl = document.getElementById('auto-extract-7z');
+  if (autoExtractEl) {
+    settings.autoExtract7z = !!autoExtractEl.checked;
   }
   settings.showNotifications = document.getElementById('show-notifications').checked;
   settings.minimizeToTrayOnMinimize = document.getElementById('minimize-to-tray-on-minimize').checked;
@@ -733,19 +703,14 @@ async function checkForUpdatesSilent() {
     
     if (result.error) {
       console.error('Update check failed:', result.error);
-      showUpdateError();
       return;
     }
     
     if (result.hasUpdate) {
-      console.log(`Update available: v${result.latestVersion}`);
       showUpdateNotification(result);
-    } else {
-      console.log(`Running latest version: v${result.version}`);
     }
   } catch (error) {
     console.error('Silent update check failed:', error.message);
-    showUpdateError();
   }
 }
 
