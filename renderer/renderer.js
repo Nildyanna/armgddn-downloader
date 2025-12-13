@@ -211,6 +211,8 @@ let renderScheduled = false;
 let lastRenderTime = 0;
 const RENDER_THROTTLE = 500; // Render at most every 500ms
 
+let deferredStructureRender = false;
+
 let lastStructureKey = '';
 
 function hasHoveredActionButton() {
@@ -223,29 +225,19 @@ function hasHoveredActionButton() {
 
 function scheduleRender() {
   if (renderScheduled) return;
-
-  // If the user is hovering a button, avoid rebuilding the DOM under the cursor.
-  if (hasHoveredActionButton()) {
-    renderScheduled = true;
-    setTimeout(() => {
-      renderScheduled = false;
-      scheduleRender();
-    }, 100);
-    return;
-  }
   
   const now = Date.now();
   const timeSinceLastRender = now - lastRenderTime;
   
   if (timeSinceLastRender >= RENDER_THROTTLE) {
     // Render immediately
-    renderDownloadsNow();
+    requestAnimationFrame(renderDownloadsNow);
   } else {
     // Schedule render
     renderScheduled = true;
     setTimeout(() => {
       renderScheduled = false;
-      renderDownloadsNow();
+      requestAnimationFrame(renderDownloadsNow);
     }, RENDER_THROTTLE - timeSinceLastRender);
   }
 }
@@ -256,11 +248,12 @@ function renderDownloads() {
 }
 
 function renderDownloadsNow() {
-  lastRenderTime = Date.now();
+  const now = Date.now();
   const container = document.getElementById('downloads-list');
   
   if (downloads.size === 0) {
     container.innerHTML = '<div class="empty-state">No downloads yet. Click "Download with App" on the website to get started.</div>';
+    lastRenderTime = now;
     return;
   }
   
@@ -285,13 +278,27 @@ function renderDownloadsNow() {
   // If only progress numbers are changing, update the existing DOM in-place to
   // avoid hover flicker (Pause button re-created under the cursor).
   const structureKey = items.map(([id, d]) => {
-    const activeLen = d && Array.isArray(d.activeFiles) ? d.activeFiles.length : 0;
     const hasErr = d && d.error ? 1 : 0;
     const fc = d && typeof d.fileCount === 'number' ? d.fileCount : 0;
-    return `${id}:${d && d.status ? d.status : ''}:${fc}:${activeLen}:${hasErr}`;
+    return `${id}:${d && d.status ? d.status : ''}:${fc}:${hasErr}`;
   }).join('|');
 
-  const canUpdateInPlace = container.children.length > 0 && lastStructureKey && structureKey === lastStructureKey;
+  const prevStructureKey = lastStructureKey;
+  const structureChanged = !!(prevStructureKey && structureKey !== prevStructureKey);
+  const hovering = hasHoveredActionButton();
+
+  if (hovering && structureChanged && container.children.length > 0) {
+    if (!deferredStructureRender) {
+      deferredStructureRender = true;
+      setTimeout(() => {
+        deferredStructureRender = false;
+        renderDownloadsNow();
+      }, 100);
+    }
+    return;
+  }
+
+  const canUpdateInPlace = container.children.length > 0 && prevStructureKey && structureKey === prevStructureKey;
   lastStructureKey = structureKey;
 
   if (canUpdateInPlace) {
@@ -359,6 +366,7 @@ function renderDownloadsNow() {
         }
       }
     }
+    lastRenderTime = now;
     return;
   }
 
@@ -464,6 +472,8 @@ function renderDownloadsNow() {
       retryBtn.onclick = () => retryDownload(id);
     }
   }
+
+  lastRenderTime = now;
 }
 
 // Cancel download
