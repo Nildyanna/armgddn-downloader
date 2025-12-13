@@ -1252,6 +1252,41 @@ const lastUIUpdate = new Map();
 const UI_UPDATE_INTERVAL = 500; // Update UI every 500ms max
 let lastProgressReport = 0; // Throttle server progress reports
 
+// Periodically re-check downloads to ensure completion isn't missed when rclone
+// stops emitting progress lines near the end.
+setInterval(() => {
+  try {
+    for (const [id, download] of activeDownloads.entries()) {
+      if (!download) continue;
+      if (download.status !== 'in_progress' && download.status !== 'downloading' && download.status !== 'starting') continue;
+
+      clampProgressUnlessFinal(download);
+
+      if (shouldFinalizeDownload(download)) {
+        completeDownload(id);
+      } else {
+        if (download.progress >= 100) {
+          download.progress = 99;
+          try {
+            if (mainWindow && mainWindow.webContents) {
+              mainWindow.webContents.send('download-progress', {
+                id,
+                status: download.status,
+                progress: download.progress,
+                downloadedSize: download.downloadedSize,
+                totalSpeed: download.totalSpeed,
+                activeFiles: Object.values(download.activeFiles || {}),
+                completedFiles: download.completedFiles,
+                fileCount: download.fileCount
+              });
+            }
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (e) {}
+}, 2000);
+
 function shouldFinalizeDownload(download) {
   if (!download) return false;
   const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
