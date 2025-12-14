@@ -2,7 +2,7 @@ const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, saf
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
-const { spawn } = require('child_process');
+const { spawn, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const https = require('https');
 const { pathToFileURL } = require('url');
@@ -11,12 +11,24 @@ const { pathToFileURL } = require('url');
 app.name = 'ARMGDDN Downloader';
 
 // Handle deep links
+let protocolClientRegistered = false;
+let protocolClientRegisterError = '';
 if (process.defaultApp) {
   if (process.argv.length >= 2) {
-    app.setAsDefaultProtocolClient('armgddn', process.execPath, [path.resolve(process.argv[1])]);
+    try {
+      protocolClientRegistered = app.setAsDefaultProtocolClient('armgddn', process.execPath, [path.resolve(process.argv[1])]);
+    } catch (e) {
+      protocolClientRegistered = false;
+      protocolClientRegisterError = e && e.message ? e.message : String(e);
+    }
   }
 } else {
-  app.setAsDefaultProtocolClient('armgddn');
+  try {
+    protocolClientRegistered = app.setAsDefaultProtocolClient('armgddn');
+  } catch (e) {
+    protocolClientRegistered = false;
+    protocolClientRegisterError = e && e.message ? e.message : String(e);
+  }
 }
 
 // Ensure single instance
@@ -86,6 +98,75 @@ function showDownloadNotification(title, body) {
     }
   } catch (e) {
     logToFile('Notification error: ' + e.message);
+  }
+}
+
+function ensureLinuxProtocolDesktopHandler() {
+  try {
+    if (process.platform !== 'linux') return;
+
+    const desktopFileName = 'armgddn-downloader.desktop';
+    const dataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
+    const appsDir = path.join(dataHome, 'applications');
+    fs.mkdirSync(appsDir, { recursive: true });
+
+    const desktopPath = path.join(appsDir, desktopFileName);
+    const execPath = process.execPath;
+    const content = [
+      '[Desktop Entry]',
+      'Type=Application',
+      'Name=ARMGDDN Downloader',
+      `Exec=${execPath} %u`,
+      'Terminal=false',
+      'NoDisplay=true',
+      'MimeType=x-scheme-handler/armgddn;',
+      'Categories=Utility;'
+    ].join('\n') + '\n';
+
+    let existing = '';
+    try {
+      existing = fs.readFileSync(desktopPath, 'utf8');
+    } catch (e) {}
+    if (existing !== content) {
+      fs.writeFileSync(desktopPath, content, 'utf8');
+      try { fs.chmodSync(desktopPath, 0o644); } catch (e) {}
+    }
+
+    const tryCmd = (cmd, args) => {
+      try {
+        const res = spawnSync(cmd, args, { encoding: 'utf8' });
+        const ok = res && typeof res.status === 'number' ? res.status === 0 : false;
+        const out = (res && res.stdout) ? String(res.stdout).trim() : '';
+        const err = (res && res.stderr) ? String(res.stderr).trim() : '';
+        return { ok, out, err, status: res ? res.status : null };
+      } catch (e) {
+        return { ok: false, out: '', err: e && e.message ? e.message : String(e), status: null };
+      }
+    };
+
+    let registered = false;
+
+    const gioRes = tryCmd('gio', ['mime', 'x-scheme-handler/armgddn', desktopFileName]);
+    if (gioRes.ok) {
+      registered = true;
+    } else {
+      const xdgMimeRes = tryCmd('xdg-mime', ['default', desktopFileName, 'x-scheme-handler/armgddn']);
+      if (xdgMimeRes.ok) {
+        registered = true;
+      } else {
+        const xdgSettingsRes = tryCmd('xdg-settings', ['set', 'default-url-scheme-handler', 'armgddn', desktopFileName]);
+        if (xdgSettingsRes.ok) {
+          registered = true;
+        }
+      }
+    }
+
+    logToFile(`[Protocol][linux] desktop=${desktopPath} exec=${execPath} registered=${registered}`);
+    if (!registered) {
+      logToFile(`[Protocol][linux] gio mime: ok=${gioRes.ok} status=${gioRes.status} err=${gioRes.err}`);
+    }
+  } catch (e) {
+    logToFile(`[Protocol][linux] ensure handler failed: ${e && e.message ? e.message : e}`);
   }
 }
 
@@ -601,12 +682,15 @@ function createTray() {
 // App ready
 app.whenReady().then(() => {
   logToFile(`[Startup] debug.log path: ${getDebugLogPath()}`);
+  logToFile(`[Protocol] setAsDefaultProtocolClient ok=${protocolClientRegistered}${protocolClientRegisterError ? ` err=${protocolClientRegisterError}` : ''}`);
   loadSettings();
   loadHistory();
   loadSession();
   createWindow();
   createTray();
   createAppMenu();
+
+  ensureLinuxProtocolDesktopHandler();
 
   // Handle deep link on macOS
   app.on('open-url', (event, url) => {
