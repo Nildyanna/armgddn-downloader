@@ -20,6 +20,8 @@ jobs:
         env:
           BROWSER_SYNC_PAT: ${{ secrets.BROWSER_SYNC_PAT }}
           BROWSER_REPO: Nildyanna/ArmgddnBrowser
+          BROWSER_RESTART_URL: ${{ secrets.BROWSER_RESTART_URL }}
+          BROWSER_RESTART_SECRET: ${{ secrets.BROWSER_RESTART_SECRET }}
         run: |
           set -euo pipefail
 
@@ -74,6 +76,19 @@ jobs:
           echo "Attempting to push version sync directly to main..."
           if git push origin HEAD:main; then
             echo "Pushed to main successfully."
+
+            if [ -n "${BROWSER_RESTART_URL:-}" ] && [ -n "${BROWSER_RESTART_SECRET:-}" ]; then
+              echo "Triggering Browser restart..."
+              curl -fsS -X POST "${BROWSER_RESTART_URL%/}/api/admin/restart-server" \
+                -H "x-internal-secret: ${BROWSER_RESTART_SECRET}" \
+                -H "content-type: application/json" \
+                -d '{}' \
+                >/dev/null
+              echo "Restart triggered."
+            else
+              echo "Skipping restart trigger (missing BROWSER_RESTART_URL/BROWSER_RESTART_SECRET)."
+            fi
+
             exit 0
           fi
 

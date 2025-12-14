@@ -10,6 +10,12 @@ const { pathToFileURL } = require('url');
 // Set app name for dialogs and window titles
 app.name = 'ARMGDDN Downloader';
 
+if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
+  try {
+    app.setAppUserModelId('com.armgddn.downloader');
+  } catch (e) {}
+}
+
 // Handle deep links
 let protocolClientRegistered = false;
 let protocolClientRegisterError = '';
