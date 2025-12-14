@@ -108,6 +108,9 @@ function setupIPCListeners() {
   api.onDownloadCompleted((data) => {
     const download = downloads.get(data.id);
     if (download) {
+      if (download.status === 'extracting') {
+        return;
+      }
       download.status = 'completed';
       download.progress = 100;
       renderDownloads();
@@ -265,7 +268,16 @@ function updateItemsInPlace(items, container) {
       leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}`;
     }
     if (rightInfo) {
-      rightInfo.textContent = download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '';
+      if (download.status === 'extracting') {
+        rightInfo.textContent = 'Extracting...';
+      } else {
+        rightInfo.textContent = download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '';
+      }
+    }
+
+    const extractingEl = item.querySelector('.download-extracting-message');
+    if (extractingEl) {
+      extractingEl.style.display = download.status === 'extracting' ? '' : 'none';
     }
 
     const activeFilesEl = item.querySelector('.active-files');
@@ -306,7 +318,7 @@ function renderDownloadsNow() {
     const da = a[1];
     const db = b[1];
 
-    const isActive = (d) => d && (d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting');
+    const isActive = (d) => d && (d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting' || d.status === 'extracting');
     const aActive = isActive(da);
     const bActive = isActive(db);
     if (aActive !== bActive) {
@@ -404,7 +416,8 @@ function renderDownloadsNow() {
       'paused': 'Paused'
     }[download.status] || download.status;
     
-    const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting';
+    const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting' || download.status === 'extracting';
+    const canPause = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting';
     const isPaused = download.status === 'paused';
     const canCancel = isRunning || isPaused;
     
@@ -423,15 +436,16 @@ function renderDownloadsNow() {
       </div>
       <div class="download-info">
         <span>${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}</span>
-        <span class="total-speed">${download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : ''}</span>
+        <span class="total-speed">${download.status === 'extracting' ? 'Extracting...' : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
       </div>
+      <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives...</div>
       ${showErrMsg ? `<div class="download-error-message">${escapeHtml(errMsg)}</div>` : ''}
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
       <div class="download-disclaimer">
         It is normal for downloads to pause for periods of time - especially at the end. This is the server verifying the transfer in real time. If you use Pause/Resume, files that already finished will not be downloaded again, but the file that was in progress may restart from the beginning.
       </div>
       <div class="download-actions">
-        ${isRunning ? `<button class="pause-btn" data-download-id="${id}">Pause</button>` : ''}
+        ${canPause ? `<button class="pause-btn" data-download-id="${id}">Pause</button>` : ''}
         ${isPaused ? `<button class="resume-btn" data-download-id="${id}">Resume</button>` : ''}
         ${canCancel ? `<button class="cancel-btn" data-download-id="${id}">Cancel</button>` : ''}
         ${download.status === 'completed' ? `<button class="open-folder-btn">Open Folder</button>` : ''}
