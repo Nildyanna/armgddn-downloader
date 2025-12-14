@@ -148,6 +148,11 @@ jobs:
             **Windows:**
             - Download the `.exe` installer
             - Run the installer
+
+            **macOS:**
+            - Download the `.dmg`
+            - Open it and drag `ARMGDDN Downloader` into `Applications`
+            - If macOS blocks the app, right-click the app and choose `Open`
             
             **Linux (Debian/Ubuntu):**
             - Download `.deb` file
