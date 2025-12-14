@@ -641,3 +641,10 @@ body {
   background: #000;
   box-shadow: var(--shadow);
 }
+
+ .help-7z-tagline {
+   margin-top: 0.9rem;
+   font-size: 0.95rem;
+   color: rgba(255, 255, 255, 0.85);
+   font-weight: 600;
+ }
