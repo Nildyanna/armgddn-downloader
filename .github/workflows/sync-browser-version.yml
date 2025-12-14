@@ -51,6 +51,14 @@ jobs:
           # Update credit line text (keeps dynamic version output)
           sed -i 's|Created by [^<]* v<?= $site_version ?>|Created by Old Man of the Hills (Beta) v<?= $site_version ?>|g' default.php
 
+          # Verify the version was actually updated
+          if ! grep -q "\$site_version = '${VERSION}';" default.php; then
+            echo "Failed to update \$site_version in default.php (expected ${VERSION})" >&2
+            echo "Found line:" >&2
+            grep -n "\$site_version" default.php >&2 || true
+            exit 1
+          fi
+
           # Commit only if there are changes
           if git diff --quiet; then
             echo "No changes to commit (already at $VERSION)"
@@ -62,4 +70,28 @@ jobs:
 
           git add default.php
           git commit -m "Sync site_version to ${VERSION}"
-          git push origin HEAD:main
+
+          echo "Attempting to push version sync directly to main..."
+          if git push origin HEAD:main; then
+            echo "Pushed to main successfully."
+            exit 0
+          fi
+
+          echo "Direct push to main failed; falling back to branch + PR."
+          BRANCH="bot/sync-site-version-${VERSION}"
+          git checkout -b "${BRANCH}" || git checkout "${BRANCH}"
+          git push origin "HEAD:${BRANCH}" --force
+
+          echo "Creating (or updating) PR for ${BRANCH} -> main"
+          API_URL="https://api.github.com/repos/${BROWSER_REPO}/pulls"
+          PR_TITLE="Sync site_version to ${VERSION}"
+          PR_BODY="Automated sync from armgddn-downloader tag v${VERSION}."
+
+          # If a PR already exists for this branch, do not fail.
+          curl -sS -X POST \
+            -H "Authorization: token ${BROWSER_SYNC_PAT}" \
+            -H "Accept: application/vnd.github+json" \
+            "${API_URL}" \
+            -d "{\"title\":\"${PR_TITLE}\",\"head\":\"${BRANCH}\",\"base\":\"main\",\"body\":\"${PR_BODY}\"}" \
+            >/dev/null \
+            || true
