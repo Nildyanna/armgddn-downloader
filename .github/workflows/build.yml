@@ -27,7 +27,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          lfs: true
+          lfs: false
 
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -36,6 +36,12 @@ jobs:
 
       - name: Install dependencies
         run: npm install
+
+      - name: Download bundled help video (GitHub Release asset)
+        shell: bash
+        run: |
+          mkdir -p assets
+          curl -L --fail -o assets/newmultipartzip.mp4 https://github.com/Nildyanna/armgddn-downloader/releases/download/assets-v1/newmultipartzip.mp4
 
       - name: Download rclone (Linux)
         if: matrix.platform == 'linux'
