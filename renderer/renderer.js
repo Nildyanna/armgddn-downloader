@@ -749,6 +749,27 @@ function showUpdateError() {
   alert('Update check not available. Please try again later.');
 }
 
+function getFriendlyUpdateFailureMessage(errorText, releaseUrl) {
+  const err = String(errorText || '').trim();
+  const isHostBlocked = /host not allowed/i.test(err);
+  const isInstallerBlocked = /installer url not allowed/i.test(err);
+  const isOneTimeManual = isHostBlocked || isInstallerBlocked;
+
+  if (isOneTimeManual) {
+    return (
+      `This version can't auto-update due to a security restriction.\n\n` +
+      `We'll open the download page so you can install the latest version manually (one-time).\n\n` +
+      `Download page:\n${releaseUrl || ''}`
+    );
+  }
+
+  return (
+    `Update couldn't be installed automatically.\n\n` +
+    `We'll open the download page instead.\n\n` +
+    `Details: ${err}`
+  );
+}
+
 // Show update notification
 async function showUpdateNotification(result) {
   const hasAutoInstall = !!result.installerUrl;
@@ -776,12 +797,12 @@ async function showUpdateNotification(result) {
         if (installResult.message) {
           alert(installResult.message);
         } else if (!installResult.success) {
-          alert(`Update failed: ${installResult.error}\n\nOpening download page instead.`);
+          alert(getFriendlyUpdateFailureMessage(installResult.error, result.releaseUrl));
           api.openExternal(result.releaseUrl);
         }
         // If success without message, app will quit and installer will run
       } catch (e) {
-        alert(`Update failed: ${e.message}\n\nOpening download page instead.`);
+        alert(getFriendlyUpdateFailureMessage(e && e.message ? e.message : e, result.releaseUrl));
         api.openExternal(result.releaseUrl);
       }
     } else if (result.releaseUrl) {
