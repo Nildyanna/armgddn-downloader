@@ -8,7 +8,7 @@ const https = require('https');
 const { pathToFileURL } = require('url');
 
 // Set app name for dialogs and window titles
-app.name = 'ARMGDDN Downloader';
+app.name = 'ARMGDDN Companion';
 
 if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
   try {
@@ -87,11 +87,26 @@ function sanitizeRelativePath(input) {
   if (input == null || input === '') return null;
   if (typeof input !== 'string') return null;
   if (input.includes('\0')) return null;
-  if (path.isAbsolute(input)) return null;
-  if (/^[a-zA-Z]:/.test(input)) return null;
-  const normalized = path.posix.normalize(input.replace(/\\/g, '/'));
+  let cleaned = input.replace(/\\/g, '/');
+
+  // Some archives contain Windows drive-prefixed paths (e.g. "C:Games/file") or
+  // leading slashes ("/Games/file"). Treat these as "anchored" paths and
+  // normalize them back into a relative path rooted at the extraction directory.
+  if (/^[a-zA-Z]:/.test(cleaned)) {
+    cleaned = cleaned.slice(2);
+  }
+  cleaned = cleaned.replace(/^\/+/, '');
+
+  // If it is still absolute after normalization rules, reject.
+  if (path.isAbsolute(cleaned)) return null;
+
+  const normalized = path.posix.normalize(cleaned);
   if (normalized.startsWith('../') || normalized === '..' || normalized.includes('/../')) return null;
   if (normalized.startsWith('/')) return null;
+
+  // 7z listings can include "Path = ." for the root entry.
+  if (normalized === '.' || normalized === './') return '';
+
   return normalized;
 }
 
@@ -213,7 +228,7 @@ function ensureLinuxProtocolDesktopHandler() {
     const content = [
       '[Desktop Entry]',
       'Type=Application',
-      'Name=ARMGDDN Downloader',
+      'Name=ARMGDDN Companion',
       `Exec=${execPath} %u`,
       'Terminal=false',
       'NoDisplay=true',
@@ -280,7 +295,9 @@ function getDebugLogPath() {
     // app.getPath('userData') can fail before the app is ready in some packaged environments.
     // Fall back to a best-effort location.
     const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    cachedDebugLogPath = path.join(appData, 'ARMGDDN Downloader', 'debug.log');
+    const legacyPath = path.join(appData, 'ARMGDDN Downloader', 'debug.log');
+    const newPath = path.join(appData, 'ARMGDDN Companion', 'debug.log');
+    cachedDebugLogPath = fs.existsSync(path.dirname(legacyPath)) ? legacyPath : newPath;
     return cachedDebugLogPath;
   }
 }
@@ -739,7 +756,7 @@ function createTray() {
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
   ]);
 
-  tray.setToolTip('ARMGDDN Downloader');
+  tray.setToolTip('ARMGDDN Companion');
   tray.setContextMenu(contextMenu);
 
   tray.on('click', () => {

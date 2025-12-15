@@ -1,6 +1,6 @@
-# ARMGDDN Downloader
+# ARMGDDN Companion
 
-ARMGDDN Downloader is a desktop download manager for ARMGDDN content.
+ARMGDDN Companion is a desktop download manager for ARMGDDN content.
 
 It uses `rclone` under the hood to download files reliably and quickly, while providing a simple UI for managing download progress, pausing/resuming, and history.
 
@@ -14,7 +14,7 @@ It uses `rclone` under the hood to download files reliably and quickly, while pr
 ## Features
 
 - **Deep link support**
-  - Registers the `armgddn://` protocol so the Browser/website can open the Downloader directly.
+  - Registers the `armgddn://` protocol so the Browser/website can open the Companion directly.
 - **Fast downloads via rclone**
   - Uses `rclone` for resilient transfers and good performance.
 - **Pause / Resume**
@@ -33,7 +33,7 @@ It uses `rclone` under the hood to download files reliably and quickly, while pr
 ## Getting started (users)
 
 1. Install the latest release for your OS.
-2. Launch **ARMGDDN Downloader**.
+2. Launch **ARMGDDN Companion**.
 3. Open Settings and confirm:
    - Download folder
    - Max concurrent downloads
