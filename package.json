@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "4.1.1",
+  "version": "4.1.2",
   "description": "ARMGDDN Companion - Fast rclone-powered download manager",
   "main": "main.js",
   "author": {
@@ -55,6 +55,7 @@
     },
     "linux": {
       "target": ["AppImage", "deb"],
+      "artifactName": "ARMGDDN.Companion-${version}-${arch}.${ext}",
       "icon": "assets/icon.png",
       "category": "Utility",
       "extraResources": [
