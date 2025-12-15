@@ -62,7 +62,97 @@ let authWindow;
 let tray;
 let activeDownloads = new Map();
 let downloadHistory = [];
-let sessionCookie = null;
+let sessionToken = null;
+
+const ALLOWED_SERVICE_HOSTS = new Set([
+  'armgddnbrowser.com',
+  'www.armgddnbrowser.com'
+]);
+
+const ALLOWED_UPDATE_HOSTS = new Set([
+  'github.com',
+  'api.github.com',
+  'objects.githubusercontent.com'
+]);
+
+function isAllowedServiceHost(hostname) {
+  return !!hostname && ALLOWED_SERVICE_HOSTS.has(String(hostname).toLowerCase());
+}
+
+function isAllowedUpdateHost(hostname) {
+  return !!hostname && ALLOWED_UPDATE_HOSTS.has(String(hostname).toLowerCase());
+}
+
+function sanitizeRelativePath(input) {
+  if (input == null || input === '') return null;
+  if (typeof input !== 'string') return null;
+  if (input.includes('\0')) return null;
+  if (path.isAbsolute(input)) return null;
+  if (/^[a-zA-Z]:/.test(input)) return null;
+  const normalized = path.posix.normalize(input.replace(/\\/g, '/'));
+  if (normalized.startsWith('../') || normalized === '..' || normalized.includes('/../')) return null;
+  if (normalized.startsWith('/')) return null;
+  return normalized;
+}
+
+function resolveInside(baseDir, relPath) {
+  const full = path.resolve(baseDir, relPath);
+  const base = path.resolve(baseDir);
+  if (full === base) return full;
+  if (!full.startsWith(base + path.sep)) return null;
+  return full;
+}
+
+function fetchJsonWithCookies(urlString, method, cookieHeader) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(urlString);
+    if (u.protocol !== 'https:') {
+      reject(new Error('Security error: Only HTTPS connections are allowed'));
+      return;
+    }
+    if (!isAllowedServiceHost(u.hostname)) {
+      reject(new Error('Security error: Host not allowed'));
+      return;
+    }
+    const options = {
+      hostname: u.hostname,
+      port: 443,
+      path: u.pathname + u.search,
+      method: method,
+      headers: {
+        'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion(),
+        ...(cookieHeader ? { 'Cookie': cookieHeader } : {}),
+        'Accept': 'application/json'
+      },
+      timeout: 7000
+    };
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => data += chunk);
+      res.on('end', () => {
+        try {
+          resolve({ statusCode: res.statusCode || 0, json: JSON.parse(data) });
+        } catch (e) {
+          reject(new Error('Invalid JSON response'));
+        }
+      });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => {
+      req.destroy();
+      reject(new Error('Request timeout'));
+    });
+    req.end();
+  });
+}
+
+async function mintAppSessionTokenFromCookies(cookieHeader) {
+  const { statusCode, json } = await fetchJsonWithCookies('https://www.armgddnbrowser.com/api/generate-app-token', 'POST', cookieHeader);
+  if (statusCode !== 200 || !json || json.success !== true || !json.token) {
+    throw new Error((json && (json.error || json.message)) ? (json.error || json.message) : 'Failed to mint app token');
+  }
+  return String(json.token);
+}
 
 const DEBUG_LOGGING = process.env.ARMGDDN_DEBUG === '1';
 
@@ -279,13 +369,13 @@ function loadSession() {
     const sessionPath = getSessionPath();
     if (fs.existsSync(sessionPath)) {
       const data = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
-      if (data.cookie && data.expiresAt && new Date(data.expiresAt) > new Date()) {
+      if (data.token && data.expiresAt && new Date(data.expiresAt) > new Date()) {
         // Decrypt if encrypted, otherwise use plain (migration)
         if (data.encrypted && safeStorage.isEncryptionAvailable()) {
-          const encryptedBuffer = Buffer.from(data.cookie, 'base64');
-          sessionCookie = safeStorage.decryptString(encryptedBuffer);
+          const encryptedBuffer = Buffer.from(data.token, 'base64');
+          sessionToken = safeStorage.decryptString(encryptedBuffer);
         } else {
-          sessionCookie = data.cookie;
+          sessionToken = data.token;
         }
         logToFile('Session loaded from file');
         return true;
@@ -297,25 +387,25 @@ function loadSession() {
   return false;
 }
 
-// Save session cookie to file (encrypted)
-function saveSession(cookie) {
+// Save app session token to file (encrypted)
+function saveSession(token) {
   try {
     const sessionPath = getSessionPath();
     // Session expires in 30 days
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
     
-    let storedCookie = cookie;
+    let storedToken = token;
     let encrypted = false;
     
     // Encrypt if available
     if (safeStorage.isEncryptionAvailable()) {
-      const encryptedBuffer = safeStorage.encryptString(cookie);
-      storedCookie = encryptedBuffer.toString('base64');
+      const encryptedBuffer = safeStorage.encryptString(token);
+      storedToken = encryptedBuffer.toString('base64');
       encrypted = true;
     }
     
-    fs.writeFileSync(sessionPath, JSON.stringify({ cookie: storedCookie, expiresAt, encrypted }, null, 2));
-    sessionCookie = cookie;
+    fs.writeFileSync(sessionPath, JSON.stringify({ token: storedToken, expiresAt, encrypted }, null, 2));
+    sessionToken = token;
     logToFile('Session saved to file (encrypted: ' + encrypted + ')');
   } catch (e) {
     logToFile('Failed to save session: ' + e.message);
@@ -329,7 +419,7 @@ function clearSession() {
     if (fs.existsSync(sessionPath)) {
       fs.unlinkSync(sessionPath);
     }
-    sessionCookie = null;
+    sessionToken = null;
   } catch (e) {
     logToFile('Failed to clear session: ' + e.message);
   }
@@ -402,14 +492,30 @@ function validateDeepLink(url) {
       return null;
     }
     
-    // Validate manifest parameter if present (should be base64)
+    // Validate manifest parameter if present (URL or base64-encoded URL)
     const manifest = parsed.searchParams.get('manifest');
     if (manifest) {
-      // Check it's valid base64
+      let manifestStr = manifest;
+      // Attempt base64 decode; if it becomes a plausible https URL, accept that.
       try {
-        Buffer.from(manifest, 'base64');
-      } catch {
-        logToFile('Deep link rejected - invalid manifest encoding');
+        const decoded = Buffer.from(manifest, 'base64').toString('utf8');
+        if (decoded && typeof decoded === 'string' && decoded.startsWith('https://')) {
+          manifestStr = decoded;
+        }
+      } catch (e) {}
+
+      try {
+        const u = new URL(manifestStr);
+        if (u.protocol !== 'https:') {
+          logToFile('Deep link rejected - manifest not https');
+          return null;
+        }
+        if (!ALLOWED_SERVICE_HOSTS.has(u.hostname)) {
+          logToFile('Deep link rejected - manifest host not allowed: ' + u.hostname);
+          return null;
+        }
+      } catch (e) {
+        logToFile('Deep link rejected - invalid manifest URL');
         return null;
       }
     }
@@ -460,23 +566,19 @@ function openAuthWindow() {
 
     authWindow.loadURL('https://armgddnbrowser.com/');
 
-    // Check for successful login by monitoring cookies
+    // Check for successful login by monitoring cookies and minting an app session token
     const checkAuth = async () => {
       try {
         const cookies = await authWindow.webContents.session.cookies.get({ 
           domain: 'armgddnbrowser.com' 
         });
         
-        // Look for the session cookie (usually named 'session' or similar)
-        const sessionCookieObj = cookies.find(c => 
-          c.name === 'tg_auth' || c.name === 'session' || c.name === 'PHPSESSID'
-        );
-        
-        if (sessionCookieObj) {
-          // Build cookie string
+        const agAuthCookie = cookies.find(c => c && c.name === 'ag_auth' && c.value);
+        if (agAuthCookie) {
           const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-          saveSession(cookieStr);
-          logToFile('Auth successful, session cookie saved');
+          const token = await mintAppSessionTokenFromCookies(cookieStr);
+          saveSession(token);
+          logToFile('Auth successful, app session token saved');
           authWindow.close();
           resolve(true);
         }
@@ -498,14 +600,14 @@ function openAuthWindow() {
 
     authWindow.on('closed', () => {
       authWindow = null;
-      resolve(!!sessionCookie);
+      resolve(!!sessionToken);
     });
   });
 }
 
 // Verify session is still valid
 async function verifySession() {
-  if (!sessionCookie) return false;
+  if (!sessionToken) return false;
   
   return new Promise((resolve) => {
     const makeRequest = (url) => {
@@ -517,7 +619,7 @@ async function verifySession() {
         method: 'GET',
         headers: {
           'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion(),
-          'Authorization': 'Bearer ' + sessionCookie
+          'Authorization': 'Bearer ' + sessionToken
         },
         timeout: 5000
       };
@@ -838,6 +940,11 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
       reject(new Error('Security error: Only HTTPS connections are allowed'));
       return;
     }
+
+    if (!isAllowedServiceHost(parsedUrl.hostname)) {
+      reject(new Error('Security error: Host not allowed'));
+      return;
+    }
     
     // Parse query params using decodeURIComponent (preserves + as literal +)
     const queryString = parsedUrl.search.substring(1);
@@ -993,8 +1100,14 @@ async function reportProgressToServer(download, token) {
     logToFile(`[Progress] Sending: ${postData.substring(0, 150)}`);
     debugLog(`Reporting progress: ${postData.substring(0, 100)}...`);
     
+    const targetHost = download.progressHost || 'www.armgddnbrowser.com';
+    if (!isAllowedServiceHost(targetHost)) {
+      logToFile(`[Progress] Blocked progress host: ${targetHost}`);
+      return;
+    }
+
     const options = {
-      hostname: download.progressHost || 'www.armgddnbrowser.com',
+      hostname: targetHost,
       port: download.progressPort || 443,
       path: download.progressPath || '/api/app-progress',
       method: 'POST',
@@ -1050,7 +1163,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     if (typeof manifestUrl === 'string' && manifestUrl) {
       const u = new URL(manifestUrl);
       if (u && u.hostname) {
-        progressHost = u.hostname;
+        if (isAllowedServiceHost(u.hostname)) {
+          progressHost = u.hostname;
+        }
         progressPort = u.port ? Number(u.port) : (u.protocol === 'http:' ? 80 : 443);
       }
     }
@@ -1091,6 +1206,13 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     console.error('Unknown manifest format:', manifest);
     throw new Error('Unknown manifest format. Expected files array or url property.');
   }
+
+  const safeFolderName = sanitizeRelativePath(String(name || ''));
+  if (safeFolderName) {
+    name = safeFolderName;
+  } else {
+    name = 'Download';
+  }
   
   const download = {
     id: downloadId,
@@ -1123,7 +1245,10 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   mainWindow.webContents.send('download-started', { ...download, fileCount: files.length });
 
   // Create download directory
-  const downloadDir = path.join(settings.downloadPath, name);
+  const downloadDir = resolveInside(settings.downloadPath, name);
+  if (!downloadDir) {
+    throw new Error('Security error: Invalid download folder path');
+  }
   if (!fs.existsSync(downloadDir)) {
     fs.mkdirSync(downloadDir, { recursive: true });
   }
@@ -1267,7 +1392,16 @@ async function downloadFile(downloadId, file, downloadDir) {
     };
 
     const rclonePath = getRclonePath();
-    const outputPath = path.join(downloadDir, file.name);
+    const safeRel = sanitizeRelativePath(file.name);
+    if (!safeRel) {
+      reject(new Error('Security error: Invalid file name'));
+      return;
+    }
+    const outputPath = resolveInside(downloadDir, safeRel);
+    if (!outputPath) {
+      reject(new Error('Security error: Invalid file path'));
+      return;
+    }
 
     // Ensure parent directory exists
     const parentDir = path.dirname(outputPath);
@@ -1282,7 +1416,6 @@ async function downloadFile(downloadId, file, downloadDir) {
       '--progress',
       '-v',
       '--buffer-size', '128M',         // Large buffer for better throughput
-      '--no-check-certificate',        // Skip SSL verification for speed
       '--contimeout', '30s',           // Connection timeout
       '--timeout', '300s',             // Overall timeout
       '--low-level-retries', '3',      // Retry on low-level errors
@@ -1555,6 +1688,36 @@ function run7zExtract(archivePath, outputDir) {
     const exe = get7zPath();
     if (!exe) {
       reject(new Error('7z extraction tool not found'));
+      return;
+    }
+
+    const listArgs = ['l', '-slt', archivePath];
+    try {
+      const listResult = spawnSync(exe, listArgs, { encoding: 'utf8' });
+      if (listResult && listResult.status === 0) {
+        const stdout = String(listResult.stdout || '');
+        const lines = stdout.split(/\r?\n/);
+        for (const line of lines) {
+          if (!line.startsWith('Path = ')) continue;
+          const entryPath = line.slice('Path = '.length).trim();
+          if (!entryPath) continue;
+          const safeRel = sanitizeRelativePath(entryPath);
+          if (!safeRel) {
+            reject(new Error('Unsafe archive entry path detected'));
+            return;
+          }
+          const resolved = resolveInside(outputDir, safeRel);
+          if (!resolved) {
+            reject(new Error('Unsafe archive entry path detected'));
+            return;
+          }
+        }
+      } else {
+        reject(new Error('Failed to validate archive contents before extraction'));
+        return;
+      }
+    } catch (e) {
+      reject(new Error('Failed to validate archive contents before extraction'));
       return;
     }
 
@@ -2150,7 +2313,7 @@ ipcMain.handle('open-login', async () => {
 // Get session status
 ipcMain.handle('get-session-status', async () => {
   return {
-    hasSession: !!sessionCookie,
+    hasSession: !!sessionToken,
     isValid: await verifySession()
   };
 });
@@ -2200,6 +2363,18 @@ ipcMain.handle('check-updates', async () => {
             const dmgAsset = assets.find(a => a.name.endsWith('.dmg'));
             if (dmgAsset) installerUrl = dmgAsset.browser_download_url;
           }
+
+          // Security: only allow HTTPS installer URLs from allowlisted update hosts
+          if (installerUrl) {
+            try {
+              const u = new URL(installerUrl);
+              if (u.protocol !== 'https:' || !isAllowedUpdateHost(u.hostname)) {
+                installerUrl = null;
+              }
+            } catch (e) {
+              installerUrl = null;
+            }
+          }
           
           resolve({
             hasUpdate,
@@ -2230,6 +2405,15 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
   if (!installerUrl) {
     return { success: false, error: 'No installer URL provided' };
   }
+
+  try {
+    const u = new URL(String(installerUrl));
+    if (u.protocol !== 'https:' || !isAllowedUpdateHost(u.hostname)) {
+      return { success: false, error: 'Installer URL not allowed' };
+    }
+  } catch (e) {
+    return { success: false, error: 'Invalid installer URL' };
+  }
   
   const tempDir = app.getPath('temp');
   const platform = process.platform;
@@ -2251,13 +2435,40 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
   
   return new Promise((resolve) => {
     // Download the installer
-    const downloadInstaller = (url) => {
-      const protocol = url.startsWith('https') ? https : require('http');
-      
-      protocol.get(url, { headers: { 'User-Agent': 'ARMGDDN-Downloader' } }, (res) => {
+    const downloadInstaller = (url, redirectCount = 0) => {
+      if (redirectCount > 5) {
+        resolve({ success: false, error: 'Too many redirects' });
+        return;
+      }
+
+      let parsed;
+      try {
+        parsed = new URL(url);
+      } catch (e) {
+        resolve({ success: false, error: 'Invalid download URL' });
+        return;
+      }
+
+      if (parsed.protocol !== 'https:') {
+        resolve({ success: false, error: 'Only HTTPS update downloads are allowed' });
+        return;
+      }
+
+      if (!isAllowedUpdateHost(parsed.hostname)) {
+        resolve({ success: false, error: 'Update download host not allowed' });
+        return;
+      }
+
+      https.get(url, { headers: { 'User-Agent': 'ARMGDDN-Downloader' } }, (res) => {
         // Handle redirects
         if (res.statusCode === 301 || res.statusCode === 302) {
-          return downloadInstaller(res.headers.location);
+          const location = res.headers.location;
+          if (!location) {
+            resolve({ success: false, error: 'Redirect with no location' });
+            return;
+          }
+          const nextUrl = location.startsWith('http') ? location : new URL(location, parsed).toString();
+          return downloadInstaller(nextUrl, redirectCount + 1);
         }
         
         if (res.statusCode !== 200) {
