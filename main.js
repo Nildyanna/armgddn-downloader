@@ -82,7 +82,11 @@ function isAllowedServiceHost(hostname) {
 }
 
 function isAllowedUpdateHost(hostname) {
-  return !!hostname && ALLOWED_UPDATE_HOSTS.has(String(hostname).toLowerCase());
+  if (!hostname) return false;
+  const h = String(hostname).toLowerCase();
+  if (ALLOWED_UPDATE_HOSTS.has(h)) return true;
+  if (/^github-production-release-asset-[a-z0-9-]+\.s3\.amazonaws\.com$/.test(h)) return true;
+  return false;
 }
 
 function sanitizeRelativePath(input) {
@@ -2444,7 +2448,8 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
   try {
     const u = new URL(String(installerUrl));
     if (u.protocol !== 'https:' || !isAllowedUpdateHost(u.hostname)) {
-      return { success: false, error: 'Installer URL not allowed' };
+      logToFile(`Update - installer URL not allowed: host=${u.hostname} url=${installerUrl}`);
+      return { success: false, error: `Installer URL not allowed (${u.hostname})` };
     }
   } catch (e) {
     return { success: false, error: 'Invalid installer URL' };
@@ -2490,7 +2495,8 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
       }
 
       if (!isAllowedUpdateHost(parsed.hostname)) {
-        resolve({ success: false, error: 'Update download host not allowed' });
+        logToFile(`Update - blocked download host: host=${parsed.hostname} url=${url}`);
+        resolve({ success: false, error: `Update download host not allowed (${parsed.hostname})` });
         return;
       }
 
@@ -2502,6 +2508,7 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
             resolve({ success: false, error: 'Redirect with no location' });
             return;
           }
+          logToFile(`Update - redirect: from=${url} to=${location}`);
           const nextUrl = location.startsWith('http') ? location : new URL(location, parsed).toString();
           return downloadInstaller(nextUrl, redirectCount + 1);
         }
