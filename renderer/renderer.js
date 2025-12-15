@@ -153,19 +153,21 @@ async function handleDeepLink(url) {
       return;
     }
     
-    // Ensure URL is properly decoded (searchParams should do this, but be safe)
+    // Accept either a direct https URL or a base64-encoded https URL
+    let manifestUrlStr = String(manifestUrl);
     try {
-      manifestUrl = decodeURIComponent(manifestUrl);
-    } catch (e) {
-      // Already decoded
-    }
+      const decoded = atob(manifestUrlStr);
+      if (decoded && typeof decoded === 'string' && decoded.startsWith('https://')) {
+        manifestUrlStr = decoded;
+      }
+    } catch (e) {}
     
     // Fetch the manifest via main process (bypasses CORS)
-    const manifest = await api.fetchManifest(manifestUrl, token);
+    const manifest = await api.fetchManifest(manifestUrlStr, token);
     
     // Start download with token for progress reporting
     // Pass manifestUrl so main process can report to the same server.
-    await api.startDownload(manifest, token, manifestUrl);
+    await api.startDownload(manifest, token, manifestUrlStr);
     
   } catch (error) {
     console.error('Failed to handle deep link:', error);
