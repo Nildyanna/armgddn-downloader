@@ -72,7 +72,9 @@ const ALLOWED_SERVICE_HOSTS = new Set([
 const ALLOWED_UPDATE_HOSTS = new Set([
   'github.com',
   'api.github.com',
-  'objects.githubusercontent.com'
+  'objects.githubusercontent.com',
+  'release-assets.githubusercontent.com',
+  'github-releases.githubusercontent.com'
 ]);
 
 function isAllowedServiceHost(hostname) {
@@ -122,7 +124,7 @@ function fetchJsonWithCookies(urlString, method, cookieHeader) {
   return new Promise((resolve, reject) => {
     const u = new URL(urlString);
     if (u.protocol !== 'https:') {
-      reject(new Error('Security error: Only HTTPS connections are allowed'));
+      reject(new Error('Security error: HTTPS required'));
       return;
     }
     if (!isAllowedServiceHost(u.hostname)) {
@@ -135,7 +137,7 @@ function fetchJsonWithCookies(urlString, method, cookieHeader) {
       path: u.pathname + u.search,
       method: method,
       headers: {
-        'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion(),
+        'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(),
         ...(cookieHeader ? { 'Cookie': cookieHeader } : {}),
         'Accept': 'application/json'
       },
@@ -651,7 +653,7 @@ async function verifySession() {
         path: urlObj.pathname,
         method: 'GET',
         headers: {
-          'User-Agent': 'ARMGDDN-Downloader/' + app.getVersion(),
+          'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(),
           'Authorization': 'Bearer ' + sessionToken
         },
         timeout: 5000
@@ -668,7 +670,7 @@ async function verifySession() {
         }
         
         let data = '';
-        res.on('data', chunk => data += chunk);
+        res.on('data', (chunk) => data += chunk);
         res.on('end', () => {
           try {
             const result = JSON.parse(data);
@@ -2359,7 +2361,7 @@ ipcMain.handle('check-updates', async () => {
       path: '/repos/Nildyanna/armgddn-downloader/releases/latest',
       method: 'GET',
       headers: {
-        'User-Agent': 'ARMGDDN-Downloader',
+        'User-Agent': 'ARMGDDN-Companion',
         'Accept': 'application/vnd.github.v3+json'
       }
     };
@@ -2455,13 +2457,13 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
   
   if (platform === 'win32') {
     // Use unique filename to avoid EBUSY errors
-    fileName = `ARMGDDN-Downloader-Setup-${timestamp}.exe`;
+    fileName = `ARMGDDN-Companion-Setup-${timestamp}.exe`;
   } else if (platform === 'linux') {
     fileName = installerUrl.endsWith('.deb') 
-      ? `armgddn-downloader-${timestamp}.deb` 
-      : `ARMGDDN-Downloader-${timestamp}.AppImage`;
+      ? `armgddn-companion-${timestamp}.deb` 
+      : `ARMGDDN-Companion-${timestamp}.AppImage`;
   } else {
-    fileName = `ARMGDDN-Downloader-${timestamp}.dmg`;
+    fileName = `ARMGDDN-Companion-${timestamp}.dmg`;
   }
   
   const filePath = path.join(tempDir, fileName);
@@ -2492,7 +2494,7 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
         return;
       }
 
-      https.get(url, { headers: { 'User-Agent': 'ARMGDDN-Downloader' } }, (res) => {
+      https.get(url, { headers: { 'User-Agent': 'ARMGDDN-Companion' } }, (res) => {
         // Handle redirects
         if (res.statusCode === 301 || res.statusCode === 302) {
           const location = res.headers.location;
