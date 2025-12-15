@@ -131,9 +131,9 @@ function fetchJsonWithCookies(urlString, method, cookieHeader) {
       res.on('data', (chunk) => data += chunk);
       res.on('end', () => {
         try {
-          resolve({ statusCode: res.statusCode || 0, json: JSON.parse(data) });
+          resolve({ statusCode: res.statusCode || 0, json: JSON.parse(data), text: data });
         } catch (e) {
-          reject(new Error('Invalid JSON response'));
+          resolve({ statusCode: res.statusCode || 0, json: null, text: data });
         }
       });
     });
@@ -147,9 +147,11 @@ function fetchJsonWithCookies(urlString, method, cookieHeader) {
 }
 
 async function mintAppSessionTokenFromCookies(cookieHeader) {
-  const { statusCode, json } = await fetchJsonWithCookies('https://www.armgddnbrowser.com/api/generate-app-token', 'POST', cookieHeader);
+  const { statusCode, json, text } = await fetchJsonWithCookies('https://www.armgddnbrowser.com/api/generate-app-token', 'POST', cookieHeader);
   if (statusCode !== 200 || !json || json.success !== true || !json.token) {
-    throw new Error((json && (json.error || json.message)) ? (json.error || json.message) : 'Failed to mint app token');
+    const msg = (json && (json.error || json.message)) ? (json.error || json.message) : 'Failed to mint app token';
+    const snippet = (text && typeof text === 'string') ? text.slice(0, 300) : '';
+    throw new Error(`${msg} (HTTP ${statusCode})${snippet ? `: ${snippet}` : ''}`);
   }
   return String(json.token);
 }
@@ -569,18 +571,32 @@ function openAuthWindow() {
     // Check for successful login by monitoring cookies and minting an app session token
     const checkAuth = async () => {
       try {
-        const cookies = await authWindow.webContents.session.cookies.get({ 
-          domain: 'armgddnbrowser.com' 
+        const cookies = await authWindow.webContents.session.cookies.get({ name: 'ag_auth' });
+
+        const agAuthCookie = cookies.find((c) => {
+          const domain = String(c && c.domain ? c.domain : '').toLowerCase();
+          const hasValue = !!(c && c.value);
+          return hasValue && (domain === 'armgddnbrowser.com' || domain === '.armgddnbrowser.com' || domain === 'www.armgddnbrowser.com');
         });
-        
-        const agAuthCookie = cookies.find(c => c && c.name === 'ag_auth' && c.value);
         if (agAuthCookie) {
-          const cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-          const token = await mintAppSessionTokenFromCookies(cookieStr);
-          saveSession(token);
-          logToFile('Auth successful, app session token saved');
-          authWindow.close();
-          resolve(true);
+          const allCookies = await authWindow.webContents.session.cookies.get({});
+          const cookieStr = (allCookies || [])
+            .filter((c) => {
+              const domain = String(c && c.domain ? c.domain : '').toLowerCase();
+              return (domain === 'armgddnbrowser.com' || domain === '.armgddnbrowser.com' || domain === 'www.armgddnbrowser.com');
+            })
+            .map((c) => `${c.name}=${c.value}`)
+            .join('; ');
+
+          try {
+            const token = await mintAppSessionTokenFromCookies(cookieStr);
+            saveSession(token);
+            logToFile('Auth successful, app session token saved');
+            authWindow.close();
+            resolve(true);
+          } catch (e) {
+            logToFile('Token mint error: ' + (e && e.message ? e.message : String(e)));
+          }
         }
       } catch (e) {
         logToFile('Auth check error: ' + e.message);
