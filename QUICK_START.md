@@ -1,4 +1,4 @@
-# Quick Start: Deploy ARMGDDN Downloader
+# Quick Start: Deploy ARMGDDN Companion
 
 ## Step 1: Push to GitHub
 
@@ -6,7 +6,7 @@
 cd /home/armgddn/ArmgddnDownloader
 
 # Commit the code
-git commit -m "Initial commit: Production-ready ARMGDDN Downloader"
+git commit -m "Initial commit: Production-ready ARMGDDN Companion"
 
 # Create GitHub repo at https://github.com/new
 # Then add it as remote (replace YOUR_USERNAME):
@@ -99,7 +99,7 @@ function showManifestUrl(folderName) {
     
     const manifestUrl = `${window.location.origin}/api/download-manifest?remote=${encodeURIComponent(currentRemote)}&path=${encodeURIComponent(filePath)}`;
     
-    prompt('Copy this URL to ARMGDDN Downloader:', manifestUrl);
+    prompt('Copy this URL to ARMGDDN Companion:', manifestUrl);
 }
 </script>
 ```

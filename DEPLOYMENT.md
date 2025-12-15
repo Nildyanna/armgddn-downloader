@@ -1,4 +1,4 @@
-# ARMGDDN Downloader - Deployment Guide
+# ARMGDDN Companion - Deployment Guide
 
 ## ✅ What's Been Built
 
@@ -12,7 +12,7 @@ A **production-ready external downloader application** that:
 
 ## 📁 Project Structure
 
-```
+```text
 /home/armgddn/ArmgddnDownloader/
 ├── src-tauri/
 │   ├── src/
@@ -65,7 +65,7 @@ npm run tauri build
 ```
 
 Outputs:
-- `src-tauri/target/release/bundle/nsis/ARMGDDN Downloader_0.1.0_x64-setup.exe`
+- `src-tauri/target/release/bundle/nsis/ARMGDDN Companion_0.1.0_x64-setup.exe`
 
 ### Step 3: Distribute to Users
 
@@ -109,8 +109,8 @@ async function showManifestUrl(folderName) {
         <div style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
                     background: rgba(20, 20, 30, 0.98); border: 2px solid rgba(255, 100, 50, 0.6); 
                     border-radius: 12px; padding: 24px; z-index: 10000; max-width: 600px;">
-            <h3 style="margin-bottom: 16px;">📥 External Downloader</h3>
-            <p style="margin-bottom: 12px;">Copy this URL to ARMGDDN Downloader app:</p>
+            <h3 style="margin-bottom: 16px;">📥 External Companion</h3>
+            <p style="margin-bottom: 12px;">Copy this URL to ARMGDDN Companion app:</p>
             <input type="text" value="${manifestUrl}" readonly 
                    style="width: 100%; padding: 8px; margin-bottom: 12px; 
                           background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); 
@@ -165,7 +165,7 @@ async function showManifestUrl(folderName) {
 Edit `src-tauri/tauri.conf.json`:
 ```json
 {
-  "productName": "ARMGDDN Downloader",
+  "productName": "ARMGDDN Companion",
   "identifier": "com.armgddn.downloader",
   "version": "1.0.0"
 }

@@ -1,6 +1,6 @@
 # Auto-Update Setup Guide
 
-This guide explains how to set up auto-updates for the ARMGDDN Downloader app.
+This guide explains how to set up auto-updates for the ARMGDDN Companion app.
 
 ## Overview
 

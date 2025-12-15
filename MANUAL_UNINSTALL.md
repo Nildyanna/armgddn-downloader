@@ -4,11 +4,11 @@ The installer is not properly replacing old files. Follow these steps:
 
 ## 1. Close the app completely
 - Right-click system tray icon → Quit
-- Or open Task Manager and end "ARMGDDN Downloader.exe"
+- Or open Task Manager and end "ARMGDDN Companion.exe"
 
 ## 2. Delete installation folder
-Default location: `C:\Program Files\ARMGDDN Downloader`
-Or: `C:\Users\[YourUsername]\AppData\Local\Programs\ARMGDDN Downloader`
+Default location: `C:\Program Files\ARMGDDN Companion`
+Or: `C:\Users\[YourUsername]\AppData\Local\Programs\ARMGDDN Companion`
 
 Delete the entire folder.
 
@@ -20,7 +20,7 @@ Delete both folders.
 
 ## 4. Clear registry (optional but recommended)
 Run in Command Prompt as Admin:
-```
+```bat
 reg delete "HKCU\Software\Classes\armgddn" /f
 reg delete "HKCR\armgddn" /f
 ```

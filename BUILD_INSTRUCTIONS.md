@@ -11,7 +11,7 @@ The app is configured to build automatically using GitHub Actions. Here's how to
 cd /home/armgddn/ArmgddnDownloader
 git init
 git add .
-git commit -m "Initial commit: ARMGDDN Downloader"
+git commit -m "Initial commit: ARMGDDN Companion"
 git remote add origin https://github.com/YOUR_USERNAME/armgddn-downloader.git
 git push -u origin main
 ```
@@ -59,7 +59,7 @@ GitHub will:
 - `armgddn-downloader_0.1.0_amd64.AppImage` - Universal Linux app
 
 **Windows**:
-- `ARMGDDN Downloader_0.1.0_x64-setup.exe` - Windows installer
+- `ARMGDDN Companion_0.1.0_x64-setup.exe` - Windows installer
 
 ## Manual Build (if needed)
 

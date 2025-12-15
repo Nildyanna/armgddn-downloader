@@ -6,6 +6,14 @@ const api = window.electronAPI;
 
 // State
 let downloads = new Map();
+
+function normalizeActiveFiles(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  if (typeof value === 'object') return Object.values(value);
+  return [];
+}
+
 let settings = {};
 
 // Initialize
@@ -20,7 +28,7 @@ async function init() {
   // Display version in UI and title bar
   const version = await api.getVersion();
   document.getElementById('version-display').textContent = `Version ${version}`;
-  document.title = `ARMGDDN Downloader v${version}`;
+  document.title = `ARMGDDN Companion v${version}`;
   
   // Check connection status
   checkConnectionStatus();
@@ -88,7 +96,8 @@ function setupIPCListeners() {
   
   // Download events
   api.onDownloadStarted((data) => {
-    downloads.set(data.id, data);
+    const normalized = { ...data, activeFiles: normalizeActiveFiles(data.activeFiles) };
+    downloads.set(data.id, normalized);
     renderDownloads();
     checkConnectionStatus();
   });
@@ -97,11 +106,14 @@ function setupIPCListeners() {
     const download = downloads.get(data.id);
     if (!download) {
       // IPC ordering can occasionally deliver progress before started; don't drop the update.
-      downloads.set(data.id, { id: data.id, ...data });
+      downloads.set(data.id, { id: data.id, ...data, activeFiles: normalizeActiveFiles(data.activeFiles) });
       renderDownloads();
       return;
     }
     Object.assign(download, data);
+    if ('activeFiles' in data) {
+      download.activeFiles = normalizeActiveFiles(data.activeFiles);
+    }
     renderDownloads();
   });
   
@@ -284,9 +296,10 @@ function updateItemsInPlace(items, container) {
 
     const activeFilesEl = item.querySelector('.active-files');
     if (activeFilesEl) {
-      const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && download.activeFiles && download.activeFiles.length > 0;
+      const activeFiles = normalizeActiveFiles(download.activeFiles);
+      const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && activeFiles.length > 0;
       if (showActiveFiles) {
-        activeFilesEl.innerHTML = download.activeFiles.map(f => `
+        activeFilesEl.innerHTML = activeFiles.map(f => `
           <div class="file-progress">
             <div class="file-progress-header">
               <span class="file-name">${escapeHtml(f.name)}</span>
@@ -387,9 +400,10 @@ function renderDownloadsNow() {
 
     // Build active files list - only show when not fully completed
     let activeFilesHtml = '';
-    const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && download.activeFiles && download.activeFiles.length > 0;
+    const activeFiles = normalizeActiveFiles(download.activeFiles);
+    const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && activeFiles.length > 0;
     if (showActiveFiles) {
-      activeFilesHtml = download.activeFiles.map(f => `
+      activeFilesHtml = activeFiles.map(f => `
         <div class="file-progress">
           <div class="file-progress-header">
             <span class="file-name">${escapeHtml(f.name)}</span>
