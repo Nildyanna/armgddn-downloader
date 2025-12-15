@@ -79,12 +79,25 @@ jobs:
 
             if [ -n "${BROWSER_RESTART_URL:-}" ] && [ -n "${BROWSER_RESTART_SECRET:-}" ]; then
               echo "Triggering Browser restart..."
-              curl -fsS -X POST "${BROWSER_RESTART_URL%/}/api/admin/restart-server" \
+              set +e
+              RESP_FILE="$(mktemp)"
+              HTTP_CODE=$(curl -sS -o "$RESP_FILE" -w "%{http_code}" -X POST "${BROWSER_RESTART_URL%/}/api/admin/restart-server" \
                 -H "x-internal-secret: ${BROWSER_RESTART_SECRET}" \
                 -H "content-type: application/json" \
-                -d '{}' \
-                >/dev/null
-              echo "Restart triggered."
+                -d '{}')
+              CURL_EXIT=$?
+              set -e
+
+              if [ "$CURL_EXIT" -ne 0 ]; then
+                echo "Restart trigger failed to call endpoint (curl exit $CURL_EXIT)" >&2
+              elif [ "$HTTP_CODE" != "200" ]; then
+                echo "Restart trigger returned HTTP $HTTP_CODE" >&2
+                head -c 300 "$RESP_FILE" >&2 || true
+                echo >&2
+              else
+                echo "Restart triggered."
+              fi
+              rm -f "$RESP_FILE" || true
             else
               echo "Skipping restart trigger (missing BROWSER_RESTART_URL/BROWSER_RESTART_SECRET)."
             fi
