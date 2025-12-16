@@ -285,7 +285,11 @@ function updateItemsInPlace(items, container) {
       if (download.status === 'extracting') {
         rightInfo.textContent = 'Extracting...';
       } else {
-        rightInfo.textContent = download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '';
+        const capMb = Number(settings && settings.maxDownloadSpeedMBps);
+        const capText = (Number.isFinite(capMb) && capMb > 0 && download.totalSpeed) ? ` (cap ${capMb} MB/s)` : '';
+        rightInfo.textContent = download.totalSpeed
+          ? (hasMultipleFiles ? `Total: ${download.totalSpeed}${capText}` : `${download.totalSpeed}${capText}`)
+          : '';
       }
     }
 
@@ -299,11 +303,17 @@ function updateItemsInPlace(items, container) {
       const activeFiles = normalizeActiveFiles(download.activeFiles);
       const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && activeFiles.length > 0;
       if (showActiveFiles) {
+        const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
+        const workersSetting = Number(settings && settings.maxConcurrentDownloads);
+        const workers = Math.min(6, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+        const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
+        const perWorkerStr = Number.isFinite(perWorker) && perWorker > 0 ? perWorker.toFixed(1).replace(/\.0$/, '') : '';
+        const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr} MB/s)` : '';
         activeFilesEl.innerHTML = activeFiles.map(f => `
           <div class="file-progress">
             <div class="file-progress-header">
               <span class="file-name">${escapeHtml(f.name)}</span>
-              <span class="file-speed">${f.speed || ''}</span>
+              <span class="file-speed">${f.speed || ''}${(f.speed && perFileCapText) ? perFileCapText : ''}</span>
             </div>
             <div class="progress-bar small">
               <div class="progress-fill" style="width: ${f.progress || 0}%"></div>
@@ -403,11 +413,17 @@ function renderDownloadsNow() {
     const activeFiles = normalizeActiveFiles(download.activeFiles);
     const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && activeFiles.length > 0;
     if (showActiveFiles) {
+      const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
+      const workersSetting = Number(settings && settings.maxConcurrentDownloads);
+      const workers = Math.min(6, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+      const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
+      const perWorkerStr = Number.isFinite(perWorker) && perWorker > 0 ? perWorker.toFixed(1).replace(/\.0$/, '') : '';
+      const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr} MB/s)` : '';
       activeFilesHtml = activeFiles.map(f => `
         <div class="file-progress">
           <div class="file-progress-header">
             <span class="file-name">${escapeHtml(f.name)}</span>
-            <span class="file-speed">${f.speed || ''}</span>
+            <span class="file-speed">${f.speed || ''}${(f.speed && perFileCapText) ? perFileCapText : ''}</span>
           </div>
           <div class="progress-bar small">
             <div class="progress-fill" style="width: ${f.progress || 0}%"></div>
