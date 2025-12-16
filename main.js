@@ -186,8 +186,91 @@ let settings = {
   autoExtract7z: false,
   showNotifications: true,
   minimizeToTrayOnMinimize: false,
-  minimizeToTrayOnClose: false
+  minimizeToTrayOnClose: false,
+  autoUpdate: false,
+  startWithOsStartup: false
 };
+
+function escapePowerShellSingleQuoted(value) {
+  return String(value).replace(/'/g, "''");
+}
+
+function applyStartupRegistration() {
+  try {
+    const enabled = !!(settings && settings.startWithOsStartup);
+
+    if (process.platform === 'win32' || process.platform === 'darwin') {
+      try {
+        app.setLoginItemSettings({
+          openAtLogin: enabled,
+          path: process.execPath,
+          args: []
+        });
+      } catch (e) {
+        logToFile(`[Startup] setLoginItemSettings failed: ${e && e.message ? e.message : e}`);
+      }
+      return;
+    }
+
+    if (process.platform === 'linux') {
+      const autostartDir = path.join(os.homedir(), '.config', 'autostart');
+      const desktopPath = path.join(autostartDir, 'armgddn-companion.desktop');
+
+      if (!enabled) {
+        try {
+          if (fs.existsSync(desktopPath)) fs.unlinkSync(desktopPath);
+        } catch (e) {}
+        return;
+      }
+
+      fs.mkdirSync(autostartDir, { recursive: true });
+      const execPath = process.execPath;
+      const content = [
+        '[Desktop Entry]',
+        'Type=Application',
+        'Name=ARMGDDN Companion',
+        `Exec=${execPath}`,
+        'Terminal=false',
+        'X-GNOME-Autostart-enabled=true'
+      ].join('\n') + '\n';
+
+      let existing = '';
+      try { existing = fs.readFileSync(desktopPath, 'utf8'); } catch (e) {}
+      if (existing !== content) {
+        fs.writeFileSync(desktopPath, content, 'utf8');
+        try { fs.chmodSync(desktopPath, 0o644); } catch (e) {}
+      }
+    }
+  } catch (e) {
+    logToFile(`[Startup] applyStartupRegistration failed: ${e && e.message ? e.message : e}`);
+  }
+}
+
+ function normalizeSettings() {
+   try {
+     if (!settings || typeof settings !== 'object') return;
+
+     if (typeof settings.downloadPath !== 'string') {
+       settings.downloadPath = path.join(app.getPath('downloads'), 'ARMGDDN');
+     }
+
+     const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
+     settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? maxConc : 3;
+
+     const speed = Number(settings.maxDownloadSpeedMBps);
+     settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
+
+     settings.autoExtract7z = !!settings.autoExtract7z;
+     settings.showNotifications = settings.showNotifications !== false;
+     settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
+     settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
+
+     settings.autoUpdate = !!settings.autoUpdate;
+     settings.startWithOsStartup = !!settings.startWithOsStartup;
+   } catch (e) {
+     logToFile(`[Settings] normalizeSettings failed: ${e && e.message ? e.message : e}`);
+   }
+ }
 
 // DevTools policy: allow in dev always, and in packaged builds only when explicitly enabled
 // via environment variable on the owner's machine.
@@ -458,6 +541,7 @@ function loadSettings() {
       const data = fs.readFileSync(configPath, 'utf8');
       settings = { ...settings, ...JSON.parse(data) };
     }
+    normalizeSettings();
   } catch (e) {
     console.error('Failed to load settings:', e);
   }
@@ -831,6 +915,7 @@ app.whenReady().then(() => {
   logToFile(`[Startup] debug.log path: ${getDebugLogPath()}`);
   logToFile(`[Protocol] setAsDefaultProtocolClient ok=${protocolClientRegistered}${protocolClientRegisterError ? ` err=${protocolClientRegisterError}` : ''}`);
   loadSettings();
+  applyStartupRegistration();
   loadHistory();
   loadSession();
   createWindow();
@@ -900,10 +985,8 @@ ipcMain.handle('get-settings', () => {
 // Save settings
 ipcMain.handle('save-settings', (event, newSettings) => {
   settings = { ...settings, ...newSettings };
-  if (!Number.isFinite(Number(settings.maxDownloadSpeedMBps)) || Number(settings.maxDownloadSpeedMBps) < 0) {
-    settings.maxDownloadSpeedMBps = 0;
-  }
-  settings.autoExtract7z = !!settings.autoExtract7z;
+  normalizeSettings();
+  applyStartupRegistration();
   saveSettings();
   return settings;
 });
@@ -2440,10 +2523,14 @@ ipcMain.handle('check-updates', async () => {
 });
 
 // Download and install update
-ipcMain.handle('install-update', async (event, installerUrl) => {
+ipcMain.handle('install-update', async (event, installerUrl, options) => {
   if (!installerUrl) {
     return { success: false, error: 'No installer URL provided' };
   }
+
+  const opts = (options && typeof options === 'object') ? options : {};
+  const silent = !!opts.silent;
+  const relaunchAfterInstall = !!opts.relaunchAfterInstall;
 
   try {
     const u = new URL(String(installerUrl));
@@ -2531,17 +2618,50 @@ ipcMain.handle('install-update', async (event, installerUrl) => {
                 logToFile(`Update - filePath: ${filePath}`);
                 logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
 
-                // Spawn the installer as a detached process so it keeps running
-                // after this Electron app exits.
+                const installerArgs = [];
+                if (silent) installerArgs.push('/S');
+
+                // We want the app to be closed before the installer replaces files.
+                // On Windows, run a detached PowerShell wrapper that:
+                // 1) waits for this app PID to exit
+                // 2) runs the installer (optionally /S)
+                // 3) if requested, relaunches the app
                 try {
-                  const child = spawn(filePath, [], {
+                  const escapedInstaller = escapePowerShellSingleQuoted(filePath);
+                  const escapedApp = escapePowerShellSingleQuoted(process.execPath);
+                  const escapedArgs = installerArgs.map(a => escapePowerShellSingleQuoted(a));
+                  const argList = escapedArgs.length ? ("'" + escapedArgs.join("','") + "'") : '';
+                  const pid = process.pid;
+                  const shouldRelaunch = relaunchAfterInstall ? '1' : '0';
+
+                  const script = [
+                    `$pid = ${pid}`,
+                    `$installer = '${escapedInstaller}'`,
+                    `$app = '${escapedApp}'`,
+                    `$shouldRelaunch = ${shouldRelaunch}`,
+                    'while (Get-Process -Id $pid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }',
+                    (argList
+                      ? `$p = Start-Process -FilePath $installer -ArgumentList ${argList} -PassThru`
+                      : '$p = Start-Process -FilePath $installer -PassThru'),
+                    '$p.WaitForExit()',
+                    'Start-Sleep -Seconds 1',
+                    'if ($shouldRelaunch -eq 1) { Start-Process -FilePath $app }'
+                  ].join('; ');
+
+                  const child = spawn('powershell.exe', [
+                    '-NoProfile',
+                    '-ExecutionPolicy', 'Bypass',
+                    '-WindowStyle', 'Hidden',
+                    '-Command', script
+                  ], {
                     detached: true,
-                    stdio: 'ignore'
+                    stdio: 'ignore',
+                    windowsHide: true
                   });
                   child.unref();
-                  logToFile('Update - spawned installer process successfully');
+                  logToFile(`Update - spawned installer wrapper successfully (silent=${silent} relaunch=${relaunchAfterInstall})`);
                 } catch (spawnErr) {
-                  logToFile(`Update - failed to spawn installer: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
+                  logToFile(`Update - failed to spawn installer wrapper: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
                   resolve({ success: false, error: 'Failed to launch installer process' });
                   return;
                 }
