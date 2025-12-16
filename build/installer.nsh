@@ -1,6 +1,5 @@
 !include "LogicLib.nsh"
 
-; Minimal substring check: sets $R9 to "1" if $R8 contains $R7, else "0".
 Function _ArmgddnStrContains
   Exch $R7
   Exch 1
@@ -64,14 +63,15 @@ FunctionEnd
     FileClose $3
   ${EndIf}
 
-  ; Create+run a scheduled task so the installer can rerun outside Electron's Job Object.
   nsExec::ExecToStack '"$SYSDIR\\schtasks.exe" /Create /F /TN ARMGDDNCompanionUpdate /SC ONLOGON /RL LIMITED /TR "$1"'
   Pop $4
   Pop $5
+  StrCmp $4 "0" 0 done
 
   nsExec::ExecToStack '"$SYSDIR\\schtasks.exe" /Run /TN ARMGDDNCompanionUpdate'
   Pop $4
   Pop $5
+  StrCmp $4 "0" 0 done
 
   !insertmacro quitSuccess
 
