@@ -2640,19 +2640,52 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                   const pid = process.pid;
                   const shouldRelaunch = relaunchAfterInstall ? '1' : '0';
 
-                  const script = [
+                  const wrapperLogPath = path.join(app.getPath('userData'), 'update-wrapper.log');
+                  const escapedWrapperLogPath = escapePowerShellSingleQuoted(wrapperLogPath);
+
+                  const ps1Path = path.join(tempDir, `armgddn-update-wrapper-${Date.now()}.ps1`);
+
+                  const ps1 = [
+                    `$ErrorActionPreference = 'Stop'`,
                     `$pid = ${pid}`,
                     `$installer = '${escapedInstaller}'`,
                     `$app = '${escapedApp}'`,
                     `$shouldRelaunch = ${shouldRelaunch}`,
-                    'while (Get-Process -Id $pid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }',
+                    `$log = '${escapedWrapperLogPath}'`,
+                    'function Log($m) {',
+                    '  try {',
+                    '    $ts = (Get-Date).ToString("o")',
+                    '    Add-Content -Path $log -Value ("[" + $ts + "] " + $m)',
+                    '  } catch { }',
+                    '}',
+                    'try {',
+                    '  Log "wrapper start"',
+                    '  while (Get-Process -Id $pid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }',
+                    '  Log "parent exited"',
                     (argList
-                      ? `$p = Start-Process -FilePath $installer -ArgumentList ${argList} -PassThru`
-                      : '$p = Start-Process -FilePath $installer -PassThru'),
-                    '$p.WaitForExit()',
-                    'Start-Sleep -Seconds 1',
-                    'if ($shouldRelaunch -eq 1) { Start-Process -FilePath $app }'
-                  ].join('; ');
+                      ? `  Log "starting installer with args"\n  Start-Process -FilePath $installer -ArgumentList ${argList} -Wait`
+                      : '  Log "starting installer"\n  Start-Process -FilePath $installer -Wait'),
+                    '  Start-Sleep -Seconds 1',
+                    '  if ($shouldRelaunch -eq 1) {',
+                    '    Log "relaunching app"',
+                    '    Start-Process -FilePath $app',
+                    '  }',
+                    '  Log "wrapper done"',
+                    '} catch {',
+                    '  Log ("wrapper error: " + $_.Exception.Message)',
+                    '}',
+                    'exit 0'
+                  ].join("\r\n");
+
+                  try {
+                    fs.writeFileSync(ps1Path, ps1, { encoding: 'utf8' });
+                    logToFile(`Update - wrote PowerShell wrapper: ${ps1Path}`);
+                    logToFile(`Update - wrapper log: ${wrapperLogPath}`);
+                  } catch (writeErr) {
+                    logToFile(`Update - failed to write wrapper ps1: ${writeErr && writeErr.message ? writeErr.message : writeErr}`);
+                    resolve({ success: false, error: 'Failed to prepare installer wrapper script' });
+                    return;
+                  }
 
                   // IMPORTANT (Windows): spawning PowerShell directly can be killed when the Electron parent exits
                   // (Job Object). Use cmd.exe + start to break away.
@@ -2667,7 +2700,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     '-NoProfile',
                     '-ExecutionPolicy', 'Bypass',
                     '-WindowStyle', 'Hidden',
-                    '-Command', script
+                    '-File', ps1Path
                   ], {
                     detached: true,
                     stdio: 'ignore',
