@@ -36,10 +36,10 @@
   FileOpen $3 $1 w
   ${IfNot} ${Errors}
     FileWrite $3 "@echo off$\r$\n"
-    FileWrite $3 "\"$EXEPATH\" /S /armgddnbootstrapped=1$\r$\n"
-    FileWrite $3 "start \"\" \"$INSTDIR\\${APP_EXECUTABLE_FILENAME}\"$\r$\n"
-    FileWrite $3 "\"$SYSDIR\\schtasks.exe\" /Delete /TN ARMGDDNCompanionUpdate /F >nul 2>&1$\r$\n"
-    FileWrite $3 "del \"%~f0\" >nul 2>&1$\r$\n"
+    FileWrite $3 "$\"$EXEPATH$\" /S /armgddnbootstrapped=1$\r$\n"
+    FileWrite $3 "start $\"$\" $\"$INSTDIR\\${APP_EXECUTABLE_FILENAME}$\"$\r$\n"
+    FileWrite $3 "$\"$SYSDIR\\schtasks.exe$\" /Delete /TN ARMGDDNCompanionUpdate /F >nul 2>&1$\r$\n"
+    FileWrite $3 "del $\"%~f0$\" >nul 2>&1$\r$\n"
     FileClose $3
   ${EndIf}
 
