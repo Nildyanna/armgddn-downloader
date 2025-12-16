@@ -11,6 +11,16 @@
     StrCmp $6 "1" done
   ${EndIf}
 
+  Push "$EXEPATH"
+  Push "open"
+  Push "/S /armgddnbootstrapped=1"
+  StdUtils::ExecShellAsUser /NOUNLOAD
+  Pop $7
+  StrCmp $7 "0" execshell_ok execshell_fail
+  execshell_ok:
+    !insertmacro quitSuccess
+  execshell_fail:
+
   StrCpy $1 "$TEMP\armgddn-update-bootstrap.cmd"
   StrCpy $2 "$TEMP\armgddn-nsis-bootstrap.log"
 
