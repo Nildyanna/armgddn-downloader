@@ -2657,6 +2657,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                   // IMPORTANT (Windows): spawning PowerShell directly can be killed when the Electron parent exits
                   // (Job Object). Use cmd.exe + start to break away.
                   logToFile(`Update - launching installer wrapper via cmd.exe start (silent=${silent} relaunch=${relaunchAfterInstall})`);
+                  let spawnFailed = false;
+                  let resolved = false;
                   const child = spawn('cmd.exe', [
                     '/c',
                     'start',
@@ -2671,23 +2673,37 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     stdio: 'ignore',
                     windowsHide: true
                   });
+                  child.on('error', (err) => {
+                    spawnFailed = true;
+                    logToFile(`Update - cmd.exe spawn error: ${err && err.message ? err.message : err}`);
+                  });
                   child.unref();
                   logToFile('Update - spawned installer wrapper successfully');
+
+                  setTimeout(() => {
+                    if (resolved) return;
+                    resolved = true;
+
+                    if (spawnFailed) {
+                      resolve({ success: false, error: 'Failed to launch installer process' });
+                      return;
+                    }
+
+                    // Immediately mark app as quitting and exit, so the installer
+                    // can safely replace files without the app still running.
+                    app.isQuitting = true;
+                    app.quit();
+                    resolve({ success: true });
+                  }, 250);
+
+                  return;
                 } catch (spawnErr) {
                   logToFile(`Update - failed to spawn installer wrapper: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
                   resolve({ success: false, error: 'Failed to launch installer process' });
                   return;
                 }
 
-                // Immediately mark app as quitting and exit, so the installer
-                // can safely replace files without the app still running.
-                setTimeout(() => {
-                  app.isQuitting = true;
-                  app.quit();
-                }, 500);
-
-                resolve({ success: true });
-                return;
+                // Windows branch returns from the setTimeout above.
               } else if (platform === 'linux') {
                 logToFile(`Update - filePath: ${filePath}`);
                 logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
