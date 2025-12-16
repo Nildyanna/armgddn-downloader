@@ -11,24 +11,40 @@
     StrCmp $6 "1" done
   ${EndIf}
 
+  StrCpy $2 "$TEMP\armgddn-nsis-bootstrap.log"
+
+  ClearErrors
+  FileOpen $3 $2 w
+  ${IfNot} ${Errors}
+    FileWrite $3 "customInit start$\r$\n"
+    FileWrite $3 "$CMDLINE$\r$\n"
+    FileClose $3
+  ${EndIf}
+
   Push "$EXEPATH"
   Push "open"
   Push "/S /armgddnbootstrapped=1"
   StdUtils::ExecShellAsUser /NOUNLOAD
   Pop $7
+
+  ClearErrors
+  FileOpen $3 $2 a
+  ${IfNot} ${Errors}
+    FileWrite $3 "execshell rc=$7$\r$\n"
+    FileClose $3
+  ${EndIf}
+
   StrCmp $7 "0" execshell_ok execshell_fail
   execshell_ok:
     !insertmacro quitSuccess
   execshell_fail:
 
   StrCpy $1 "$TEMP\armgddn-update-bootstrap.cmd"
-  StrCpy $2 "$TEMP\armgddn-nsis-bootstrap.log"
 
   ClearErrors
-  FileOpen $3 $2 w
+  FileOpen $3 $2 a
   ${IfNot} ${Errors}
-    FileWrite $3 "bootstrap start$\r$\n"
-    FileWrite $3 "$CMDLINE$\r$\n"
+    FileWrite $3 "schtasks bootstrap start$\r$\n"
     FileClose $3
   ${EndIf}
 
