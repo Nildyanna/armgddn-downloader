@@ -848,9 +848,6 @@ async function showUpdateNotification(result) {
   
   if (shouldUpdate) {
     if (hasAutoInstall) {
-      // Show downloading status
-      alert('Downloading update... The app will restart when ready.');
-      
       try {
         const installResult = await api.installUpdate(result.installerUrl, {
           silent: true,

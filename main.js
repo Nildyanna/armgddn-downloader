@@ -2543,6 +2543,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
   }
   
   const tempDir = app.getPath('temp');
+  const updatesDir = path.join(app.getPath('userData'), 'updates');
   const platform = process.platform;
   const timestamp = Date.now();
   let fileName;
@@ -2558,7 +2559,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
     fileName = `ARMGDDN-Companion-${timestamp}.dmg`;
   }
   
-  const filePath = path.join(tempDir, fileName);
+  const downloadDir = (platform === 'linux') ? updatesDir : tempDir;
+  const filePath = path.join(downloadDir, fileName);
   
   return new Promise((resolve) => {
     // Download the installer
@@ -2605,6 +2607,10 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
           return;
         }
         
+        try {
+          fs.mkdirSync(path.dirname(filePath), { recursive: true });
+        } catch (e) {}
+
         const fileStream = fs.createWriteStream(filePath);
         res.pipe(fileStream);
         
@@ -2690,18 +2696,34 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                   // Make executable and run directly
                   fs.chmodSync(filePath, '755');
                   logToFile('Update - launching AppImage');
-                  
-                  spawn(filePath, [], {
+
+                  let spawnFailed = false;
+                  let resolved = false;
+                  const child = spawn(filePath, [], {
                     detached: true,
                     stdio: 'ignore'
-                  }).unref();
-                  
+                  });
+                  child.on('error', (err) => {
+                    spawnFailed = true;
+                    logToFile(`Update - AppImage spawn error: ${err && err.message ? err.message : err}`);
+                  });
+                  child.unref();
+
                   setTimeout(() => {
+                    if (resolved) return;
+                    resolved = true;
+
+                    if (spawnFailed) {
+                      shell.showItemInFolder(filePath);
+                      resolve({ success: true, message: 'Update downloaded but could not be launched automatically. Please install manually.' });
+                      return;
+                    }
+
                     app.isQuitting = true;
                     app.quit();
-                  }, 1000);
-                  
-                  resolve({ success: true });
+                    resolve({ success: true });
+                  }, 500);
+
                   return;
                 } else {
                   // For .deb, open file manager or show location
