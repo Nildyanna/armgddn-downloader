@@ -1,45 +1,15 @@
 !include "LogicLib.nsh"
-
-Function _ArmgddnStrContains
-  Exch $R7
-  Exch 1
-  Exch $R8
-
-  StrCpy $R9 "0"
-  StrLen $R6 $R7
-  StrLen $R5 $R8
-  StrCpy $R4 "0"
-
-  loop:
-    IntCmp $R4 $R5 done
-    StrCpy $R3 $R8 $R6 $R4
-    StrCmp $R3 $R7 found
-    IntOp $R4 $R4 + 1
-    Goto loop
-
-  found:
-    StrCpy $R9 "1"
-    Goto done
-
-  done:
-    Pop $R7
-    Exch $R9
-FunctionEnd
-
-!macro _ArmgddnStrContains OUT NEEDLE HAYSTACK
-  Push "${HAYSTACK}"
-  Push "${NEEDLE}"
-  Call _ArmgddnStrContains
-  Pop "${OUT}"
-!macroend
-
-!define ArmgddnStrContains '!insertmacro "_ArmgddnStrContains"'
+!include "FileFunc.nsh"
 
 !macro customInit
   IfSilent 0 done
 
-  ${ArmgddnStrContains} $0 "armgddnbootstrapped" "$CMDLINE"
-  StrCmp $0 "1" done
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/armgddnbootstrapped=" $6
+  ${IfNot} ${Errors}
+    StrCmp $6 "1" done
+  ${EndIf}
 
   StrCpy $1 "$TEMP\armgddn-update-bootstrap.cmd"
   StrCpy $2 "$TEMP\armgddn-nsis-bootstrap.log"
