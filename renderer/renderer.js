@@ -41,8 +41,34 @@ async function init() {
   // Setup IPC listeners
   setupIPCListeners();
   
-  // Auto-check for updates on startup (silent - only notify if update available)
-  checkForUpdatesSilent();
+  // Auto-check for updates on startup
+  // - If Auto-update is enabled, install automatically without prompting.
+  // - Otherwise, keep the existing "silent check" behavior (notify only if update exists).
+  if (settings && settings.autoUpdate) {
+    autoInstallUpdatesOnStartup();
+  } else {
+    checkForUpdatesSilent();
+  }
+}
+
+async function autoInstallUpdatesOnStartup() {
+  try {
+    const result = await api.checkUpdates();
+    if (!result || result.error) {
+      console.error('Auto-update check failed:', result && result.error ? result.error : 'unknown');
+      return;
+    }
+    if (!result.hasUpdate) return;
+    if (!result.installerUrl) {
+      console.warn('Auto-update available but no installer URL; skipping auto-install');
+      return;
+    }
+
+    // Fully automatic: do not prompt. Install silently and relaunch after install.
+    await api.installUpdate(result.installerUrl, { silent: true, relaunchAfterInstall: true, source: 'auto-update' });
+  } catch (e) {
+    console.error('Auto-update failed:', e && e.message ? e.message : e);
+  }
 }
 
 // Setup UI event listeners
@@ -634,6 +660,15 @@ function updateSettingsUI() {
   document.getElementById('show-notifications').checked = settings.showNotifications !== false;
   document.getElementById('minimize-to-tray-on-minimize').checked = !!settings.minimizeToTrayOnMinimize;
   document.getElementById('minimize-to-tray-on-exit').checked = !!settings.minimizeToTrayOnClose;
+
+  const autoUpdateEl = document.getElementById('auto-update');
+  if (autoUpdateEl) {
+    autoUpdateEl.checked = !!settings.autoUpdate;
+  }
+  const startupEl = document.getElementById('start-with-os-startup');
+  if (startupEl) {
+    startupEl.checked = !!settings.startWithOsStartup;
+  }
 }
 
 async function saveSettings() {
@@ -652,6 +687,15 @@ async function saveSettings() {
   settings.showNotifications = document.getElementById('show-notifications').checked;
   settings.minimizeToTrayOnMinimize = document.getElementById('minimize-to-tray-on-minimize').checked;
   settings.minimizeToTrayOnClose = document.getElementById('minimize-to-tray-on-exit').checked;
+
+  const autoUpdateEl = document.getElementById('auto-update');
+  if (autoUpdateEl) {
+    settings.autoUpdate = !!autoUpdateEl.checked;
+  }
+  const startupEl = document.getElementById('start-with-os-startup');
+  if (startupEl) {
+    settings.startWithOsStartup = !!startupEl.checked;
+  }
   
   await api.saveSettings(settings);
   closeSettings();
@@ -808,7 +852,11 @@ async function showUpdateNotification(result) {
       alert('Downloading update... The app will restart when ready.');
       
       try {
-        const installResult = await api.installUpdate(result.installerUrl);
+        const installResult = await api.installUpdate(result.installerUrl, {
+          silent: true,
+          relaunchAfterInstall: true,
+          source: 'manual-confirm'
+        });
         
         if (installResult.message) {
           alert(installResult.message);
