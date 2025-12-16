@@ -2648,7 +2648,14 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     'if ($shouldRelaunch -eq 1) { Start-Process -FilePath $app }'
                   ].join('; ');
 
-                  const child = spawn('powershell.exe', [
+                  // IMPORTANT (Windows): spawning PowerShell directly can be killed when the Electron parent exits
+                  // (Job Object). Use cmd.exe + start to break away.
+                  logToFile(`Update - launching installer wrapper via cmd.exe start (silent=${silent} relaunch=${relaunchAfterInstall})`);
+                  const child = spawn('cmd.exe', [
+                    '/c',
+                    'start',
+                    '""',
+                    'powershell.exe',
                     '-NoProfile',
                     '-ExecutionPolicy', 'Bypass',
                     '-WindowStyle', 'Hidden',
@@ -2659,7 +2666,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     windowsHide: true
                   });
                   child.unref();
-                  logToFile(`Update - spawned installer wrapper successfully (silent=${silent} relaunch=${relaunchAfterInstall})`);
+                  logToFile('Update - spawned installer wrapper successfully');
                 } catch (spawnErr) {
                   logToFile(`Update - failed to spawn installer wrapper: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
                   resolve({ success: false, error: 'Failed to launch installer process' });
