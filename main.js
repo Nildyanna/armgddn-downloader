@@ -788,6 +788,8 @@ function createWindow() {
     ? path.join(__dirname, 'assets', 'icon.ico')
     : path.join(__dirname, 'assets', 'icon.png');
 
+  const windowIcon = nativeImage.createFromPath(windowIconPath);
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -799,7 +801,7 @@ function createWindow() {
       nodeIntegration: false,
       devTools: isOwnerDevToolsAllowed
     },
-    icon: windowIconPath,
+    icon: windowIcon,
     show: false
   });
 
