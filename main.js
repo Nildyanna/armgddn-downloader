@@ -1494,8 +1494,10 @@ function isTokenExpiredError(output) {
 function getActiveFileKey(file) {
   try {
     const url = file && file.url ? String(file.url) : '';
-    if (!url) return file && file.name ? String(file.name) : crypto.randomUUID();
-    return crypto.createHash('sha1').update(url).digest('hex').slice(0, 12);
+    const name = file && file.name ? String(file.name) : '';
+    const seed = `${url}::${name}`;
+    if (!seed || seed === '::') return crypto.randomUUID();
+    return crypto.createHash('sha1').update(seed).digest('hex').slice(0, 12);
   } catch (e) {
     try {
       return crypto.randomUUID();
@@ -1535,6 +1537,8 @@ async function downloadFile(downloadId, file, downloadDir) {
       eta: '',
       status: 'downloading'
     };
+
+    updateProgress(downloadId);
 
     const rclonePath = getRclonePath();
     const safeRel = sanitizeRelativePath(file.name);
