@@ -64,6 +64,12 @@ The Settings panel controls how downloads are performed.
   - The app writes a `debug.log` file under the Electron `userData` directory.
   - The tray menu includes an **Open Log Folder** shortcut.
 
+- **Windows Defender SmartScreen warning**
+  - Some Windows systems may show a SmartScreen prompt (e.g. "Windows protected your PC" / "Unknown publisher") when launching the installer.
+  - This behavior depends on Microsoft's reputation systems and whether the downloaded file is marked as coming from the internet.
+  - There is no reliable technical workaround for SmartScreen prompts on unsigned installers.
+  - **Mitigation**: sign the Windows installer and binaries with an Authenticode code-signing certificate (EV certificates typically reduce prompts faster).
+
 - **Downloads are slow**
   - Check your **Max Concurrent Downloads** setting.
   - If you enabled **Download Speed Limit (MB/s)**, try raising it or setting it to `0`.
