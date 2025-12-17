@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "4.1.22",
+  "version": "4.1.23",
   "description": "ARMGDDN Companion - Fast rclone-powered download manager",
   "main": "main.js",
   "author": {
@@ -19,7 +19,9 @@
     "appId": "com.armgddn.downloader",
     "productName": "ARMGDDN Companion",
     "asarUnpack": [
-      "assets/**/*.mp4"
+      "assets/**/*.mp4",
+      "assets/icon.ico",
+      "assets/icon.png"
     ],
     "directories": {
       "output": "dist"
