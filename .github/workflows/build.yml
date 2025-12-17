@@ -73,6 +73,10 @@ jobs:
           chmod +x rclone/darwin/rclone
           rm -rf rclone-*-osx-amd64 rclone.zip
 
+      - name: Prepare macOS DMG helper script
+        if: matrix.platform == 'mac'
+        run: chmod +x build/Fix.command
+
       - name: Build Electron app (Linux)
         if: matrix.platform == 'linux'
         run: npm run build:linux -- --publish never
@@ -157,8 +161,9 @@ jobs:
 
             **macOS:**
             - Download the `.dmg`
-            - Open it and drag `ARMGDDN Downloader` into `Applications`
-            - If macOS blocks the app, right-click the app and choose `Open`
+            - Open it and drag `ARMGDDN Companion` into `Applications`
+            - If macOS says the app is **"damaged"**, run `Fix.command` from inside the DMG once, then try opening the app again.
+            - To avoid this for end users, the app must be signed with an Apple Developer ID certificate and notarized.
             
             **Linux (Debian/Ubuntu):**
             - Download `.deb` file
