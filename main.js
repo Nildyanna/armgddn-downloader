@@ -2633,102 +2633,54 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                 // 2) runs the installer (optionally /S)
                 // 3) if requested, relaunches the app
                 try {
-                  const escapedInstaller = escapePowerShellSingleQuoted(filePath);
-                  const escapedApp = escapePowerShellSingleQuoted(process.execPath);
-                  const escapedArgs = installerArgs.map(a => escapePowerShellSingleQuoted(a));
-                  const argList = escapedArgs.length ? ("'" + escapedArgs.join("','") + "'") : '';
                   const pid = process.pid;
-                  const shouldRelaunch = relaunchAfterInstall ? '1' : '0';
-
+                  const shouldRelaunch = relaunchAfterInstall ? 1 : 0;
                   const wrapperLogPath = path.join(app.getPath('userData'), 'update-wrapper.log');
-                  const escapedWrapperLogPath = escapePowerShellSingleQuoted(wrapperLogPath);
+                  const runnerPath = path.join(tempDir, `armgddn-update-runner-${Date.now()}.cmd`);
 
-                  const ps1Path = path.join(tempDir, `armgddn-update-wrapper-${Date.now()}.ps1`);
+                  try {
+                    fs.appendFileSync(wrapperLogPath, `[${new Date().toISOString()}] preparing update runner\r\n`, { encoding: 'utf8' });
+                  } catch (e) {}
 
-                  const ps1 = [
-                    `$ErrorActionPreference = 'Stop'`,
-                    `$pid = ${pid}`,
-                    `$installer = '${escapedInstaller}'`,
-                    `$app = '${escapedApp}'`,
-                    `$shouldRelaunch = ${shouldRelaunch}`,
-                    `$log = '${escapedWrapperLogPath}'`,
-                    'function Log($m) {',
-                    '  try {',
-                    '    $ts = (Get-Date).ToString("o")',
-                    '    Add-Content -Path $log -Value ("[" + $ts + "] " + $m)',
-                    '  } catch { }',
-                    '}',
-                    'try {',
-                    '  Log "wrapper start"',
-                    '  while (Get-Process -Id $pid -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 200 }',
-                    '  Log "parent exited"',
-                    (argList
-                      ? `  Log "starting installer with args"\n  Start-Process -FilePath $installer -ArgumentList ${argList} -Wait`
-                      : '  Log "starting installer"\n  Start-Process -FilePath $installer -Wait'),
-                    '  Start-Sleep -Seconds 1',
-                    '  if ($shouldRelaunch -eq 1) {',
-                    '    Log "relaunching app"',
-                    '    Start-Process -FilePath $app',
-                    '  }',
-                    '  Log "wrapper done"',
-                    '} catch {',
-                    '  Log ("wrapper error: " + $_.Exception.Message)',
-                    '}',
-                    'exit 0'
+                  const installerQuoted = `"${filePath}"`;
+                  const appQuoted = `"${process.execPath}"`;
+                  const logQuoted = `"${wrapperLogPath}"`;
+                  const silentArg = silent ? '/S' : '';
+                  const runner = [
+                    '@echo off',
+                    `echo [%DATE% %TIME%] runner start>>${logQuoted}`,
+                    `echo [%DATE% %TIME%] pid=${pid}>>${logQuoted}`,
+                    `echo [%DATE% %TIME%] installer=${installerQuoted}>>${logQuoted}`,
+                    `echo [%DATE% %TIME%] silent=${silent ? 1 : 0} relaunch=${shouldRelaunch}>>${logQuoted}`,
+                    ':wait',
+                    `tasklist /FI "PID eq ${pid}" 2>NUL | find "${pid}" >NUL`,
+                    'if "%ERRORLEVEL%"=="0" (timeout /t 1 /nobreak >NUL & goto wait)',
+                    `echo [%DATE% %TIME%] parent exited>>${logQuoted}`,
+                    `start "" /wait ${installerQuoted} ${silentArg}`,
+                    `echo [%DATE% %TIME%] installer finished rc=%ERRORLEVEL%>>${logQuoted}`,
+                    shouldRelaunch ? `start "" ${appQuoted}` : 'rem',
+                    `echo [%DATE% %TIME%] runner done>>${logQuoted}`,
+                    'del "%~f0" >NUL 2>&1',
+                    'exit /b 0'
                   ].join("\r\n");
 
                   try {
-                    fs.writeFileSync(ps1Path, ps1, { encoding: 'utf8' });
-                    logToFile(`Update - wrote PowerShell wrapper: ${ps1Path}`);
+                    fs.writeFileSync(runnerPath, runner, { encoding: 'utf8' });
+                    logToFile(`Update - wrote cmd runner: ${runnerPath}`);
                     logToFile(`Update - wrapper log: ${wrapperLogPath}`);
                   } catch (writeErr) {
-                    logToFile(`Update - failed to write wrapper ps1: ${writeErr && writeErr.message ? writeErr.message : writeErr}`);
-                    resolve({ success: false, error: 'Failed to prepare installer wrapper script' });
+                    logToFile(`Update - failed to write update runner: ${writeErr && writeErr.message ? writeErr.message : writeErr}`);
+                    resolve({ success: false, error: 'Failed to prepare installer runner script' });
                     return;
                   }
 
-                  // IMPORTANT (Windows): spawning PowerShell directly can be killed when the Electron parent exits
-                  // (Job Object). Use cmd.exe + start to break away.
-                  logToFile(`Update - launching installer wrapper via cmd.exe start (silent=${silent} relaunch=${relaunchAfterInstall})`);
-                  let spawnFailed = false;
-                  let resolved = false;
-                  const child = spawn('cmd.exe', [
-                    '/c',
-                    'start',
-                    '""',
-                    'powershell.exe',
-                    '-NoProfile',
-                    '-ExecutionPolicy', 'Bypass',
-                    '-WindowStyle', 'Hidden',
-                    '-File', ps1Path
-                  ], {
-                    detached: true,
-                    stdio: 'ignore',
-                    windowsHide: true
-                  });
-                  child.on('error', (err) => {
-                    spawnFailed = true;
-                    logToFile(`Update - cmd.exe spawn error: ${err && err.message ? err.message : err}`);
-                  });
-                  child.unref();
-                  logToFile('Update - spawned installer wrapper successfully');
-
+                  logToFile(`Update - launching installer runner via shell.openPath (silent=${silent} relaunch=${relaunchAfterInstall})`);
+                  shell.openPath(runnerPath);
                   setTimeout(() => {
-                    if (resolved) return;
-                    resolved = true;
-
-                    if (spawnFailed) {
-                      resolve({ success: false, error: 'Failed to launch installer process' });
-                      return;
-                    }
-
-                    // Immediately mark app as quitting and exit, so the installer
-                    // can safely replace files without the app still running.
                     app.isQuitting = true;
                     app.quit();
                     resolve({ success: true });
                   }, 250);
-
                   return;
                 } catch (spawnErr) {
                   logToFile(`Update - failed to spawn installer wrapper: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
