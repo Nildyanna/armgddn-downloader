@@ -2637,6 +2637,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                   const shouldRelaunch = relaunchAfterInstall ? 1 : 0;
                   const wrapperLogPath = path.join(app.getPath('userData'), 'update-wrapper.log');
                   const runnerPath = path.join(tempDir, `armgddn-update-runner-${Date.now()}.cmd`);
+                  const vbsPath = path.join(tempDir, `armgddn-update-runner-${Date.now()}.vbs`);
 
                   try {
                     fs.appendFileSync(wrapperLogPath, `[${new Date().toISOString()}] preparing update runner\r\n`, { encoding: 'utf8' });
@@ -2664,9 +2665,20 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     'exit /b 0'
                   ].join("\r\n");
 
+                  const vbs = [
+                    'On Error Resume Next',
+                    'Dim sh',
+                    'Set sh = CreateObject("WScript.Shell")',
+                    // Run the cmd runner hidden (windowStyle=0) and do not wait.
+                    `sh.Run "cmd.exe /c """ & "${runnerPath}" & """", 0, False`,
+                    'Set sh = Nothing'
+                  ].join("\r\n");
+
                   try {
                     fs.writeFileSync(runnerPath, runner, { encoding: 'utf8' });
+                    fs.writeFileSync(vbsPath, vbs, { encoding: 'utf8' });
                     logToFile(`Update - wrote cmd runner: ${runnerPath}`);
+                    logToFile(`Update - wrote vbs runner: ${vbsPath}`);
                     logToFile(`Update - wrapper log: ${wrapperLogPath}`);
                   } catch (writeErr) {
                     logToFile(`Update - failed to write update runner: ${writeErr && writeErr.message ? writeErr.message : writeErr}`);
@@ -2674,8 +2686,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     return;
                   }
 
-                  logToFile(`Update - launching installer runner via shell.openPath (silent=${silent} relaunch=${relaunchAfterInstall})`);
-                  shell.openPath(runnerPath);
+                  logToFile(`Update - launching installer runner via shell.openPath (hidden vbs) (silent=${silent} relaunch=${relaunchAfterInstall})`);
+                  shell.openPath(vbsPath);
                   setTimeout(() => {
                     app.isQuitting = true;
                     app.quit();
