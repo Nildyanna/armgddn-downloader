@@ -1491,6 +1491,20 @@ function isTokenExpiredError(output) {
   return expiredIndicators.some(indicator => lowerOutput.includes(indicator));
 }
 
+function getActiveFileKey(file) {
+  try {
+    const url = file && file.url ? String(file.url) : '';
+    if (!url) return file && file.name ? String(file.name) : crypto.randomUUID();
+    return crypto.createHash('sha1').update(url).digest('hex').slice(0, 12);
+  } catch (e) {
+    try {
+      return crypto.randomUUID();
+    } catch (e2) {
+      return String(Date.now());
+    }
+  }
+}
+
 // Download a single file using rclone
 async function downloadFile(downloadId, file, downloadDir) {
   return new Promise((resolve, reject) => {
@@ -1508,9 +1522,12 @@ async function downloadFile(downloadId, file, downloadDir) {
 
     download.status = 'downloading';
     download.currentFile = file.name;
+
+    const fileKey = getActiveFileKey(file);
     
     // Initialize per-file tracking
-    download.activeFiles[file.name] = {
+    download.activeFiles[fileKey] = {
+      id: fileKey,
       name: file.name,
       size: file.size || 0,
       progress: 0,
@@ -1568,13 +1585,13 @@ async function downloadFile(downloadId, file, downloadDir) {
     
     proc.stdout.on('data', (data) => {
       const output = data.toString();
-      parseRcloneProgress(downloadId, file.name, output);
+      parseRcloneProgress(downloadId, fileKey, output);
     });
 
     proc.stderr.on('data', (data) => {
       const output = data.toString();
       errorOutput += output;
-      parseRcloneProgress(downloadId, file.name, output);
+      parseRcloneProgress(downloadId, fileKey, output);
     });
 
     proc.on('close', (code) => {
@@ -1587,9 +1604,9 @@ async function downloadFile(downloadId, file, downloadDir) {
       const stopReason = proc.__armgddnStopReason;
 
       if (download.cancelled) {
-        if (download.activeFiles[file.name]) {
-          download.activeFiles[file.name].status = 'cancelled';
-          delete download.activeFiles[file.name];
+        if (download.activeFiles[fileKey]) {
+          download.activeFiles[fileKey].status = 'cancelled';
+          delete download.activeFiles[fileKey];
         }
         updateProgress(downloadId);
         resolve();
@@ -1599,8 +1616,8 @@ async function downloadFile(downloadId, file, downloadDir) {
       // If this process was intentionally killed due to pause, treat as paused
       // even if the pause flag has already been cleared by a resume.
       if (download.paused || stopReason === 'pause') {
-        if (download.activeFiles[file.name]) {
-          download.activeFiles[file.name].status = 'paused';
+        if (download.activeFiles[fileKey]) {
+          download.activeFiles[fileKey].status = 'paused';
         }
         updateProgress(downloadId);
         resolve();
@@ -1611,10 +1628,10 @@ async function downloadFile(downloadId, file, downloadDir) {
         download.downloadedSize += file.size || 0;
         download.completedFiles++;
         // Mark file as completed and remove from active
-        if (download.activeFiles[file.name]) {
-          download.activeFiles[file.name].status = 'completed';
-          download.activeFiles[file.name].progress = 100;
-          delete download.activeFiles[file.name];
+        if (download.activeFiles[fileKey]) {
+          download.activeFiles[fileKey].status = 'completed';
+          download.activeFiles[fileKey].progress = 100;
+          delete download.activeFiles[fileKey];
         }
         updateProgress(downloadId);
         resolve();
@@ -1625,8 +1642,8 @@ async function downloadFile(downloadId, file, downloadDir) {
           download.failedFiles = [];
         }
         download.failedFiles.push(file.name);
-        if (download.activeFiles[file.name]) {
-          download.activeFiles[file.name].status = 'error';
+        if (download.activeFiles[fileKey]) {
+          download.activeFiles[fileKey].status = 'error';
         }
         
         // Check for specific error types
@@ -1882,12 +1899,12 @@ function run7zExtract(archivePath, outputDir) {
 }
 
 // Parse rclone progress output
-function parseRcloneProgress(downloadId, fileName, output) {
+function parseRcloneProgress(downloadId, fileKey, output) {
   const download = activeDownloads.get(downloadId);
   if (!download) return;
 
   // Get or create file tracking
-  const fileInfo = download.activeFiles[fileName];
+  const fileInfo = download.activeFiles[fileKey];
   if (!fileInfo) return;
 
   // Parse progress percentage.
@@ -1912,7 +1929,7 @@ function parseRcloneProgress(downloadId, fileName, output) {
     }
 
     // Fall back to file-specific line if present
-    if (line.includes(fileName)) {
+    if (fileInfo && fileInfo.name && line.includes(fileInfo.name)) {
       const m = line.match(/(\d{1,3})%/);
       if (m) {
         parsedPercent = parseInt(m[1], 10);
