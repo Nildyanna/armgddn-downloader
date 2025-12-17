@@ -784,6 +784,10 @@ async function verifySession() {
 
 // Create main window
 function createWindow() {
+  const windowIconPath = process.platform === 'win32'
+    ? path.join(__dirname, 'assets', 'icon.ico')
+    : path.join(__dirname, 'assets', 'icon.png');
+
   mainWindow = new BrowserWindow({
     width: 1200,
     height: 800,
@@ -795,7 +799,7 @@ function createWindow() {
       nodeIntegration: false,
       devTools: isOwnerDevToolsAllowed
     },
-    icon: path.join(__dirname, 'assets', 'icon.png'),
+    icon: windowIconPath,
     show: false
   });
 
