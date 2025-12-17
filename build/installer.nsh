@@ -11,7 +11,7 @@
     StrCmp $6 "1" done
   ${EndIf}
 
-  StrCpy $2 "$TEMP\armgddn-nsis-bootstrap.log"
+  StrCpy $2 "$EXEDIR\armgddn-nsis-bootstrap.log"
 
   ClearErrors
   FileOpen $3 $2 w
@@ -39,7 +39,7 @@
     !insertmacro quitSuccess
   execshell_fail:
 
-  StrCpy $1 "$TEMP\armgddn-update-bootstrap.cmd"
+  StrCpy $1 "$EXEDIR\armgddn-update-bootstrap.cmd"
 
   ClearErrors
   FileOpen $3 $2 a
