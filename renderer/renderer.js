@@ -363,22 +363,59 @@ function renderDownloadsNow() {
     return;
   }
   
-  // Create a sorted list: active/in-progress first (newest first), then completed
+  // Create a sorted list that preserves batch/group adjacency even as items complete.
+  // Previously we sorted "all active first" globally, which caused completed items to
+  // jump away into a separate cluster mid-batch.
   const items = Array.from(downloads.entries());
+
+  const isActive = (d) => d && (d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting' || d.status === 'extracting');
+
+  function getGroupKey(d) {
+    try {
+      const raw = d && d.remotePath ? String(d.remotePath) : '';
+      const p = raw.replace(/\\/g, '/').trim().replace(/\/+$/g, '').replace(/^\/+/, '');
+      if (p) {
+        const parts = p.split('/').filter(Boolean);
+        if (parts.length >= 2) return `${parts[0]}/${parts[1]}`;
+        return parts[0] || '';
+      }
+      return d && d.name ? String(d.name) : '';
+    } catch (e) {
+      return d && d.name ? String(d.name) : '';
+    }
+  }
+
+  const groupOrder = new Map(); // groupKey -> { lastStartMs }
+  for (const [, d] of items) {
+    const gk = getGroupKey(d) || '__ungrouped__';
+    const t = d && d.startTime ? new Date(d.startTime).getTime() : 0;
+    const prev = groupOrder.get(gk);
+    if (!prev || t > prev.lastStartMs) {
+      groupOrder.set(gk, { lastStartMs: t });
+    }
+  }
+
   items.sort((a, b) => {
     const da = a[1];
     const db = b[1];
+    const ga = getGroupKey(da) || '__ungrouped__';
+    const gb = getGroupKey(db) || '__ungrouped__';
 
-    const isActive = (d) => d && (d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting' || d.status === 'extracting');
+    if (ga !== gb) {
+      const ta = groupOrder.get(ga)?.lastStartMs || 0;
+      const tb = groupOrder.get(gb)?.lastStartMs || 0;
+      return tb - ta; // newest group first
+    }
+
     const aActive = isActive(da);
     const bActive = isActive(db);
     if (aActive !== bActive) {
-      return aActive ? -1 : 1; // active first
+      return aActive ? -1 : 1; // active first within the group
     }
 
     const aTime = da && da.startTime ? new Date(da.startTime).getTime() : 0;
     const bTime = db && db.startTime ? new Date(db.startTime).getTime() : 0;
-    return bTime - aTime; // newest first
+    return bTime - aTime; // newest first within group
   });
 
   // If only progress numbers are changing, update the existing DOM in-place to

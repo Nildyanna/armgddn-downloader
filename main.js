@@ -64,6 +64,35 @@ let activeDownloads = new Map();
 let downloadHistory = [];
 let sessionToken = null;
 
+// Deep link delivery can race app startup. If we send IPC before the renderer
+// is loaded, the message may be dropped and the download won't start.
+let mainWindowDidFinishLoad = false;
+const pendingDeepLinks = [];
+
+function flushPendingDeepLinks() {
+  try {
+    if (!mainWindow || !mainWindow.webContents) return;
+    if (!mainWindowDidFinishLoad) return;
+    if (!pendingDeepLinks.length) return;
+
+    const toSend = pendingDeepLinks.splice(0, pendingDeepLinks.length);
+    for (const u of toSend) {
+      try {
+        mainWindow.webContents.send('deep-link', u);
+      } catch (e) {
+        // Put it back and try again on next flush.
+        pendingDeepLinks.unshift(u);
+        break;
+      }
+    }
+
+    mainWindow.show();
+    mainWindow.focus();
+  } catch (e) {
+    // Keep it safe; we'll try again later.
+  }
+}
+
 const ALLOWED_SERVICE_HOSTS = new Set([
   'armgddnbrowser.com',
   'www.armgddnbrowser.com'
@@ -644,12 +673,12 @@ function handleDeepLink(url) {
     logToFile('Deep link rejected: ' + (url ? url.substring(0, 50) : 'null'));
     return;
   }
-  
-  if (mainWindow) {
-    mainWindow.webContents.send('deep-link', validatedUrl);
-    mainWindow.show();
-    mainWindow.focus();
-  }
+
+  // Queue and flush when the renderer is ready.
+  pendingDeepLinks.push(validatedUrl);
+  // Keep queue bounded to avoid unbounded growth.
+  if (pendingDeepLinks.length > 10) pendingDeepLinks.splice(0, pendingDeepLinks.length - 10);
+  flushPendingDeepLinks();
 }
 
 // Open auth window to login and grab session cookie
@@ -805,7 +834,15 @@ function createWindow() {
     show: false
   });
 
+  mainWindowDidFinishLoad = false;
+
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    mainWindowDidFinishLoad = true;
+    // Give the renderer a moment to register IPC listeners.
+    setTimeout(() => flushPendingDeepLinks(), 50);
+  });
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
