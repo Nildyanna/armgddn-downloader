@@ -28,8 +28,8 @@ The GitHub Actions workflow (`.github/workflows/build.yml`) will automatically:
 ### On Tagged Releases:
 When you create a version tag:
 ```bash
-git tag v1.0.0
-git push origin v1.0.0
+git tag v4.1.28
+git push origin v4.1.28
 ```
 
 GitHub will:
@@ -68,14 +68,13 @@ If you want to build locally instead:
 **Windows**:
 ```bash
 npm install
-npm run tauri build
+npm run build:win
 ```
 
 **Linux** (with sudo):
 ```bash
-sudo apt-get install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev
 npm install
-npm run tauri build
+npm run build:linux
 ```
 
 ## Troubleshooting

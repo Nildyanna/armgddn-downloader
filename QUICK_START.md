@@ -61,10 +61,10 @@ Upload the installers to:
 For versioned releases:
 
 ```bash
-# Update version in src-tauri/Cargo.toml
+# Update version in package.json
 # Then tag and push:
-git tag v1.0.0
-git push origin v1.0.0
+git tag v4.1.28
+git push origin v4.1.28
 ```
 
 GitHub will automatically:
