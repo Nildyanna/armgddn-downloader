@@ -349,14 +349,21 @@ body::after {
 .download-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  gap: 0.75rem;
   margin-bottom: 0.75rem;
 }
 
 .download-filename {
   font-weight: 600;
   color: #fff;
-  font-size: 0.95rem;
+  font-size: clamp(0.8rem, 1.8vw, 0.95rem);
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
 }
 
 .download-state {
@@ -366,6 +373,8 @@ body::after {
   font-size: 0.8rem;
   text-transform: capitalize;
   color: rgba(255, 255, 255, 0.8);
+  flex: 0 0 auto;
+  white-space: nowrap;
 }
 
 .progress-bar {
@@ -421,10 +430,13 @@ body::after {
 
 .file-name {
   color: var(--text-primary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-size: clamp(0.75rem, 1.7vw, 0.85rem);
   max-width: 70%;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
 }
 
 .file-speed {
@@ -673,13 +685,20 @@ body::after {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 0.75rem;
   margin-bottom: 0.5rem;
 }
 
 .history-filename {
   font-weight: 600;
   color: #fff;
-  font-size: 0.95rem;
+  font-size: clamp(0.8rem, 1.8vw, 0.95rem);
+  flex: 1 1 auto;
+  min-width: 0;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  line-height: 1.25;
 }
 
 .history-size {
