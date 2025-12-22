@@ -303,7 +303,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - macOS support
 - Additional languages (Japanese, Chinese, Russian, Arabic)
 - Cloud sync for settings and history
-- Mobile version (iOS/Android via Tauri Mobile)
+- Mobile version (iOS/Android)
 - Folder organization by category
 - Search/filter in download history
 

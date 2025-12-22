@@ -4,59 +4,7 @@ This guide explains how to set up auto-updates for the ARMGDDN Companion app.
 
 ## Overview
 
-The app uses Tauri's built-in updater plugin to check for updates from GitHub Releases. Updates are cryptographically signed to ensure security.
-
-## One-Time Setup: Generate Signing Keys
-
-You only need to do this once. The keys will be used to sign all future releases.
-
-### 1. Install Tauri CLI (if not already installed)
-
-```bash
-cargo install tauri-cli
-```
-
-### 2. Generate Signing Keys
-
-```bash
-cd /home/armgddn/ArmgddnDownloader
-cargo tauri signer generate -w ~/.tauri/armgddn-downloader.key
-```
-
-This will:
-
-- Generate a private key and save it to `~/.tauri/armgddn-downloader.key`
-- Display the public key in the terminal
-
-### 3. Save the Public Key
-
-Copy the public key output (it looks like `dW50cnVzdGVkIGNvbW1lbnQ6...`) and update it in `src-tauri/tauri.conf.json`:
-
-```json
-"updater": {
-  "pubkey": "YOUR_PUBLIC_KEY_HERE"
-}
-```
-
-**Note**: The current pubkey in the config is a placeholder. Replace it with your actual public key.
-
-### 4. Add Secrets to GitHub
-
-Go to your GitHub repository settings:
-
-1. Navigate to **Settings** → **Secrets and variables** → **Actions**
-2. Click **New repository secret**
-3. Add two secrets:
-
-#### Secret 1: TAURI_SIGNING_PRIVATE_KEY
-
-- Name: `TAURI_SIGNING_PRIVATE_KEY`
-- Value: Contents of `~/.tauri/armgddn-downloader.key` (the entire file)
-
-#### Secret 2: TAURI_SIGNING_PRIVATE_KEY_PASSWORD
-
-- Name: `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`  
-- Value: The password you entered when generating the key (or leave empty if you didn't set one)
+The app checks GitHub Releases to determine whether a newer installer is available.
 
 ## How Auto-Update Works
 
@@ -71,11 +19,11 @@ Go to your GitHub repository settings:
 
 ### For Developers
 
-1. **Update Version**: Edit `src-tauri/Cargo.toml` and `src-tauri/tauri.conf.json`
-2. **Commit Changes**: `git commit -am "Bump version to X.Y.Z"`
-3. **Create Tag**: `git tag vX.Y.Z`
-4. **Push Tag**: `git push origin vX.Y.Z`
-5. **GitHub Actions**: Automatically builds, signs, and creates a release with `latest.json`
+1. **Update Version**: Edit `package.json` `version` (e.g. `4.1.28`)
+2. **Commit Changes**: `git commit -am "v4.1.28: ..."`
+3. **Create Tag**: `git tag v4.1.28`
+4. **Push Tag**: `git push origin v4.1.28`
+5. **GitHub Actions / Releases**: Upload the built installers to that GitHub Release
 6. **Users Get Update**: Next time users open the app or click "Check for Updates"
 
 ## Update Manifest
@@ -106,17 +54,9 @@ https://github.com/Nildyanna/armgddn-downloader/releases/latest/download/latest.
 
 - Ensure GitHub repository is public or user has access
 - Check that `latest.json` exists in the latest release
-- Verify the public key in `tauri.conf.json` matches your generated key
-
-**Signature verification fails**:
-
-- Ensure GitHub secrets are set correctly
-- Verify the private key hasn't been corrupted
-- Check that the public key in the config matches the private key
-
 **Update doesn't appear**:
 
-- Ensure the version in `tauri.conf.json` is higher than the current version
+- Ensure the GitHub Release tag (e.g. `v4.1.28`) is higher than the installed app version
 - Check that the release is not marked as draft or prerelease
 - Wait a few minutes for GitHub CDN to propagate the release
 

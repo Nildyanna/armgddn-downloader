@@ -14,17 +14,11 @@ A **production-ready external downloader application** that:
 
 ```text
 /home/armgddn/ArmgddnDownloader/
-├── src-tauri/
-│   ├── src/
-│   │   ├── lib.rs              # Main Tauri app with command handlers
-│   │   ├── download_manager.rs # Core download logic with pause/resume
-│   │   ├── state.rs            # App state and config management
-│   │   └── rclone.rs           # Placeholder for future rclone features
-│   └── Cargo.toml              # Rust dependencies
-├── src/
-│   ├── main.ts                 # Frontend TypeScript logic
-│   └── styles.css              # Modern dark theme UI
-├── index.html                  # App HTML structure
+├── main.js                     # Electron main process
+├── preload.js                  # Electron preload bridge
+├── renderer/                   # UI (HTML/CSS/JS)
+├── assets/                     # App assets/icons
+├── rclone/                     # Bundled rclone binaries (packaged via electron-builder)
 └── README.md                   # Full documentation
 
 ```
@@ -35,7 +29,7 @@ A **production-ready external downloader application** that:
 
 ```bash
 cd /home/armgddn/ArmgddnDownloader
-npm run tauri dev
+npm start
 ```
 
 This opens the app in development mode. Test:
@@ -49,23 +43,22 @@ This opens the app in development mode. Test:
 #### For Linux (your current system):
 
 ```bash
-npm run tauri build
+npm run build
 ```
 
 Outputs will be in:
-- `src-tauri/target/release/bundle/deb/armgddn-downloader_0.1.0_amd64.deb`
-- `src-tauri/target/release/bundle/appimage/armgddn-downloader_0.1.0_amd64.AppImage`
+- `dist/` (electron-builder output)
 
 #### For Windows (cross-compile or build on Windows):
 
 On a Windows machine with Rust installed:
 ```bash
 npm install
-npm run tauri build
+npm run build
 ```
 
 Outputs:
-- `src-tauri/target/release/bundle/nsis/ARMGDDN Companion_0.1.0_x64-setup.exe`
+- `dist/` (electron-builder output)
 
 ### Step 3: Distribute to Users
 
@@ -162,23 +155,11 @@ async function showManifestUrl(folderName) {
 
 ### Branding
 
-Edit `src-tauri/tauri.conf.json`:
-```json
-{
-  "productName": "ARMGDDN Companion",
-  "identifier": "com.armgddn.downloader",
-  "version": "1.0.0"
-}
-```
+Edit `package.json` (electron-builder `build` section).
 
 ### Default Settings
 
-Edit `src-tauri/src/state.rs`, `AppConfig::default()`:
-```rust
-download_path: "/your/custom/path",
-max_concurrent_downloads: 5,  // Change default
-server_url: "https://your-domain.com"
-```
+Default settings live in `main.js` under the `settings` object.
 
 ## 🐛 Troubleshooting
 
@@ -190,7 +171,6 @@ sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev
 
 ### App won't fetch manifests
 - Check that `/api/download-manifest` endpoint is accessible
-- Verify CORS headers allow requests from `tauri://localhost`
 - Check authentication token in app settings
 
 ### Downloads fail
@@ -200,8 +180,8 @@ sudo apt install libwebkit2gtk-4.1-dev libayatana-appindicator3-dev
 
 ## 📝 Next Steps
 
-1. **Test the app** in dev mode (`npm run tauri dev`)
-2. **Build for your platform** (`npm run tauri build`)
+1. **Test the app** in dev mode (`npm start`)
+2. **Build for your platform** (`npm run build`)
 3. **Add the "Download with App" button** to your website
 4. **Distribute** the built packages to beta testers
 5. **Gather feedback** and iterate

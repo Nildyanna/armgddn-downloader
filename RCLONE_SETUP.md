@@ -81,32 +81,18 @@ Your `/api/download-manifest` endpoint needs to return rclone paths instead of U
 
 1. Download rclone for Windows from https://rclone.org/downloads/
 2. Extract `rclone.exe`
-3. Place it in `src-tauri/` directory
-4. Update `src-tauri/tauri.conf.json`:
+3. Place it in `rclone/win32/rclone.exe`
 
-```json
-{
-  "bundle": {
-    "resources": ["rclone.exe"]
-  }
-}
-```
+The Electron build config (`package.json` → `build.win.extraResources`) will bundle it into the app.
 
 ### For Linux Build:
 
 1. Download rclone for Linux from https://rclone.org/downloads/
 2. Extract `rclone` binary
-3. Place it in `src-tauri/` directory
-4. Make it executable: `chmod +x src-tauri/rclone`
-5. Update `src-tauri/tauri.conf.json`:
+3. Place it in `rclone/linux/rclone`
+4. Make it executable: `chmod +x rclone/linux/rclone`
 
-```json
-{
-  "bundle": {
-    "resources": ["rclone"]
-  }
-}
-```
+The Electron build config (`package.json` → `build.linux.extraResources`) will bundle it into the app.
 
 ## Step 6: Configure the App
 
