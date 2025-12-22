@@ -435,6 +435,37 @@ function logToFile(message) {
   }
 }
 
+function redactUrlQueryStrings(text) {
+  try {
+    const s = String(text || '');
+    if (!s) return '';
+    return s.replace(/https?:\/\/\S+/gi, (u) => {
+      const idx = u.indexOf('?');
+      if (idx === -1) return u;
+      return u.slice(0, idx) + '?…';
+    });
+  } catch (e) {
+    return '';
+  }
+}
+
+function formatRcloneExitCodeHint(code) {
+  if (code === 1) {
+    return 'Something went wrong while downloading. This is often caused by an expired link, temporary provider limits, a network hiccup, or not being able to write the file to disk.';
+  }
+  if (typeof code === 'number') {
+    return 'Something went wrong while downloading.';
+  }
+  return 'Something went wrong while downloading.';
+}
+
+function formatDownloadFailedMessage(code) {
+  const logPath = getDebugLogPath();
+  const hint = formatRcloneExitCodeHint(code);
+  const codeText = (typeof code === 'number') ? `code ${code}` : 'unknown error';
+  return `Download failed (${codeText}). ${hint} If it keeps happening, check debug.log for details: ${logPath}`;
+}
+
 // Paths
 const getResourcePath = () => {
   if (app.isPackaged) {
@@ -1690,6 +1721,18 @@ async function downloadFile(downloadId, file, downloadDir) {
         // Check for specific error types
         const quota = isQuotaError(errorOutput);
         const busy = isServerBusyError(errorOutput);
+
+        try {
+          const trimmed = String(errorOutput || '').trim();
+          const tail = trimmed.length > 12000 ? trimmed.slice(-12000) : trimmed;
+          const redacted = redactUrlQueryStrings(tail);
+          logToFile(`[rclone] copyurl failed code=${code} file=${file && file.name ? String(file.name) : ''} outputPath=${outputPath} stderr=${redacted}`);
+        } catch (e) {
+          try {
+            logToFile(`[rclone] copyurl failed code=${code} file=${file && file.name ? String(file.name) : ''} (failed to log stderr)`);
+          } catch (e2) {}
+        }
+
         if (busy) {
           download.error = 'Server is busy due to high demand. Please wait a moment and try again.';
         } else if (quota) {
@@ -1697,7 +1740,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         } else if (isTokenExpiredError(errorOutput)) {
           download.error = 'Download link expired. Please try downloading again from the website.';
         } else {
-          download.error = `Download failed (code ${code}). Please try again.`;
+          download.error = formatDownloadFailedMessage(code);
         }
         
         updateProgress(downloadId);
@@ -1720,6 +1763,9 @@ async function downloadFile(downloadId, file, downloadDir) {
     proc.on('error', (err) => {
       download.status = 'error';
       download.error = err.message;
+      try {
+        logToFile(`[rclone] spawn error: ${err && err.message ? err.message : String(err)}`);
+      } catch (e) {}
       mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
       showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
       reject(err);
