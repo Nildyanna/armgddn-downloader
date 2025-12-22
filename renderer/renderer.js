@@ -163,9 +163,6 @@ function setupIPCListeners() {
   api.onDownloadCompleted((data) => {
     const download = downloads.get(data.id);
     if (download) {
-      if (download.status === 'extracting') {
-        return;
-      }
       download.status = 'completed';
       download.progress = 100;
       renderDownloads();
@@ -289,7 +286,7 @@ function updateItemsInPlace(items, container) {
         'starting': 'Starting',
         'in_progress': 'In Progress',
         'downloading': 'Downloading',
-        'extracting': 'Extracting',
+        'extracting': 'Extracting, please wait..',
         'completed': 'Completed',
         'cancelled': 'Cancelled',
         'error': 'Error',
@@ -326,7 +323,7 @@ function updateItemsInPlace(items, container) {
     }
     if (rightInfo) {
       if (download.status === 'extracting') {
-        rightInfo.textContent = 'Extracting...';
+        rightInfo.textContent = 'Extracting, please wait..';
       } else {
         const capMb = Number(settings && settings.maxDownloadSpeedMBps);
         const capStr = formatBitRateFromMBps(capMb);
@@ -522,7 +519,7 @@ function renderDownloadsNow() {
       'starting': 'Starting',
       'in_progress': 'In Progress',
       'downloading': 'Downloading',
-      'extracting': 'Extracting',
+      'extracting': 'Extracting, please wait..',
       'completed': 'Completed',
       'cancelled': 'Cancelled',
       'error': 'Error',
@@ -549,9 +546,9 @@ function renderDownloadsNow() {
       </div>
       <div class="download-info">
         <span>${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}</span>
-        <span class="total-speed">${download.status === 'extracting' ? 'Extracting...' : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
+        <span class="total-speed">${download.status === 'extracting' ? 'Extracting, please wait..' : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
       </div>
-      <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives...</div>
+      <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives, please wait..</div>
       ${showErrMsg ? `<div class="download-error-message">${escapeHtml(errMsg)}</div>` : ''}
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
       <div class="download-disclaimer">

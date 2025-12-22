@@ -1877,24 +1877,38 @@ function run7zExtract(archivePath, outputDir) {
       return;
     }
 
+    try {
+      logToFile(`[7z] Extract start: ${archivePath} -> ${outputDir}`);
+    } catch (e) {}
+
     const password = 'ARMGDDNGames';
     const isPasswordErrorText = (text) => {
       const t = String(text || '').toLowerCase();
       return t.includes('enter password') || t.includes('wrong password') || t.includes('password is incorrect') || t.includes('encrypted');
     };
 
-    const runList = (withPassword) => {
-      const listArgs = withPassword ? ['l', '-slt', `-p${password}`, archivePath] : ['l', '-slt', archivePath];
-      return spawnSync(exe, listArgs, { encoding: 'utf8' });
+    const runList = () => {
+      const listArgs = ['l', '-slt', `-p${password}`, archivePath];
+      return spawnSync(exe, listArgs, { encoding: 'utf8', timeout: 30000 });
     };
 
     try {
-      let listResult = runList(false);
-      if (!(listResult && listResult.status === 0) && listResult && isPasswordErrorText((listResult.stdout || '') + '\n' + (listResult.stderr || ''))) {
-        listResult = runList(true);
-      }
+      const listResult = runList();
 
       if (!(listResult && listResult.status === 0)) {
+        try {
+          const code = (listResult && typeof listResult.status === 'number') ? listResult.status : null;
+          const so = String((listResult && listResult.stdout) || '');
+          const se = String((listResult && listResult.stderr) || '');
+          const le = listResult && listResult.error ? (listResult.error.message || String(listResult.error)) : '';
+          const ls = listResult && listResult.signal ? String(listResult.signal) : '';
+          logToFile(`[7z] List failed: code=${code} signal=${ls} err=${le ? 'yes' : 'no'} stdoutLen=${so.length} stderrLen=${se.length}`);
+        } catch (e) {}
+
+        if (listResult && listResult.error && listResult.error.code === 'ETIMEDOUT') {
+          reject(new Error('7z extraction failed: validation timed out'));
+          return;
+        }
         reject(new Error('Failed to validate archive contents before extraction'));
         return;
       }
@@ -1929,35 +1943,85 @@ function run7zExtract(archivePath, outputDir) {
       }
     } catch (e) {}
 
-    const spawnExtract = (withPassword) => {
+    const spawnExtract = () => {
       const args = [
         'x',
+        '-bsp1',
         '-y',
         '-aos',
         `-o${outputDir}`,
-        ...(withPassword ? [`-p${password}`] : []),
+        `-p${password}`,
         archivePath
       ];
       const proc = spawn(exe, args, { cwd: outputDir });
       let out = '';
       let err = '';
-      proc.stdout.on('data', (d) => { out += d.toString(); });
-      proc.stderr.on('data', (d) => { err += d.toString(); });
-      proc.on('error', (e) => reject(e));
+      let killedByTimeout = false;
+      let killedByInactivity = false;
+      let lastOutputAt = Date.now();
+      const timeout = setTimeout(() => {
+        killedByTimeout = true;
+        try { proc.kill(); } catch (e) {}
+      }, 60 * 60 * 1000);
+
+      const inactivityInterval = setInterval(() => {
+        if (killedByTimeout || killedByInactivity) return;
+        const now = Date.now();
+        if (now - lastOutputAt > 5 * 60 * 1000) {
+          killedByInactivity = true;
+          try { proc.kill(); } catch (e) {}
+        }
+      }, 15000);
+      try {
+        if (proc.stdin) proc.stdin.end();
+      } catch (e) {}
+      proc.stdout.on('data', (d) => {
+        lastOutputAt = Date.now();
+        out += d.toString();
+      });
+      proc.stderr.on('data', (d) => {
+        lastOutputAt = Date.now();
+        err += d.toString();
+      });
+      proc.on('error', (e) => {
+        clearTimeout(timeout);
+        clearInterval(inactivityInterval);
+        reject(e);
+      });
       proc.on('close', (code) => {
+        clearTimeout(timeout);
+        clearInterval(inactivityInterval);
+        if (killedByTimeout) {
+          reject(new Error('7z extraction failed: extraction timed out'));
+          return;
+        }
+        if (killedByInactivity) {
+          try {
+            logToFile(`[7z] Extract stalled (no output): ${archivePath}`);
+          } catch (e) {}
+          reject(new Error('7z extraction failed: extraction stalled'));
+          return;
+        }
         if (code === 0) {
+          try {
+            logToFile(`[7z] Extract ok: ${archivePath}`);
+          } catch (e) {}
           resolve({ out, err });
           return;
         }
-        if (!withPassword && isPasswordErrorText(out + '\n' + err)) {
-          spawnExtract(true);
+        const combined = (out + '\n' + err).trim();
+        if (isPasswordErrorText(combined)) {
+          reject(new Error('7z extraction failed: wrong password or encrypted archive'));
           return;
         }
+        try {
+          logToFile(`[7z] Extract failed: ${archivePath} code=${code} outLen=${out.length} errLen=${err.length}`);
+        } catch (e) {}
         reject(new Error(`7z extraction failed (code ${code})${err ? `: ${err.trim()}` : ''}`));
       });
     };
 
-    spawnExtract(false);
+    spawnExtract();
   });
 }
 
