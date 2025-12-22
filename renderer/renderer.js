@@ -16,6 +16,23 @@ function normalizeActiveFiles(value) {
 
 let settings = {};
 
+function formatBitRate(bitsPerSec) {
+  const n = Number(bitsPerSec);
+  const units = ['bp/s', 'Kbp/s', 'Mbp/s', 'Gbp/s', 'Tbp/s'];
+  if (!Number.isFinite(n) || n <= 0) return '0 bp/s';
+  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1000)));
+  const value = n / Math.pow(1000, i);
+  const decimals = i >= 2 ? 1 : 0;
+  const s = value.toFixed(decimals).replace(/\.0$/, '');
+  return s + ' ' + units[i];
+}
+
+function formatBitRateFromMBps(mbPerSec) {
+  const mb = Number(mbPerSec);
+  if (!Number.isFinite(mb) || mb <= 0) return '';
+  return formatBitRate(mb * 1000 * 1000 * 8);
+}
+
 // Initialize
 async function init() {
   // Load settings
@@ -312,7 +329,8 @@ function updateItemsInPlace(items, container) {
         rightInfo.textContent = 'Extracting...';
       } else {
         const capMb = Number(settings && settings.maxDownloadSpeedMBps);
-        const capText = (Number.isFinite(capMb) && capMb > 0 && download.totalSpeed) ? ` (cap ${capMb} MB/s)` : '';
+        const capStr = formatBitRateFromMBps(capMb);
+        const capText = (capStr && download.totalSpeed) ? ` (cap ${capStr})` : '';
         rightInfo.textContent = download.totalSpeed
           ? (hasMultipleFiles ? `Total: ${download.totalSpeed}${capText}` : `${download.totalSpeed}${capText}`)
           : '';
@@ -333,8 +351,8 @@ function updateItemsInPlace(items, container) {
         const workersSetting = Number(settings && settings.maxConcurrentDownloads);
         const workers = Math.min(6, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
         const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
-        const perWorkerStr = Number.isFinite(perWorker) && perWorker > 0 ? perWorker.toFixed(1).replace(/\.0$/, '') : '';
-        const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr} MB/s)` : '';
+        const perWorkerStr = formatBitRateFromMBps(perWorker);
+        const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';
         activeFilesEl.innerHTML = activeFiles.map(f => `
           <div class="file-progress">
             <div class="file-progress-header">
@@ -480,8 +498,8 @@ function renderDownloadsNow() {
       const workersSetting = Number(settings && settings.maxConcurrentDownloads);
       const workers = Math.min(6, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
       const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
-      const perWorkerStr = Number.isFinite(perWorker) && perWorker > 0 ? perWorker.toFixed(1).replace(/\.0$/, '') : '';
-      const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr} MB/s)` : '';
+      const perWorkerStr = formatBitRateFromMBps(perWorker);
+      const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';
       activeFilesHtml = activeFiles.map(f => `
         <div class="file-progress">
           <div class="file-progress-header">

@@ -1877,30 +1877,44 @@ function run7zExtract(archivePath, outputDir) {
       return;
     }
 
-    const listArgs = ['l', '-slt', archivePath];
+    const password = 'ARMGDDNGames';
+    const isPasswordErrorText = (text) => {
+      const t = String(text || '').toLowerCase();
+      return t.includes('enter password') || t.includes('wrong password') || t.includes('password is incorrect') || t.includes('encrypted');
+    };
+
+    const runList = (withPassword) => {
+      const listArgs = withPassword ? ['l', '-slt', `-p${password}`, archivePath] : ['l', '-slt', archivePath];
+      return spawnSync(exe, listArgs, { encoding: 'utf8' });
+    };
+
     try {
-      const listResult = spawnSync(exe, listArgs, { encoding: 'utf8' });
-      if (listResult && listResult.status === 0) {
-        const stdout = String(listResult.stdout || '');
-        const lines = stdout.split(/\r?\n/);
-        for (const line of lines) {
-          if (!line.startsWith('Path = ')) continue;
-          const entryPath = line.slice('Path = '.length).trim();
-          if (!entryPath) continue;
-          const safeRel = sanitizeRelativePath(entryPath);
-          if (!safeRel) {
-            reject(new Error('Unsafe archive entry path detected'));
-            return;
-          }
-          const resolved = resolveInside(outputDir, safeRel);
-          if (!resolved) {
-            reject(new Error('Unsafe archive entry path detected'));
-            return;
-          }
-        }
-      } else {
+      let listResult = runList(false);
+      if (!(listResult && listResult.status === 0) && listResult && isPasswordErrorText((listResult.stdout || '') + '\n' + (listResult.stderr || ''))) {
+        listResult = runList(true);
+      }
+
+      if (!(listResult && listResult.status === 0)) {
         reject(new Error('Failed to validate archive contents before extraction'));
         return;
+      }
+
+      const stdout = String(listResult.stdout || '');
+      const lines = stdout.split(/\r?\n/);
+      for (const line of lines) {
+        if (!line.startsWith('Path = ')) continue;
+        const entryPath = line.slice('Path = '.length).trim();
+        if (!entryPath) continue;
+        const safeRel = sanitizeRelativePath(entryPath);
+        if (!safeRel) {
+          reject(new Error('Unsafe archive entry path detected'));
+          return;
+        }
+        const resolved = resolveInside(outputDir, safeRel);
+        if (!resolved) {
+          reject(new Error('Unsafe archive entry path detected'));
+          return;
+        }
       }
     } catch (e) {
       reject(new Error('Failed to validate archive contents before extraction'));
@@ -1915,27 +1929,35 @@ function run7zExtract(archivePath, outputDir) {
       }
     } catch (e) {}
 
-    const args = [
-      'x',
-      '-y',
-      '-aos',
-      `-o${outputDir}`,
-      archivePath
-    ];
+    const spawnExtract = (withPassword) => {
+      const args = [
+        'x',
+        '-y',
+        '-aos',
+        `-o${outputDir}`,
+        ...(withPassword ? [`-p${password}`] : []),
+        archivePath
+      ];
+      const proc = spawn(exe, args, { cwd: outputDir });
+      let out = '';
+      let err = '';
+      proc.stdout.on('data', (d) => { out += d.toString(); });
+      proc.stderr.on('data', (d) => { err += d.toString(); });
+      proc.on('error', (e) => reject(e));
+      proc.on('close', (code) => {
+        if (code === 0) {
+          resolve({ out, err });
+          return;
+        }
+        if (!withPassword && isPasswordErrorText(out + '\n' + err)) {
+          spawnExtract(true);
+          return;
+        }
+        reject(new Error(`7z extraction failed (code ${code})${err ? `: ${err.trim()}` : ''}`));
+      });
+    };
 
-    const proc = spawn(exe, args, { cwd: outputDir });
-    let out = '';
-    let err = '';
-    proc.stdout.on('data', (d) => { out += d.toString(); });
-    proc.stderr.on('data', (d) => { err += d.toString(); });
-    proc.on('error', (e) => reject(e));
-    proc.on('close', (code) => {
-      if (code === 0) {
-        resolve({ out, err });
-        return;
-      }
-      reject(new Error(`7z extraction failed (code ${code})${err ? `: ${err.trim()}` : ''}`));
-    });
+    spawnExtract(false);
   });
 }
 
@@ -1985,10 +2007,16 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   }
 
   // Parse speed (e.g., "123.4 MiB/s" or "45 KiB/s")
-  const speedMatch = output.match(/(\d+\.?\d*)\s*([KMG]i?B)\/s/i);
+  const speedMatch = output.match(/(\d+(?:\.\d+)?)\s*(B|[KMGT]i?B)\/s/i);
   if (speedMatch) {
-    fileInfo.speed = `${speedMatch[1]} ${speedMatch[2]}/s`;
-    fileInfo.speedBytes = parseSpeedToBytes(speedMatch[1], speedMatch[2]);
+    const speedBytes = parseSpeedToBytes(speedMatch[1], speedMatch[2]);
+    if (Number.isFinite(speedBytes)) {
+      fileInfo.speedBytes = speedBytes;
+      fileInfo.speed = formatSpeed(speedBytes);
+    } else {
+      fileInfo.speed = `${speedMatch[1]} ${speedMatch[2]}/s`;
+      fileInfo.speedBytes = 0;
+    }
   }
 
   // Parse ETA
@@ -2062,22 +2090,31 @@ function parseRcloneProgress(downloadId, fileKey, output) {
 function parseSpeedToBytes(value, unit) {
   const num = parseFloat(value);
   const unitLower = unit.toLowerCase();
-  if (unitLower.startsWith('g')) return num * 1024 * 1024 * 1024;
-  if (unitLower.startsWith('m')) return num * 1024 * 1024;
-  if (unitLower.startsWith('k')) return num * 1024;
+  if (!Number.isFinite(num)) return NaN;
+
+  const isBinary = unitLower.includes('ib');
+  const k = isBinary ? 1024 : 1000;
+
+  if (unitLower.startsWith('t')) return num * k * k * k * k;
+  if (unitLower.startsWith('g')) return num * k * k * k;
+  if (unitLower.startsWith('m')) return num * k * k;
+  if (unitLower.startsWith('k')) return num * k;
   return num;
 }
 
 // Format bytes per second to human readable (decimal MB/s, not binary MiB/s)
 function formatSpeed(bytesPerSec) {
-  if (bytesPerSec >= 1000 * 1000 * 1000) {
-    return (bytesPerSec / (1000 * 1000 * 1000)).toFixed(1) + ' GB/s';
-  } else if (bytesPerSec >= 1000 * 1000) {
-    return (bytesPerSec / (1000 * 1000)).toFixed(1) + ' MB/s';
-  } else if (bytesPerSec >= 1000) {
-    return (bytesPerSec / 1000).toFixed(1) + ' KB/s';
-  }
-  return bytesPerSec.toFixed(0) + ' B/s';
+  const bitsPerSec = (Number.isFinite(bytesPerSec) ? bytesPerSec : 0) * 8;
+  const units = ['bp/s', 'Kbp/s', 'Mbp/s', 'Gbp/s', 'Tbp/s'];
+  if (bitsPerSec <= 0) return '0 bp/s';
+  const i = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(bitsPerSec) / Math.log(1000))
+  );
+  const value = bitsPerSec / Math.pow(1000, i);
+  const decimals = i >= 2 ? 1 : 0;
+  const s = value.toFixed(decimals).replace(/\.0$/, '');
+  return s + ' ' + units[i];
 }
 
 // Update overall progress
@@ -2351,7 +2388,7 @@ function finalizeCompletedDownload(downloadId) {
         status: 'completed',
         progress: 100,
         downloadedSize: download.downloadedSize,
-        totalSpeed: '0 B/s',
+        totalSpeed: '0 bp/s',
         activeFiles: [],
         completedFiles: download.completedFiles,
         fileCount: download.fileCount,
@@ -2418,7 +2455,7 @@ function completeDownload(downloadId) {
       download.__armgddnFinalizing = true;
       download.status = 'extracting';
       download.progress = 99;
-      download.totalSpeed = '0 B/s';
+      download.totalSpeed = '0 bp/s';
       try {
         if (mainWindow && mainWindow.webContents) {
           mainWindow.webContents.send('download-progress', {
@@ -2426,7 +2463,7 @@ function completeDownload(downloadId) {
             status: 'extracting',
             progress: download.progress,
             downloadedSize: download.downloadedSize,
-            totalSpeed: '0 B/s',
+            totalSpeed: '0 bp/s',
             activeFiles: [],
             completedFiles: download.completedFiles,
             fileCount: download.fileCount
@@ -2448,7 +2485,7 @@ function completeDownload(downloadId) {
                 status: 'extracting',
                 progress: download.progress,
                 downloadedSize: download.downloadedSize,
-                totalSpeed: '0 B/s',
+                totalSpeed: '0 bp/s',
                 activeFiles: [],
                 completedFiles: download.completedFiles,
                 fileCount: download.fileCount,
