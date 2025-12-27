@@ -73,9 +73,23 @@ jobs:
           chmod +x rclone/darwin/rclone
           rm -rf rclone-*-osx-amd64 rclone.zip
 
-      - name: Prepare macOS DMG helper script
+      - name: Generate macOS icon.icns
         if: matrix.platform == 'mac'
-        run: chmod +x build/Fix.command
+        shell: bash
+        run: |
+          mkdir -p build/icon.iconset
+          sips -z 16 16     assets/skull-logo.png --out build/icon.iconset/icon_16x16.png
+          sips -z 32 32     assets/skull-logo.png --out build/icon.iconset/icon_16x16@2x.png
+          sips -z 32 32     assets/skull-logo.png --out build/icon.iconset/icon_32x32.png
+          sips -z 64 64     assets/skull-logo.png --out build/icon.iconset/icon_32x32@2x.png
+          sips -z 128 128   assets/skull-logo.png --out build/icon.iconset/icon_128x128.png
+          sips -z 256 256   assets/skull-logo.png --out build/icon.iconset/icon_128x128@2x.png
+          sips -z 256 256   assets/skull-logo.png --out build/icon.iconset/icon_256x256.png
+          sips -z 512 512   assets/skull-logo.png --out build/icon.iconset/icon_256x256@2x.png
+          sips -z 512 512   assets/skull-logo.png --out build/icon.iconset/icon_512x512.png
+          sips -z 1024 1024 assets/skull-logo.png --out build/icon.iconset/icon_512x512@2x.png
+          iconutil -c icns build/icon.iconset -o build/icon.icns
+          rm -rf build/icon.iconset
 
       - name: Build Electron app (Linux)
         if: matrix.platform == 'linux'
@@ -112,7 +126,7 @@ jobs:
         with:
           name: mac-build
           path: |
-            dist/*.dmg
+            dist/*.pkg
 
   release:
     needs: build
@@ -146,6 +160,42 @@ jobs:
       - name: List artifacts
         run: find ./artifacts -type f -ls
 
+      - name: Create release README.txt
+        shell: bash
+        run: |
+          cat > ./artifacts/README.txt <<'EOF'
+          ARMGDDN Downloader ${{ github.ref_name }}
+
+          Installation
+
+          Windows:
+          - Download the .exe installer
+          - Run the installer
+
+          macOS:
+          - Download the .pkg
+          - Run the installer
+          - If the app doesn't work after install, run Fix.command:
+            1) Open Fix.command
+            2) If macOS blocks it, go to System Settings -> Privacy & Security and allow Fix.command
+            3) Run it and enter your password in Terminal when prompted
+          - To avoid security prompts for end users, the app must be signed with an Apple Developer ID certificate and notarized.
+
+          Linux (Debian/Ubuntu):
+          - Download .deb file
+          - Install: sudo dpkg -i armgddn-downloader_*.deb
+
+          Linux (Universal):
+          - Download .AppImage file
+          - Make executable: chmod +x ARMGDDN*.AppImage
+          - Run: ./ARMGDDN*.AppImage
+          EOF
+
+      - name: Stage Fix.command for release
+        shell: bash
+        run: |
+          cp ./build/Fix.command ./artifacts/Fix.command
+
       - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
@@ -160,10 +210,13 @@ jobs:
             - Run the installer
 
             **macOS:**
-            - Download the `.dmg`
-            - Open it and drag `ARMGDDN Companion` into `Applications`
-            - If macOS says the app is **"damaged"**, run `Fix.command` from inside the DMG once, then try opening the app again.
-            - To avoid this for end users, the app must be signed with an Apple Developer ID certificate and notarized.
+            - Download the `.pkg`
+            - Run the installer
+            - If the app doesn't work after install, run `Fix.command`:
+              1) Open `Fix.command`
+              2) If macOS blocks it, go to `System Settings` -> `Privacy & Security` and allow `Fix.command`
+              3) Run it and enter your password in Terminal when prompted
+            - To avoid security prompts for end users, the app must be signed with an Apple Developer ID certificate and notarized.
             
             **Linux (Debian/Ubuntu):**
             - Download `.deb` file
@@ -174,9 +227,11 @@ jobs:
             - Make executable: `chmod +x ARMGDDN*.AppImage`
             - Run: `./ARMGDDN*.AppImage`
           files: |
+            artifacts/README.txt
+            artifacts/Fix.command
             artifacts/*.deb
             artifacts/*.AppImage
             artifacts/*.exe
-            artifacts/*.dmg
+            artifacts/*.pkg
           draft: false
           prerelease: false
