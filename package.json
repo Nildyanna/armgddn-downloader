@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "4.1.32",
+  "version": "4.1.33",
   "description": "ARMGDDN Companion - Fast rclone-powered download manager",
   "main": "main.js",
   "author": {
@@ -33,18 +33,24 @@
       "assets/**/*"
     ],
     "win": {
-      "target": ["nsis"],
+      "target": [
+        "nsis"
+      ],
       "icon": "assets/icon.ico",
       "extraResources": [
         {
           "from": "rclone/win32",
           "to": "rclone",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "node_modules/7zip-bin/win",
           "to": "7z/win",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
@@ -57,7 +63,10 @@
       "installerHeaderIcon": "assets/icon.ico"
     },
     "linux": {
-      "target": ["AppImage", "deb"],
+      "target": [
+        "AppImage",
+        "deb"
+      ],
       "artifactName": "ARMGDDN.Companion-${version}-${arch}.${ext}",
       "icon": "assets/icon.png",
       "category": "Utility",
@@ -65,35 +74,47 @@
         {
           "from": "rclone/linux",
           "to": "rclone",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "node_modules/7zip-bin/linux",
           "to": "7z/linux",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
     "mac": {
-      "target": ["pkg"],
+      "target": [
+        "pkg"
+      ],
       "icon": "build/icon.icns",
       "category": "public.app-category.utilities",
       "extraResources": [
         {
           "from": "rclone/darwin",
           "to": "rclone",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         },
         {
           "from": "node_modules/7zip-bin/mac",
           "to": "7z/mac",
-          "filter": ["**/*"]
+          "filter": [
+            "**/*"
+          ]
         }
       ]
     },
     "protocols": {
       "name": "ARMGDDN Protocol",
-      "schemes": ["armgddn"]
+      "schemes": [
+        "armgddn"
+      ]
     }
   },
   "devDependencies": {
