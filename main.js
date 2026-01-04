@@ -3058,7 +3058,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     app.isQuitting = true;
                     app.quit();
                     resolve({ success: true });
-                  }, 2000); // Increased delay to let user read the "Installing..." message
+                  }, 3000); // Increased delay to let user read the "Installing..." message
                   return;
                 } catch (spawnErr) {
                   logToFile(`Update - failed to spawn installer wrapper: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
@@ -3105,7 +3105,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     app.isQuitting = true;
                     app.quit();
                     resolve({ success: true });
-                  }, 3000);
+                  }, 500);
 
                   return;
                 } else {
