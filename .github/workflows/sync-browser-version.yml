@@ -81,7 +81,7 @@ jobs:
               echo "Triggering Browser restart..."
               set +e
               RESP_FILE="$(mktemp)"
-              HTTP_CODE=$(curl -sS -o "$RESP_FILE" -w "%{http_code}" -X POST "${BROWSER_RESTART_URL%/}/api/admin/restart-server" \
+              HTTP_CODE=$(curl -sS -o "$RESP_FILE" -w "%{http_code}" -X POST "${BROWSER_RESTART_URL%/}/api/admin/update-server" \
                 -H "x-internal-secret: ${BROWSER_RESTART_SECRET}" \
                 -H "content-type: application/json" \
                 -d '{}')
