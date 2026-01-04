@@ -1512,6 +1512,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     activeFiles: {},  // Track per-file progress: { fileName: { progress, speed, eta } }
     activeProcesses: [],  // Track all active rclone processes for cancellation
     totalSpeed: 0,
+    peakSpeedBytes: 0,
     startTime: new Date().toISOString(),
     token: token,  // Store token for progress reporting
     cancelled: false,  // Flag to stop new downloads when cancelled
@@ -2240,6 +2241,9 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     totalSpeedBytes += f.speedBytes || 0;
   }
   download.totalSpeed = formatSpeed(totalSpeedBytes);
+  if (totalSpeedBytes > (download.peakSpeedBytes || 0)) {
+    download.peakSpeedBytes = totalSpeedBytes;
+  }
 
   // Calculate overall progress based on bytes, not file-count averaging.
   if (download.totalSize > 0) {
@@ -2345,6 +2349,9 @@ function updateProgress(downloadId) {
     totalSpeedBytes += f.speedBytes || 0;
   }
   download.totalSpeed = formatSpeed(totalSpeedBytes);
+  if (totalSpeedBytes > (download.peakSpeedBytes || 0)) {
+    download.peakSpeedBytes = totalSpeedBytes;
+  }
 
   mainWindow.webContents.send('download-progress', {
     id: downloadId,
@@ -2588,7 +2595,7 @@ function finalizeCompletedDownload(downloadId) {
         status: 'completed',
         progress: 100,
         downloadedSize: download.downloadedSize,
-        totalSpeed: '0 bp/s',
+        totalSpeed: formatSpeed(download.peakSpeedBytes || 0),
         activeFiles: [],
         completedFiles: download.completedFiles,
         fileCount: download.fileCount,
@@ -2655,7 +2662,7 @@ function completeDownload(downloadId) {
       download.__armgddnFinalizing = true;
       download.status = 'extracting';
       download.progress = 99;
-      download.totalSpeed = '0 bp/s';
+      download.totalSpeed = formatSpeed(download.peakSpeedBytes || 0);
       try {
         if (mainWindow && mainWindow.webContents) {
           mainWindow.webContents.send('download-progress', {
@@ -2663,7 +2670,7 @@ function completeDownload(downloadId) {
             status: 'extracting',
             progress: download.progress,
             downloadedSize: download.downloadedSize,
-            totalSpeed: '0 bp/s',
+            totalSpeed: formatSpeed(download.peakSpeedBytes || 0),
             activeFiles: [],
             completedFiles: download.completedFiles,
             fileCount: download.fileCount
@@ -2685,7 +2692,7 @@ function completeDownload(downloadId) {
                 status: 'extracting',
                 progress: download.progress,
                 downloadedSize: download.downloadedSize,
-                totalSpeed: '0 bp/s',
+                totalSpeed: formatSpeed(download.peakSpeedBytes || 0),
                 activeFiles: [],
                 completedFiles: download.completedFiles,
                 fileCount: download.fileCount,
