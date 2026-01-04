@@ -346,7 +346,7 @@ function updateItemsInPlace(items, container) {
       if (showActiveFiles) {
         const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
         const workersSetting = Number(settings && settings.maxConcurrentDownloads);
-        const workers = Math.min(6, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+        const workers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
         const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
         const perWorkerStr = formatBitRateFromMBps(perWorker);
         const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';
@@ -493,7 +493,7 @@ function renderDownloadsNow() {
     if (showActiveFiles) {
       const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
       const workersSetting = Number(settings && settings.maxConcurrentDownloads);
-      const workers = Math.min(6, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+      const workers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
       const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
       const perWorkerStr = formatBitRateFromMBps(perWorker);
       const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';
