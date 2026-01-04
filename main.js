@@ -95,7 +95,8 @@ function flushPendingDeepLinks() {
 
 const ALLOWED_SERVICE_HOSTS = new Set([
   'armgddnbrowser.com',
-  'www.armgddnbrowser.com'
+  'www.armgddnbrowser.com',
+  'api.armgddnbrowser.com'
 ]);
 
 const ALLOWED_UPDATE_HOSTS = new Set([
