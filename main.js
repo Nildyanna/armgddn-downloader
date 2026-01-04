@@ -686,7 +686,7 @@ function validateDeepLink(url) {
           logToFile('Deep link rejected - manifest not https');
           return null;
         }
-        if (!ALLOWED_SERVICE_HOSTS.has(u.hostname)) {
+        if (!isAllowedServiceHost(u.hostname)) {
           logToFile('Deep link rejected - manifest host not allowed: ' + u.hostname);
           return null;
         }
