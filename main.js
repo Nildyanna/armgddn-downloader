@@ -1546,7 +1546,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
   // Download files in parallel (controlled by user setting)
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
-  const PARALLEL_DOWNLOADS = Math.min(6, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
+  const PARALLEL_DOWNLOADS = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
   const fileQueue = [...files];
   const activePromises = [];
   
@@ -1726,7 +1726,7 @@ async function downloadFile(downloadId, file, downloadDir) {
     const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
     if (Number.isFinite(maxMb) && maxMb > 0) {
       const workersSetting = Number(settings && settings.maxConcurrentDownloads);
-      const workers = Math.min(6, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+      const workers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
       const perWorker = maxMb / workers;
       const perWorkerStr = Number.isFinite(perWorker) && perWorker > 0 ? perWorker.toFixed(1).replace(/\.0$/, '') : '';
       if (perWorkerStr) {

@@ -48,7 +48,8 @@ The Settings panel controls how downloads are performed.
   - Where files will be saved on disk.
 - **Max Concurrent Downloads**
   - Maximum number of parallel file transfers the app will run per download.
-  - Higher values may improve speed on fast connections, but can increase CPU usage and stress your connection.
+  - **SSD / NVMe**: Safe to set to **10-20** to maximize speed on fast fiber connections.
+  - **HDD (Mechanical/External)**: Recommend **3-6**. Higher values will cause disk thrashing and system lag.
 - **Download Speed Limit (MB/s)**
   - Caps overall download speed (useful to avoid saturating your home bandwidth).
   - This is applied by dividing the cap across concurrent workers and passing `--bwlimit` to each `rclone` process.
