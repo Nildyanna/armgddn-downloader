@@ -108,7 +108,12 @@ const ALLOWED_UPDATE_HOSTS = new Set([
 ]);
 
 function isAllowedServiceHost(hostname) {
-  return !!hostname && ALLOWED_SERVICE_HOSTS.has(String(hostname).toLowerCase());
+  if (!hostname) return false;
+  const h = String(hostname).toLowerCase();
+  if (ALLOWED_SERVICE_HOSTS.has(h)) return true;
+  // Allow any subdomain of armgddnbrowser.com
+  if (h.endsWith('.armgddnbrowser.com')) return true;
+  return false;
 }
 
 function isAllowedUpdateHost(hostname) {
