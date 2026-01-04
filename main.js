@@ -284,7 +284,8 @@ function applyStartupRegistration() {
      }
 
      const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
-     settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? maxConc : 3;
+     // Enforce cap of 6 for stability
+     settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 6) : 3;
 
      const speed = Number(settings.maxDownloadSpeedMBps);
      settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
