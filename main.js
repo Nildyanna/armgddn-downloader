@@ -3105,7 +3105,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     app.isQuitting = true;
                     app.quit();
                     resolve({ success: true });
-                  }, 500);
+                  }, 3000);
 
                   return;
                 } else {
