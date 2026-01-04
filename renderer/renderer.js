@@ -322,8 +322,8 @@ function updateItemsInPlace(items, container) {
       leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}`;
     }
     if (rightInfo) {
-      if (download.status === 'extracting') {
-        rightInfo.textContent = 'Extracting, please wait..';
+      if (download.status === 'extracting' || download.status === 'completed') {
+        rightInfo.textContent = download.totalSpeed ? `Peak: ${download.totalSpeed}` : '';
       } else {
         const capMb = Number(settings && settings.maxDownloadSpeedMBps);
         const capStr = formatBitRateFromMBps(capMb);
@@ -546,7 +546,7 @@ function renderDownloadsNow() {
       </div>
       <div class="download-info">
         <span>${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}</span>
-        <span class="total-speed">${download.status === 'extracting' ? 'Extracting, please wait..' : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
+        <span class="total-speed">${(download.status === 'extracting' || download.status === 'completed') ? (download.totalSpeed ? `Peak: ${download.totalSpeed}` : '') : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
       </div>
       <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives, please wait..</div>
       ${showErrMsg ? `<div class="download-error-message">${escapeHtml(errMsg)}</div>` : ''}
