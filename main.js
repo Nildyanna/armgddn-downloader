@@ -3039,7 +3039,14 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     `echo [%DATE% %TIME%] parent exited>>${logQuoted}`,
                     `start "" /wait ${installerQuoted} ${silentArg}`,
                     `echo [%DATE% %TIME%] installer finished rc=%ERRORLEVEL%>>${logQuoted}`,
-                    shouldRelaunch ? `start "" ${appQuoted}` : 'rem',
+                    // Only relaunch if installer succeeded (exit code 0)
+                    `if "%ERRORLEVEL%"=="0" (`,
+                    shouldRelaunch ? `  start "" ${appQuoted}` : '  rem',
+                    `) else (`,
+                    `  echo [%DATE% %TIME%] installer failed with rc=%ERRORLEVEL%, cancelling relaunch>>${logQuoted}`,
+                    // If visible, maybe pause so user sees error?
+                    // '  timeout /t 5', 
+                    `)`,
                     `echo [%DATE% %TIME%] runner done>>${logQuoted}`,
                     'del "%~f0" >NUL 2>&1',
                     'exit /b 0'
@@ -3049,8 +3056,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     'On Error Resume Next',
                     'Dim sh',
                     'Set sh = CreateObject("WScript.Shell")',
-                    // Run the cmd runner hidden (windowStyle=0) and do not wait.
-                    `sh.Run "cmd.exe /c """ & "${runnerPath}" & """", 0, False`,
+                    // Run the cmd runner visible (windowStyle=1) so users can see if it prompts or fails
+                    `sh.Run "cmd.exe /c """ & "${runnerPath}" & """", 1, False`,
                     'Set sh = Nothing'
                   ].join("\r\n");
 
