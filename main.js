@@ -1338,6 +1338,37 @@ async function reportProgressToServer(download, token) {
   }
 }
 
+// Format bytes
+function formatBytes(bytes, decimals = 2) {
+  if (!Number.isFinite(bytes) || bytes === 0) return '0 Bytes';
+  const k = 1024;
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+}
+
+// Check free disk space
+function getFreeDiskSpace(targetPath) {
+  try {
+    // If path doesn't exist, check parent until we find one that exists
+    let current = targetPath;
+    while (!fs.existsSync(current)) {
+      const parent = path.dirname(current);
+      if (parent === current) break; // Root reached
+      current = parent;
+    }
+    
+    if (fs.statfsSync) {
+      const stats = fs.statfsSync(current);
+      return stats.bavail * stats.bsize; // Available blocks * block size
+    }
+  } catch (e) {
+    logToFile(`[DiskCheck] Failed to check space for ${targetPath}: ${e.message}`);
+  }
+  return -1; // Unknown
+}
+
 // Start download
 ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => {
   debugLog(`Download started - Token: ${token ? '[PRESENT]' : '[MISSING]'}`);
@@ -1409,6 +1440,58 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   } else {
     name = 'Download';
   }
+
+  // DISK SPACE CHECK
+  let forceDisableAutoExtract = false;
+  try {
+    const targetPath = path.resolve(settings.downloadPath);
+    const freeBytes = getFreeDiskSpace(targetPath);
+    
+    if (freeBytes !== -1 && totalSize > 0) {
+      const SAFETY_BUFFER = 500 * 1024 * 1024; // 500 MB
+      const requiredForDownload = totalSize + SAFETY_BUFFER;
+      
+      // Check 1: Enough space for download?
+      if (freeBytes < requiredForDownload) {
+        const msg = `Not enough disk space to download this game.\n\nRequired: ${formatBytes(requiredForDownload)}\nAvailable: ${formatBytes(freeBytes)}\n\nPlease free up some space and try again.`;
+        throw new Error(msg);
+      }
+
+      // Check 2: If auto-extract is on, do we have enough for download + extract?
+      // Heuristic: Extraction needs roughly same size again (total * 2).
+      const autoExtractOn = !!(settings && settings.autoExtract7z);
+      if (autoExtractOn) {
+        const requiredForExtract = (totalSize * 2) + SAFETY_BUFFER;
+        if (freeBytes < requiredForExtract) {
+          // We have enough to download (passed Check 1) but not enough to extract.
+          // Ask user what to do.
+          const { response } = await dialog.showMessageBox(mainWindow, {
+            type: 'question',
+            buttons: ['Download Only (Disable Auto-Extract)', 'Cancel'],
+            defaultId: 0,
+            cancelId: 1,
+            title: 'Insufficient Disk Space for Extraction',
+            message: 'Not enough disk space for automatic extraction.',
+            detail: `You have enough space to download the files, but not enough to extract them automatically.\n\nSpace Available: ${formatBytes(freeBytes)}\nRequired for Download + Extraction: ~${formatBytes(requiredForExtract)}\n\nDo you want to proceed with the download only? You will need to extract the files manually later or free up space.`
+          });
+
+          if (response === 1) {
+            // User cancelled
+            return null; // Return null to indicate cancellation without error to renderer (or handle appropriately)
+          } else {
+            // User chose Download Only
+            forceDisableAutoExtract = true;
+          }
+        }
+      }
+    }
+  } catch (e) {
+    // Pass through explicit errors (like "Not enough space"), ignore others
+    if (e.message && e.message.startsWith('Not enough disk space')) {
+      throw e;
+    }
+    logToFile(`[DiskCheck] Warning: skipped check due to error: ${e.message}`);
+  }
   
   const download = {
     id: downloadId,
@@ -1434,7 +1517,8 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     cancelled: false,  // Flag to stop new downloads when cancelled
     paused: false,
     failedFiles: [],
-    quotaNotified: false
+    quotaNotified: false,
+    forceDisableAutoExtract: forceDisableAutoExtract
   };
 
   activeDownloads.set(downloadId, download);
@@ -1721,6 +1805,8 @@ async function downloadFile(downloadId, file, downloadDir) {
         // Check for specific error types
         const quota = isQuotaError(errorOutput);
         const busy = isServerBusyError(errorOutput);
+        const sslError = errorOutput.includes('x509') || errorOutput.includes('certificate') || errorOutput.includes('ssl');
+        const dnsError = errorOutput.includes('lookup') || errorOutput.includes('name resolution') || errorOutput.includes('no such host');
 
         try {
           const trimmed = String(errorOutput || '').trim();
@@ -1739,6 +1825,10 @@ async function downloadFile(downloadId, file, downloadDir) {
           download.error = 'Download quota exceeded. This file is temporarily unavailable due to high demand. Please try again later or try a different game.';
         } else if (isTokenExpiredError(errorOutput)) {
           download.error = 'Download link expired. Please try downloading again from the website.';
+        } else if (sslError) {
+          download.error = 'SSL/Certificate error. On Linux, ensure ca-certificates is installed. Check debug.log for details.';
+        } else if (dnsError) {
+          download.error = 'Network/DNS error. Please check your internet connection.';
         } else {
           download.error = formatDownloadFailedMessage(code);
         }
@@ -2556,7 +2646,7 @@ function completeDownload(downloadId) {
     return;
   }
 
-  const shouldExtract = !!(settings && settings.autoExtract7z);
+  const shouldExtract = !!(settings && settings.autoExtract7z) && !download.forceDisableAutoExtract;
   const downloadDir = path.join(settings.downloadPath, download.name || 'Download');
 
   if (shouldExtract) {
