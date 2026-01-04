@@ -551,6 +551,9 @@ function renderDownloadsNow() {
       <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives, please wait..</div>
       ${showErrMsg ? `<div class="download-error-message">${escapeHtml(errMsg)}</div>` : ''}
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
+      <div class="download-disclaimer">
+        If you use Pause/Resume, files that already finished will not be downloaded again, but the file that was in progress may restart from the beginning.
+      </div>
       <div class="download-actions">
         ${canPause ? `<button class="pause-btn" data-download-id="${id}">Pause</button>` : ''}
         ${isPaused ? `<button class="resume-btn" data-download-id="${id}">Resume</button>` : ''}
