@@ -2842,7 +2842,35 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
   } catch (e) {
     return { success: false, error: 'Invalid installer URL' };
   }
-  
+
+  // Show progress window
+  let progressWin = null;
+  try {
+    progressWin = new BrowserWindow({
+      width: 400,
+      height: 300,
+      title: 'Updating ARMGDDN Companion',
+      resizable: false,
+      minimizable: false,
+      maximizable: false,
+      frame: false, // Frameless for custom look
+      transparent: true, // Allow custom shape/background
+      parent: mainWindow,
+      modal: true,
+      webPreferences: {
+        nodeIntegration: true,
+        contextIsolation: false
+      }
+    });
+
+    progressWin.loadFile(path.join(__dirname, 'renderer', 'update.html'));
+    progressWin.on('closed', () => {
+      progressWin = null;
+    });
+  } catch (e) {
+    logToFile('Failed to create update progress window: ' + e.message);
+  }
+
   const tempDir = app.getPath('temp');
   const updatesDir = path.join(app.getPath('userData'), 'updates');
   const platform = process.platform;
@@ -2914,9 +2942,39 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
 
         const fileStream = fs.createWriteStream(filePath);
         res.pipe(fileStream);
+
+        const totalBytes = parseInt(res.headers['content-length'], 10);
+        let receivedBytes = 0;
+        let startTime = Date.now();
+
+        res.on('data', (chunk) => {
+          receivedBytes += chunk.length;
+          if (progressWin && !progressWin.isDestroyed()) {
+             const percent = totalBytes ? (receivedBytes / totalBytes) * 100 : 0;
+             const elapsed = (Date.now() - startTime) / 1000;
+             const speed = elapsed > 0 ? (receivedBytes / elapsed) : 0; // bytes/sec
+             
+             // Simple formatting for speed
+             let speedStr = '';
+             if (speed > 1024 * 1024) speedStr = (speed / (1024 * 1024)).toFixed(1) + ' MB/s';
+             else speedStr = (speed / 1024).toFixed(1) + ' KB/s';
+
+             progressWin.webContents.send('update-progress', {
+               percent,
+               transferred: receivedBytes,
+               total: totalBytes,
+               speed: speedStr,
+               status: 'Downloading update...'
+             });
+          }
+        });
         
         fileStream.on('finish', () => {
           fileStream.close(() => {
+            if (progressWin && !progressWin.isDestroyed()) {
+              progressWin.webContents.send('update-status', 'Installing update... The app will restart shortly.');
+            }
+            
             // Run the installer after app exits
             try {
               if (platform === 'win32') {
@@ -2993,7 +3051,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     app.isQuitting = true;
                     app.quit();
                     resolve({ success: true });
-                  }, 250);
+                  }, 2000); // Increased delay to let user read the "Installing..." message
                   return;
                 } catch (spawnErr) {
                   logToFile(`Update - failed to spawn installer wrapper: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
@@ -3010,6 +3068,10 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                   // Make executable and run directly
                   fs.chmodSync(filePath, '755');
                   logToFile('Update - launching AppImage');
+                  
+                  if (progressWin && !progressWin.isDestroyed()) {
+                    progressWin.webContents.send('update-status', 'Restarting into new version...');
+                  }
 
                   let spawnFailed = false;
                   let resolved = false;
@@ -3060,12 +3122,19 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         fileStream.on('error', (err) => {
           resolve({ success: false, error: err.message });
         });
-      }).on('error', (err) => {
-        resolve({ success: false, error: err.message });
+        res.on('error', (err) => {
+          logToFile(`Update - download stream error: ${err.message}`);
+          if (progressWin && !progressWin.isDestroyed()) progressWin.close();
+          resolve({ success: false, error: 'Download stream error' });
       });
-    };
-    
-    downloadInstaller(installerUrl);
+    }).on('error', (err) => {
+      logToFile(`Update - request error: ${err.message}`);
+      if (progressWin && !progressWin.isDestroyed()) progressWin.close();
+      resolve({ success: false, error: 'Update request error: ' + err.message });
+    });
+  };
+
+  return downloadInstaller(installerUrl);
   });
 });
 
