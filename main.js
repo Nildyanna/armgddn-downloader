@@ -210,7 +210,7 @@ const DEBUG_LOGGING = process.env.ARMGDDN_DEBUG === '1';
 
 let settings = {
   downloadPath: path.join(app.getPath('downloads'), 'ARMGDDN'),
-  maxConcurrentDownloads: 3,
+  maxConcurrentDownloads: 6,
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
   showNotifications: true,
