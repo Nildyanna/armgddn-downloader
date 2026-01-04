@@ -3045,8 +3045,10 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     shouldRelaunch ? `  start "" ${appQuoted}` : '  rem',
                     `) else (`,
                     `  echo [%DATE% %TIME%] installer failed with rc=%ERRORLEVEL%, cancelling relaunch>>${logQuoted}`,
-                    // If visible, maybe pause so user sees error?
-                    // '  timeout /t 5', 
+                    `  echo Installer failed with error code %ERRORLEVEL%.`,
+                    `  echo Check %userprofile%\\AppData\\Roaming\\armgddn-downloader\\update-wrapper.log for details.`,
+                    `  echo Press any key to close this window...`,
+                    `  pause`, 
                     `)`,
                     `echo [%DATE% %TIME%] runner done>>${logQuoted}`,
                     'del "%~f0" >NUL 2>&1',
