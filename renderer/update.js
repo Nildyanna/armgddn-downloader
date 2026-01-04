@@ -26,6 +26,8 @@ ipcRenderer.on('update-status', (event, message) => {
   statusEl.textContent = message;
   if (message.includes('Restarting') || message.includes('Installing')) {
     fillEl.style.width = '100%';
-    percentEl.textContent = '100%';
+    fillEl.classList.add('indeterminate');
+    percentEl.textContent = ''; // Hide percent during indeterminate phase
+    speedEl.textContent = '';   // Hide speed during indeterminate phase
   }
 });

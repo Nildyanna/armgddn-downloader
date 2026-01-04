@@ -55,6 +55,27 @@
       transition: width 0.2s linear;
       box-shadow: var(--glow-cyan);
     }
+
+    .progress-fill.indeterminate {
+      width: 100% !important;
+      background: linear-gradient(
+        45deg, 
+        var(--neon-cyan) 25%, 
+        var(--neon-magenta) 25%, 
+        var(--neon-magenta) 50%, 
+        var(--neon-cyan) 50%, 
+        var(--neon-cyan) 75%, 
+        var(--neon-magenta) 75%, 
+        var(--neon-magenta)
+      );
+      background-size: 40px 40px;
+      animation: indeterminate-stripe 1s linear infinite;
+    }
+
+    @keyframes indeterminate-stripe {
+      0% { background-position: 0 0; }
+      100% { background-position: 40px 0; }
+    }
     
     .details {
       display: flex;
