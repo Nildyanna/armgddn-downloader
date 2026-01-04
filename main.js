@@ -3086,9 +3086,60 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                 logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
                 
                 if (filePath.endsWith('.AppImage')) {
-                  // Make executable and run directly
+                  // Make executable
                   fs.chmodSync(filePath, '755');
-                  logToFile('Update - launching AppImage');
+                  
+                  // Handle AppImage replacement if running as an AppImage
+                  if (process.env.APPIMAGE) {
+                    logToFile(`Update - Running as AppImage at ${process.env.APPIMAGE}`);
+                    const currentPath = process.env.APPIMAGE;
+                    const updateScriptPath = path.join(path.dirname(filePath), `update-armgddn-${Date.now()}.sh`);
+                    
+                    // Create a script to replace the old AppImage with the new one
+                    const scriptContent = [
+                      '#!/bin/bash',
+                      '# Wait for the main application to close',
+                      `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.5; done`,
+                      '',
+                      '# Move old version to backup',
+                      `mv "${currentPath}" "${currentPath}.old"`,
+                      '',
+                      '# Move new version to original location',
+                      `mv "${filePath}" "${currentPath}"`,
+                      `chmod +x "${currentPath}"`,
+                      '',
+                      '# Launch new version',
+                      `"${currentPath}" &`,
+                      'exit 0'
+                    ].join('\n');
+
+                    try {
+                      fs.writeFileSync(updateScriptPath, scriptContent, { mode: 0o755 });
+                      logToFile(`Update - Created replacement script at ${updateScriptPath}`);
+                      
+                      const child = spawn(updateScriptPath, [], {
+                        detached: true,
+                        stdio: 'ignore'
+                      });
+                      child.unref();
+                      
+                      if (progressWin && !progressWin.isDestroyed()) {
+                        progressWin.webContents.send('update-status', 'Restarting updated version...');
+                      }
+                      
+                      setTimeout(() => {
+                        app.isQuitting = true;
+                        app.quit();
+                        resolve({ success: true });
+                      }, 1000);
+                      return;
+                    } catch (err) {
+                      logToFile(`Update - Failed to create/run replacement script: ${err.message}`);
+                      // Fallback to simple launch if replacement fails
+                    }
+                  }
+
+                  logToFile('Update - launching AppImage (no replacement)');
                   
                   if (progressWin && !progressWin.isDestroyed()) {
                     progressWin.webContents.send('update-status', 'Restarting into new version...');
