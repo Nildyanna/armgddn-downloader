@@ -844,9 +844,19 @@ async function verifySession() {
 
 // Create main window
 function createWindow() {
-  const windowIconPath = process.platform === 'win32'
+  let windowIconPath = process.platform === 'win32'
     ? path.join(__dirname, 'assets', 'icon.ico')
     : path.join(__dirname, 'assets', 'icon.png');
+
+  if (!fs.existsSync(windowIconPath)) {
+    // Fallback for packaged app where assets might be in resources
+    const resourcePath = process.platform === 'win32'
+      ? path.join(process.resourcesPath, 'assets', 'icon.ico')
+      : path.join(process.resourcesPath, 'assets', 'icon.png');
+    if (fs.existsSync(resourcePath)) {
+      windowIconPath = resourcePath;
+    }
+  }
 
   const windowIcon = nativeImage.createFromPath(windowIconPath);
 
@@ -877,6 +887,10 @@ function createWindow() {
 
   mainWindow.once('ready-to-show', () => {
     mainWindow.show();
+    // Force icon again to ensure taskbar update
+    if (windowIcon && !windowIcon.isEmpty()) {
+      mainWindow.setIcon(windowIcon);
+    }
   });
 
   // Minimize / close behavior (configurable via settings)
