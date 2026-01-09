@@ -223,7 +223,8 @@ let settings = {
   minimizeToTrayOnMinimize: false,
   minimizeToTrayOnClose: false,
   autoUpdate: false,
-  startWithOsStartup: false
+  startWithOsStartup: false,
+  startWithOsMinimized: false
 };
 
 function escapePowerShellSingleQuoted(value) {
@@ -239,7 +240,7 @@ function applyStartupRegistration() {
         app.setLoginItemSettings({
           openAtLogin: enabled,
           path: process.execPath,
-          args: []
+          args: enabled ? ['--autostart'] : []
         });
       } catch (e) {
         logToFile(`[Startup] setLoginItemSettings failed: ${e && e.message ? e.message : e}`);
@@ -264,7 +265,7 @@ function applyStartupRegistration() {
         '[Desktop Entry]',
         'Type=Application',
         'Name=ARMGDDN Companion',
-        `Exec=${execPath}`,
+        `Exec=${execPath} --autostart`,
         'Terminal=false',
         'X-GNOME-Autostart-enabled=true'
       ].join('\n') + '\n';
@@ -303,10 +304,26 @@ function applyStartupRegistration() {
 
      settings.autoUpdate = !!settings.autoUpdate;
      settings.startWithOsStartup = !!settings.startWithOsStartup;
+     settings.startWithOsMinimized = !!settings.startWithOsMinimized;
    } catch (e) {
      logToFile(`[Settings] normalizeSettings failed: ${e && e.message ? e.message : e}`);
    }
  }
+
+function isAutostartLaunch() {
+  try {
+    if (Array.isArray(process.argv) && process.argv.includes('--autostart')) return true;
+  } catch (e) {}
+
+  try {
+    if (typeof app.getLoginItemSettings === 'function') {
+      const info = app.getLoginItemSettings();
+      if (info && info.wasOpenedAtLogin) return true;
+    }
+  } catch (e) {}
+
+  return false;
+}
 
 // DevTools policy: allow in dev always, and in packaged builds only when explicitly enabled
 // via environment variable on the owner's machine.
@@ -893,7 +910,19 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
-    mainWindow.show();
+    const shouldStartMinimized = !!(settings && settings.startWithOsMinimized) && isAutostartLaunch();
+    if (shouldStartMinimized) {
+      // If user prefers tray-minimize behavior, do not show the window at all.
+      if (settings && settings.minimizeToTrayOnMinimize) {
+        try { mainWindow.hide(); } catch (e) {}
+        return;
+      }
+      // Otherwise, show minimized on the taskbar.
+      try { mainWindow.show(); } catch (e) {}
+      try { mainWindow.minimize(); } catch (e) {}
+    } else {
+      mainWindow.show();
+    }
     // Force icon again to ensure taskbar update
     if (windowIcon && !windowIcon.isEmpty()) {
       mainWindow.setIcon(windowIcon);

@@ -721,6 +721,11 @@ function updateSettingsUI() {
   if (startupEl) {
     startupEl.checked = !!settings.startWithOsStartup;
   }
+
+  const startupMinEl = document.getElementById('start-with-os-minimized');
+  if (startupMinEl) {
+    startupMinEl.checked = !!settings.startWithOsMinimized;
+  }
 }
 
 async function saveSettings() {
@@ -747,6 +752,11 @@ async function saveSettings() {
   const startupEl = document.getElementById('start-with-os-startup');
   if (startupEl) {
     settings.startWithOsStartup = !!startupEl.checked;
+  }
+
+  const startupMinEl = document.getElementById('start-with-os-minimized');
+  if (startupMinEl) {
+    settings.startWithOsMinimized = !!startupMinEl.checked;
   }
   
   await api.saveSettings(settings);
