@@ -13,8 +13,56 @@ function normalizeActiveFiles(value) {
   if (typeof value === 'object') return Object.values(value);
   return [];
 }
-
 let settings = {};
+
+let lastOverheadNotice = '';
+let lastEffectiveConcurrency = null;
+
+function setOverheadNotice(text) {
+  const banner = document.getElementById('overhead-notice');
+  const textEl = document.getElementById('overhead-notice-text');
+  if (!banner || !textEl) return;
+
+  const msg = (text && typeof text === 'string') ? text.trim() : '';
+  if (!msg) {
+    banner.style.display = 'none';
+    textEl.textContent = '';
+    lastOverheadNotice = '';
+    return;
+  }
+
+  lastOverheadNotice = msg;
+  textEl.textContent = msg;
+  banner.style.display = '';
+}
+
+async function refreshServerLoad(manifestUrl) {
+  try {
+    const session = await api.getSessionStatus();
+    const token = session && session.token ? session.token : null;
+    if (!token) {
+      lastEffectiveConcurrency = null;
+      setOverheadNotice('');
+      return;
+    }
+
+    const result = await api.getAppLoad(token, manifestUrl || '');
+    if (!result || result.success !== true || !result.concurrency) {
+      lastEffectiveConcurrency = null;
+      setOverheadNotice('');
+      return;
+    }
+
+    const effective = Number(result.concurrency.effective);
+    lastEffectiveConcurrency = Number.isFinite(effective) && effective > 0 ? effective : null;
+
+    const notice = result.concurrency.notice ? String(result.concurrency.notice) : '';
+    setOverheadNotice(notice);
+  } catch (e) {
+    lastEffectiveConcurrency = null;
+    setOverheadNotice('');
+  }
+}
 
 function formatBitRate(bitsPerSec) {
   const n = Number(bitsPerSec);
@@ -51,6 +99,10 @@ async function init() {
   checkConnectionStatus();
   // Re-check connection status periodically
   setInterval(checkConnectionStatus, 30000);
+
+  // Check server overhead periodically (used to lower concurrency and show notice)
+  refreshServerLoad();
+  setInterval(refreshServerLoad, 30000);
   
   // Setup event listeners
   setupEventListeners();
@@ -346,7 +398,8 @@ function updateItemsInPlace(items, container) {
       if (showActiveFiles) {
         const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
         const workersSetting = Number(settings && settings.maxConcurrentDownloads);
-        const workers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+        const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+        const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
         const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
         const perWorkerStr = formatBitRateFromMBps(perWorker);
         const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';
@@ -493,7 +546,8 @@ function renderDownloadsNow() {
     if (showActiveFiles) {
       const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
       const workersSetting = Number(settings && settings.maxConcurrentDownloads);
-      const workers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+      const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+      const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
       const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
       const perWorkerStr = formatBitRateFromMBps(perWorker);
       const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';

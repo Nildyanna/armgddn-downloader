@@ -57,6 +57,48 @@ if (!gotTheLock) {
   });
 }
 
+function fetchJsonWithBearer(urlString, method, bearerToken) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(urlString);
+    if (u.protocol !== 'https:') {
+      reject(new Error('Security error: URL must use HTTPS'));
+      return;
+    }
+
+    const options = {
+      hostname: u.hostname,
+      port: u.port ? Number(u.port) : 443,
+      path: u.pathname + (u.search || ''),
+      method: method || 'GET',
+      headers: {
+        'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(),
+        ...(bearerToken ? { 'Authorization': 'Bearer ' + bearerToken } : {})
+      },
+      timeout: 8000
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        let json = null;
+        try {
+          json = JSON.parse(data);
+        } catch (e) {
+          // ignore parse failure
+        }
+        resolve({ statusCode: res.statusCode, json, text: data });
+      });
+    });
+
+    req.on('error', reject);
+    req.on('timeout', () => {
+      try { req.destroy(new Error('Request timeout')); } catch (e) {}
+    });
+    req.end();
+  });
+}
+
 let mainWindow;
 let authWindow;
 let tray;
@@ -1126,6 +1168,37 @@ ipcMain.handle('browse-folder', async () => {
   return null;
 });
 
+ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
+  try {
+    const sessionToken = token || loadSession();
+    if (!sessionToken) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    let base = 'https://www.armgddnbrowser.com';
+    try {
+      if (typeof manifestUrl === 'string' && manifestUrl) {
+        const u = new URL(manifestUrl);
+        if (u && u.hostname && isAllowedServiceHost(u.hostname)) {
+          base = `https://${u.hostname}`;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    const { statusCode, json, text } = await fetchJsonWithBearer(`${base}/api/app-load`, 'GET', sessionToken);
+    if (statusCode !== 200 || !json || json.success !== true) {
+      const msg = (json && (json.error || json.message)) ? (json.error || json.message) : 'Failed to fetch server load';
+      const snippet = (text && typeof text === 'string') ? text.slice(0, 200) : '';
+      return { success: false, error: `${msg} (HTTP ${statusCode})${snippet ? `: ${snippet}` : ''}` };
+    }
+    return json;
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) };
+  }
+});
+
 // Get 7z help video file URL for renderer
 ipcMain.handle('get-help-7z-video-src', () => {
   try {
@@ -1569,7 +1642,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     paused: false,
     failedFiles: [],
     quotaNotified: false,
-    forceDisableAutoExtract: forceDisableAutoExtract
+    forceDisableAutoExtract: forceDisableAutoExtract,
+    serverOverhead: null,
+    effectiveConcurrency: null
   };
 
   activeDownloads.set(downloadId, download);
@@ -1597,7 +1672,26 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
   // Download files in parallel (controlled by user setting)
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
-  const PARALLEL_DOWNLOADS = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
+
+  let effectiveParallel = null;
+  try {
+    const loadInfo = await ipcMain.handlers.get-app-load(null, token, manifestUrl);
+    if (loadInfo && loadInfo.success === true && loadInfo.concurrency) {
+      const eff = Number(loadInfo.concurrency.effective);
+      if (Number.isFinite(eff) && eff > 0) {
+        effectiveParallel = eff;
+      }
+      download.serverOverhead = loadInfo;
+      download.effectiveConcurrency = effectiveParallel;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
+  const PARALLEL_DOWNLOADS = effectiveParallel
+    ? Math.min(requestedWorkers, effectiveParallel)
+    : requestedWorkers;
   const fileQueue = [...files];
   const activePromises = [];
   

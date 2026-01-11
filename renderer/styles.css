@@ -117,6 +117,38 @@ body::after {
   box-shadow: var(--shadow);
 }
 
+.overhead-notice {
+  width: 100%;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid rgba(255, 176, 32, 0.42);
+  background:
+    linear-gradient(135deg, rgba(255, 176, 32, 0.16), rgba(46, 242, 255, 0.08) 55%, rgba(8, 10, 24, 0.82) 100%),
+    rgba(8, 10, 24, 0.78);
+  backdrop-filter: blur(16px);
+}
+
+.overhead-notice-inner {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.overhead-notice-title {
+  font-family: 'Orbitron', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.85rem;
+  color: rgba(255, 176, 32, 0.95);
+  text-shadow: 0 0 14px rgba(255, 176, 32, 0.25);
+}
+
+.overhead-notice-text {
+  color: rgba(241, 245, 249, 0.92);
+  font-size: 0.95rem;
+}
+
 .app-header h1 {
   font-size: 1.5rem;
   font-family: 'Orbitron', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
