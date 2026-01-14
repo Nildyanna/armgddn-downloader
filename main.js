@@ -258,7 +258,7 @@ const DEBUG_LOGGING = process.env.ARMGDDN_DEBUG === '1';
 
 let settings = {
   downloadPath: path.join(app.getPath('downloads'), 'ARMGDDN'),
-  maxConcurrentDownloads: 6,
+  maxConcurrentDownloads: 2,
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
   showNotifications: true,
@@ -333,8 +333,8 @@ function applyStartupRegistration() {
      }
 
      const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
-     // Enforce cap of 6 for stability
-     settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 6) : 3;
+  // Enforce cap of 4 for stability
+  settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 4) : 2;
 
      const speed = Number(settings.maxDownloadSpeedMBps);
      settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;

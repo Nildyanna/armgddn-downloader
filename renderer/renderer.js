@@ -753,7 +753,7 @@ function closeHelp7z() {
 
 function updateSettingsUI() {
   document.getElementById('download-path').value = settings.downloadPath || '';
-  document.getElementById('max-concurrent').value = settings.maxConcurrentDownloads || 3;
+  document.getElementById('max-concurrent').value = settings.maxConcurrentDownloads || 2;
   const maxSpeedEl = document.getElementById('max-speed-mbps');
   if (maxSpeedEl) {
     const v = Number(settings.maxDownloadSpeedMBps);
