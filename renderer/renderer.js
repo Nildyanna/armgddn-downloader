@@ -347,6 +347,15 @@ function updateItemsInPlace(items, container) {
       stateEl.textContent = statusDisplay;
     }
 
+    const msgEl = item.querySelector('.download-status-message');
+    if (msgEl) {
+      const msg = download && typeof download.statusMessage === 'string' ? download.statusMessage : '';
+      msgEl.style.display = msg ? '' : 'none';
+      if (msg) {
+        msgEl.textContent = msg;
+      }
+    }
+
     const extractionErr = download && typeof download.extractionError === 'string' ? download.extractionError : '';
     const transferErr = download && typeof download.error === 'string' ? download.error : '';
     const showErr = (download.status === 'error' && transferErr) || extractionErr;
@@ -595,6 +604,7 @@ function renderDownloadsNow() {
         <span class="download-filename">${escapeHtml(download.name)}</span>
         <span class="download-state">${statusDisplay}</span>
       </div>
+      <div class="download-status-message" style="display: ${download.statusMessage ? 'block' : 'none'};">${escapeHtml(download.statusMessage || '')}</div>
       <div class="progress-bar">
         <div class="progress-fill" style="width: ${download.progress || 0}%"></div>
       </div>

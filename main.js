@@ -1365,6 +1365,71 @@ function debugLog(message) {
   fs.appendFileSync(logPath, logLine);
 }
 
+async function reportFileProgressToServer(download, token, file, status, bytesDownloadedOverride) {
+  try {
+    if (!token || !download || !file) return;
+    const fileName = file && file.name ? String(file.name) : '';
+    const totalBytes = typeof file.size === 'number' ? file.size : 0;
+    const bytesDownloaded = typeof bytesDownloadedOverride === 'number'
+      ? bytesDownloadedOverride
+      : (status === 'completed' ? totalBytes : 0);
+
+    const postData = JSON.stringify({
+      downloadId: download.id,
+      fileName,
+      remotePath: download.remotePath || '',
+      bytesDownloaded,
+      totalBytes,
+      status,
+      error: null
+    });
+
+    const targetHost = download.progressHost || 'www.armgddnbrowser.com';
+    if (!isAllowedServiceHost(targetHost)) {
+      return;
+    }
+
+    const options = {
+      hostname: targetHost,
+      port: download.progressPort || 443,
+      path: download.progressPath || '/api/app-progress',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'Authorization': `Bearer ${token}`
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      res.on('data', () => {});
+      res.on('end', () => {});
+    });
+    req.on('error', () => {});
+    req.write(postData);
+    req.end();
+  } catch (e) {
+    // ignore
+  }
+}
+
+function isFileCompleteOnDisk(downloadDir, file) {
+  try {
+    if (!downloadDir || !file || !file.name) return false;
+    const expected = typeof file.size === 'number' ? file.size : 0;
+    if (!(expected > 0)) return false;
+    const safeRel = sanitizeRelativePath(String(file.name));
+    if (!safeRel) return false;
+    const outputPath = resolveInside(downloadDir, safeRel);
+    if (!outputPath) return false;
+    if (!fs.existsSync(outputPath)) return false;
+    const st = fs.statSync(outputPath);
+    return (st && typeof st.size === 'number' && st.size >= expected);
+  } catch (e) {
+    return false;
+  }
+}
+
 // Report progress to website server
 async function reportProgressToServer(download, token) {
   logToFile(`reportProgressToServer called - token: ${token ? 'present' : 'MISSING'}, download: ${download?.name}`);
@@ -1413,6 +1478,7 @@ async function reportProgressToServer(download, token) {
       bytesDownloaded: bytesDownloaded,
       totalBytes: totalBytes,
       status: download.status === 'in_progress' ? 'downloading' : download.status,
+      statusMessage: download.statusMessage || '',
       error: download.error || null
     });
     
@@ -1644,11 +1710,26 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     quotaNotified: false,
     forceDisableAutoExtract: forceDisableAutoExtract,
     serverOverhead: null,
-    effectiveConcurrency: null
+    effectiveConcurrency: null,
+    statusMessage: ''
   };
 
   activeDownloads.set(downloadId, download);
   mainWindow.webContents.send('download-started', { ...download, fileCount: files.length });
+
+  download.statusMessage = 'Preparing download...';
+  try {
+    if (mainWindow && mainWindow.webContents) {
+      mainWindow.webContents.send('download-progress', {
+        id: downloadId,
+        status: download.status,
+        progress: download.progress,
+        statusMessage: download.statusMessage,
+        completedFiles: download.completedFiles,
+        fileCount: download.fileCount
+      });
+    }
+  } catch (e) {}
 
   // Create download directory
   const downloadDir = resolveInside(settings.downloadPath, name);
@@ -1659,16 +1740,57 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     fs.mkdirSync(downloadDir, { recursive: true });
   }
 
+  download.statusMessage = 'Checking existing files...';
+  try { updateProgress(downloadId); } catch (e) {}
+
+  // Skip files that are already complete on disk
+  try {
+    const allFiles = Array.isArray(files) ? files : [];
+    let completedFiles = 0;
+    let downloadedSize = 0;
+    const remainingFiles = [];
+    for (const f of allFiles) {
+      if (!f || !f.name) continue;
+      if (isFileCompleteOnDisk(downloadDir, f)) {
+        completedFiles++;
+        downloadedSize += (typeof f.size === 'number' ? f.size : 0);
+        try {
+          reportFileProgressToServer(download, token, f, 'completed', typeof f.size === 'number' ? f.size : 0);
+        } catch (e) {}
+      } else {
+        remainingFiles.push(f);
+      }
+    }
+    download.completedFiles = completedFiles;
+    download.downloadedSize = downloadedSize;
+    files = remainingFiles;
+    download.files = allFiles;
+    if (allFiles.length > 0) {
+      download.statusMessage = completedFiles > 0
+        ? `Skipped ${completedFiles}/${allFiles.length} files already on disk.`
+        : 'No existing files found. Starting download...';
+    } else {
+      download.statusMessage = 'Starting download...';
+    }
+    try { updateProgress(downloadId); } catch (e) {}
+  } catch (e) {
+    // ignore
+  }
+
   // Update status to in_progress
   download.status = 'in_progress';
   mainWindow.webContents.send('download-progress', {
     id: downloadId,
     status: 'in_progress',
-    progress: 0
+    progress: 0,
+    statusMessage: download.statusMessage || ''
   });
   
   // Report initial progress to server
   reportProgressToServer(download, token);
+
+  download.statusMessage = 'Checking server load...';
+  try { updateProgress(downloadId); } catch (e) {}
 
   // Download files in parallel (controlled by user setting)
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
@@ -1683,6 +1805,15 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       }
       download.serverOverhead = loadInfo;
       download.effectiveConcurrency = effectiveParallel;
+      const notice = loadInfo && loadInfo.concurrency && loadInfo.concurrency.notice ? String(loadInfo.concurrency.notice) : '';
+      if (notice) {
+        download.statusMessage = notice;
+      } else if (effectiveParallel) {
+        download.statusMessage = `Starting downloads (server limit: ${effectiveParallel})...`;
+      } else {
+        download.statusMessage = 'Starting downloads...';
+      }
+      try { updateProgress(downloadId); } catch (e) {}
     }
   } catch (e) {
     // ignore
@@ -1711,7 +1842,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   };
   
   // Start parallel download workers
-  for (let i = 0; i < Math.min(PARALLEL_DOWNLOADS, files.length); i++) {
+  for (let i = 0; i < Math.min(PARALLEL_DOWNLOADS, fileQueue.length); i++) {
     activePromises.push(processNext());
   }
   
@@ -1819,6 +1950,28 @@ async function downloadFile(downloadId, file, downloadDir) {
       return;
     }
 
+    const safeRel = sanitizeRelativePath(file.name);
+    if (!safeRel) {
+      reject(new Error('Security error: Invalid file name'));
+      return;
+    }
+    const outputPath = resolveInside(downloadDir, safeRel);
+    if (!outputPath) {
+      reject(new Error('Security error: Invalid file path'));
+      return;
+    }
+
+    if (isFileCompleteOnDisk(downloadDir, file)) {
+      download.downloadedSize += (typeof file.size === 'number' ? file.size : 0);
+      download.completedFiles++;
+      updateProgress(downloadId);
+      try {
+        reportFileProgressToServer(download, download.token, file, 'completed', typeof file.size === 'number' ? file.size : 0);
+      } catch (e) {}
+      resolve();
+      return;
+    }
+
     download.status = 'downloading';
     download.currentFile = file.name;
 
@@ -1838,16 +1991,6 @@ async function downloadFile(downloadId, file, downloadDir) {
     updateProgress(downloadId);
 
     const rclonePath = getRclonePath();
-    const safeRel = sanitizeRelativePath(file.name);
-    if (!safeRel) {
-      reject(new Error('Security error: Invalid file name'));
-      return;
-    }
-    const outputPath = resolveInside(downloadDir, safeRel);
-    if (!outputPath) {
-      reject(new Error('Security error: Invalid file path'));
-      return;
-    }
 
     // Ensure parent directory exists
     const parentDir = path.dirname(outputPath);
@@ -1934,6 +2077,9 @@ async function downloadFile(downloadId, file, downloadDir) {
           download.activeFiles[fileKey].progress = 100;
           delete download.activeFiles[fileKey];
         }
+        try {
+          reportFileProgressToServer(download, download.token, file, 'completed', typeof file.size === 'number' ? file.size : 0);
+        } catch (e) {}
         updateProgress(downloadId);
         resolve();
       } else {
@@ -2501,6 +2647,7 @@ function updateProgress(downloadId) {
     id: downloadId,
     status: download.status,
     progress: download.progress,
+    statusMessage: download.statusMessage || '',
     downloadedSize: download.downloadedSize,
     totalSpeed: download.totalSpeed,
     activeFiles: activeFilesList,
