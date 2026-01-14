@@ -1797,7 +1797,10 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
   let effectiveParallel = null;
   try {
-    const loadInfo = await ipcMain.handlers.get-app-load(null, token, manifestUrl);
+    const loadInfo = await Promise.race([
+      ipcMain.handlers.get-app-load(null, token, manifestUrl),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('get-app-load timeout')), 8000))
+    ]);
     if (loadInfo && loadInfo.success === true && loadInfo.concurrency) {
       const eff = Number(loadInfo.concurrency.effective);
       if (Number.isFinite(eff) && eff > 0) {
@@ -1816,7 +1819,8 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       try { updateProgress(downloadId); } catch (e) {}
     }
   } catch (e) {
-    // ignore
+    download.statusMessage = 'Starting downloads...';
+    try { updateProgress(downloadId); } catch (e2) {}
   }
 
   const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
