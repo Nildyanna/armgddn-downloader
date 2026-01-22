@@ -1237,13 +1237,44 @@ ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
       // ignore
     }
 
-    const { statusCode, json, text } = await fetchJsonWithBearer(`${base}/api/app-load`, 'GET', sessionToken);
-    if (statusCode !== 200 || !json || json.success !== true) {
+    const fetchOnce = async (baseUrl) => {
+      const { statusCode, json, text } = await fetchJsonWithBearer(`${baseUrl}/api/app-load`, 'GET', sessionToken);
+      if (statusCode === 200 && json && json.success === true) {
+        return { ok: true, json };
+      }
       const msg = (json && (json.error || json.message)) ? (json.error || json.message) : 'Failed to fetch server load';
       const snippet = (text && typeof text === 'string') ? text.slice(0, 200) : '';
-      return { success: false, error: `${msg} (HTTP ${statusCode})${snippet ? `: ${snippet}` : ''}` };
+      return { ok: false, error: `${msg} (HTTP ${statusCode})${snippet ? `: ${snippet}` : ''}` };
+    };
+
+    try {
+      const primary = await fetchOnce(base);
+      if (primary.ok) return primary.json;
+
+      // Fallback for environments that do not have api.* DNS records but do have www.
+      if (base !== 'https://www.armgddnbrowser.com') {
+        const fallback = await fetchOnce('https://www.armgddnbrowser.com');
+        if (fallback.ok) return fallback.json;
+      }
+
+      return { success: false, error: primary.error || 'Failed to fetch server load' };
+    } catch (e) {
+      const msg = e && e.message ? String(e.message) : String(e);
+      const code = e && e.code ? String(e.code) : '';
+      const looksLikeDnsOrConnect = code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ECONNREFUSED' || code === 'ETIMEDOUT';
+
+      if (base !== 'https://www.armgddnbrowser.com' && looksLikeDnsOrConnect) {
+        try {
+          const fallback = await fetchOnce('https://www.armgddnbrowser.com');
+          if (fallback.ok) return fallback.json;
+          return { success: false, error: fallback.error || 'Failed to fetch server load' };
+        } catch (e2) {
+          return { success: false, error: e2 && e2.message ? e2.message : String(e2) };
+        }
+      }
+
+      return { success: false, error: msg };
     }
-    return json;
   } catch (e) {
     return { success: false, error: e && e.message ? e.message : String(e) };
   }
