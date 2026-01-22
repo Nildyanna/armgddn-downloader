@@ -68,9 +68,20 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
       }
       notice = (loadInfo.concurrency.notice ? String(loadInfo.concurrency.notice) : '') || '';
       download.serverOverhead = loadInfo;
+      try {
+        logToFile(`[Concurrency] app-load ok requested=${requestedWorkers} serverEffective=${eff} appliedEffective=${effective} manifestHost=${(() => { try { return manifestUrl ? new URL(String(manifestUrl)).hostname : ''; } catch (e2) { return ''; } })()}`);
+      } catch (e) {}
+    } else if (loadInfo && loadInfo.success === false) {
+      const errMsg = loadInfo && loadInfo.error ? String(loadInfo.error) : 'Failed to fetch server load';
+      notice = errMsg;
+      try {
+        logToFile(`[Concurrency] app-load failed: ${errMsg}`);
+      } catch (e) {}
     }
   } catch (e) {
-    // ignore
+    try {
+      logToFile(`[Concurrency] get-app-load threw: ${e && e.message ? e.message : String(e)}`);
+    } catch (e2) {}
   }
 
   download.effectiveConcurrency = effective;
