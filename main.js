@@ -37,6 +37,61 @@ if (process.defaultApp) {
   }
 }
 
+function getActiveFileCount(download) {
+  try {
+    if (!download || !download.activeFiles) return 0;
+    return Object.keys(download.activeFiles).length;
+  } catch (e) {
+    return 0;
+  }
+}
+
+async function refreshDownloadConcurrency(download, token, manifestUrl) {
+  if (!download) return;
+
+  const requested = Number(settings && settings.maxConcurrentDownloads);
+  const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requested) ? requested : 3));
+
+  let effective = null;
+  let notice = '';
+
+  try {
+    const loadInfo = await Promise.race([
+      ipcMain.handlers.get-app-load(null, token, manifestUrl),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('get-app-load timeout')), 8000))
+    ]);
+
+    if (loadInfo && loadInfo.success === true && loadInfo.concurrency) {
+      const eff = Number(loadInfo.concurrency.effective);
+      if (Number.isFinite(eff) && eff > 0) {
+        effective = Math.min(requestedWorkers, eff);
+      }
+      notice = (loadInfo.concurrency.notice ? String(loadInfo.concurrency.notice) : '') || '';
+      download.serverOverhead = loadInfo;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  download.effectiveConcurrency = effective;
+  download.serverOverhead = download.serverOverhead || null;
+
+  if (!notice) {
+    const effNow = Number(download.effectiveConcurrency);
+    if (Number.isFinite(effNow) && effNow > 0 && requestedWorkers > effNow) {
+      notice = `Server load is high. Concurrent downloads may be throttled (${effNow} / ${requestedWorkers}).`;
+    }
+  }
+
+  if (notice) {
+    download.statusMessage = notice;
+  } else if (effective) {
+    download.statusMessage = `Starting downloads (server limit: ${effective})...`;
+  }
+
+  try { updateProgress(download.id); } catch (e) {}
+}
+
 // Ensure single instance
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -324,17 +379,12 @@ function applyStartupRegistration() {
   }
 }
 
- function normalizeSettings() {
-   try {
-     if (!settings || typeof settings !== 'object') return;
-
-     if (typeof settings.downloadPath !== 'string') {
-       settings.downloadPath = path.join(app.getPath('downloads'), 'ARMGDDN');
-     }
-
+function normalizeSettings() {
+  try {
+    if (!settings || typeof settings !== 'object') return;
      const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
-  // Enforce cap of 4 for stability
-  settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 4) : 2;
+ // Enforce cap of 8 for stability
+ settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 8) : 2;
 
      const speed = Number(settings.maxDownloadSpeedMBps);
      settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
@@ -348,9 +398,9 @@ function applyStartupRegistration() {
      settings.startWithOsStartup = !!settings.startWithOsStartup;
      settings.startWithOsMinimized = !!settings.startWithOsMinimized;
    } catch (e) {
-     logToFile(`[Settings] normalizeSettings failed: ${e && e.message ? e.message : e}`);
-   }
- }
+    logToFile(`[Settings] normalizeSettings failed: ${e && e.message ? e.message : e}`);
+  }
+}
 
 function isAutostartLaunch() {
   try {
@@ -1685,6 +1735,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   const download = {
     id: downloadId,
     name: name,
+    manifestUrl: (typeof manifestUrl === 'string' ? manifestUrl : ''),
     remotePath: remotePath,  // Store for trending reporting
     progressHost,
     progressPort,
@@ -1795,43 +1846,35 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   // Download files in parallel (controlled by user setting)
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
 
-  let effectiveParallel = null;
-  try {
-    const loadInfo = await Promise.race([
-      ipcMain.handlers.get-app-load(null, token, manifestUrl),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('get-app-load timeout')), 8000))
-    ]);
-    if (loadInfo && loadInfo.success === true && loadInfo.concurrency) {
-      const eff = Number(loadInfo.concurrency.effective);
-      if (Number.isFinite(eff) && eff > 0) {
-        effectiveParallel = eff;
-      }
-      download.serverOverhead = loadInfo;
-      download.effectiveConcurrency = effectiveParallel;
-      const notice = loadInfo && loadInfo.concurrency && loadInfo.concurrency.notice ? String(loadInfo.concurrency.notice) : '';
-      if (notice) {
-        download.statusMessage = notice;
-      } else if (effectiveParallel) {
-        download.statusMessage = `Starting downloads (server limit: ${effectiveParallel})...`;
-      } else {
-        download.statusMessage = 'Starting downloads...';
-      }
-      try { updateProgress(downloadId); } catch (e) {}
-    }
-  } catch (e) {
-    download.statusMessage = 'Starting downloads...';
-    try { updateProgress(downloadId); } catch (e2) {}
-  }
-
   const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
-  const PARALLEL_DOWNLOADS = effectiveParallel
-    ? Math.min(requestedWorkers, effectiveParallel)
-    : requestedWorkers;
+  await refreshDownloadConcurrency(download, token, manifestUrl);
+  download.statusMessage = download.statusMessage || 'Starting downloads...';
+  try { updateProgress(downloadId); } catch (e2) {}
+
+  // Spawn at most the requested workers; concurrency is enforced dynamically by waiting
+  // when active files exceed the server's effective limit.
+  const PARALLEL_DOWNLOADS = requestedWorkers;
   const fileQueue = [...files];
   const activePromises = [];
+
+  let concurrencyPoll = null;
+  try {
+    concurrencyPoll = setInterval(() => {
+      if (!download || download.cancelled || download.paused) return;
+      if (!fileQueue || fileQueue.length === 0) return;
+      refreshDownloadConcurrency(download, token, manifestUrl);
+    }, 30000);
+  } catch (e) {}
   
   const processNext = async () => {
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
+      const eff = Number(download && download.effectiveConcurrency);
+      const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkers, eff) : requestedWorkers;
+      if (getActiveFileCount(download) >= limit) {
+        await new Promise(r => setTimeout(r, 250));
+        continue;
+      }
+
       const file = fileQueue.shift();
       if (!file) break;
       try {
@@ -1851,6 +1894,10 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   }
   
   await Promise.all(activePromises);
+
+  try {
+    if (concurrencyPoll) clearInterval(concurrencyPoll);
+  } catch (e) {}
   
   const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
   // Only mark as completed if not cancelled, not paused, and with no failed files
@@ -2807,12 +2854,37 @@ async function resumeDownloadFiles(downloadId) {
   });
 
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
-  const PARALLEL_DOWNLOADS = Math.min(6, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
+  const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
+
+  // Best-effort: refresh concurrency limits before resuming.
+  try {
+    const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
+    await refreshDownloadConcurrency(download, download.token, manifestUrl);
+  } catch (e) {}
+
+  const PARALLEL_DOWNLOADS = requestedWorkers;
   const fileQueue = [...remainingFiles];
   const activePromises = [];
 
+  let concurrencyPoll = null;
+  try {
+    const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
+    concurrencyPoll = setInterval(() => {
+      if (!download || download.cancelled || download.paused) return;
+      if (!fileQueue || fileQueue.length === 0) return;
+      refreshDownloadConcurrency(download, download.token, manifestUrl);
+    }, 30000);
+  } catch (e) {}
+
   const processNext = async () => {
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
+      const eff = Number(download && download.effectiveConcurrency);
+      const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkers, eff) : requestedWorkers;
+      if (getActiveFileCount(download) >= limit) {
+        await new Promise(r => setTimeout(r, 250));
+        continue;
+      }
+
       const file = fileQueue.shift();
       if (!file) break;
       try {

@@ -57,7 +57,13 @@ async function refreshServerLoad(manifestUrl) {
     lastEffectiveConcurrency = Number.isFinite(effective) && effective > 0 ? effective : null;
 
     const notice = result.concurrency.notice ? String(result.concurrency.notice) : '';
-    setOverheadNotice(notice);
+    const requested = Number(settings && settings.maxConcurrentDownloads);
+    const effectiveNow = lastEffectiveConcurrency;
+    const shouldWarn = Number.isFinite(requested) && requested > 0 && Number.isFinite(effectiveNow) && effectiveNow > 0 && requested > effectiveNow;
+    const derivedNotice = shouldWarn
+      ? `Server load is high. Concurrent downloads may be throttled (${effectiveNow} / ${requested}).`
+      : '';
+    setOverheadNotice(notice || derivedNotice);
   } catch (e) {
     lastEffectiveConcurrency = null;
     setOverheadNotice('');
