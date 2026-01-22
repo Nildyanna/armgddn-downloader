@@ -57,7 +57,7 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
 
   try {
     const loadInfo = await Promise.race([
-      ipcMain.handlers.get-app-load(null, token, manifestUrl),
+      getAppLoadInfo(token, manifestUrl),
       new Promise((_, reject) => setTimeout(() => reject(new Error('get-app-load timeout')), 8000))
     ]);
 
@@ -121,6 +121,67 @@ if (!gotTheLock) {
       handleDeepLink(url);
     }
   });
+}
+
+async function getAppLoadInfo(token, manifestUrl) {
+  try {
+    const sessionToken = token || loadSession();
+    if (!sessionToken) {
+      return { success: false, error: 'Not authenticated' };
+    }
+
+    let base = 'https://www.armgddnbrowser.com';
+    try {
+      if (typeof manifestUrl === 'string' && manifestUrl) {
+        const u = new URL(manifestUrl);
+        if (u && u.hostname && isAllowedServiceHost(u.hostname)) {
+          base = `https://${u.hostname}`;
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    const fetchOnce = async (baseUrl) => {
+      const { statusCode, json, text } = await fetchJsonWithBearer(`${baseUrl}/api/app-load`, 'GET', sessionToken);
+      if (statusCode === 200 && json && json.success === true) {
+        return { ok: true, json };
+      }
+      const msg = (json && (json.error || json.message)) ? (json.error || json.message) : 'Failed to fetch server load';
+      const snippet = (text && typeof text === 'string') ? text.slice(0, 200) : '';
+      return { ok: false, error: `${msg} (HTTP ${statusCode})${snippet ? `: ${snippet}` : ''}` };
+    };
+
+    try {
+      const primary = await fetchOnce(base);
+      if (primary.ok) return primary.json;
+
+      if (base !== 'https://www.armgddnbrowser.com') {
+        const fallback = await fetchOnce('https://www.armgddnbrowser.com');
+        if (fallback.ok) return fallback.json;
+      }
+
+      return { success: false, error: primary.error || 'Failed to fetch server load' };
+    } catch (e) {
+      const msg = e && e.message ? String(e.message) : String(e);
+      const code = e && e.code ? String(e.code) : '';
+      const looksLikeDnsOrConnect = code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ECONNREFUSED' || code === 'ETIMEDOUT';
+
+      if (base !== 'https://www.armgddnbrowser.com' && looksLikeDnsOrConnect) {
+        try {
+          const fallback = await fetchOnce('https://www.armgddnbrowser.com');
+          if (fallback.ok) return fallback.json;
+          return { success: false, error: fallback.error || 'Failed to fetch server load' };
+        } catch (e2) {
+          return { success: false, error: e2 && e2.message ? e2.message : String(e2) };
+        }
+      }
+
+      return { success: false, error: msg };
+    }
+  } catch (e) {
+    return { success: false, error: e && e.message ? e.message : String(e) };
+  }
 }
 
 function fetchJsonWithBearer(urlString, method, bearerToken) {
@@ -1230,65 +1291,7 @@ ipcMain.handle('browse-folder', async () => {
 });
 
 ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
-  try {
-    const sessionToken = token || loadSession();
-    if (!sessionToken) {
-      return { success: false, error: 'Not authenticated' };
-    }
-
-    let base = 'https://www.armgddnbrowser.com';
-    try {
-      if (typeof manifestUrl === 'string' && manifestUrl) {
-        const u = new URL(manifestUrl);
-        if (u && u.hostname && isAllowedServiceHost(u.hostname)) {
-          base = `https://${u.hostname}`;
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-
-    const fetchOnce = async (baseUrl) => {
-      const { statusCode, json, text } = await fetchJsonWithBearer(`${baseUrl}/api/app-load`, 'GET', sessionToken);
-      if (statusCode === 200 && json && json.success === true) {
-        return { ok: true, json };
-      }
-      const msg = (json && (json.error || json.message)) ? (json.error || json.message) : 'Failed to fetch server load';
-      const snippet = (text && typeof text === 'string') ? text.slice(0, 200) : '';
-      return { ok: false, error: `${msg} (HTTP ${statusCode})${snippet ? `: ${snippet}` : ''}` };
-    };
-
-    try {
-      const primary = await fetchOnce(base);
-      if (primary.ok) return primary.json;
-
-      // Fallback for environments that do not have api.* DNS records but do have www.
-      if (base !== 'https://www.armgddnbrowser.com') {
-        const fallback = await fetchOnce('https://www.armgddnbrowser.com');
-        if (fallback.ok) return fallback.json;
-      }
-
-      return { success: false, error: primary.error || 'Failed to fetch server load' };
-    } catch (e) {
-      const msg = e && e.message ? String(e.message) : String(e);
-      const code = e && e.code ? String(e.code) : '';
-      const looksLikeDnsOrConnect = code === 'ENOTFOUND' || code === 'EAI_AGAIN' || code === 'ECONNREFUSED' || code === 'ETIMEDOUT';
-
-      if (base !== 'https://www.armgddnbrowser.com' && looksLikeDnsOrConnect) {
-        try {
-          const fallback = await fetchOnce('https://www.armgddnbrowser.com');
-          if (fallback.ok) return fallback.json;
-          return { success: false, error: fallback.error || 'Failed to fetch server load' };
-        } catch (e2) {
-          return { success: false, error: e2 && e2.message ? e2.message : String(e2) };
-        }
-      }
-
-      return { success: false, error: msg };
-    }
-  } catch (e) {
-    return { success: false, error: e && e.message ? e.message : String(e) };
-  }
+  return getAppLoadInfo(token, manifestUrl);
 });
 
 // Get 7z help video file URL for renderer
