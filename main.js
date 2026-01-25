@@ -16,6 +16,121 @@ if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function')
   } catch (e) {}
 }
 
+// Fetch manifest but request a different mirror when the remote is a mirror group.
+async function fetchManifestWithAvoidMirror(manifestUrl, token, avoidMirror, redirectCount = 0) {
+  // Prevent infinite redirect loops
+  if (redirectCount > 3) {
+    throw new Error('Too many redirects while fetching manifest');
+  }
+
+  return new Promise((resolve, reject) => {
+    const parsedUrl = new URL(manifestUrl);
+
+    // Security: Enforce HTTPS only
+    if (parsedUrl.protocol !== 'https:') {
+      reject(new Error('Security error: Only HTTPS connections are allowed'));
+      return;
+    }
+
+    if (!isAllowedServiceHost(parsedUrl.hostname)) {
+      reject(new Error('Security error: Host not allowed'));
+      return;
+    }
+
+    const queryString = parsedUrl.search.substring(1);
+    const params = {};
+    for (const pair of queryString.split('&')) {
+      const eqIndex = pair.indexOf('=');
+      if (eqIndex > 0) {
+        const key = decodeURIComponent(pair.substring(0, eqIndex));
+        const value = decodeURIComponent(pair.substring(eqIndex + 1));
+        params[key] = value;
+      }
+    }
+
+    const remote = params.remote;
+    const pathParam = params.path;
+
+    if (!remote || !pathParam) {
+      const errorMsg = `Missing remote or path. Query="${queryString}", Params=${JSON.stringify(params)}, remote="${remote}", path="${pathParam}"`;
+      console.error(errorMsg);
+      reject(new Error(errorMsg));
+      return;
+    }
+
+    const postBody = { remote, path: pathParam };
+    if (avoidMirror) {
+      postBody.avoidMirror = String(avoidMirror);
+    }
+    const postData = JSON.stringify(postBody);
+
+    const options = {
+      hostname: parsedUrl.hostname,
+      port: parsedUrl.port || 443,
+      path: parsedUrl.pathname,
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', chunk => data += chunk);
+      res.on('end', async () => {
+        try {
+          const json = JSON.parse(data);
+
+          if (json.redirect && json.newRemote && json.newPath) {
+            const newManifestUrl = `https://${parsedUrl.hostname}${parsedUrl.pathname}?remote=${encodeURIComponent(json.newRemote)}&path=${encodeURIComponent(json.newPath)}`;
+            try {
+              const newManifest = await fetchManifestWithAvoidMirror(newManifestUrl, token, avoidMirror, redirectCount + 1);
+              resolve(newManifest);
+            } catch (retryErr) {
+              reject(new Error(`Game was moved but failed to fetch from new location: ${retryErr.message}`));
+            }
+            return;
+          }
+
+          if (json.success === false) {
+            reject(new Error(json.error || 'Server returned error'));
+            return;
+          }
+
+          resolve(json);
+        } catch (e) {
+          console.error('Failed to parse manifest:', data);
+          reject(new Error('Invalid JSON response: ' + data.substring(0, 100)));
+        }
+      });
+    });
+
+    req.on('error', (err) => {
+      console.error('Request error:', err);
+      reject(err);
+    });
+    req.write(postData);
+    req.end();
+  });
+}
+
+function isNetworkStreamError(output) {
+  const lower = String(output || '').toLowerCase();
+  return lower.includes('stream error') ||
+         lower.includes('received from peer') ||
+         lower.includes('internal_error') ||
+         lower.includes('connection reset') ||
+         lower.includes('econnreset') ||
+         lower.includes('unexpected eof') ||
+         lower.includes('broken pipe') ||
+         lower.includes('rst_stream') ||
+         lower.includes('http2') ||
+         lower.includes('transport') ||
+         lower.includes('client connection lost');
+}
+
 // Handle deep links
 let protocolClientRegistered = false;
 let protocolClientRegisterError = '';
@@ -1807,8 +1922,18 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     forceDisableAutoExtract: forceDisableAutoExtract,
     serverOverhead: null,
     effectiveConcurrency: null,
-    statusMessage: ''
+    statusMessage: '',
+    actualRemote: (manifest && manifest.actualRemote) ? String(manifest.actualRemote) : '',
+    mirrorSwitches: 0,
+    triedMirrors: []
   };
+
+  try {
+    const initial = download.actualRemote ? String(download.actualRemote) : '';
+    if (initial) {
+      download.triedMirrors = [initial];
+    }
+  } catch (e) {}
 
   activeDownloads.set(downloadId, download);
   mainWindow.webContents.send('download-started', { ...download, fileCount: files.length });
@@ -2134,7 +2259,7 @@ async function downloadFile(downloadId, file, downloadDir) {
       parseRcloneProgress(downloadId, fileKey, output);
     });
 
-    proc.on('close', (code) => {
+    proc.on('close', async (code) => {
       const idx = download.activeProcesses.indexOf(proc);
       if (idx !== -1) {
         download.activeProcesses.splice(idx, 1);
@@ -2194,6 +2319,76 @@ async function downloadFile(downloadId, file, downloadDir) {
         const busy = isServerBusyError(errorOutput);
         const sslError = errorOutput.includes('x509') || errorOutput.includes('certificate') || errorOutput.includes('ssl');
         const dnsError = errorOutput.includes('lookup') || errorOutput.includes('name resolution') || errorOutput.includes('no such host');
+        const networkStream = isNetworkStreamError(errorOutput);
+
+        // Attempt mirror failover once for network/stream failures.
+        // This only works when the manifest URL points at a mirror group remote.
+        try {
+          const canTryMirrorFailover = !!(
+            networkStream &&
+            !quota &&
+            !busy &&
+            !sslError &&
+            !dnsError &&
+            !isTokenExpiredError(errorOutput) &&
+            download &&
+            download.manifestUrl &&
+            download.token &&
+            (Number(download.mirrorSwitches) || 0) < 5
+          );
+
+          if (canTryMirrorFailover) {
+            const tried = Array.isArray(download.triedMirrors) ? download.triedMirrors.map(String) : [];
+            const avoid = tried.filter(Boolean).join(',');
+            logToFile(`[MirrorFailover] attempting manifest refetch avoidMirror=${avoid} file=${file && file.name ? String(file.name) : ''}`);
+            const newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, avoid);
+            const newActual = newManifest && newManifest.actualRemote ? String(newManifest.actualRemote) : '';
+
+            if (newActual && !tried.includes(newActual) && Array.isArray(newManifest.files)) {
+              const wantPath = file && file.path ? String(file.path) : '';
+              const wantName = file && file.name ? String(file.name) : '';
+              const match = newManifest.files.find(f => {
+                if (!f) return false;
+                if (wantPath && f.path && String(f.path) === wantPath) return true;
+                if (wantName && f.name && String(f.name) === wantName) return true;
+                return false;
+              });
+
+              if (match && match.url) {
+                download.actualRemote = newActual;
+                download.mirrorSwitches = (Number(download.mirrorSwitches) || 0) + 1;
+                try {
+                  if (!Array.isArray(download.triedMirrors)) download.triedMirrors = [];
+                  download.triedMirrors.push(newActual);
+                } catch (e) {}
+                const retryFile = { ...file, url: String(match.url) };
+                logToFile(`[MirrorFailover] retrying on new mirror actualRemote=${newActual} file=${wantName}`);
+
+                // Remove this file from failedFiles since we're retrying it.
+                try {
+                  if (Array.isArray(download.failedFiles)) {
+                    download.failedFiles = download.failedFiles.filter(n => String(n) !== String(file.name));
+                  }
+                } catch (e) {}
+
+                // Reset status so the UI doesn't stay in an error state if retry succeeds.
+                download.status = 'downloading';
+                download.error = '';
+                updateProgress(downloadId);
+
+                // Retry once with the new URL.
+                downloadFile(downloadId, retryFile, downloadDir).then(resolve).catch((e) => {
+                  reject(e);
+                });
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          try {
+            logToFile(`[MirrorFailover] failed to refetch manifest/retry: ${e && e.message ? e.message : String(e)}`);
+          } catch (e2) {}
+        }
 
         try {
           const trimmed = String(errorOutput || '').trim();
