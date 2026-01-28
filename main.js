@@ -2196,6 +2196,15 @@ async function downloadFile(downloadId, file, downloadDir) {
     download.status = 'downloading';
     download.currentFile = file.name;
 
+    try {
+      const u = new URL(String(file && file.url ? file.url : ''));
+      const host = (u && u.hostname) ? String(u.hostname).toLowerCase() : '';
+      const isProxyRoute = host === 'www.armgddnbrowser.com' || host === 'armgddnbrowser.com' || host.endsWith('.armgddnbrowser.com');
+      logToFile(`[Route] fileRoute=${isProxyRoute ? 'proxy' : 'direct'} file=${file && file.name ? String(file.name) : ''}`);
+    } catch (e) {
+      // ignore
+    }
+
     const fileKey = getActiveFileKey(file);
     
     // Initialize per-file tracking
