@@ -3865,7 +3865,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
             }
 
             const sigUrl = `${url}.sig`;
-            downloadSignature(sigUrl).then((sigRes) => {
+            logToFile(`Update - verifying: downloading signature: ${sigUrl}`);
+            downloadSignature(sigUrl).then(async (sigRes) => {
               if (!sigRes || sigRes.ok !== true || !sigRes.text) {
                 try {
                   logToFile(`Update - signature download failed: url=${sigUrl} err=${sigRes && sigRes.error ? sigRes.error : 'unknown'}`);
@@ -3882,15 +3883,20 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                 return;
               }
 
+              logToFile(`Update - verifying: reading installer: ${filePath}`);
               let installerBytes = null;
               try {
-                installerBytes = fs.readFileSync(filePath);
+                installerBytes = await fs.promises.readFile(filePath);
               } catch (e) {
                 resolve({ success: false, error: 'Failed to read downloaded installer for verification' });
                 return;
               }
 
+              // Yield the event loop so the update window stays responsive even on large installers.
+              await new Promise((r) => setImmediate(r));
+
               const pubKeyPem = getUpdateEd25519PublicKeyPem();
+              logToFile('Update - verifying: checking Ed25519 signature');
               const ok = verifyEd25519Signature(installerBytes, sigBuf, pubKeyPem);
               if (!ok) {
                 shell.showItemInFolder(filePath);
