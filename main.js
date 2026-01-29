@@ -1388,6 +1388,63 @@ app.whenReady().then(() => {
   applyStartupRegistration();
   loadHistory();
   loadSession();
+  (async () => {
+    try {
+      const resultPath = path.join(app.getPath('userData'), 'update-result.json');
+      if (!fs.existsSync(resultPath)) return;
+      const raw = fs.readFileSync(resultPath, 'utf8');
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') {
+        try { fs.unlinkSync(resultPath); } catch (e) {}
+        return;
+      }
+
+      const state = String(parsed.state || '').toLowerCase();
+      const exitCode = Number.isFinite(Number(parsed.exitCode)) ? Number(parsed.exitCode) : null;
+      const logPath = parsed.logPath ? String(parsed.logPath) : '';
+
+      // Clean up successful results silently.
+      if (state === 'success' || exitCode === 0) {
+        try { fs.unlinkSync(resultPath); } catch (e) {}
+        return;
+      }
+
+      // Only show failure messages for recent results (avoid old stale files lingering).
+      const ts = parsed.ts ? Number(parsed.ts) : null;
+      const ageMs = (ts && Number.isFinite(ts)) ? (Date.now() - ts) : null;
+      if (ageMs != null && ageMs > (24 * 60 * 60 * 1000)) {
+        try { fs.unlinkSync(resultPath); } catch (e) {}
+        return;
+      }
+
+      const msg = exitCode != null
+        ? `The update installer failed (exit code ${exitCode}).\n\nYou can open the update log for details.`
+        : 'The update installer failed.\n\nYou can open the update log for details.';
+
+      const buttons = logPath ? ['Open Update Log', 'OK'] : ['OK'];
+      const openIdx = 0;
+      const { response } = await dialog.showMessageBox({
+        type: 'error',
+        buttons,
+        defaultId: 0,
+        title: 'Update Failed',
+        message: 'ARMGDDN Companion update failed',
+        detail: msg
+      });
+
+      if (logPath && response === openIdx) {
+        try {
+          await shell.openPath(logPath);
+        } catch (e) {
+          try { shell.showItemInFolder(logPath); } catch (e2) {}
+        }
+      }
+
+      try { fs.unlinkSync(resultPath); } catch (e) {}
+    } catch (e) {
+      try { logToFile(`Update result check error: ${e && e.message ? e.message : String(e)}`); } catch (e2) {}
+    }
+  })();
   createWindow();
   createTray();
   createAppMenu();
@@ -1690,6 +1747,57 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
   }
   
   return fetchManifestInternal(manifestUrl, token);
+});
+
+// Resolve short-lived browser download token into a manifest URL
+ipcMain.handle('resolve-download-token', async (event, downloadToken, token) => {
+  if (!isValidToken(token)) {
+    throw new Error('Invalid or missing authentication token');
+  }
+
+  if (!downloadToken || typeof downloadToken !== 'string') {
+    throw new Error('Missing download token');
+  }
+
+  // Default to the production host; allowlist check is applied.
+  const host = 'www.armgddnbrowser.com';
+  if (!isAllowedServiceHost(host)) {
+    throw new Error('Security error: Host not allowed');
+  }
+
+  const pathWithQuery = `/api/external-download-token/resolve?downloadToken=${encodeURIComponent(downloadToken)}`;
+
+  return new Promise((resolve, reject) => {
+    const options = {
+      hostname: host,
+      port: 443,
+      path: pathWithQuery,
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      let data = '';
+      res.on('data', (chunk) => { data += chunk; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(data || '{}');
+          if (!json || json.success !== true || !json.manifestUrl) {
+            reject(new Error((json && json.error) ? String(json.error) : 'Failed to resolve download token'));
+            return;
+          }
+          resolve(json);
+        } catch (e) {
+          reject(new Error('Invalid JSON response'));
+        }
+      });
+    });
+
+    req.on('error', (err) => reject(err));
+    req.end();
+  });
 });
 
 // Debug log to file for troubleshooting
@@ -3866,6 +3974,35 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               progressWin.webContents.send('update-status', 'Verifying update...');
             }
 
+            let verifyResolved = false;
+            const resolveOnce = (val) => {
+              if (verifyResolved) return;
+              verifyResolved = true;
+              try {
+                if (verifyTimeout) clearTimeout(verifyTimeout);
+              } catch (e) {}
+              resolve(val);
+            };
+
+            const VERIFY_TIMEOUT_MS = 60000;
+            const verifyTimeout = setTimeout(() => {
+              try {
+                logToFile('Update - verification timed out');
+              } catch (e) {}
+              try {
+                if (progressWin && !progressWin.isDestroyed()) {
+                  progressWin.webContents.send('update-status', 'Update verification timed out. Please try again.');
+                }
+              } catch (e) {}
+              // Give the user a moment to read the message, then close the progress window.
+              setTimeout(() => {
+                try {
+                  if (progressWin && !progressWin.isDestroyed()) progressWin.close();
+                } catch (e) {}
+              }, 2500);
+              resolveOnce({ success: false, error: 'Update verification timed out' });
+            }, VERIFY_TIMEOUT_MS);
+
             const failUpdate = (publicMsg, internalErr) => {
               try {
                 logToFile(`Update - verification failed: ${internalErr || publicMsg}`);
@@ -3888,15 +4025,13 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
             try {
               const pubKeyPem = getUpdateEd25519PublicKeyPem();
               if (!pubKeyPem) {
-                shell.showItemInFolder(filePath);
-                failUpdate('Update verification unavailable (missing public key). Opening folder...', 'Missing Ed25519 public key');
-                resolve({ success: false, error: 'Update signature verification unavailable (missing public key)' });
+                failUpdate('Update verification unavailable (missing public key).', 'Missing Ed25519 public key');
+                resolveOnce({ success: false, error: 'Update signature verification unavailable (missing public key)' });
                 return;
               }
             } catch (e) {
-              shell.showItemInFolder(filePath);
-              failUpdate('Update verification unavailable. Opening folder...', e && e.message ? e.message : 'Public key load error');
-              resolve({ success: false, error: 'Update signature verification unavailable' });
+              failUpdate('Update verification unavailable.', e && e.message ? e.message : 'Public key load error');
+              resolveOnce({ success: false, error: 'Update signature verification unavailable' });
               return;
             }
 
@@ -3907,22 +4042,30 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               }
             } catch (e) {}
             logToFile(`Update - verifying: downloading signature: ${sigUrl}`);
-            downloadSignature(sigUrl).then(async (sigRes) => {
+            const withTimeout = (p, ms, label) => {
+              let t = null;
+              const timeoutPromise = new Promise((_, reject) => {
+                t = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
+              });
+              return Promise.race([p, timeoutPromise]).finally(() => {
+                try { if (t) clearTimeout(t); } catch (e) {}
+              });
+            };
+
+            withTimeout(downloadSignature(sigUrl), 30000, 'signature download').then(async (sigRes) => {
               if (!sigRes || sigRes.ok !== true || !sigRes.text) {
                 try {
                   logToFile(`Update - signature download failed: url=${sigUrl} err=${sigRes && sigRes.error ? sigRes.error : 'unknown'}`);
                 } catch (e) {}
-                shell.showItemInFolder(filePath);
-                failUpdate('Update signature missing. Opening folder...', sigRes && sigRes.error ? sigRes.error : 'Signature download failed');
-                resolve({ success: false, error: 'Update signature missing or could not be downloaded' });
+                failUpdate('Update signature missing.', sigRes && sigRes.error ? sigRes.error : 'Signature download failed');
+                resolveOnce({ success: false, error: 'Update signature missing or could not be downloaded' });
                 return;
               }
 
               const sigBuf = decodeBase64Signature(sigRes.text);
               if (!sigBuf) {
-                shell.showItemInFolder(filePath);
-                failUpdate('Update signature invalid. Opening folder...', 'Invalid base64 signature');
-                resolve({ success: false, error: 'Update signature invalid' });
+                failUpdate('Update signature invalid.', 'Invalid base64 signature');
+                resolveOnce({ success: false, error: 'Update signature invalid' });
                 return;
               }
 
@@ -3936,8 +4079,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               try {
                 installerBytes = await fs.promises.readFile(filePath);
               } catch (e) {
-                failUpdate('Failed to read downloaded installer. Opening folder...', e && e.message ? e.message : 'Read error');
-                resolve({ success: false, error: 'Failed to read downloaded installer for verification' });
+                failUpdate('Failed to read downloaded installer.', e && e.message ? e.message : 'Read error');
+                resolveOnce({ success: false, error: 'Failed to read downloaded installer for verification' });
                 return;
               }
 
@@ -3953,9 +4096,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               logToFile('Update - verifying: checking Ed25519 signature');
               const ok = verifyEd25519Signature(installerBytes, sigBuf, pubKeyPem);
               if (!ok) {
-                shell.showItemInFolder(filePath);
-                failUpdate('Update verification failed. Opening folder...', 'Ed25519 signature check failed');
-                resolve({ success: false, error: 'Update signature verification failed' });
+                failUpdate('Update verification failed.', 'Ed25519 signature check failed');
+                resolveOnce({ success: false, error: 'Update signature verification failed' });
                 return;
               }
 
@@ -3983,6 +4125,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                   const pid = process.pid;
                   const shouldRelaunch = relaunchAfterInstall ? 1 : 0;
                   const wrapperLogPath = path.join(app.getPath('userData'), 'update-wrapper.log');
+                  const resultPath = path.join(app.getPath('userData'), 'update-result.json');
                   const runnerPath = path.join(tempDir, `armgddn-update-runner-${Date.now()}.cmd`);
                   const vbsPath = path.join(tempDir, `armgddn-update-runner-${Date.now()}.vbs`);
 
@@ -3993,9 +4136,12 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                   const installerQuoted = `"${filePath}"`;
                   const appQuoted = `"${process.execPath}"`;
                   const logQuoted = `"${wrapperLogPath}"`;
+                  const resultQuoted = `"${resultPath}"`;
                   const silentArg = silent ? '/S' : '';
                   const runner = [
                     '@echo off',
+                    `set "RESULT=${resultPath}"`,
+                    `echo {^"ts^":${Date.now()},^"state^":^"starting^",^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}`,
                     `echo [%DATE% %TIME%] runner start>>${logQuoted}`,
                     `echo [%DATE% %TIME%] pid=${pid}>>${logQuoted}`,
                     `echo [%DATE% %TIME%] installer=${installerQuoted}>>${logQuoted}`,
@@ -4004,17 +4150,16 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     `tasklist /FI "PID eq ${pid}" 2>NUL | find "${pid}" >NUL`,
                     'if "%ERRORLEVEL%"=="0" (timeout /t 1 /nobreak >NUL & goto wait)',
                     `echo [%DATE% %TIME%] parent exited>>${logQuoted}`,
+                    `echo {^"ts^":${Date.now()},^"state^":^"installing^",^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}`,
                     `start "" /wait ${installerQuoted} ${silentArg}`,
                     `echo [%DATE% %TIME%] installer finished rc=%ERRORLEVEL%>>${logQuoted}`,
+                    `if "%ERRORLEVEL%"=="0" (echo {^"ts^":${Date.now()},^"state^":^"success^",^"exitCode^":0,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}) else (echo {^"ts^":${Date.now()},^"state^":^"failed^",^"exitCode^":%ERRORLEVEL%,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted})`,
                     // Only relaunch if installer succeeded (exit code 0)
                     `if "%ERRORLEVEL%"=="0" (`,
                     shouldRelaunch ? `  start "" ${appQuoted}` : '  rem',
                     `) else (`,
                     `  echo [%DATE% %TIME%] installer failed with rc=%ERRORLEVEL%, cancelling relaunch>>${logQuoted}`,
-                    `  echo Installer failed with error code %ERRORLEVEL%.`,
-                    `  echo Check %userprofile%\\AppData\\Roaming\\armgddn-downloader\\update-wrapper.log for details.`,
-                    `  echo Press any key to close this window...`,
-                    `  pause`, 
+                    `  rem installer failed; details are in update-wrapper.log`,
                     `)`,
                     `echo [%DATE% %TIME%] runner done>>${logQuoted}`,
                     'del "%~f0" >NUL 2>&1',
@@ -4025,8 +4170,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                     'On Error Resume Next',
                     'Dim sh',
                     'Set sh = CreateObject("WScript.Shell")',
-                    // Run the cmd runner visible (windowStyle=1) so users can see if it prompts or fails
-                    `sh.Run "cmd.exe /c """ & "${runnerPath}" & """", 1, False`,
+                    // Run the cmd runner hidden (windowStyle=0) so we keep UX inside the Electron update window.
+                    `sh.Run "cmd.exe /c """ & "${runnerPath}" & """", 0, False`,
                     'Set sh = Nothing'
                   ].join("\r\n");
 
@@ -4047,12 +4192,12 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                   setTimeout(() => {
                     app.isQuitting = true;
                     app.quit();
-                    resolve({ success: true });
+                    resolveOnce({ success: true });
                   }, 3000); // Increased delay to let user read the "Installing..." message
                   return;
                 } catch (spawnErr) {
                   logToFile(`Update - failed to spawn installer wrapper: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
-                  resolve({ success: false, error: 'Failed to launch installer process' });
+                  resolveOnce({ success: false, error: 'Failed to launch installer process' });
                   return;
                 }
 
@@ -4162,8 +4307,11 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                 return;
               }
             } catch (e) {
-              resolve({ success: false, error: e.message });
+              resolveOnce({ success: false, error: e.message });
             }
+            }).catch((e) => {
+              failUpdate('Update verification failed.', e && e.message ? e.message : 'Verification error');
+              resolveOnce({ success: false, error: 'Update verification failed' });
             });
           });
         });

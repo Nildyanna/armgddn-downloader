@@ -252,11 +252,24 @@ function setupIPCListeners() {
 // Handle deep link
 async function handleDeepLink(url) {
   try {
-    // Parse the URL: armgddn://download?manifest=MANIFEST_URL&token=TOKEN
+    // Parse the URL:
+    // - Legacy: armgddn://download?manifest=MANIFEST_URL&token=TOKEN
+    // - New:    armgddn://download?downloadToken=DOWNLOAD_TOKEN&token=TOKEN
     const urlObj = new URL(url);
     let manifestUrl = urlObj.searchParams.get('manifest');
+    const downloadToken = urlObj.searchParams.get('downloadToken');
     const token = urlObj.searchParams.get('token');
     
+    if (!manifestUrl && downloadToken) {
+      const resolved = await api.resolveDownloadToken(downloadToken, token);
+      if (!resolved || !resolved.manifestUrl) {
+        console.error('Failed to resolve download token');
+        alert('Invalid download link: failed to resolve token');
+        return;
+      }
+      manifestUrl = resolved.manifestUrl;
+    }
+
     if (!manifestUrl) {
       console.error('No manifest URL in deep link');
       alert('Invalid download link: no manifest URL');
