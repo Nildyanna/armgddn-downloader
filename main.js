@@ -3685,8 +3685,15 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
   return new Promise((resolve) => {
     const downloadSignature = (url, redirectCount = 0) => {
       return new Promise((resolveSig) => {
+        let settled = false;
+        const finish = (result) => {
+          if (settled) return;
+          settled = true;
+          resolveSig(result);
+        };
+
         if (redirectCount > 5) {
-          resolveSig({ ok: false, error: 'Too many redirects' });
+          finish({ ok: false, error: 'Too many redirects' });
           return;
         }
 
@@ -3694,34 +3701,42 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         try {
           parsed = new URL(url);
         } catch (e) {
-          resolveSig({ ok: false, error: 'Invalid signature URL' });
+          finish({ ok: false, error: 'Invalid signature URL' });
           return;
         }
 
         if (parsed.protocol !== 'https:') {
-          resolveSig({ ok: false, error: 'Only HTTPS update downloads are allowed' });
+          finish({ ok: false, error: 'Only HTTPS update downloads are allowed' });
           return;
         }
 
         if (!isAllowedUpdateHost(parsed.hostname)) {
-          resolveSig({ ok: false, error: `Update download host not allowed (${parsed.hostname})` });
+          finish({ ok: false, error: `Update download host not allowed (${parsed.hostname})` });
           return;
         }
 
         const reqSig = https.get(url, { headers: { 'User-Agent': 'ARMGDDN-Companion' } }, (res) => {
+          res.on('aborted', () => {
+            finish({ ok: false, error: 'Signature download aborted' });
+          });
+          res.on('close', () => {
+            // If the server closes early without emitting 'end', treat as failure.
+            finish({ ok: false, error: 'Signature download closed early' });
+          });
+
           if (res.statusCode === 301 || res.statusCode === 302) {
             const location = res.headers.location;
             if (!location) {
-              resolveSig({ ok: false, error: 'Redirect with no location' });
+              finish({ ok: false, error: 'Redirect with no location' });
               return;
             }
             const nextUrl = location.startsWith('http') ? location : new URL(location, parsed).toString();
-            downloadSignature(nextUrl, redirectCount + 1).then(resolveSig);
+            downloadSignature(nextUrl, redirectCount + 1).then(finish);
             return;
           }
 
           if (res.statusCode !== 200) {
-            resolveSig({ ok: false, error: `Download failed with status ${res.statusCode}` });
+            finish({ ok: false, error: `Download failed with status ${res.statusCode}` });
             return;
           }
 
@@ -3736,10 +3751,10 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
             data += chunk.toString('utf8');
           });
           res.on('end', () => {
-            resolveSig({ ok: true, text: data });
+            finish({ ok: true, text: data });
           });
           res.on('error', (err) => {
-            resolveSig({ ok: false, error: err && err.message ? err.message : 'Signature download error' });
+            finish({ ok: false, error: err && err.message ? err.message : 'Signature download error' });
           });
         });
 
@@ -3747,7 +3762,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
           try { reqSig.destroy(new Error('Signature request timeout')); } catch (e) {}
         });
         reqSig.on('error', (err) => {
-          resolveSig({ ok: false, error: err && err.message ? err.message : 'Signature request error' });
+          finish({ ok: false, error: err && err.message ? err.message : 'Signature request error' });
         });
       });
     };
@@ -3851,20 +3866,46 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               progressWin.webContents.send('update-status', 'Verifying update...');
             }
 
+            const failUpdate = (publicMsg, internalErr) => {
+              try {
+                logToFile(`Update - verification failed: ${internalErr || publicMsg}`);
+              } catch (e) {}
+
+              try {
+                if (progressWin && !progressWin.isDestroyed()) {
+                  progressWin.webContents.send('update-status', publicMsg);
+                }
+              } catch (e) {}
+
+              // Give the user a moment to read the message, then close the progress window.
+              setTimeout(() => {
+                try {
+                  if (progressWin && !progressWin.isDestroyed()) progressWin.close();
+                } catch (e) {}
+              }, 2500);
+            };
+
             try {
               const pubKeyPem = getUpdateEd25519PublicKeyPem();
               if (!pubKeyPem) {
                 shell.showItemInFolder(filePath);
+                failUpdate('Update verification unavailable (missing public key). Opening folder...', 'Missing Ed25519 public key');
                 resolve({ success: false, error: 'Update signature verification unavailable (missing public key)' });
                 return;
               }
             } catch (e) {
               shell.showItemInFolder(filePath);
+              failUpdate('Update verification unavailable. Opening folder...', e && e.message ? e.message : 'Public key load error');
               resolve({ success: false, error: 'Update signature verification unavailable' });
               return;
             }
 
             const sigUrl = `${url}.sig`;
+            try {
+              if (progressWin && !progressWin.isDestroyed()) {
+                progressWin.webContents.send('update-status', 'Downloading signature...');
+              }
+            } catch (e) {}
             logToFile(`Update - verifying: downloading signature: ${sigUrl}`);
             downloadSignature(sigUrl).then(async (sigRes) => {
               if (!sigRes || sigRes.ok !== true || !sigRes.text) {
@@ -3872,6 +3913,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                   logToFile(`Update - signature download failed: url=${sigUrl} err=${sigRes && sigRes.error ? sigRes.error : 'unknown'}`);
                 } catch (e) {}
                 shell.showItemInFolder(filePath);
+                failUpdate('Update signature missing. Opening folder...', sigRes && sigRes.error ? sigRes.error : 'Signature download failed');
                 resolve({ success: false, error: 'Update signature missing or could not be downloaded' });
                 return;
               }
@@ -3879,15 +3921,22 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               const sigBuf = decodeBase64Signature(sigRes.text);
               if (!sigBuf) {
                 shell.showItemInFolder(filePath);
+                failUpdate('Update signature invalid. Opening folder...', 'Invalid base64 signature');
                 resolve({ success: false, error: 'Update signature invalid' });
                 return;
               }
 
               logToFile(`Update - verifying: reading installer: ${filePath}`);
+              try {
+                if (progressWin && !progressWin.isDestroyed()) {
+                  progressWin.webContents.send('update-status', 'Reading installer...');
+                }
+              } catch (e) {}
               let installerBytes = null;
               try {
                 installerBytes = await fs.promises.readFile(filePath);
               } catch (e) {
+                failUpdate('Failed to read downloaded installer. Opening folder...', e && e.message ? e.message : 'Read error');
                 resolve({ success: false, error: 'Failed to read downloaded installer for verification' });
                 return;
               }
@@ -3896,10 +3945,16 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               await new Promise((r) => setImmediate(r));
 
               const pubKeyPem = getUpdateEd25519PublicKeyPem();
+              try {
+                if (progressWin && !progressWin.isDestroyed()) {
+                  progressWin.webContents.send('update-status', 'Checking signature...');
+                }
+              } catch (e) {}
               logToFile('Update - verifying: checking Ed25519 signature');
               const ok = verifyEd25519Signature(installerBytes, sigBuf, pubKeyPem);
               if (!ok) {
                 shell.showItemInFolder(filePath);
+                failUpdate('Update verification failed. Opening folder...', 'Ed25519 signature check failed');
                 resolve({ success: false, error: 'Update signature verification failed' });
                 return;
               }
