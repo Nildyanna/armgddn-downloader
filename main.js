@@ -3984,22 +3984,16 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               resolve(val);
             };
 
-            const VERIFY_TIMEOUT_MS = 60000;
+            const VERIFY_TIMEOUT_MS = 20000;
             const verifyTimeout = setTimeout(() => {
               try {
                 logToFile('Update - verification timed out');
               } catch (e) {}
               try {
                 if (progressWin && !progressWin.isDestroyed()) {
-                  progressWin.webContents.send('update-status', 'Update verification timed out. Please try again.');
+                  progressWin.webContents.send('update-status', 'Manual update required: verification timed out.');
                 }
               } catch (e) {}
-              // Give the user a moment to read the message, then close the progress window.
-              setTimeout(() => {
-                try {
-                  if (progressWin && !progressWin.isDestroyed()) progressWin.close();
-                } catch (e) {}
-              }, 2500);
               resolveOnce({ success: false, error: 'Update verification timed out' });
             }, VERIFY_TIMEOUT_MS);
 
@@ -4010,16 +4004,9 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
 
               try {
                 if (progressWin && !progressWin.isDestroyed()) {
-                  progressWin.webContents.send('update-status', publicMsg);
+                  progressWin.webContents.send('update-status', `Manual update required: ${publicMsg}`);
                 }
               } catch (e) {}
-
-              // Give the user a moment to read the message, then close the progress window.
-              setTimeout(() => {
-                try {
-                  if (progressWin && !progressWin.isDestroyed()) progressWin.close();
-                } catch (e) {}
-              }, 2500);
             };
 
             try {

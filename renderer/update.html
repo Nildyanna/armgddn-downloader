@@ -83,6 +83,44 @@
       color: var(--text-secondary);
       font-size: 0.8rem;
     }
+
+    .manual-update {
+      display: none;
+      margin-top: 1rem;
+      padding: 0.9rem;
+      border: 1px solid rgba(255, 46, 99, 0.35);
+      background: rgba(255, 46, 99, 0.08);
+      border-radius: 10px;
+      text-align: left;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      line-height: 1.35;
+    }
+
+    .manual-update strong {
+      color: var(--neon-magenta);
+    }
+
+    .manual-actions {
+      display: flex;
+      gap: 0.5rem;
+      justify-content: flex-end;
+      margin-top: 0.8rem;
+    }
+
+    .manual-actions button {
+      border: 1px solid rgba(46, 242, 255, 0.25);
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--text-primary);
+      padding: 0.45rem 0.7rem;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+
+    .manual-actions button.primary {
+      border-color: rgba(46, 242, 255, 0.55);
+      background: rgba(46, 242, 255, 0.12);
+    }
   </style>
 </head>
 <body>
@@ -95,6 +133,26 @@
     <div class="details">
       <span id="percent">0%</span>
       <span id="speed"></span>
+    </div>
+
+    <div id="manual-update" class="manual-update">
+      <div><strong>Manual update required</strong></div>
+      <div style="margin-top:0.5rem;">
+        If the updater is stuck on verifying or verification fails, please update manually:
+      </div>
+      <div style="margin-top:0.5rem;">
+        1) Click <strong>Open Downloads Page</strong>
+      </div>
+      <div>
+        2) Download the latest Windows installer (<strong>.exe</strong>)
+      </div>
+      <div>
+        3) Run the installer and follow the prompts
+      </div>
+      <div class="manual-actions">
+        <button id="manual-close">Close</button>
+        <button id="manual-open" class="primary">Open Downloads Page</button>
+      </div>
     </div>
   </div>
   <script src="update.js"></script>

@@ -3,6 +3,11 @@ const fillEl = document.getElementById('progress-fill');
 const percentEl = document.getElementById('percent');
 const speedEl = document.getElementById('speed');
 const titleEl = document.getElementById('title');
+const manualEl = document.getElementById('manual-update');
+const manualOpenBtn = document.getElementById('manual-open');
+const manualCloseBtn = document.getElementById('manual-close');
+
+const RELEASES_URL = 'https://github.com/Nildyanna/armgddn-downloader/releases/latest';
 
 function setIndeterminate(on) {
   if (on) {
@@ -13,6 +18,29 @@ function setIndeterminate(on) {
   } else {
     fillEl.classList.remove('indeterminate');
   }
+}
+
+function showManualUpdate(message) {
+  if (titleEl) titleEl.textContent = 'Manual Update Required';
+  setIndeterminate(true);
+  if (manualEl) manualEl.style.display = 'block';
+  if (statusEl && message) statusEl.textContent = message;
+}
+
+if (manualOpenBtn) {
+  manualOpenBtn.addEventListener('click', async () => {
+    try {
+      if (window.updateAPI && typeof window.updateAPI.openExternal === 'function') {
+        await window.updateAPI.openExternal(RELEASES_URL);
+      }
+    } catch (e) {}
+  });
+}
+
+if (manualCloseBtn) {
+  manualCloseBtn.addEventListener('click', () => {
+    try { window.close(); } catch (e) {}
+  });
 }
 
 window.updateAPI.onProgress((data) => {
@@ -37,6 +65,10 @@ window.updateAPI.onStatus((message) => {
   statusEl.textContent = message;
 
   const m = String(message || '');
+  if (m.startsWith('Manual update required')) {
+    showManualUpdate(m);
+    return;
+  }
   if (titleEl) {
     if (m.includes('Verifying') || m.includes('signature') || m.includes('Checking') || m.includes('Reading')) {
       titleEl.textContent = 'Verifying Update';
