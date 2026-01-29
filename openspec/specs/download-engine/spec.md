@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how the ARMGDDN Downloader's core download engine interprets manifests, orchestrates per-file downloads using rclone, tracks progress, handles pause/cancel, persists history, and reports status back to the ARMGDDN server.
+Define how the ARMGDDN Companion's core download engine interprets manifests, orchestrates per-file downloads using rclone, tracks progress, handles pause/cancel, persists history, and reports status back to the ARMGDDN server.
 
 ## Requirements
 
@@ -37,6 +37,7 @@ The download engine SHALL create a dedicated folder for each download under the 
 - The effective download root SHALL be `settings.downloadPath`.
 - For each new download, the engine SHALL create a subfolder named after the download's `name`.
 - Before writing a file, the engine SHALL ensure that the parent directory of the output file path exists, creating nested directories as needed.
+- The engine SHALL prevent path traversal by requiring that all computed output paths resolve within the download directory.
 
 #### Scenario: Download folder creation
 
@@ -71,7 +72,8 @@ Each file in a manifest SHALL be downloaded via the bundled `rclone` binary usin
 The engine SHALL support downloading multiple files from a manifest in parallel while keeping download state consistent and bounded.
 
 - For each manifest download, the engine SHALL maintain a queue of file entries to be downloaded.
-- It SHALL spawn multiple rclone processes in parallel up to a fixed concurrency limit per download (implementation-defined; currently a small integer greater than 1).
+- It SHALL spawn multiple rclone processes in parallel up to a user-configured concurrency limit per download.
+- The effective concurrency SHALL be normalized and capped for stability.
 - It SHALL track active rclone processes for each download so that they can be cancelled or paused.
 - It SHALL maintain per-file progress objects for active files, including `name`, `size`, `progress`, `speed`, `eta`, and `status`.
 
@@ -80,6 +82,16 @@ The engine SHALL support downloading multiple files from a manifest in parallel 
 - **WHEN** a manifest contains N files and N is greater than the configured concurrency limit
 - **THEN** the engine starts downloading up to the concurrency limit in parallel
 - **AND** as each file completes or fails, a new file from the queue is started until all files are processed or the download is cancelled.
+
+### Requirement: Resume Uses Disk State Safely
+
+When resuming a paused or errored download, the engine SHALL re-check on-disk files using the same path-safety rules as normal downloads.
+
+#### Scenario: Resume skips completed files safely
+
+- **WHEN** the user resumes a download
+- **THEN** the engine determines which files are already complete by checking file existence and size on disk
+- **AND** it computes each file path using a sanitized relative path and a "resolve inside" check so that `file.name` cannot escape the download directory.
 
 ### Requirement: Aggregate Progress and Speed Calculation
 

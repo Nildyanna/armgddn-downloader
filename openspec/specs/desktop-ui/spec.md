@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define the user-facing desktop UI behavior of the ARMGDDN Downloader Electron renderer, including connection status, downloads list, history panel, settings panel, and integration with main-process actions.
+Define the user-facing desktop UI behavior of the ARMGDDN Companion Electron renderer, including connection status, downloads list, history panel, settings panel, and integration with main-process actions.
 
 ## Requirements
 
@@ -125,7 +125,7 @@ The desktop UI SHALL display the current application version in both the main wi
 
 - **WHEN** the renderer initializes
 - **THEN** it calls `getVersion` via IPC
-- **AND** sets the document title to include `ARMGDDN Downloader v<version>`
+- **AND** sets the document title to include `ARMGDDN Companion v<version>`
 - **AND** displays `Version <version>` in the designated version label area of the header.
 
 ### Requirement: Update Check Integration

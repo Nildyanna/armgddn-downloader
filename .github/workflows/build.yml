@@ -160,6 +160,31 @@ jobs:
       - name: List artifacts
         run: find ./artifacts -type f -ls
 
+      - name: Sign release artifacts (Ed25519)
+        shell: bash
+        env:
+          UPDATE_ED25519_PRIVKEY_PEM: ${{ secrets.UPDATE_ED25519_PRIVKEY_PEM }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${UPDATE_ED25519_PRIVKEY_PEM:-}" ]; then
+            echo "Missing required secret UPDATE_ED25519_PRIVKEY_PEM" >&2
+            exit 1
+          fi
+
+          KEY_PATH="${RUNNER_TEMP}/update-ed25519-priv.pem"
+          printf "%s" "${UPDATE_ED25519_PRIVKEY_PEM}" > "${KEY_PATH}"
+          chmod 600 "${KEY_PATH}"
+
+          shopt -s nullglob
+          for f in ./artifacts/*.deb ./artifacts/*.AppImage ./artifacts/*.exe ./artifacts/*.pkg; do
+            [ -f "$f" ] || continue
+            echo "Signing $f"
+            openssl pkeyutl -sign -inkey "${KEY_PATH}" -rawin -in "$f" -out "${f}.sig.bin"
+            base64 -w0 "${f}.sig.bin" > "${f}.sig"
+            rm -f "${f}.sig.bin"
+          done
+
       - name: Create release README.txt
         shell: bash
         run: |
@@ -233,5 +258,6 @@ jobs:
             artifacts/*.AppImage
             artifacts/*.exe
             artifacts/*.pkg
+            artifacts/*.sig
           draft: false
           prerelease: false

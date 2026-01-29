@@ -2,13 +2,13 @@
 
 ## Purpose
 
-Define how the ARMGDDN Downloader checks for new releases, compares versions, selects an appropriate installer asset per platform, and performs or assists with the update installation.
+Define how the ARMGDDN Companion checks for new releases, compares versions, selects an appropriate installer asset per platform, and performs or assists with the update installation.
 
 ## Requirements
 
 ### Requirement: GitHub Release Discovery
 
-The application SHALL query GitHub Releases to determine the latest available version of ARMGDDN Downloader.
+The application SHALL query GitHub Releases to determine the latest available version of ARMGDDN Companion.
 
 #### Scenario: Fetch latest release metadata
 
@@ -16,6 +16,16 @@ The application SHALL query GitHub Releases to determine the latest available ve
 - **THEN** it sends an HTTPS GET request to the GitHub API endpoint for the latest release of the repository (e.g., `/repos/Nildyanna/armgddn-downloader/releases/latest`)
 - **AND** it includes a suitable `User-Agent` header as required by the GitHub API
 - **AND** it parses the JSON response body into a release object.
+
+### Requirement: Update Host Allowlist
+
+The update system SHALL restrict installer URLs and any followed redirects to an allowlist of known GitHub-controlled hosts.
+
+#### Scenario: Installer URL host is validated
+
+- **WHEN** the update system selects an installer asset URL from GitHub release metadata
+- **THEN** it MUST require `https:`
+- **AND** it MUST require the URL hostname to match the update host allowlist.
 
 ### Requirement: Version Comparison
 
@@ -76,22 +86,29 @@ The application SHALL download and launch the installer when the user opts into 
 #### Scenario: Download installer to temporary directory
 
 - **WHEN** the renderer calls `installUpdate` with a non-empty installer URL
-- **THEN** the main process downloads the installer file to a temporary directory path under the OS temp folder
+- **THEN** the main process downloads the installer file to a platform-appropriate directory:
+  - Windows/macOS: the OS temp directory
+  - Linux: `<userData>/updates/`
 - **AND** it uses a unique filename based on timestamp and platform.
 
 #### Scenario: Launch Windows installer and exit
 
 - **WHEN** running on Windows and the installer file is a `.exe`
-- **THEN** the main process spawns the installer as a detached process so it continues after the Electron app exits
-- **AND** it marks the app as quitting and calls `app.quit()` shortly after spawning the installer
-- **AND** it reports `{ success: true }` back to the renderer if the spawn succeeded.
+- **THEN** the main process prepares a wrapper runner (e.g. a `.cmd` file) that waits for the current app PID to exit
+- **AND** it launches that runner indirectly (e.g. via a `.vbs` launcher) so the install can proceed after the Electron process exits
+- **AND** it marks the app as quitting and calls `app.quit()` shortly after launching the runner
+- **AND** it reports `{ success: true }` back to the renderer if launch succeeded.
 
 #### Scenario: Launch Linux AppImage installer
 
 - **WHEN** running on Linux and the installer file is an `.AppImage`
 - **THEN** the main process sets the file as executable
-- **AND** spawns it as a detached process
-- **AND** then quits the app so the AppImage can proceed.
+- **AND** if the app is currently running as an AppImage (`APPIMAGE` is set), it MAY use a replacement script that:
+  - waits for the current PID to exit
+  - replaces the current AppImage on disk
+  - launches the new AppImage
+- **AND** otherwise it spawns the downloaded AppImage as a detached process
+- **AND** then quits the app.
 
 #### Scenario: Linux deb installer manual path
 
@@ -102,9 +119,24 @@ The application SHALL download and launch the installer when the user opts into 
 
 #### Scenario: Launch macOS DMG
 
-- **WHEN** running on macOS and the installer file is a `.dmg`
-- **THEN** the main process opens the DMG using the default system handler
+- **WHEN** running on macOS and the installer file is a `.dmg` (or other platform installer artifact)
+- **THEN** the main process opens the downloaded installer using the default system handler
 - **AND** returns a success result indicating that installation should be completed manually.
+
+### Requirement: Auto-Update Startup Behavior
+
+The renderer MAY automatically check for updates on startup.
+
+#### Scenario: Auto-update enabled
+
+- **WHEN** the user's settings have `autoUpdate: true`
+- **THEN** the renderer checks for updates on startup
+- **AND** if an installer URL is available, it initiates `installUpdate` without prompting.
+
+#### Scenario: Auto-update disabled
+
+- **WHEN** the user's settings have `autoUpdate: false`
+- **THEN** the renderer performs a silent update check on startup and MAY notify the user only when an update is available.
 
 ### Requirement: Installer Download Error Handling
 

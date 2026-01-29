@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how the ARMGDDN Downloader acquires, stores, validates, and exposes session/authentication state so that only authenticated ARMGDDN Browser users can initiate downloads and report progress.
+Define how the ARMGDDN Companion acquires, stores, validates, and exposes session/authentication state so that only authenticated ARMGDDN Browser users can initiate downloads and report progress.
 
 ## Requirements
 
@@ -11,10 +11,15 @@ Define how the ARMGDDN Downloader acquires, stores, validates, and exposes sessi
 The application SHALL persist session information securely on disk so that users do not need to log in on every launch, while respecting expiry.
 
 - Session data SHALL be stored in a `session.json` file under the Electron `userData` directory.
-- The stored record SHALL include at least `cookie` (or equivalent token string), `expiresAt`, and a boolean `encrypted` flag.
+- The stored record SHALL include at least `token`, `expiresAt`, and a boolean `encrypted` flag.
 - When the platform's `safeStorage` encryption is available, the cookie/token value SHALL be encrypted before being written to disk and stored as base64-encoded data.
 - When `safeStorage` encryption is not available, the cookie/token MAY be stored in plaintext, but SHALL still be wrapped in the same JSON structure.
 - On load, expired sessions (past `expiresAt`) SHALL be ignored and discarded.
+
+#### Scenario: Session expiry window
+
+- **WHEN** the app saves a new session token
+- **THEN** it sets `expiresAt` to approximately 30 days in the future.
 
 #### Scenario: Session is written with encryption
 
@@ -36,7 +41,8 @@ The downloader SHALL allow users to establish a session by logging into the ARMG
 
 - When a session is missing or invalid, the app SHALL be able to open a modal login window that loads the ARMGDDN Browser website.
 - While this window is open, the app SHALL monitor cookies for the ARMGDDN Browser domain.
-- When a suitable authentication cookie is detected (e.g., `tg_auth`, `session`, or `PHPSESSID`), the app SHALL construct a cookie string (or equivalent token) and persist it via the encrypted session mechanism.
+- When a suitable authentication cookie is detected (e.g., `ag_auth`), the app SHALL construct a cookie string and mint an app session token from it.
+- The minted app session token SHALL be persisted via the encrypted session mechanism.
 - After a successful session capture, the login window SHALL close automatically.
 
 #### Scenario: User logs in via embedded browser
@@ -61,6 +67,11 @@ The downloader SHALL validate its current session against the ARMGDDN backend be
 - The request SHALL include the stored session credential in an `Authorization` header or other agreed mechanism.
 - The app SHALL interpret a JSON response with an `authenticated: true` field as a valid session; any other response or error SHALL be treated as invalid.
 - Network or parsing errors SHALL result in a conservative assumption of an invalid session.
+
+#### Scenario: Auth status endpoint
+
+- **WHEN** validating the current session
+- **THEN** the app sends the request to `https://www.armgddnbrowser.com/api/auth-status`.
 
 #### Scenario: Session validated successfully
 

@@ -2,19 +2,19 @@
 
 ## Purpose
 
-Define how the ARMGDDN Downloader desktop app receives, validates, and handles `armgddn://` deep links from the browser, and how it turns those deep links into manifest fetches against the ARMGDDN server.
+Define how the ARMGDDN Companion desktop app receives, validates, and handles `armgddn://` deep links from the browser, and how it turns those deep links into manifest fetches against the ARMGDDN server.
 
 ## Requirements
 
 ### Requirement: Custom Protocol Registration
 
-The application SHALL register the `armgddn` custom protocol so that deep links from the browser are opened in ARMGDDN Downloader.
+The application SHALL register the `armgddn` custom protocol so that deep links from the browser are opened in ARMGDDN Companion.
 
 #### Scenario: Protocol registration in packaged app
 
 - **WHEN** the packaged desktop application starts on a supported platform
 - **THEN** it registers itself as the default handler for the `armgddn://` protocol (where supported by the OS)
-- **AND** subsequent `armgddn://...` links open ARMGDDN Downloader instead of a generic browser dialog.
+- **AND** subsequent `armgddn://...` links open ARMGDDN Companion instead of a generic browser dialog.
 
 #### Scenario: Development mode protocol registration
 
@@ -28,7 +28,7 @@ The application SHALL enforce a single running instance and route new deep-link 
 
 #### Scenario: Second instance forwards deep link
 
-- **WHEN** a second instance of ARMGDDN Downloader is launched due to a user clicking an `armgddn://...` link
+- **WHEN** a second instance of ARMGDDN Companion is launched due to a user clicking an `armgddn://...` link
 - **THEN** the second instance immediately exits
 - **AND** the existing instance's main window is restored (if minimized or hidden)
 - **AND** the deep-link URL is delivered to that main instance for processing.
@@ -46,7 +46,8 @@ The app SHALL validate incoming deep-link URLs before acting on them, rejecting 
 
 - Only URLs with protocol `armgddn:` SHALL be accepted.
 - Only a whitelisted set of hosts (e.g. `download`, `open`) SHALL be processed; any other host SHALL be rejected.
-- The `manifest` query parameter, if present, SHALL be treated as an opaque value and inspected for obvious corruption before use.
+- The `manifest` query parameter, if present, MAY be either a direct HTTPS URL or a base64-encoded HTTPS URL.
+- When present, the decoded manifest URL MUST be `https:` and MUST match the service host allowlist.
 
 #### Scenario: Invalid protocol is rejected
 
@@ -62,9 +63,9 @@ The app SHALL validate incoming deep-link URLs before acting on them, rejecting 
 
 #### Scenario: Missing manifest parameter is rejected
 
-- **WHEN** a deep link is received without a `manifest` parameter
-- **THEN** the app SHALL reject the link as invalid
-- **AND** it SHALL NOT attempt to contact the server for a manifest.
+- **WHEN** the renderer handles a deep link that does not contain a `manifest` parameter
+- **THEN** it SHALL show a clear error message to the user indicating that the download link is invalid
+- **AND** it SHALL NOT call into the manifest fetch API.
 
 ### Requirement: Renderer Receives Deep Link Events
 
@@ -99,9 +100,11 @@ The renderer SHALL extract the manifest URL and authentication token from the de
 Given a manifest URL and token from the renderer, the main process SHALL securely fetch the manifest JSON from the ARMGDDN server over HTTPS.
 
 - Only `https://` manifest URLs SHALL be accepted; all other schemes SHALL be rejected with a clear error.
+- Only service hostnames in the service host allowlist SHALL be accepted; all other hostnames SHALL be rejected.
 - The manifest URL's query string SHALL be parsed into a `remote` and `path` parameter.
 - If either `remote` or `path` is missing, the manifest fetch SHALL fail with a descriptive error.
 - The manifest request SHALL be sent as an HTTPS POST with JSON body `{ remote, path }`.
+- The manifest fetch SHALL require a non-empty token and SHALL reject missing/invalid tokens.
 - When a token is provided, it SHALL be attached as an `Authorization: Bearer <token>` header.
 
 #### Scenario: Successful manifest fetch

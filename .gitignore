@@ -5,3 +5,5 @@ dist/
 Thumbs.db
 
 assets/*.mp4
+
+update-ed25519-priv.pem

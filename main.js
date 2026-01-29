@@ -7,6 +7,64 @@ const crypto = require('crypto');
 const https = require('https');
 const { pathToFileURL } = require('url');
 
+function getUpdateEd25519PublicKeyPem() {
+  const v = process.env.ARMGDDN_UPDATE_ED25519_PUBKEY_PEM;
+  if (v && typeof v === 'string' && v.trim()) {
+    return v.trim();
+  }
+
+  const candidates = [
+    path.join(__dirname, 'assets', 'update-ed25519-pub.pem')
+  ];
+
+  try {
+    if (app && app.isPackaged) {
+      candidates.push(path.join(process.resourcesPath, 'assets', 'update-ed25519-pub.pem'));
+      candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', 'update-ed25519-pub.pem'));
+      candidates.push(path.join(process.resourcesPath, 'app.asar', 'assets', 'update-ed25519-pub.pem'));
+    }
+  } catch (e) {}
+
+  for (const p of candidates) {
+    try {
+      if (p && fs.existsSync(p)) {
+        const pem = fs.readFileSync(p, 'utf8');
+        if (pem && typeof pem === 'string' && pem.trim()) {
+          return pem.trim();
+        }
+      }
+    } catch (e) {}
+  }
+
+  return '';
+}
+
+function decodeBase64Signature(raw) {
+  const txt = String(raw || '').trim();
+  if (!txt) return null;
+  try {
+    const buf = Buffer.from(txt, 'base64');
+    if (buf.length !== 64) return null;
+    return buf;
+  } catch (e) {
+    return null;
+  }
+}
+
+function verifyEd25519Signature(message, signature, publicKeyPem) {
+  try {
+    if (!message || !Buffer.isBuffer(message)) return false;
+    if (!signature || !Buffer.isBuffer(signature)) return false;
+    if (!publicKeyPem || typeof publicKeyPem !== 'string') return false;
+
+    const keyObj = crypto.createPublicKey({ key: publicKeyPem, format: 'pem' });
+    // For Ed25519, the digest algorithm is ignored; Node requires `null`.
+    return crypto.verify(null, message, keyObj, signature);
+  } catch (e) {
+    return false;
+  }
+}
+
 // Set app name for dialogs and window titles
 app.name = 'ARMGDDN Companion';
 
@@ -249,7 +307,7 @@ async function getAppLoadInfo(token, manifestUrl) {
     try {
       if (typeof manifestUrl === 'string' && manifestUrl) {
         const u = new URL(manifestUrl);
-        if (u && u.hostname && isAllowedServiceHost(u.hostname)) {
+        if (u && u.protocol === 'https:' && u.hostname && isAllowedServiceHost(u.hostname)) {
           base = `https://${u.hostname}`;
         }
       }
@@ -572,6 +630,15 @@ function normalizeSettings() {
      const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
  // Enforce cap of 8 for stability
  settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 8) : 2;
+
+     const rawDownloadPath = settings.downloadPath;
+     const defaultDownloadPath = path.join(app.getPath('downloads'), 'ARMGDDN');
+     if (typeof rawDownloadPath !== 'string' || !rawDownloadPath.trim()) {
+       settings.downloadPath = defaultDownloadPath;
+     } else {
+       const cleaned = rawDownloadPath.trim();
+       settings.downloadPath = path.isAbsolute(cleaned) ? cleaned : defaultDownloadPath;
+     }
 
      const speed = Number(settings.maxDownloadSpeedMBps);
      settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
@@ -1341,6 +1408,7 @@ app.whenReady().then(() => {
 });
 
 ipcMain.handle('retry-download', async (event, downloadId) => {
+  if (!isValidDownloadId(downloadId)) return false;
   const download = activeDownloads.get(downloadId);
   if (!download) return false;
 
@@ -1387,7 +1455,27 @@ ipcMain.handle('get-settings', () => {
 
 // Save settings
 ipcMain.handle('save-settings', (event, newSettings) => {
-  settings = { ...settings, ...newSettings };
+  const incoming = (newSettings && typeof newSettings === 'object') ? newSettings : {};
+  const allowedKeys = new Set([
+    'downloadPath',
+    'maxConcurrentDownloads',
+    'maxDownloadSpeedMBps',
+    'autoExtract7z',
+    'showNotifications',
+    'minimizeToTrayOnMinimize',
+    'minimizeToTrayOnClose',
+    'autoUpdate',
+    'startWithOsStartup',
+    'startWithOsMinimized'
+  ]);
+
+  const merged = { ...settings };
+  for (const k of Object.keys(incoming)) {
+    if (!allowedKeys.has(k)) continue;
+    if (k === '__proto__' || k === 'constructor' || k === 'prototype') continue;
+    merged[k] = incoming[k];
+  }
+  settings = merged;
   normalizeSettings();
   applyStartupRegistration();
   saveSettings();
@@ -1438,20 +1526,58 @@ ipcMain.handle('clear-history', () => {
 ipcMain.handle('get-downloads', () => {
   const downloads = [];
   for (const [id, download] of activeDownloads) {
-    downloads.push({
-      id,
-      ...download,
-      process: undefined // Don't send process object
-    });
+    downloads.push(downloadToRenderer(download));
   }
   return downloads;
 });
+
+function downloadToRenderer(download) {
+  return {
+    id: download.id,
+    name: download.name,
+    manifestUrl: download.manifestUrl,
+    remotePath: download.remotePath,
+    progressHost: download.progressHost,
+    progressPort: download.progressPort,
+    progressPath: download.progressPath,
+    status: download.status,
+    progress: download.progress,
+    speed: download.speed,
+    eta: download.eta,
+    totalSize: download.totalSize,
+    downloadedSize: download.downloadedSize,
+    fileCount: download.fileCount,
+    completedFiles: download.completedFiles,
+    activeFiles: download.activeFiles,
+    totalSpeed: download.totalSpeed,
+    peakSpeedBytes: download.peakSpeedBytes,
+    startTime: download.startTime,
+    cancelled: download.cancelled,
+    paused: download.paused,
+    failedFiles: download.failedFiles,
+    quotaNotified: download.quotaNotified,
+    forceDisableAutoExtract: download.forceDisableAutoExtract,
+    serverOverhead: download.serverOverhead,
+    effectiveConcurrency: download.effectiveConcurrency,
+    statusMessage: download.statusMessage,
+    actualRemote: download.actualRemote,
+    mirrorSwitches: download.mirrorSwitches,
+    triedMirrors: download.triedMirrors,
+    extractionError: download.extractionError
+  };
+}
 
 // Validate token format (basic check)
 function isValidToken(token) {
   if (!token || typeof token !== 'string') return false;
   // Token should be non-empty and reasonable length
   return token.length >= 10 && token.length <= 500;
+}
+
+function isValidDownloadId(downloadId) {
+  if (typeof downloadId !== 'string' || !downloadId) return false;
+  // crypto.randomUUID() format
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(downloadId);
 }
 
 // Internal function to fetch manifest (can be called recursively for redirects)
@@ -1770,14 +1896,17 @@ function getFreeDiskSpace(targetPath) {
 
 // Start download
 ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => {
-  debugLog(`Download started - Token: ${token ? '[PRESENT]' : '[MISSING]'}`);
+  // Security: Validate token (required)
+  if (!isValidToken(token)) {
+    throw new Error('Invalid or missing authentication token');
+  }
+
+  debugLog(`Download started - Token: [PRESENT]`);
   
   // Save/update the token as session for connection status
   // Always update on new download to refresh token if server restarted
-  if (token) {
-    saveSession(token);
-    logToFile('Session token saved/updated from download');
-  }
+  saveSession(token);
+  logToFile('Session token saved/updated from download');
   
   const downloadId = crypto.randomUUID();
 
@@ -1789,10 +1918,10 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     if (typeof manifestUrl === 'string' && manifestUrl) {
       const u = new URL(manifestUrl);
       if (u && u.hostname) {
-        if (isAllowedServiceHost(u.hostname)) {
+        if (u.protocol === 'https:' && isAllowedServiceHost(u.hostname)) {
           progressHost = u.hostname;
+          progressPort = u.port ? Number(u.port) : 443;
         }
-        progressPort = u.port ? Number(u.port) : (u.protocol === 'http:' ? 80 : 443);
       }
     }
   } catch (e) {
@@ -1936,7 +2065,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   } catch (e) {}
 
   activeDownloads.set(downloadId, download);
-  mainWindow.webContents.send('download-started', { ...download, fileCount: files.length });
+  mainWindow.webContents.send('download-started', downloadToRenderer(download));
 
   download.statusMessage = 'Preparing download...';
   try {
@@ -2969,6 +3098,7 @@ function updateProgress(downloadId) {
 
 // Cancel download
 ipcMain.handle('cancel-download', (event, downloadId) => {
+  if (!isValidDownloadId(downloadId)) return false;
   const download = activeDownloads.get(downloadId);
   if (download) {
     download.cancelled = true;
@@ -2992,6 +3122,7 @@ ipcMain.handle('cancel-download', (event, downloadId) => {
 });
 
 ipcMain.handle('pause-download', (event, downloadId) => {
+  if (!isValidDownloadId(downloadId)) return false;
   const download = activeDownloads.get(downloadId);
   if (!download) return false;
 
@@ -3032,7 +3163,16 @@ async function resumeDownloadFiles(downloadId) {
 
   const isFileComplete = (file) => {
     try {
-      const outputPath = path.join(downloadDir, file.name);
+      const safeRel = sanitizeRelativePath(file && file.name ? String(file.name) : '');
+      if (safeRel == null) {
+        logToFile(`[isFileComplete] invalid file name: ${file && file.name ? String(file.name) : ''}`);
+        return false;
+      }
+      const outputPath = resolveInside(downloadDir, safeRel);
+      if (!outputPath) {
+        logToFile(`[isFileComplete] unsafe file path: ${file && file.name ? String(file.name) : ''}`);
+        return false;
+      }
       if (!fs.existsSync(outputPath)) {
         logToFile(`[isFileComplete] ${file.name}: file does not exist`);
         return false;
@@ -3165,6 +3305,7 @@ async function resumeDownloadFiles(downloadId) {
 }
 
 ipcMain.handle('resume-download', async (event, downloadId) => {
+  if (!isValidDownloadId(downloadId)) return false;
   const download = activeDownloads.get(downloadId);
   if (!download) return false;
 
@@ -3330,14 +3471,19 @@ function completeDownload(downloadId) {
 
 // Open folder
 ipcMain.handle('open-folder', (event, folderPath) => {
-  shell.openPath(folderPath || settings.downloadPath);
+  shell.openPath(settings.downloadPath);
 });
 
 // Open external URL in browser
 ipcMain.handle('open-external', (event, url) => {
   // Security: Only allow HTTPS URLs
-  if (url && url.startsWith('https://')) {
-    shell.openExternal(url);
+  try {
+    if (typeof url !== 'string' || !url) return;
+    const u = new URL(url);
+    if (u.protocol !== 'https:' || !u.hostname) return;
+    shell.openExternal(u.toString());
+  } catch (e) {
+    return;
   }
 });
 
@@ -3379,7 +3525,14 @@ ipcMain.handle('check-updates', async () => {
     
     const req = https.request(options, (res) => {
       let data = '';
+      let bytes = 0;
       res.on('data', chunk => data += chunk);
+      res.on('data', chunk => {
+        bytes += chunk.length;
+        if (bytes > 1024 * 1024) {
+          try { res.destroy(new Error('Response too large')); } catch (e) {}
+        }
+      });
       res.on('end', () => {
         try {
           const release = JSON.parse(data);
@@ -3436,6 +3589,10 @@ ipcMain.handle('check-updates', async () => {
         }
       });
     });
+
+    req.setTimeout(10000, () => {
+      try { req.destroy(new Error('Update check timeout')); } catch (e) {}
+    });
     
     req.on('error', (err) => {
       console.error('Update check failed:', err);
@@ -3473,16 +3630,18 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
       width: 400,
       height: 300,
       title: 'Updating ARMGDDN Companion',
+      frame: false, // Remove frame for modern look
       resizable: false,
-      minimizable: false,
-      maximizable: false,
-      frame: false, // Frameless for custom look
+      movable: true,
+      alwaysOnTop: true,
+      skipTaskbar: true,
       transparent: true, // Allow custom shape/background
       parent: mainWindow,
       modal: true,
       webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false
+        preload: path.join(__dirname, 'preload-update.js'),
+        nodeIntegration: false,
+        contextIsolation: true
       }
     });
 
@@ -3513,8 +3672,86 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
   
   const downloadDir = (platform === 'linux') ? updatesDir : tempDir;
   const filePath = path.join(downloadDir, fileName);
+
+  const cleanupPartialInstaller = () => {
+    try {
+      if (filePath && fs.existsSync(filePath)) {
+        fs.unlinkSync(filePath);
+      }
+    } catch (e) {}
+  };
+  const MAX_INSTALLER_BYTES = 8 * 1024 * 1024 * 1024; // 8 GiB safety cap
   
   return new Promise((resolve) => {
+    const downloadSignature = (url, redirectCount = 0) => {
+      return new Promise((resolveSig) => {
+        if (redirectCount > 5) {
+          resolveSig({ ok: false, error: 'Too many redirects' });
+          return;
+        }
+
+        let parsed;
+        try {
+          parsed = new URL(url);
+        } catch (e) {
+          resolveSig({ ok: false, error: 'Invalid signature URL' });
+          return;
+        }
+
+        if (parsed.protocol !== 'https:') {
+          resolveSig({ ok: false, error: 'Only HTTPS update downloads are allowed' });
+          return;
+        }
+
+        if (!isAllowedUpdateHost(parsed.hostname)) {
+          resolveSig({ ok: false, error: `Update download host not allowed (${parsed.hostname})` });
+          return;
+        }
+
+        const reqSig = https.get(url, { headers: { 'User-Agent': 'ARMGDDN-Companion' } }, (res) => {
+          if (res.statusCode === 301 || res.statusCode === 302) {
+            const location = res.headers.location;
+            if (!location) {
+              resolveSig({ ok: false, error: 'Redirect with no location' });
+              return;
+            }
+            const nextUrl = location.startsWith('http') ? location : new URL(location, parsed).toString();
+            downloadSignature(nextUrl, redirectCount + 1).then(resolveSig);
+            return;
+          }
+
+          if (res.statusCode !== 200) {
+            resolveSig({ ok: false, error: `Download failed with status ${res.statusCode}` });
+            return;
+          }
+
+          let data = '';
+          let bytes = 0;
+          res.on('data', (chunk) => {
+            bytes += chunk.length;
+            if (bytes > 65536) {
+              try { res.destroy(new Error('Signature too large')); } catch (e) {}
+              return;
+            }
+            data += chunk.toString('utf8');
+          });
+          res.on('end', () => {
+            resolveSig({ ok: true, text: data });
+          });
+          res.on('error', (err) => {
+            resolveSig({ ok: false, error: err && err.message ? err.message : 'Signature download error' });
+          });
+        });
+
+        reqSig.setTimeout(15000, () => {
+          try { reqSig.destroy(new Error('Signature request timeout')); } catch (e) {}
+        });
+        reqSig.on('error', (err) => {
+          resolveSig({ ok: false, error: err && err.message ? err.message : 'Signature request error' });
+        });
+      });
+    };
+
     // Download the installer
     const downloadInstaller = (url, redirectCount = 0) => {
       if (redirectCount > 5) {
@@ -3541,11 +3778,12 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         return;
       }
 
-      https.get(url, { headers: { 'User-Agent': 'ARMGDDN-Companion' } }, (res) => {
+      const reqDl = https.get(url, { headers: { 'User-Agent': 'ARMGDDN-Companion' } }, (res) => {
         // Handle redirects
         if (res.statusCode === 301 || res.statusCode === 302) {
           const location = res.headers.location;
           if (!location) {
+            cleanupPartialInstaller();
             resolve({ success: false, error: 'Redirect with no location' });
             return;
           }
@@ -3555,7 +3793,16 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         }
         
         if (res.statusCode !== 200) {
+          cleanupPartialInstaller();
           resolve({ success: false, error: `Download failed with status ${res.statusCode}` });
+          return;
+        }
+
+        const totalBytes = parseInt(res.headers['content-length'], 10);
+        if (Number.isFinite(totalBytes) && totalBytes > MAX_INSTALLER_BYTES) {
+          cleanupPartialInstaller();
+          resolve({ success: false, error: 'Installer too large' });
+          try { res.destroy(new Error('Installer too large')); } catch (e) {}
           return;
         }
         
@@ -3566,12 +3813,18 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         const fileStream = fs.createWriteStream(filePath);
         res.pipe(fileStream);
 
-        const totalBytes = parseInt(res.headers['content-length'], 10);
         let receivedBytes = 0;
         let startTime = Date.now();
 
         res.on('data', (chunk) => {
           receivedBytes += chunk.length;
+          if (receivedBytes > MAX_INSTALLER_BYTES) {
+            try { res.destroy(new Error('Installer too large')); } catch (e) {}
+            try { fileStream.destroy(new Error('Installer too large')); } catch (e) {}
+            cleanupPartialInstaller();
+            resolve({ success: false, error: 'Installer too large' });
+            return;
+          }
           if (progressWin && !progressWin.isDestroyed()) {
              const percent = totalBytes ? (receivedBytes / totalBytes) * 100 : 0;
              const elapsed = (Date.now() - startTime) / 1000;
@@ -3595,8 +3848,59 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         fileStream.on('finish', () => {
           fileStream.close(() => {
             if (progressWin && !progressWin.isDestroyed()) {
-              progressWin.webContents.send('update-status', 'Installing update... The app will restart shortly.');
+              progressWin.webContents.send('update-status', 'Verifying update...');
             }
+
+            try {
+              const pubKeyPem = getUpdateEd25519PublicKeyPem();
+              if (!pubKeyPem) {
+                shell.showItemInFolder(filePath);
+                resolve({ success: false, error: 'Update signature verification unavailable (missing public key)' });
+                return;
+              }
+            } catch (e) {
+              shell.showItemInFolder(filePath);
+              resolve({ success: false, error: 'Update signature verification unavailable' });
+              return;
+            }
+
+            const sigUrl = `${url}.sig`;
+            downloadSignature(sigUrl).then((sigRes) => {
+              if (!sigRes || sigRes.ok !== true || !sigRes.text) {
+                try {
+                  logToFile(`Update - signature download failed: url=${sigUrl} err=${sigRes && sigRes.error ? sigRes.error : 'unknown'}`);
+                } catch (e) {}
+                shell.showItemInFolder(filePath);
+                resolve({ success: false, error: 'Update signature missing or could not be downloaded' });
+                return;
+              }
+
+              const sigBuf = decodeBase64Signature(sigRes.text);
+              if (!sigBuf) {
+                shell.showItemInFolder(filePath);
+                resolve({ success: false, error: 'Update signature invalid' });
+                return;
+              }
+
+              let installerBytes = null;
+              try {
+                installerBytes = fs.readFileSync(filePath);
+              } catch (e) {
+                resolve({ success: false, error: 'Failed to read downloaded installer for verification' });
+                return;
+              }
+
+              const pubKeyPem = getUpdateEd25519PublicKeyPem();
+              const ok = verifyEd25519Signature(installerBytes, sigBuf, pubKeyPem);
+              if (!ok) {
+                shell.showItemInFolder(filePath);
+                resolve({ success: false, error: 'Update signature verification failed' });
+                return;
+              }
+
+              if (progressWin && !progressWin.isDestroyed()) {
+                progressWin.webContents.send('update-status', 'Installing update... The app will restart shortly.');
+              }
             
             // Run the installer after app exits
             try {
@@ -3799,22 +4103,32 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
             } catch (e) {
               resolve({ success: false, error: e.message });
             }
+            });
           });
         });
         
         fileStream.on('error', (err) => {
+          cleanupPartialInstaller();
           resolve({ success: false, error: err.message });
         });
         res.on('error', (err) => {
           logToFile(`Update - download stream error: ${err.message}`);
           if (progressWin && !progressWin.isDestroyed()) progressWin.close();
+          cleanupPartialInstaller();
           resolve({ success: false, error: 'Download stream error' });
       });
-    }).on('error', (err) => {
-      logToFile(`Update - request error: ${err.message}`);
-      if (progressWin && !progressWin.isDestroyed()) progressWin.close();
-      resolve({ success: false, error: 'Update request error: ' + err.message });
-    });
+
+      });
+
+      reqDl.setTimeout(300000, () => {
+        try { reqDl.destroy(new Error('Update download timeout')); } catch (e) {}
+      });
+      reqDl.on('error', (err) => {
+        logToFile(`Update - request error: ${err.message}`);
+        if (progressWin && !progressWin.isDestroyed()) progressWin.close();
+        cleanupPartialInstaller();
+        resolve({ success: false, error: 'Update request error: ' + err.message });
+      });
   };
 
   return downloadInstaller(installerUrl);

@@ -945,7 +945,8 @@ function getFriendlyUpdateFailureMessage(errorText, releaseUrl) {
   const err = String(errorText || '').trim();
   const isHostBlocked = /host not allowed/i.test(err);
   const isInstallerBlocked = /installer url not allowed/i.test(err);
-  const isOneTimeManual = isHostBlocked || isInstallerBlocked;
+  const isSignatureBlocked = /signature/i.test(err);
+  const isOneTimeManual = isHostBlocked || isInstallerBlocked || isSignatureBlocked;
 
   if (isOneTimeManual) {
     return (

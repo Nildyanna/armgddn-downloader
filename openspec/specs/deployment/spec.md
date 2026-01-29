@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Define how the ARMGDDN Downloader Electron application is built, packaged, and distributed across platforms, including how rclone binaries and protocol handlers are wired into installers.
+Define how the ARMGDDN Companion Electron application is built, packaged, and distributed across platforms, including how rclone and extraction tooling binaries and protocol handlers are wired into installers.
 
 ## Requirements
 
@@ -30,7 +30,7 @@ The application SHALL use electron-builder configuration in `package.json` to de
 
 - **WHEN** electron-builder runs using the repo configuration
 - **THEN** the app id is `com.armgddn.downloader`
-- **AND** the product name is `ARMGDDN Downloader`
+- **AND** the product name is `ARMGDDN Companion`
 - **AND** build artifacts are written under the `dist/` directory by default.
 
 #### Scenario: Windows packaging targets
@@ -50,8 +50,8 @@ The application SHALL use electron-builder configuration in `package.json` to de
 #### Scenario: macOS packaging targets
 
 - **WHEN** building for macOS via electron-builder
-- **THEN** a DMG image is produced
-- **AND** the macOS build uses `assets/skull-logo-512.png` as the app icon
+- **THEN** a macOS installer package is produced
+- **AND** the macOS build uses `build/icon.icns` as the app icon
 - **AND** the app category is `public.app-category.utilities`.
 
 ### Requirement: Bundled rclone Binaries
@@ -76,6 +76,16 @@ The deployment configuration SHALL bundle platform-specific rclone binaries with
 - **THEN** the contents of `rclone/darwin` are included in the packaged app under a `rclone/` directory
 - **AND** the runtime rclone path resolution in `main.js` locates `rclone/rclone` from the app resources.
 
+### Requirement: Bundled 7z Extraction Tools
+
+The deployment configuration SHALL bundle platform-specific 7z extraction tools with the packaged app so the downloader can optionally validate and extract `.7z` archives.
+
+#### Scenario: Platform extraction resources
+
+- **WHEN** building a packaged app for a platform
+- **THEN** electron-builder includes a platform-specific `7z/` directory under app resources
+- **AND** the runtime 7z path resolution in `main.js` locates the appropriate `7za` binary from the app resources.
+
 ### Requirement: Custom Protocol Registration in Installers
 
 The packaged application SHALL register the `armgddn` custom protocol so that deep links from ARMGDDN Browser can launch or focus the downloader.
@@ -84,7 +94,7 @@ The packaged application SHALL register the `armgddn` custom protocol so that de
 
 - **WHEN** electron-builder runs with the configured `protocols` section
 - **THEN** the product registers a protocol named `ARMGDDN Protocol` with the `armgddn` scheme
-- **AND** on supported platforms, `armgddn://...` links are routed to the ARMGDDN Downloader executable.
+- **AND** on supported platforms, `armgddn://...` links are routed to the ARMGDDN Companion executable.
 
 ### Requirement: Release Artifacts for Update System
 
@@ -105,8 +115,8 @@ The deployment process SHALL produce release artifacts that are compatible with 
 #### Scenario: macOS release artifacts
 
 - **WHEN** a macOS release is published to GitHub
-- **THEN** it includes at least one `.dmg` asset
-- **AND** the update system can select it by `.dmg` extension.
+- **THEN** it includes a suitable macOS installer asset for the current distribution target
+- **AND** the update system can select it by its expected file extension.
 
 ### Requirement: Configuration of Download Location and UserData
 
