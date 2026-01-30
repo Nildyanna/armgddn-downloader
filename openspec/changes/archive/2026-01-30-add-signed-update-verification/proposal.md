@@ -1,12 +1,12 @@
 # Add Signed Update Verification
 
-## Problem
+## Why
 
 The current update system relies on HTTPS plus an allowlist of update hosts when downloading installers. This reduces exposure, but it does not provide cryptographic integrity or authenticity guarantees for the downloaded installer.
 
 If a trusted host is compromised, a release asset is replaced, or a network attacker can influence content delivery despite HTTPS, the app could download and execute a malicious installer.
 
-## Solution
+## What Changes
 
 Introduce signed-update verification for automatic installs.
 
