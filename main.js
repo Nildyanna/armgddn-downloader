@@ -3652,23 +3652,46 @@ ipcMain.handle('check-updates', async () => {
           
           // Find the appropriate installer asset
           let installerUrl = null;
+          let installerName = null;
           const assets = release.assets || [];
           const platform = process.platform;
           
           if (platform === 'win32') {
             // Look for .exe installer
             const exeAsset = assets.find(a => a.name.endsWith('.exe'));
-            if (exeAsset) installerUrl = exeAsset.browser_download_url;
+            if (exeAsset) {
+              installerUrl = exeAsset.browser_download_url;
+              installerName = exeAsset.name;
+            }
           } else if (platform === 'linux') {
             // Look for .AppImage or .deb
             const appImageAsset = assets.find(a => a.name.endsWith('.AppImage'));
             const debAsset = assets.find(a => a.name.endsWith('.deb'));
-            if (appImageAsset) installerUrl = appImageAsset.browser_download_url;
-            else if (debAsset) installerUrl = debAsset.browser_download_url;
+            if (appImageAsset) {
+              installerUrl = appImageAsset.browser_download_url;
+              installerName = appImageAsset.name;
+            } else if (debAsset) {
+              installerUrl = debAsset.browser_download_url;
+              installerName = debAsset.name;
+            }
           } else if (platform === 'darwin') {
             // Look for .dmg
             const dmgAsset = assets.find(a => a.name.endsWith('.dmg'));
-            if (dmgAsset) installerUrl = dmgAsset.browser_download_url;
+            if (dmgAsset) {
+              installerUrl = dmgAsset.browser_download_url;
+              installerName = dmgAsset.name;
+            }
+          }
+
+          // Require a matching signature asset for auto-install.
+          // This avoids failing later with "Update signature missing" if the release is still
+          // being published/signed or if a signature upload was skipped.
+          if (installerUrl && installerName) {
+            const sigName = `${installerName}.sig`;
+            const sigAsset = assets.find(a => a && a.name === sigName);
+            if (!sigAsset) {
+              installerUrl = null;
+            }
           }
 
           // Security: only allow HTTPS installer URLs from allowlisted update hosts
@@ -3736,7 +3759,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
   try {
     progressWin = new BrowserWindow({
       width: 400,
-      height: 300,
+      height: 380,
       title: 'Updating ARMGDDN Companion',
       frame: false, // Remove frame for modern look
       resizable: false,
