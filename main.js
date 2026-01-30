@@ -3789,6 +3789,20 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
     } catch (e) {}
   };
   const MAX_INSTALLER_BYTES = 8 * 1024 * 1024 * 1024; // 8 GiB safety cap
+  // Signature assets live alongside the original GitHub release asset URL.
+  // After redirects, the installer download URL often becomes a time-limited
+  // objects.githubusercontent.com URL with query params; appending .sig to that
+  // will fail. Always derive the signature URL from the original installerUrl.
+  const signatureUrlBase = (() => {
+    try {
+      const u = new URL(installerUrl);
+      u.search = '';
+      u.hash = '';
+      return u.toString();
+    } catch (e) {
+      return (installerUrl || '').split('#')[0].split('?')[0];
+    }
+  })();
   
   return new Promise((resolve) => {
     const downloadSignature = (url, redirectCount = 0) => {
@@ -4024,7 +4038,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               return;
             }
 
-            const sigUrl = `${url}.sig`;
+            const sigUrl = `${signatureUrlBase}.sig`;
             try {
               if (progressWin && !progressWin.isDestroyed()) {
                 progressWin.webContents.send('update-status', 'Downloading signature...');
