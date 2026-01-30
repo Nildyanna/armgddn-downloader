@@ -3824,12 +3824,13 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         }
 
         const reqSig = https.get(url, { headers: { 'User-Agent': 'ARMGDDN-Companion' } }, (res) => {
+          let ended = false;
           res.on('aborted', () => {
             finish({ ok: false, error: 'Signature download aborted' });
           });
           res.on('close', () => {
-            // If the server closes early without emitting 'end', treat as failure.
-            finish({ ok: false, error: 'Signature download closed early' });
+            // Only treat close as a failure if it happens before the response ends.
+            if (!ended) finish({ ok: false, error: 'Signature download closed early' });
           });
 
           if (res.statusCode === 301 || res.statusCode === 302) {
@@ -3859,6 +3860,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
             data += chunk.toString('utf8');
           });
           res.on('end', () => {
+            ended = true;
             finish({ ok: true, text: data });
           });
           res.on('error', (err) => {
