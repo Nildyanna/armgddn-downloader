@@ -80,6 +80,15 @@ The Settings panel controls how downloads are performed.
   - Reinstall the app so the `armgddn://` protocol handler is registered again.
   - On Linux, desktop environments can require a log out / log in after installing protocol handlers.
 
+## Update security
+
+Automatic updates verify installer authenticity before execution:
+
+- The updater downloads the installer.
+- It also downloads a signature from the corresponding URL: `<installerUrl>.sig`.
+- The installer is only executed/opened if signature verification succeeds.
+- If verification fails or the signature is missing, the app falls back to a manual update path.
+
 ## Support
 
 - Telegram: [https://t.me/ARMGDDNGames](https://t.me/ARMGDDNGames)
