@@ -3,9 +3,7 @@
 ## Purpose
 
 Define how the ARMGDDN Companion checks for new releases, compares versions, selects an appropriate installer asset per platform, and performs or assists with the update installation.
-
 ## Requirements
-
 ### Requirement: GitHub Release Discovery
 
 The application SHALL query GitHub Releases to determine the latest available version of ARMGDDN Companion.
@@ -83,49 +81,14 @@ The update system SHALL fail gracefully when the GitHub API call or JSON parsing
 
 The application SHALL download and launch the installer when the user opts into an automatic update and an installer URL is available.
 
-#### Scenario: Download installer to temporary directory
+#### Scenario: Installer execution requires prior verification
 
-- **WHEN** the renderer calls `installUpdate` with a non-empty installer URL
-- **THEN** the main process downloads the installer file to a platform-appropriate directory:
-  - Windows/macOS: the OS temp directory
-  - Linux: `<userData>/updates/`
-- **AND** it uses a unique filename based on timestamp and platform.
-
-#### Scenario: Launch Windows installer and exit
-
-- **WHEN** running on Windows and the installer file is a `.exe`
-- **THEN** the main process prepares a wrapper runner (e.g. a `.cmd` file) that waits for the current app PID to exit
-- **AND** it launches that runner indirectly (e.g. via a `.vbs` launcher) so the install can proceed after the Electron process exits
-- **AND** it marks the app as quitting and calls `app.quit()` shortly after launching the runner
-- **AND** it reports `{ success: true }` back to the renderer if launch succeeded.
-
-#### Scenario: Launch Linux AppImage installer
-
-- **WHEN** running on Linux and the installer file is an `.AppImage`
-- **THEN** the main process sets the file as executable
-- **AND** if the app is currently running as an AppImage (`APPIMAGE` is set), it MAY use a replacement script that:
-  - waits for the current PID to exit
-  - replaces the current AppImage on disk
-  - launches the new AppImage
-- **AND** otherwise it spawns the downloaded AppImage as a detached process
-- **AND** then quits the app.
-
-#### Scenario: Linux deb installer manual path
-
-- **WHEN** running on Linux and the installer file is a `.deb`
-- **THEN** the main process downloads the `.deb` file
-- **AND** opens the containing folder or file location in the file manager
-- **AND** returns a success result with a message instructing the user to install the package manually.
-
-#### Scenario: Launch macOS DMG
-
-- **WHEN** running on macOS and the installer file is a `.dmg` (or other platform installer artifact)
-- **THEN** the main process opens the downloaded installer using the default system handler
-- **AND** returns a success result indicating that installation should be completed manually.
+- **WHEN** running an automatic update install
+- **THEN** execution/opening of the installer is gated on successful signed installer verification.
 
 ### Requirement: Auto-Update Startup Behavior
 
-The renderer MAY automatically check for updates on startup.
+The renderer SHALL support automatically checking for updates on startup.
 
 #### Scenario: Auto-update enabled
 
@@ -154,3 +117,22 @@ The update system SHALL detect and report failures that occur while downloading 
 - **THEN** it logs the error to the debug log
 - **AND** returns an object with `success: false` and a concise error message for the renderer to display
 - **AND** the Electron app remains running so the user can attempt other actions or fall back to manual installation.
+
+### Requirement: Signed Installer Verification
+
+The update system SHALL verify a downloaded installer using a cryptographic signature before executing or opening it.
+
+#### Scenario: Download and verify signature before execution
+
+- **WHEN** the renderer calls `installUpdate` with a non-empty installer URL
+- **AND** the installer download succeeds
+- **THEN** the main process downloads a corresponding signature artifact for the installer over HTTPS
+- **AND** it validates the signature using a pinned public key embedded in the application
+- **AND** it MUST NOT execute/open the installer unless signature verification succeeds.
+
+#### Scenario: Signature missing or invalid triggers manual fallback
+
+- **WHEN** the installer signature is missing or fails verification
+- **THEN** `installUpdate` returns `{ success: false, error: ... }`
+- **AND** the renderer guides the user to a manual installation path (e.g., open the release page).
+
