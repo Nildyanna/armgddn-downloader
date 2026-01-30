@@ -1000,17 +1000,26 @@ async function showUpdateNotification(result) {
           relaunchAfterInstall: true,
           source: 'manual-confirm'
         });
-        
-        if (installResult.message) {
-          alert(installResult.message);
-        } else if (!installResult.success) {
-          alert(getFriendlyUpdateFailureMessage(installResult.error, result.releaseUrl));
-          api.openExternal(result.releaseUrl);
+
+        // Once the updater window is shown, avoid alert()/confirm() flows that can end up
+        // behind it. The updater window itself will surface verification failures and
+        // manual update instructions.
+        if (installResult && installResult.success === false) {
+          try {
+            console.warn('Update install failed:', installResult.error || installResult.message || 'unknown');
+          } catch (e) {}
+          if (result.releaseUrl) {
+            api.openExternal(result.releaseUrl);
+          }
         }
         // If success without message, app will quit and installer will run
       } catch (e) {
-        alert(getFriendlyUpdateFailureMessage(e && e.message ? e.message : e, result.releaseUrl));
-        api.openExternal(result.releaseUrl);
+        try {
+          console.warn('Update install failed:', e && e.message ? e.message : e);
+        } catch (e2) {}
+        if (result.releaseUrl) {
+          api.openExternal(result.releaseUrl);
+        }
       }
     } else if (result.releaseUrl) {
       // Fallback to opening release page

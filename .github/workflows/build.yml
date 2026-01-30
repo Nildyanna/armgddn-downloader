@@ -37,6 +37,12 @@ jobs:
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
 
+      - name: Set app version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: |
+          node -e "const fs=require('fs'); const tag=process.env.GITHUB_REF_NAME||''; const v=tag.replace(/^v/,''); if(!/^\d+\.\d+\.\d+/.test(v)) { console.error('Invalid tag version:', tag); process.exit(1);} const files=['package.json','package-lock.json']; for(const f of files){ if(!fs.existsSync(f)) continue; const j=JSON.parse(fs.readFileSync(f,'utf8')); j.version=v; if(j.packages && j.packages[''] && typeof j.packages[''] === 'object'){ j.packages[''].version=v; } fs.writeFileSync(f, JSON.stringify(j, null, 2)+'\n','utf8'); } console.log('Set version to', v);"
+
       - name: Download bundled help video (GitHub Release asset)
         shell: bash
         run: |
