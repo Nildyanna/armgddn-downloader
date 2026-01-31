@@ -712,7 +712,11 @@ function ensureLinuxProtocolDesktopHandler() {
     fs.mkdirSync(appsDir, { recursive: true });
 
     const desktopPath = path.join(appsDir, desktopFileName);
-    const execPath = process.execPath;
+    // In AppImage builds, process.execPath can be a transient mount path under /tmp/.mount_*.
+    // Prefer the stable AppImage file path when available so the protocol handler can launch
+    // the app even when it's not already running.
+    const appImagePath = process.env.APPIMAGE ? String(process.env.APPIMAGE) : '';
+    const execPath = appImagePath || process.execPath;
     const content = [
       '[Desktop Entry]',
       'Type=Application',
