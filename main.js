@@ -3863,6 +3863,27 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
 
   // Show progress window
   let progressWin = null;
+  let progressWinReady = false;
+  const pendingUpdateEvents = [];
+  const flushPendingUpdateEvents = () => {
+    if (!progressWin || progressWin.isDestroyed() || !progressWinReady) return;
+    while (pendingUpdateEvents.length > 0) {
+      const evt = pendingUpdateEvents.shift();
+      try {
+        progressWin.webContents.send(evt.channel, evt.payload);
+      } catch (e) {}
+    }
+  };
+  const safeSendUpdateEvent = (channel, payload) => {
+    if (!progressWin || progressWin.isDestroyed()) return;
+    if (progressWinReady) {
+      try {
+        progressWin.webContents.send(channel, payload);
+      } catch (e) {}
+      return;
+    }
+    pendingUpdateEvents.push({ channel, payload });
+  };
   try {
     progressWin = new BrowserWindow({
       width: 400,
@@ -3871,17 +3892,26 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
       parent: mainWindow, // Set parent so dialogs appear on top
       modal: false, // Keep non-modal to allow interaction
       frame: false, // Remove title bar
+      autoHideMenuBar: true,
       resizable: false,
       minimizable: false,
       maximizable: false,
       alwaysOnTop: true, // Ensure it stays on top during update
       webPreferences: {
-        nodeIntegration: true,
-        contextIsolation: false
+        preload: path.join(__dirname, 'preload.js'),
+        contextIsolation: true,
+        nodeIntegration: false
       }
     });
 
     progressWin.loadFile(path.join(__dirname, 'renderer', 'update.html'));
+    try { progressWin.setMenu(null); } catch (e) {}
+    try {
+      progressWin.webContents.on('did-finish-load', () => {
+        progressWinReady = true;
+        flushPendingUpdateEvents();
+      });
+    } catch (e) {}
     progressWin.on('closed', () => {
       progressWin = null;
     });
@@ -4102,7 +4132,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
              if (speed > 1024 * 1024) speedStr = (speed / (1024 * 1024)).toFixed(1) + ' MB/s';
              else speedStr = (speed / 1024).toFixed(1) + ' KB/s';
 
-             progressWin.webContents.send('update-progress', {
+             safeSendUpdateEvent('update-progress', {
                percent,
                transferred: receivedBytes,
                total: totalBytes,
@@ -4114,9 +4144,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         
         fileStream.on('finish', () => {
           fileStream.close(() => {
-            if (progressWin && !progressWin.isDestroyed()) {
-              progressWin.webContents.send('update-status', 'Verifying update...');
-            }
+            safeSendUpdateEvent('update-status', 'Verifying update...');
 
             let verifyResolved = false;
             const resolveOnce = (val) => {
@@ -4133,11 +4161,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               try {
                 logToFile('Update - verification timed out');
               } catch (e) {}
-              try {
-                if (progressWin && !progressWin.isDestroyed()) {
-                  progressWin.webContents.send('update-status', 'Manual update required: verification timed out.');
-                }
-              } catch (e) {}
+              try { safeSendUpdateEvent('update-status', 'Manual update required: verification timed out.'); } catch (e) {}
               resolveOnce({ success: false, error: 'Update verification timed out' });
             }, VERIFY_TIMEOUT_MS);
 
@@ -4146,11 +4170,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                 logToFile(`Update - verification failed: ${internalErr || publicMsg}`);
               } catch (e) {}
 
-              try {
-                if (progressWin && !progressWin.isDestroyed()) {
-                  progressWin.webContents.send('update-status', `Manual update required: ${publicMsg}`);
-                }
-              } catch (e) {}
+              try { safeSendUpdateEvent('update-status', `Manual update required: ${publicMsg}`); } catch (e) {}
             };
 
             try {
@@ -4167,11 +4187,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
             }
 
             const sigUrl = `${signatureUrlBase}.sig`;
-            try {
-              if (progressWin && !progressWin.isDestroyed()) {
-                progressWin.webContents.send('update-status', 'Downloading signature...');
-              }
-            } catch (e) {}
+            try { safeSendUpdateEvent('update-status', 'Downloading signature...'); } catch (e) {}
             logToFile(`Update - verifying: downloading signature: ${sigUrl}`);
             const withTimeout = (p, ms, label) => {
               let t = null;
@@ -4201,11 +4217,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               }
 
               logToFile(`Update - verifying: reading installer: ${filePath}`);
-              try {
-                if (progressWin && !progressWin.isDestroyed()) {
-                  progressWin.webContents.send('update-status', 'Reading installer...');
-                }
-              } catch (e) {}
+              try { safeSendUpdateEvent('update-status', 'Reading installer...'); } catch (e) {}
               let installerBytes = null;
               try {
                 installerBytes = await fs.promises.readFile(filePath);
@@ -4219,11 +4231,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               await new Promise((r) => setImmediate(r));
 
               const pubKeyPem = getUpdateEd25519PublicKeyPem();
-              try {
-                if (progressWin && !progressWin.isDestroyed()) {
-                  progressWin.webContents.send('update-status', 'Checking signature...');
-                }
-              } catch (e) {}
+              try { safeSendUpdateEvent('update-status', 'Checking signature...'); } catch (e) {}
               logToFile('Update - verifying: checking Ed25519 signature');
               const ok = verifyEd25519Signature(installerBytes, sigBuf, pubKeyPem);
               if (!ok) {
@@ -4232,9 +4240,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                 return;
               }
 
-              if (progressWin && !progressWin.isDestroyed()) {
-                progressWin.webContents.send('update-status', 'Installing update... The app will restart shortly.');
-              }
+              safeSendUpdateEvent('update-status', 'Installing update... The app will restart shortly.');
             
             // Run the installer after app exits
             try {
@@ -4375,9 +4381,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                       });
                       child.unref();
                       
-                      if (progressWin && !progressWin.isDestroyed()) {
-                        progressWin.webContents.send('update-status', 'Restarting updated version...');
-                      }
+                      safeSendUpdateEvent('update-status', 'Restarting updated version...');
                       
                       setTimeout(() => {
                         app.isQuitting = true;
@@ -4393,9 +4397,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
 
                   logToFile('Update - launching AppImage (no replacement)');
                   
-                  if (progressWin && !progressWin.isDestroyed()) {
-                    progressWin.webContents.send('update-status', 'Restarting into new version...');
-                  }
+                  safeSendUpdateEvent('update-status', 'Restarting into new version...');
 
                   let spawnFailed = false;
                   let resolved = false;
