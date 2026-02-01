@@ -1947,7 +1947,7 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
 function isFileCompleteOnDisk(downloadDir, file) {
   try {
     if (!downloadDir || !file || !file.name) return false;
-    const expected = typeof file.size === 'number' ? file.size : 0;
+    const expected = normalizeFileSize(file.size);
     if (!(expected > 0)) return false;
     const safeRel = sanitizeRelativePath(String(file.name));
     if (!safeRel) return false;
@@ -1955,10 +1955,15 @@ function isFileCompleteOnDisk(downloadDir, file) {
     if (!outputPath) return false;
     if (!fs.existsSync(outputPath)) return false;
     const st = fs.statSync(outputPath);
-    return (st && typeof st.size === 'number' && st.size >= expected);
+    return st && st.isFile && st.isFile() && st.size === expected;
   } catch (e) {
     return false;
   }
+}
+
+function normalizeFileSize(size) {
+  const n = Number(size);
+  return Number.isFinite(n) && n > 0 ? n : 0;
 }
 
 // Report progress to website server
@@ -2298,9 +2303,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       if (!f || !f.name) continue;
       if (isFileCompleteOnDisk(downloadDir, f)) {
         completedFiles++;
-        downloadedSize += (typeof f.size === 'number' ? f.size : 0);
+        downloadedSize += normalizeFileSize(f.size);
         try {
-          reportFileProgressToServer(download, token, f, 'completed', typeof f.size === 'number' ? f.size : 0);
+          reportFileProgressToServer(download, token, f, 'completed', normalizeFileSize(f.size));
         } catch (e) {}
       } else {
         remainingFiles.push(f);
@@ -2516,11 +2521,11 @@ async function downloadFile(downloadId, file, downloadDir) {
     }
 
     if (isFileCompleteOnDisk(downloadDir, file)) {
-      download.downloadedSize += (typeof file.size === 'number' ? file.size : 0);
+      download.downloadedSize += normalizeFileSize(file.size);
       download.completedFiles++;
       updateProgress(downloadId);
       try {
-        reportFileProgressToServer(download, download.token, file, 'completed', typeof file.size === 'number' ? file.size : 0);
+        reportFileProgressToServer(download, download.token, file, 'completed', normalizeFileSize(file.size));
       } catch (e) {}
       resolve();
       return;
@@ -2632,7 +2637,7 @@ async function downloadFile(downloadId, file, downloadDir) {
       }
 
       if (code === 0) {
-        download.downloadedSize += file.size || 0;
+        download.downloadedSize += normalizeFileSize(file.size);
         download.completedFiles++;
         // Mark file as completed and remove from active
         if (download.activeFiles[fileKey]) {
@@ -2641,7 +2646,7 @@ async function downloadFile(downloadId, file, downloadDir) {
           delete download.activeFiles[fileKey];
         }
         try {
-          reportFileProgressToServer(download, download.token, file, 'completed', typeof file.size === 'number' ? file.size : 0);
+          reportFileProgressToServer(download, download.token, file, 'completed', normalizeFileSize(file.size));
         } catch (e) {}
         updateProgress(downloadId);
         resolve();
@@ -3418,7 +3423,7 @@ async function resumeDownloadFiles(downloadId) {
     if (!f || !f.name) continue;
     if (!isFileComplete(f)) continue;
     completedFiles++;
-    downloadedSize += (typeof f.size === 'number' ? f.size : 0);
+    downloadedSize += normalizeFileSize(f.size);
   }
   download.completedFiles = completedFiles;
   download.downloadedSize = downloadedSize;
