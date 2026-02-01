@@ -3717,7 +3717,7 @@ ipcMain.handle('check-updates', async () => {
   return new Promise((resolve) => {
     const options = {
       hostname: 'api.github.com',
-      path: '/repos/Nildyanna/armgddn-downloader/releases/latest',
+      path: '/repos/Nildyanna/armgddn-downloader/releases', // Fetch all releases to include prereleases for testing
       method: 'GET',
       headers: {
         'User-Agent': 'ARMGDDN-Companion',
@@ -3737,7 +3737,18 @@ ipcMain.handle('check-updates', async () => {
       });
       res.on('end', () => {
         try {
-          const release = JSON.parse(data);
+          const releases = JSON.parse(data);
+          if (!Array.isArray(releases)) {
+            resolve({ error: 'Invalid releases response' });
+            return;
+          }
+          // Pick the most recent release by creation date (including prereleases for testing)
+          const latestRelease = releases.reduce((latest, current) => {
+            const latestDate = new Date(latest.created_at);
+            const currentDate = new Date(current.created_at);
+            return currentDate > latestDate ? current : latest;
+          }, releases[0]);
+          const release = latestRelease;
           const latestVersion = (release.tag_name || '').replace(/^v/, '');
           const currentVersion = app.getVersion();
           
