@@ -246,15 +246,13 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
       } catch (e) {}
     } else if (loadInfo && loadInfo.success === false) {
       const errMsg = loadInfo && loadInfo.error ? String(loadInfo.error) : 'Failed to fetch server load';
+      logToFile(`[Concurrency] app-load failed: ${errMsg}`);
       // Provide a user-friendly message for quota exhaustion
       if (errMsg && /quota|limit|exhausted|too many/i.test(errMsg)) {
         notice = 'You are allowed 2 complete downloads per title per 24‑hour period and you have exhausted that for this title.';
       } else {
         notice = errMsg;
       }
-      try {
-        logToFile(`[Concurrency] app-load failed: ${errMsg}`);
-      } catch (e) {}
     }
   } catch (e) {
     try {
@@ -305,6 +303,7 @@ async function getAppLoadInfo(token, manifestUrl) {
   try {
     const sessionToken = token || loadSession();
     if (!sessionToken) {
+      logToFile(`[app-load] No session token`);
       return { success: false, error: 'Not authenticated' };
     }
 
@@ -321,7 +320,10 @@ async function getAppLoadInfo(token, manifestUrl) {
     }
 
     const fetchOnce = async (baseUrl) => {
-      const { statusCode, json, text } = await fetchJsonWithBearer(`${baseUrl}/api/app-load`, 'GET', sessionToken);
+      const url = `${baseUrl}/api/app-load`;
+      logToFile(`[app-load] GET ${url}`);
+      const { statusCode, json, text } = await fetchJsonWithBearer(url, 'GET', sessionToken);
+      logToFile(`[app-load] Response status=${statusCode} json=${JSON.stringify(json)} text=${text ? text.slice(0, 200) : ''}`);
       if (statusCode === 200 && json && json.success === true) {
         return { ok: true, json };
       }
@@ -335,6 +337,7 @@ async function getAppLoadInfo(token, manifestUrl) {
       if (primary.ok) return primary.json;
 
       if (base !== 'https://www.armgddnbrowser.com') {
+        logToFile(`[app-load] Fallback to www.armgddnbrowser.com`);
         const fallback = await fetchOnce('https://www.armgddnbrowser.com');
         if (fallback.ok) return fallback.json;
       }
@@ -2336,7 +2339,16 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
 
   const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
-  await refreshDownloadConcurrency(download, token, manifestUrl);
+  // Try to refresh server concurrency, but don’t let a failure block the download entirely.
+  try {
+    await refreshDownloadConcurrency(download, token, manifestUrl);
+  } catch (e) {
+    logToFile(`[Concurrency] Initial refresh failed, proceeding with default: ${e && e.message ? e.message : e}`);
+    // Ensure we have a usable effectiveConcurrency even if server check failed
+    if (!Number.isFinite(download.effectiveConcurrency) || download.effectiveConcurrency <= 0) {
+      download.effectiveConcurrency = requestedWorkers;
+    }
+  }
   download.statusMessage = download.statusMessage || 'Starting downloads...';
   try { updateProgress(downloadId); } catch (e2) {}
 
