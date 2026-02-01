@@ -3866,18 +3866,15 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
       width: 400,
       height: 380,
       title: 'Updating ARMGDDN Companion',
-      frame: false, // Remove frame for modern look
+      parent: mainWindow, // Set parent so dialogs appear on top
+      modal: false, // Keep non-modal to allow interaction
       resizable: false,
-      movable: true,
-      alwaysOnTop: true,
-      skipTaskbar: true,
-      transparent: true, // Allow custom shape/background
-      parent: mainWindow,
-      modal: true,
+      minimizable: false,
+      maximizable: false,
+      alwaysOnTop: true, // Ensure it stays on top during update
       webPreferences: {
-        preload: path.join(__dirname, 'preload-update.js'),
-        nodeIntegration: false,
-        contextIsolation: true
+        nodeIntegration: true,
+        contextIsolation: false
       }
     });
 
