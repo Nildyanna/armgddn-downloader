@@ -1,3 +1,18 @@
+// Helper: show native Yes/No confirmation dialog
+function showConfirmDialog(title, message) {
+  return new Promise((resolve) => {
+    const result = window.electronAPI.showMessageBox({
+      type: 'question',
+      buttons: ['No', 'Yes'],
+      defaultId: 0,
+      title: title,
+      message: message,
+      detail: ''
+    });
+    resolve(result === 1); // Yes is index 1
+  });
+}
+
 // ARMGDDN Downloader - Electron Renderer
 (function() {
 'use strict';
@@ -674,12 +689,22 @@ function renderDownloadsNow() {
 
 // Cancel download
 async function cancelDownload(id) {
+  const confirmed = await showConfirmDialog(
+    'Cancel Download',
+    'If you cancel this download, completed files will not need to be redownloaded, but incomplete files will not resume and must be restarted. Are you sure you want to cancel?'
+  );
+  if (!confirmed) return;
   await api.cancelDownload(id);
   downloads.delete(id);
   renderDownloads();
 }
 
 async function pauseDownload(id) {
+  const confirmed = await showConfirmDialog(
+    'Pause Download',
+    'If you pause this download, completed files will not need to be redownloaded, but incomplete files will not resume and must be restarted when you resume. Are you sure you want to pause?'
+  );
+  if (!confirmed) return;
   const ok = await api.pauseDownload(id);
   if (!ok) return;
   const download = downloads.get(id);

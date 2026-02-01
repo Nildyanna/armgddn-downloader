@@ -1629,6 +1629,13 @@ ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
   return getAppLoadInfo(token, manifestUrl);
 });
 
+// Show native message box (Yes/No)
+ipcMain.handle('show-message-box', async (event, options) => {
+  if (!mainWindow || mainWindow.isDestroyed()) return 0;
+  const result = dialog.showMessageBoxSync(mainWindow, options);
+  return result;
+});
+
 // Get 7z help video file URL for renderer
 ipcMain.handle('get-help-7z-video-src', () => {
   try {
