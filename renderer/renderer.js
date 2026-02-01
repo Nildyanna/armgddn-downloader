@@ -1,14 +1,14 @@
-// Helper: show native Yes/No confirmation dialog
-async function showConfirmDialog(title, message) {
+// Helper: show native confirmation dialog with customizable buttons
+async function showConfirmDialog(title, message, yesText = 'Yes', noText = 'No') {
   const result = await window.electronAPI.showMessageBox({
     type: 'question',
-    buttons: ['No', 'Yes'],
+    buttons: [noText, yesText],
     defaultId: 0,
     title: title,
     message: message,
     detail: ''
   });
-  return result === 1; // Yes is index 1
+  return result === 1; // yesText is index 1
 }
 
 // ARMGDDN Downloader - Electron Renderer
@@ -141,6 +141,23 @@ async function init() {
 
 async function autoInstallUpdatesOnStartup() {
   try {
+    // Check for active downloads before updating
+    const downloads = await api.getDownloads();
+    const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
+    if (activeDownloads.length > 0) {
+      const proceed = await showConfirmDialog(
+        'Update Available',
+        `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
+        'Update Now',
+        'Wait'
+      );
+      if (!proceed) return; // User chose to wait
+      // User chose to update now; abandon active downloads
+      for (const d of activeDownloads) {
+        await api.cancelDownload(d.id);
+      }
+    }
+
     const result = await api.checkUpdates();
     if (!result || result.error) {
       console.error('Auto-update check failed:', result && result.error ? result.error : 'unknown');
@@ -945,6 +962,26 @@ async function checkForUpdates() {
     }
     
     if (result.hasUpdate) {
+      // Check for active downloads before offering install
+      const downloads = await api.getDownloads();
+      const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
+      if (activeDownloads.length > 0) {
+        const proceed = await showConfirmDialog(
+          'Update Available',
+          `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
+          'Update Now',
+          'Wait'
+        );
+        if (!proceed) {
+          // User chose to wait; just notify that an update is available
+          showUpdateNotification(result);
+          return;
+        }
+        // User chose to update now; abandon active downloads
+        for (const d of activeDownloads) {
+          await api.cancelDownload(d.id);
+        }
+      }
       showUpdateNotification(result);
     } else {
       alert(`You're running the latest version (v${result.version})`);
