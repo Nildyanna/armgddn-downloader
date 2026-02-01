@@ -246,7 +246,12 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
       } catch (e) {}
     } else if (loadInfo && loadInfo.success === false) {
       const errMsg = loadInfo && loadInfo.error ? String(loadInfo.error) : 'Failed to fetch server load';
-      notice = errMsg;
+      // Provide a user-friendly message for quota exhaustion
+      if (errMsg && /quota|limit|exhausted|too many/i.test(errMsg)) {
+        notice = 'You are allowed 2 complete downloads per title per 24‑hour period and you have exhausted that for this title.';
+      } else {
+        notice = errMsg;
+      }
       try {
         logToFile(`[Concurrency] app-load failed: ${errMsg}`);
       } catch (e) {}
@@ -1005,6 +1010,52 @@ function loadHistory() {
   }
 }
 
+// Load orphaned downloads from history that were in-progress when the app quit
+function loadOrphanedDownloads() {
+  try {
+    const historyPath = getHistoryPath();
+    if (!fs.existsSync(historyPath)) return;
+    const data = fs.readFileSync(historyPath, 'utf8');
+    const history = JSON.parse(data);
+    if (!Array.isArray(history)) return;
+
+    const now = Date.now();
+    for (const entry of history) {
+      if (!entry || !entry.id || typeof entry.id !== 'string') continue;
+      // Only rehydrate entries that look like in-progress (no endTime, or recent startTime)
+      if (entry.endTime) continue;
+      const ageMs = now - (entry.startTime ? new Date(entry.startTime).getTime() : 0);
+      // Ignore entries older than 24 hours to avoid rehydrating stale state
+      if (ageMs > 24 * 60 * 60 * 1000) continue;
+      // Rehydrate as a minimal download object so UI can show it and user can resume
+      const orphaned = {
+        id: entry.id,
+        name: entry.name || 'Unknown',
+        totalSize: entry.totalSize || 0,
+        bytesDownloaded: entry.bytesDownloaded || 0,
+        status: 'paused',
+        paused: true,
+        error: null,
+        cancelled: false,
+        startTime: entry.startTime,
+        endTime: null,
+        files: entry.files || [],
+        activeFiles: entry.activeFiles || {},
+        activeProcesses: [],
+        token: entry.token || null,
+        manifestUrl: entry.manifestUrl || null,
+        remote: entry.remote || null,
+        targetDir: entry.targetDir || null,
+        statusMessage: 'Download was interrupted. Click Resume to continue.'
+      };
+      activeDownloads.set(entry.id, orphaned);
+      logToFile(`[orphan] Rehydrated orphaned download ${entry.id} (${orphaned.name})`);
+    }
+  } catch (e) {
+    logToFile(`[orphan] Failed to load orphaned downloads: ${e && e.message ? e.message : e}`);
+  }
+}
+
 // Save history
 function saveHistory() {
   try {
@@ -1293,6 +1344,25 @@ function createWindow() {
     if (!app.isQuitting && settings && settings.minimizeToTrayOnClose) {
       event.preventDefault();
       mainWindow.hide();
+      return;
+    }
+
+    // If there are active downloads, ask for confirmation before quitting
+    const activeCount = activeDownloads.size;
+    if (activeCount > 0) {
+      const result = dialog.showMessageBoxSync(mainWindow, {
+        type: 'question',
+        buttons: ['Cancel', 'Quit Anyway'],
+        defaultId: 0,
+        title: 'Active Downloads',
+        message: `There ${activeCount === 1 ? 'is' : 'are'} ${activeCount} active download${activeCount === 1 ? '' : 's'}.`,
+        detail: 'Quitting now will interrupt the downloads. Are you sure you want to quit?'
+      });
+      if (result === 0) {
+        // User chose Cancel; prevent quit
+        event.preventDefault();
+        return;
+      }
     }
   });
 
@@ -1391,6 +1461,7 @@ app.whenReady().then(() => {
   loadSettings();
   applyStartupRegistration();
   loadHistory();
+  loadOrphanedDownloads();
   loadSession();
   (async () => {
     try {
