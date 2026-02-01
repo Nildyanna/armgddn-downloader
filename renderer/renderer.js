@@ -143,18 +143,23 @@ async function autoInstallUpdatesOnStartup() {
   try {
     // Check for active downloads before updating
     const downloads = await api.getDownloads();
-    const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
-    if (activeDownloads.length > 0) {
-      const proceed = await showConfirmDialog(
-        'Update Available',
-        `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
-        'Update Now',
-        'Wait'
-      );
-      if (!proceed) return; // User chose to wait
-      // User chose to update now; abandon active downloads
-      for (const d of activeDownloads) {
-        await api.cancelDownload(d.id);
+    if (!Array.isArray(downloads)) {
+      console.error('Failed to get downloads list:', downloads);
+      // Proceed without prompting if we can't determine active downloads
+    } else {
+      const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
+      if (activeDownloads.length > 0) {
+        const proceed = await showConfirmDialog(
+          'Update Available',
+          `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
+          'Update Now',
+          'Wait'
+        );
+        if (!proceed) return; // User chose to wait
+        // User chose to update now; abandon active downloads
+        for (const d of activeDownloads) {
+          await api.cancelDownload(d.id);
+        }
       }
     }
 
@@ -964,25 +969,31 @@ async function checkForUpdates() {
     if (result.hasUpdate) {
       // Check for active downloads before offering install
       const downloads = await api.getDownloads();
-      const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
-      if (activeDownloads.length > 0) {
-        const proceed = await showConfirmDialog(
-          'Update Available',
-          `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
-          'Update Now',
-          'Wait'
-        );
-        if (!proceed) {
-          // User chose to wait; just notify that an update is available
-          showUpdateNotification(result);
-          return;
+      if (!Array.isArray(downloads)) {
+        console.error('Failed to get downloads list:', downloads);
+        // Proceed without prompting if we can't determine active downloads
+        showUpdateNotification(result);
+      } else {
+        const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
+        if (activeDownloads.length > 0) {
+          const proceed = await showConfirmDialog(
+            'Update Available',
+            `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
+            'Update Now',
+            'Wait'
+          );
+          if (!proceed) {
+            // User chose to wait; just notify that an update is available
+            showUpdateNotification(result);
+            return;
+          }
+          // User chose to update now; abandon active downloads
+          for (const d of activeDownloads) {
+            await api.cancelDownload(d.id);
+          }
         }
-        // User chose to update now; abandon active downloads
-        for (const d of activeDownloads) {
-          await api.cancelDownload(d.id);
-        }
+        showUpdateNotification(result);
       }
-      showUpdateNotification(result);
     } else {
       alert(`You're running the latest version (v${result.version})`);
     }
