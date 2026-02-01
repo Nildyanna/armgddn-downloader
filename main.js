@@ -1894,11 +1894,54 @@ function debugLog(message) {
   fs.appendFileSync(logPath, logLine);
 }
 
-// Report file completion to server (disabled to prevent premature quota counting)
-// Only overall download completion is reported via reportProgressToServer
+// Report file progress to server (exclude from quota counting)
 async function reportFileProgressToServer(download, token, file, status, bytesDownloadedOverride) {
-  // Disabled: do not report individual file completions to avoid server counting partial downloads as completed
-  return;
+  try {
+    if (!token || !download || !file) return;
+    const fileName = file && file.name ? String(file.name) : '';
+    const totalBytes = typeof file.size === 'number' ? file.size : 0;
+    const bytesDownloaded = typeof bytesDownloadedOverride === 'number'
+      ? bytesDownloadedOverride
+      : (status === 'completed' ? totalBytes : 0);
+
+    const postData = JSON.stringify({
+      downloadId: download.id,
+      fileName,
+      remotePath: download.remotePath || '',
+      bytesDownloaded,
+      totalBytes,
+      status,
+      error: null,
+      isFileLevel: true // Flag to indicate this is file-level progress, not overall completion
+    });
+
+    const targetHost = download.progressHost || 'www.armgddnbrowser.com';
+    if (!isAllowedServiceHost(targetHost)) {
+      return;
+    }
+
+    const options = {
+      hostname: targetHost,
+      port: download.progressPort || 443,
+      path: download.progressPath || '/api/app-progress',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+        'Authorization': `Bearer ${token}`
+      }
+    };
+
+    const req = https.request(options, (res) => {
+      res.on('data', () => {});
+      res.on('end', () => {});
+    });
+    req.on('error', () => {});
+    req.write(postData);
+    req.end();
+  } catch (e) {
+    // ignore
+  }
 }
 
 function isFileCompleteOnDisk(downloadDir, file) {
