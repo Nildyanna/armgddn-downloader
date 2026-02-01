@@ -1,16 +1,14 @@
 // Helper: show native Yes/No confirmation dialog
-function showConfirmDialog(title, message) {
-  return new Promise((resolve) => {
-    const result = window.electronAPI.showMessageBox({
-      type: 'question',
-      buttons: ['No', 'Yes'],
-      defaultId: 0,
-      title: title,
-      message: message,
-      detail: ''
-    });
-    resolve(result === 1); // Yes is index 1
+async function showConfirmDialog(title, message) {
+  const result = await window.electronAPI.showMessageBox({
+    type: 'question',
+    buttons: ['No', 'Yes'],
+    defaultId: 0,
+    title: title,
+    message: message,
+    detail: ''
   });
+  return result === 1; // Yes is index 1
 }
 
 // ARMGDDN Downloader - Electron Renderer
