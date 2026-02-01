@@ -4379,8 +4379,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                       setTimeout(() => {
                         app.isQuitting = true;
                         app.quit();
-                        resolve({ success: true });
-                      }, 1000);
+                        resolve({ success: true, installerPath: filePath });
+                      }, 3000); // Increased delay to allow installer to fully start
                       return;
                     } catch (err) {
                       logToFile(`Update - Failed to create/run replacement script: ${err.message}`);
@@ -4418,8 +4418,8 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
 
                     app.isQuitting = true;
                     app.quit();
-                    resolve({ success: true });
-                  }, 500);
+                    resolve({ success: true, installerPath: filePath });
+                  }, 2000); // Increased delay for AppImage
 
                   return;
                 } else {

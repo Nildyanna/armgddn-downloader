@@ -1076,11 +1076,14 @@ async function showUpdateNotification(result) {
         // behind it. The updater window itself will surface verification failures and
         // manual update instructions.
         if (installResult && installResult.success === false) {
-          try {
-            console.warn('Update install failed:', installResult.error || installResult.message || 'unknown');
-          } catch (e) {}
-          if (result.releaseUrl) {
-            api.openExternal(result.releaseUrl);
+          // Suppress error popup if installer path was provided (likely ran successfully despite error)
+          if (!installResult.installerPath) {
+            try {
+              console.warn('Update install failed:', installResult.error || installResult.message || 'unknown');
+            } catch (e) {}
+            if (result.releaseUrl) {
+              api.openExternal(result.releaseUrl);
+            }
           }
         }
         // If success without message, app will quit and installer will run
