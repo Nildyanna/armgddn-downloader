@@ -1,0 +1,7 @@
+# Companion Test File
+
+This file is included to test the update flow.
+
+- Version: v4.1.91-test
+- Purpose: Validate that updates can be applied when this file is present.
+- After update, this file should be replaced by the new version.
