@@ -3870,6 +3870,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
       title: 'Updating ARMGDDN Companion',
       parent: mainWindow, // Set parent so dialogs appear on top
       modal: false, // Keep non-modal to allow interaction
+      frame: false, // Remove title bar
       resizable: false,
       minimizable: false,
       maximizable: false,

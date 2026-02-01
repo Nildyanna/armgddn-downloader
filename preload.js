@@ -45,3 +45,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Remove listeners
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
 });
+
+// Expose updateAPI for the update window
+contextBridge.exposeInMainWorld('updateAPI', {
+  openExternal: (url) => ipcRenderer.invoke('open-external', url),
+  onProgress: (callback) => ipcRenderer.on('update-progress', (event, data) => callback(data)),
+  onStatus: (callback) => ipcRenderer.on('update-status', (event, message) => callback(message))
+});
