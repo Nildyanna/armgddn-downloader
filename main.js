@@ -2011,6 +2011,7 @@ async function reportProgressToServer(download, token) {
       downloadId: download.id,
       fileName: download.name,
       remotePath: download.remotePath || '',  // For trending (e.g., "PC1/Game Name")
+      activeStreams: getActiveFileCount(download),
       bytesDownloaded: bytesDownloaded,
       totalBytes: totalBytes,
       status: download.status === 'in_progress' ? 'downloading' : download.status,
