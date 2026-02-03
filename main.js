@@ -1928,6 +1928,7 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
       downloadId: download.id,
       fileName,
       remotePath: download.remotePath || '',
+      activeStreams: getActiveFileCount(download),
       bytesDownloaded,
       totalBytes,
       status,
