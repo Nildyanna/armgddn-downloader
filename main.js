@@ -212,8 +212,28 @@ if (process.defaultApp) {
 
 function getActiveFileCount(download) {
   try {
-    if (!download || !download.activeFiles) return 0;
-    return Object.keys(download.activeFiles).length;
+    if (!download) return 0;
+    const activeFiles = download.activeFiles || {};
+    let fileCount = 0;
+    try {
+      fileCount = Object.keys(activeFiles).length;
+    } catch (e) {
+      fileCount = 0;
+    }
+
+    let procCount = 0;
+    try {
+      const procs = Array.isArray(download.activeProcesses) ? download.activeProcesses : [];
+      for (const p of procs) {
+        if (!p) continue;
+        if (p.killed) continue;
+        procCount++;
+      }
+    } catch (e) {
+      procCount = 0;
+    }
+
+    return Math.max(fileCount, procCount);
   } catch (e) {
     return 0;
   }
