@@ -2636,15 +2636,30 @@ async function downloadFile(downloadId, file, downloadDir) {
     }
 
     const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
+    let appliedBwLimit = '';
     if (Number.isFinite(maxMb) && maxMb > 0) {
       const workersSetting = Number(settings && settings.maxConcurrentDownloads);
       const workers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
       const perWorker = maxMb / workers;
       const perWorkerStr = Number.isFinite(perWorker) && perWorker > 0 ? perWorker.toFixed(1).replace(/\.0$/, '') : '';
       if (perWorkerStr) {
-        args.push('--bwlimit', `${perWorkerStr}M`);
+        appliedBwLimit = `${perWorkerStr}M`;
+        args.push('--bwlimit', appliedBwLimit);
       }
     }
+
+    try {
+      const name = file && file.name ? String(file.name) : '';
+      const urlStr = file && file.url ? String(file.url) : '';
+      let route = 'direct';
+      try {
+        const u2 = new URL(urlStr);
+        const host2 = (u2 && u2.hostname) ? String(u2.hostname).toLowerCase() : '';
+        const isProxyRoute2 = host2 === 'www.armgddnbrowser.com' || host2 === 'armgddnbrowser.com' || host2.endsWith('.armgddnbrowser.com');
+        route = isProxyRoute2 ? 'proxy' : 'direct';
+      } catch (e) {}
+      logToFile(`[rclone-spawn] route=${route} activeProcs=${globalActiveProcs} fileSize=${fileSize} buffer=${bufferSize} mt=${multiThreadStreams > 0 ? String(multiThreadStreams) : '0'} bwlimit=${appliedBwLimit || 'none'} file=${name}`);
+    } catch (e) {}
 
     const proc = spawn(rclonePath, args);
     download.activeProcesses.push(proc);  // Track for cancellation
