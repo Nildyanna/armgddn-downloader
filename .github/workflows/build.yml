@@ -12,7 +12,6 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-      max-parallel: 1
       matrix:
         include:
           - os: ubuntu-22.04
