@@ -2588,18 +2588,52 @@ async function downloadFile(downloadId, file, downloadDir) {
       fs.mkdirSync(parentDir, { recursive: true });
     }
 
+    let globalActiveProcs = 0;
+    try {
+      for (const [, d] of activeDownloads) {
+        if (!d || !Array.isArray(d.activeProcesses)) continue;
+        for (const p of d.activeProcesses) {
+          if (!p) continue;
+          if (p.killed) continue;
+          globalActiveProcs++;
+        }
+      }
+    } catch (e) {
+      globalActiveProcs = 0;
+    }
+
+    const fileSize = normalizeFileSize(file && file.size);
+    let bufferSize = '16M';
+    if (globalActiveProcs >= 200) bufferSize = '4M';
+    else if (globalActiveProcs >= 100) bufferSize = '8M';
+    else if (globalActiveProcs >= 50) bufferSize = '16M';
+    else bufferSize = (fileSize >= (2 * 1024 * 1024 * 1024)) ? '32M' : '16M';
+
+    let multiThreadStreams = 0;
+    let multiThreadCutoff = '64M';
+    if (fileSize >= (512 * 1024 * 1024) && globalActiveProcs < 50) {
+      multiThreadStreams = globalActiveProcs < 20 ? 8 : 4;
+    }
+
     const args = [
       'copyurl',
       file.url,
       outputPath,
       '--progress',
       '-v',
-      '--buffer-size', '128M',         // Large buffer for better throughput
+      '--buffer-size', bufferSize,
       '--contimeout', '30s',           // Connection timeout
       '--timeout', '300s',             // Overall timeout
       '--low-level-retries', '3',      // Retry on low-level errors
+      '--retries', '10',
+      '--retries-sleep', '2s',
       '--drive-acknowledge-abuse'      // Bypass Google Drive virus scan warnings
     ];
+
+    if (multiThreadStreams > 0) {
+      args.push('--multi-thread-streams', String(multiThreadStreams));
+      args.push('--multi-thread-cutoff', String(multiThreadCutoff));
+    }
 
     const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
     if (Number.isFinite(maxMb) && maxMb > 0) {
