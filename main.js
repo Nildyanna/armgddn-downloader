@@ -227,7 +227,9 @@ function getActiveFileCount(download) {
       for (const p of procs) {
         if (!p) continue;
         if (p.killed) continue;
-        procCount++;
+        // Only count processes that are actually still running.
+        // ChildProcess.exitCode is null while running.
+        if (p.exitCode === null) procCount++;
       }
     } catch (e) {
       procCount = 0;
@@ -2730,6 +2732,8 @@ async function downloadFile(downloadId, file, downloadDir) {
         download.failedFiles.push(file.name);
         if (download.activeFiles[fileKey]) {
           download.activeFiles[fileKey].status = 'error';
+          // Remove from active to avoid permanently consuming a concurrency slot.
+          delete download.activeFiles[fileKey];
         }
         
         // Check for specific error types
@@ -2853,6 +2857,16 @@ async function downloadFile(downloadId, file, downloadDir) {
     proc.on('error', (err) => {
       download.status = 'error';
       download.error = err.message;
+      try {
+        const idx = download.activeProcesses.indexOf(proc);
+        if (idx !== -1) download.activeProcesses.splice(idx, 1);
+      } catch (e) {}
+      try {
+        if (download.activeFiles && download.activeFiles[fileKey]) {
+          download.activeFiles[fileKey].status = 'error';
+          delete download.activeFiles[fileKey];
+        }
+      } catch (e) {}
       try {
         logToFile(`[rclone] spawn error: ${err && err.message ? err.message : String(err)}`);
       } catch (e) {}
