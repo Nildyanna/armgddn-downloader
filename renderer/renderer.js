@@ -427,14 +427,23 @@ function updateItemsInPlace(items, container) {
     const rightInfo = item.querySelector('.download-info .total-speed');
 
     const hasMultipleFiles = download.fileCount > 1;
+    const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting' || download.status === 'extracting';
     let completedFiles = download.completedFiles || 0;
     if (download.status === 'completed' && hasMultipleFiles && download.fileCount) {
       completedFiles = download.fileCount;
     }
     const fileCountText = hasMultipleFiles ? `${completedFiles}/${download.fileCount} files` : '';
 
+    const activeFilesCount = normalizeActiveFiles(download.activeFiles).length;
+    const workersSetting = Number(settings && settings.maxConcurrentDownloads);
+    const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+    const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
+    const streamsText = (hasMultipleFiles && isRunning)
+      ? ` • Streams: ${activeFilesCount}/${workers}`
+      : '';
+
     if (leftInfo) {
-      leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}`;
+      leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}`;
     }
     if (rightInfo) {
       if (download.status === 'extracting' || download.status === 'completed') {
@@ -630,6 +639,15 @@ function renderDownloadsNow() {
     const fileCountText = hasMultipleFiles 
       ? `${completedFiles}/${download.fileCount} files` 
       : '';
+
+    const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting' || download.status === 'extracting';
+    const activeFilesCount = activeFiles.length;
+    const workersSetting = Number(settings && settings.maxConcurrentDownloads);
+    const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+    const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
+    const streamsText = (hasMultipleFiles && isRunning)
+      ? ` • Streams: ${activeFilesCount}/${workers}`
+      : '';
     
     // Format status for display
     const statusDisplay = {
@@ -643,7 +661,6 @@ function renderDownloadsNow() {
       'paused': 'Paused'
     }[download.status] || download.status;
     
-    const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting' || download.status === 'extracting';
     const canPause = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting';
     const isPaused = download.status === 'paused';
     const canCancel = isRunning || isPaused;
@@ -663,7 +680,7 @@ function renderDownloadsNow() {
         <div class="progress-fill" style="width: ${download.progress || 0}%"></div>
       </div>
       <div class="download-info">
-        <span>${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}</span>
+        <span>${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}</span>
         <span class="total-speed">${(download.status === 'extracting' || download.status === 'completed') ? (download.totalSpeed ? `Peak: ${download.totalSpeed}` : '') : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
       </div>
       <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives, please wait..</div>

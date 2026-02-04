@@ -295,7 +295,19 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
   if (notice) {
     download.statusMessage = notice;
   } else if (effective) {
-    download.statusMessage = `Starting downloads (server limit: ${effective})...`;
+    let remainingFiles = null;
+    try {
+      const fileCount = typeof download.fileCount === 'number' ? download.fileCount : 0;
+      const completed = typeof download.completedFiles === 'number' ? download.completedFiles : 0;
+      if (fileCount > 0) remainingFiles = Math.max(0, fileCount - completed);
+    } catch (e) {
+      remainingFiles = null;
+    }
+
+    const maxStreamsNow = (typeof remainingFiles === 'number')
+      ? Math.min(effective, remainingFiles)
+      : effective;
+    download.statusMessage = `Starting downloads (server limit: ${effective}, up to ${maxStreamsNow} streams)...`;
   }
 
   try { updateProgress(download.id); } catch (e) {}
@@ -2402,13 +2414,25 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
       const eff = Number(download && download.effectiveConcurrency);
       const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkers, eff) : requestedWorkers;
-      if (getActiveFileCount(download) >= limit) {
+      const activeNow = getActiveFileCount(download);
+      if (activeNow >= limit) {
+        try {
+          const now = Date.now();
+          const last = Number(download.__lastConcurrencyWaitLogMs) || 0;
+          if (now - last > 3000) {
+            download.__lastConcurrencyWaitLogMs = now;
+            logToFile(`[Concurrency] wait active=${activeNow} limit=${limit} requested=${requestedWorkers} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} completed=${typeof download.completedFiles === 'number' ? download.completedFiles : 'n/a'} fileCount=${typeof download.fileCount === 'number' ? download.fileCount : 'n/a'}`);
+          }
+        } catch (e) {}
         await new Promise(r => setTimeout(r, 250));
         continue;
       }
 
       const file = fileQueue.shift();
       if (!file) break;
+      try {
+        logToFile(`[Concurrency] start-file active=${activeNow} limit=${limit} requested=${requestedWorkers} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} file=${file && file.name ? String(file.name) : ''}`);
+      } catch (e) {}
       try {
         await downloadFile(downloadId, file, downloadDir);
       } catch (err) {
