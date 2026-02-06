@@ -58,8 +58,25 @@ function sync() {
             if (status.includes('package.json') || status.includes('default.php')) {
                 console.log('Committing and pushing Browser sync changes...');
                 execSync(`git -C "${browserDir}" add package.json default.php`, { stdio: 'inherit' });
+                // Also update package-lock if it exists
+                if (fs.existsSync(path.join(browserDir, 'package-lock.json'))) {
+                    try {
+                        execSync(`npm --prefix "${browserDir}" install --package-lock-only`, { stdio: 'inherit' });
+                        execSync(`git -C "${browserDir}" add package-lock.json`, { stdio: 'inherit' });
+                    } catch (e) {
+                        console.warn('Failed to update Browser package-lock.json');
+                    }
+                }
                 execSync(`git -C "${browserDir}" commit -m "chore: sync version to ${version}"`, { stdio: 'inherit' });
-                execSync(`git -C "${browserDir}" push`, { stdio: 'inherit' });
+                
+                // Add tag to Browser repo
+                try {
+                    execSync(`git -C "${browserDir}" tag "v${version}"`, { stdio: 'inherit' });
+                } catch (e) {
+                    console.warn(`Browser tag v${version} already exists or failed.`);
+                }
+                
+                execSync(`git -C "${browserDir}" push origin main --tags`, { stdio: 'inherit' });
             } else {
                 console.log('Browser repo is already in sync.');
             }
