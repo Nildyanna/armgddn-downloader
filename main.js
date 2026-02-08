@@ -2635,10 +2635,24 @@ async function downloadFile(downloadId, file, downloadDir) {
     else if (globalActiveProcs >= 50) bufferSize = '16M';
     else bufferSize = (fileSize >= (2 * 1024 * 1024 * 1024)) ? '32M' : '16M';
 
+    let route = 'direct';
+    try {
+      const urlStr = file && file.url ? String(file.url) : '';
+      const u2 = new URL(urlStr);
+      const host2 = (u2 && u2.hostname) ? String(u2.hostname).toLowerCase() : '';
+      const isProxyRoute2 = host2 === 'www.armgddnbrowser.com' || host2 === 'armgddnbrowser.com' || host2.endsWith('.armgddnbrowser.com');
+      route = isProxyRoute2 ? 'proxy' : 'direct';
+    } catch (e) {}
+
     let multiThreadStreams = 0;
     let multiThreadCutoff = '64M';
     if (fileSize >= (512 * 1024 * 1024) && globalActiveProcs < 50) {
-      multiThreadStreams = globalActiveProcs < 20 ? 8 : 4;
+      if (route === 'proxy') {
+        // Drastically reduce streams to bypass aggressive IP-level source throttling
+        multiThreadStreams = globalActiveProcs < 10 ? 2 : 1;
+      } else {
+        multiThreadStreams = globalActiveProcs < 20 ? 8 : 4;
+      }
     }
 
     const args = [
