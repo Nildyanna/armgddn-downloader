@@ -2701,6 +2701,13 @@ async function downloadFile(downloadId, file, downloadDir) {
       logToFile(`[rclone-spawn] route=${route} activeProcs=${globalActiveProcs} fileSize=${fileSize} buffer=${bufferSize} mt=${multiThreadStreams > 0 ? String(multiThreadStreams) : '0'} bwlimit=${appliedBwLimit || 'none'} file=${name}`);
     } catch (e) {}
 
+    try {
+      const urlStr = file && file.url ? String(file.url) : '';
+      const full = String(process.env.ARMGDDN_LOG_FULL_URLS || '').trim() === '1';
+      const shown = full ? urlStr : redactUrlQueryStrings(urlStr);
+      logToFile(`[rclone-copyurl] url=${shown}`);
+    } catch (e) {}
+
     const proc = spawn(rclonePath, args);
     download.activeProcesses.push(proc);  // Track for cancellation
 
