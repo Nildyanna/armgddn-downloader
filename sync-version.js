@@ -52,7 +52,7 @@ function sync() {
         try {
             const browserDir = path.join(__dirname, '..', 'ArmgddnBrowser');
             console.log('Checking Browser sync status...');
-            
+
             // Only commit if there are changes
             const status = execSync(`git -C "${browserDir}" status --porcelain`, { encoding: 'utf8' });
             if (status.includes('package.json') || status.includes('default.php')) {
@@ -68,15 +68,8 @@ function sync() {
                     }
                 }
                 execSync(`git -C "${browserDir}" commit -m "chore: sync version to ${version}"`, { stdio: 'inherit' });
-                
-                // Add tag to Browser repo
-                try {
-                    execSync(`git -C "${browserDir}" tag "v${version}"`, { stdio: 'inherit' });
-                } catch (e) {
-                    console.warn(`Browser tag v${version} already exists or failed.`);
-                }
-                
-                execSync(`git -C "${browserDir}" push origin main --tags`, { stdio: 'inherit' });
+
+                execSync(`git -C "${browserDir}" push origin main`, { stdio: 'inherit' });
             } else {
                 console.log('Browser repo is already in sync.');
             }
