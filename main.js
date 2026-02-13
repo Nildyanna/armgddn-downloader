@@ -23,7 +23,7 @@ function getUpdateEd25519PublicKeyPem() {
       candidates.push(path.join(process.resourcesPath, 'app.asar.unpacked', 'assets', 'update-ed25519-pub.pem'));
       candidates.push(path.join(process.resourcesPath, 'app.asar', 'assets', 'update-ed25519-pub.pem'));
     }
-  } catch (e) {}
+  } catch (e) { }
 
   for (const p of candidates) {
     try {
@@ -33,7 +33,7 @@ function getUpdateEd25519PublicKeyPem() {
           return pem.trim();
         }
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   return '';
@@ -71,7 +71,7 @@ app.name = 'ARMGDDN Companion';
 if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
   try {
     app.setAppUserModelId('com.armgddn.downloader');
-  } catch (e) {}
+  } catch (e) { }
 }
 
 // Fetch manifest but request a different mirror when the remote is a mirror group.
@@ -177,16 +177,16 @@ async function fetchManifestWithAvoidMirror(manifestUrl, token, avoidMirror, red
 function isNetworkStreamError(output) {
   const lower = String(output || '').toLowerCase();
   return lower.includes('stream error') ||
-         lower.includes('received from peer') ||
-         lower.includes('internal_error') ||
-         lower.includes('connection reset') ||
-         lower.includes('econnreset') ||
-         lower.includes('unexpected eof') ||
-         lower.includes('broken pipe') ||
-         lower.includes('rst_stream') ||
-         lower.includes('http2') ||
-         lower.includes('transport') ||
-         lower.includes('client connection lost');
+    lower.includes('received from peer') ||
+    lower.includes('internal_error') ||
+    lower.includes('connection reset') ||
+    lower.includes('econnreset') ||
+    lower.includes('unexpected eof') ||
+    lower.includes('broken pipe') ||
+    lower.includes('rst_stream') ||
+    lower.includes('http2') ||
+    lower.includes('transport') ||
+    lower.includes('client connection lost');
 }
 
 // Handle deep links
@@ -265,7 +265,7 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
       download.serverOverhead = loadInfo;
       try {
         logToFile(`[Concurrency] app-load ok requested=${requestedWorkers} serverEffective=${eff} appliedEffective=${effective} manifestHost=${(() => { try { return manifestUrl ? new URL(String(manifestUrl)).hostname : ''; } catch (e2) { return ''; } })()}`);
-      } catch (e) {}
+      } catch (e) { }
     } else if (loadInfo && loadInfo.success === false) {
       const errMsg = loadInfo && loadInfo.error ? String(loadInfo.error) : 'Failed to fetch server load';
       logToFile(`[Concurrency] app-load failed: ${errMsg}`);
@@ -279,7 +279,7 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
   } catch (e) {
     try {
       logToFile(`[Concurrency] get-app-load threw: ${e && e.message ? e.message : String(e)}`);
-    } catch (e2) {}
+    } catch (e2) { }
   }
 
   download.effectiveConcurrency = effective;
@@ -304,13 +304,10 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
       remainingFiles = null;
     }
 
-    const maxStreamsNow = (typeof remainingFiles === 'number')
-      ? Math.min(effective, remainingFiles)
-      : effective;
-    download.statusMessage = `Starting downloads (server limit: ${effective}, up to ${maxStreamsNow} streams)...`;
+    download.statusMessage = `Starting downloads...`;
   }
 
-  try { updateProgress(download.id); } catch (e) {}
+  try { updateProgress(download.id); } catch (e) { }
 }
 
 // Ensure single instance
@@ -435,7 +432,7 @@ function fetchJsonWithBearer(urlString, method, bearerToken) {
 
     req.on('error', reject);
     req.on('timeout', () => {
-      try { req.destroy(new Error('Request timeout')); } catch (e) {}
+      try { req.destroy(new Error('Request timeout')); } catch (e) { }
     });
     req.end();
   });
@@ -639,7 +636,7 @@ function applyStartupRegistration() {
       if (!enabled) {
         try {
           if (fs.existsSync(desktopPath)) fs.unlinkSync(desktopPath);
-        } catch (e) {}
+        } catch (e) { }
         return;
       }
 
@@ -655,10 +652,10 @@ function applyStartupRegistration() {
       ].join('\n') + '\n';
 
       let existing = '';
-      try { existing = fs.readFileSync(desktopPath, 'utf8'); } catch (e) {}
+      try { existing = fs.readFileSync(desktopPath, 'utf8'); } catch (e) { }
       if (existing !== content) {
         fs.writeFileSync(desktopPath, content, 'utf8');
-        try { fs.chmodSync(desktopPath, 0o644); } catch (e) {}
+        try { fs.chmodSync(desktopPath, 0o644); } catch (e) { }
       }
     }
   } catch (e) {
@@ -669,31 +666,31 @@ function applyStartupRegistration() {
 function normalizeSettings() {
   try {
     if (!settings || typeof settings !== 'object') return;
-     const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
- // Enforce cap of 8 for stability
- settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 8) : 2;
+    const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
+    // Enforce cap of 8 for stability
+    settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 8) : 2;
 
-     const rawDownloadPath = settings.downloadPath;
-     const defaultDownloadPath = path.join(app.getPath('downloads'), 'ARMGDDN');
-     if (typeof rawDownloadPath !== 'string' || !rawDownloadPath.trim()) {
-       settings.downloadPath = defaultDownloadPath;
-     } else {
-       const cleaned = rawDownloadPath.trim();
-       settings.downloadPath = path.isAbsolute(cleaned) ? cleaned : defaultDownloadPath;
-     }
+    const rawDownloadPath = settings.downloadPath;
+    const defaultDownloadPath = path.join(app.getPath('downloads'), 'ARMGDDN');
+    if (typeof rawDownloadPath !== 'string' || !rawDownloadPath.trim()) {
+      settings.downloadPath = defaultDownloadPath;
+    } else {
+      const cleaned = rawDownloadPath.trim();
+      settings.downloadPath = path.isAbsolute(cleaned) ? cleaned : defaultDownloadPath;
+    }
 
-     const speed = Number(settings.maxDownloadSpeedMBps);
-     settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
+    const speed = Number(settings.maxDownloadSpeedMBps);
+    settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
 
-     settings.autoExtract7z = !!settings.autoExtract7z;
-     settings.showNotifications = settings.showNotifications !== false;
-     settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
-     settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
+    settings.autoExtract7z = !!settings.autoExtract7z;
+    settings.showNotifications = settings.showNotifications !== false;
+    settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
+    settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
 
-     settings.autoUpdate = !!settings.autoUpdate;
-     settings.startWithOsStartup = !!settings.startWithOsStartup;
-     settings.startWithOsMinimized = !!settings.startWithOsMinimized;
-   } catch (e) {
+    settings.autoUpdate = !!settings.autoUpdate;
+    settings.startWithOsStartup = !!settings.startWithOsStartup;
+    settings.startWithOsMinimized = !!settings.startWithOsMinimized;
+  } catch (e) {
     logToFile(`[Settings] normalizeSettings failed: ${e && e.message ? e.message : e}`);
   }
 }
@@ -701,14 +698,14 @@ function normalizeSettings() {
 function isAutostartLaunch() {
   try {
     if (Array.isArray(process.argv) && process.argv.includes('--autostart')) return true;
-  } catch (e) {}
+  } catch (e) { }
 
   try {
     if (typeof app.getLoginItemSettings === 'function') {
       const info = app.getLoginItemSettings();
       if (info && info.wasOpenedAtLogin) return true;
     }
-  } catch (e) {}
+  } catch (e) { }
 
   return false;
 }
@@ -773,10 +770,10 @@ function ensureLinuxProtocolDesktopHandler() {
     let existing = '';
     try {
       existing = fs.readFileSync(desktopPath, 'utf8');
-    } catch (e) {}
+    } catch (e) { }
     if (existing !== content) {
       fs.writeFileSync(desktopPath, content, 'utf8');
-      try { fs.chmodSync(desktopPath, 0o644); } catch (e) {}
+      try { fs.chmodSync(desktopPath, 0o644); } catch (e) { }
     }
 
     const tryCmd = (cmd, args) => {
@@ -847,7 +844,7 @@ function logToFile(message) {
       // Last-resort fallback to temp directory
       const fallbackPath = path.join(os.tmpdir(), 'armgddn-downloader-debug.log');
       fs.appendFileSync(fallbackPath, `[${new Date().toISOString()}] [logToFile fallback] ${message} (original error: ${e && e.message ? e.message : e})\n`);
-    } catch (e2) {}
+    } catch (e2) { }
   }
 }
 
@@ -930,7 +927,7 @@ const get7zPath = () => {
     if (sevenZipBin && sevenZipBin.path7za) {
       return sevenZipBin.path7za;
     }
-  } catch (e) {}
+  } catch (e) { }
 
   return null;
 };
@@ -977,17 +974,17 @@ function saveSession(token) {
     const sessionPath = getSessionPath();
     // Session expires in 30 days
     const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    
+
     let storedToken = token;
     let encrypted = false;
-    
+
     // Encrypt if available
     if (safeStorage.isEncryptionAvailable()) {
       const encryptedBuffer = safeStorage.encryptString(token);
       storedToken = encryptedBuffer.toString('base64');
       encrypted = true;
     }
-    
+
     fs.writeFileSync(sessionPath, JSON.stringify({ token: storedToken, expiresAt, encrypted }, null, 2));
     sessionToken = token;
     logToFile('Session saved to file (encrypted: ' + encrypted + ')');
@@ -1106,23 +1103,23 @@ function saveHistory() {
 // Validate deep link URL
 function validateDeepLink(url) {
   if (!url || typeof url !== 'string') return null;
-  
+
   try {
     // Must start with our protocol
     if (!url.startsWith('armgddn://')) return null;
-    
+
     const parsed = new URL(url);
-    
+
     // Validate protocol
     if (parsed.protocol !== 'armgddn:') return null;
-    
+
     // Whitelist allowed actions
     const allowedHosts = ['download', 'open'];
     if (!allowedHosts.includes(parsed.hostname)) {
       logToFile(`Deep link rejected - invalid host: ${parsed.hostname}`);
       return null;
     }
-    
+
     // Validate manifest parameter if present (URL or base64-encoded URL)
     const manifest = parsed.searchParams.get('manifest');
     if (manifest) {
@@ -1133,7 +1130,7 @@ function validateDeepLink(url) {
         if (decoded && typeof decoded === 'string' && decoded.startsWith('https://')) {
           manifestStr = decoded;
         }
-      } catch (e) {}
+      } catch (e) { }
 
       try {
         const u = new URL(manifestStr);
@@ -1150,7 +1147,7 @@ function validateDeepLink(url) {
         return null;
       }
     }
-    
+
     return url;
   } catch (e) {
     logToFile(`Deep link validation error: ${e.message}`);
@@ -1253,7 +1250,7 @@ function openAuthWindow() {
 // Verify session is still valid
 async function verifySession() {
   if (!sessionToken) return false;
-  
+
   return new Promise((resolve) => {
     const makeRequest = (url) => {
       const urlObj = new URL(url);
@@ -1268,7 +1265,7 @@ async function verifySession() {
         },
         timeout: 5000
       };
-      
+
       const req = https.request(options, (res) => {
         // Follow redirects
         if (res.statusCode === 301 || res.statusCode === 302) {
@@ -1278,7 +1275,7 @@ async function verifySession() {
             return makeRequest(redirectUrl);
           }
         }
-        
+
         let data = '';
         res.on('data', (chunk) => data += chunk);
         res.on('end', () => {
@@ -1290,16 +1287,16 @@ async function verifySession() {
           }
         });
       });
-      
+
       req.on('error', () => resolve(false));
       req.on('timeout', () => {
         req.destroy();
         resolve(false);
       });
-      
+
       req.end();
     };
-    
+
     makeRequest('https://www.armgddnbrowser.com/api/auth-status');
   });
 }
@@ -1352,12 +1349,12 @@ function createWindow() {
     if (shouldStartMinimized) {
       // If user prefers tray-minimize behavior, do not show the window at all.
       if (settings && settings.minimizeToTrayOnMinimize) {
-        try { mainWindow.hide(); } catch (e) {}
+        try { mainWindow.hide(); } catch (e) { }
         return;
       }
       // Otherwise, show minimized on the taskbar.
-      try { mainWindow.show(); } catch (e) {}
-      try { mainWindow.minimize(); } catch (e) {}
+      try { mainWindow.show(); } catch (e) { }
+      try { mainWindow.minimize(); } catch (e) { }
     } else {
       mainWindow.show();
     }
@@ -1417,12 +1414,14 @@ function createTray() {
 
   const contextMenu = Menu.buildFromTemplate([
     { label: 'Show', click: () => mainWindow.show() },
-    { label: 'Open Log Folder', click: () => {
-      try {
-        const folder = path.dirname(getDebugLogPath());
-        shell.openPath(folder);
-      } catch (e) {}
-    } },
+    {
+      label: 'Open Log Folder', click: () => {
+        try {
+          const folder = path.dirname(getDebugLogPath());
+          shell.openPath(folder);
+        } catch (e) { }
+      }
+    },
     { type: 'separator' },
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
   ]);
@@ -1435,61 +1434,61 @@ function createTray() {
   });
 }
 
- function createAppMenu() {
-   const template = [
-     ...(process.platform === 'darwin'
-       ? [
-           {
-             label: app.name,
-             submenu: [
-               { role: 'about' },
-               { type: 'separator' },
-               { role: 'services' },
-               { type: 'separator' },
-               { role: 'hide' },
-               { role: 'hideOthers' },
-               { role: 'unhide' },
-               { type: 'separator' },
-               { role: 'quit' }
-             ]
-           }
-         ]
-       : []),
-     {
-       label: 'File',
-       submenu: [
-         ...(process.platform === 'darwin' ? [{ role: 'close' }] : [{ role: 'quit' }])
-       ]
-     },
-     {
-       label: 'View',
-       submenu: [
-         { role: 'reload' },
-         { role: 'forceReload' },
-         { type: 'separator' },
-         { role: 'resetZoom' },
-         { role: 'zoomIn' },
-         { role: 'zoomOut' },
-         { type: 'separator' },
-         { role: 'togglefullscreen' }
-       ]
-     },
-     {
-       role: 'help',
-       submenu: [
-         {
-           label: 'Telegram',
-           click: async () => {
-             await shell.openExternal('https://t.me/ARMGDDNGames');
-           }
-         }
-       ]
-     }
-   ];
+function createAppMenu() {
+  const template = [
+    ...(process.platform === 'darwin'
+      ? [
+        {
+          label: app.name,
+          submenu: [
+            { role: 'about' },
+            { type: 'separator' },
+            { role: 'services' },
+            { type: 'separator' },
+            { role: 'hide' },
+            { role: 'hideOthers' },
+            { role: 'unhide' },
+            { type: 'separator' },
+            { role: 'quit' }
+          ]
+        }
+      ]
+      : []),
+    {
+      label: 'File',
+      submenu: [
+        ...(process.platform === 'darwin' ? [{ role: 'close' }] : [{ role: 'quit' }])
+      ]
+    },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { type: 'separator' },
+        { role: 'resetZoom' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' }
+      ]
+    },
+    {
+      role: 'help',
+      submenu: [
+        {
+          label: 'Telegram',
+          click: async () => {
+            await shell.openExternal('https://t.me/ARMGDDNGames');
+          }
+        }
+      ]
+    }
+  ];
 
-   const menu = Menu.buildFromTemplate(template);
-   Menu.setApplicationMenu(menu);
- }
+  const menu = Menu.buildFromTemplate(template);
+  Menu.setApplicationMenu(menu);
+}
 
 // App ready
 app.whenReady().then(() => {
@@ -1507,7 +1506,7 @@ app.whenReady().then(() => {
       const raw = fs.readFileSync(resultPath, 'utf8');
       const parsed = JSON.parse(raw);
       if (!parsed || typeof parsed !== 'object') {
-        try { fs.unlinkSync(resultPath); } catch (e) {}
+        try { fs.unlinkSync(resultPath); } catch (e) { }
         return;
       }
 
@@ -1517,7 +1516,7 @@ app.whenReady().then(() => {
 
       // Clean up successful results silently.
       if (state === 'success' || exitCode === 0) {
-        try { fs.unlinkSync(resultPath); } catch (e) {}
+        try { fs.unlinkSync(resultPath); } catch (e) { }
         return;
       }
 
@@ -1525,7 +1524,7 @@ app.whenReady().then(() => {
       const ts = parsed.ts ? Number(parsed.ts) : null;
       const ageMs = (ts && Number.isFinite(ts)) ? (Date.now() - ts) : null;
       if (ageMs != null && ageMs > (24 * 60 * 60 * 1000)) {
-        try { fs.unlinkSync(resultPath); } catch (e) {}
+        try { fs.unlinkSync(resultPath); } catch (e) { }
         return;
       }
 
@@ -1548,13 +1547,13 @@ app.whenReady().then(() => {
         try {
           await shell.openPath(logPath);
         } catch (e) {
-          try { shell.showItemInFolder(logPath); } catch (e2) {}
+          try { shell.showItemInFolder(logPath); } catch (e2) { }
         }
       }
 
-      try { fs.unlinkSync(resultPath); } catch (e) {}
+      try { fs.unlinkSync(resultPath); } catch (e) { }
     } catch (e) {
-      try { logToFile(`Update result check error: ${e && e.message ? e.message : String(e)}`); } catch (e2) {}
+      try { logToFile(`Update result check error: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
     }
   })();
   createWindow();
@@ -1762,10 +1761,10 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
   if (redirectCount > 3) {
     throw new Error('Too many redirects while fetching manifest');
   }
-  
+
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(manifestUrl);
-    
+
     // Security: Enforce HTTPS only
     if (parsedUrl.protocol !== 'https:') {
       reject(new Error('Security error: Only HTTPS connections are allowed'));
@@ -1776,7 +1775,7 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
       reject(new Error('Security error: Host not allowed'));
       return;
     }
-    
+
     // Parse query params using decodeURIComponent (preserves + as literal +)
     const queryString = parsedUrl.search.substring(1);
     const params = {};
@@ -1788,19 +1787,19 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
         params[key] = value;
       }
     }
-    
+
     const remote = params.remote;
     const pathParam = params.path;
-    
+
     if (!remote || !pathParam) {
       const errorMsg = `Missing remote or path. Query="${queryString}", Params=${JSON.stringify(params)}, remote="${remote}", path="${pathParam}"`;
       console.error(errorMsg);
       reject(new Error(errorMsg));
       return;
     }
-    
+
     const postData = JSON.stringify({ remote, path: pathParam });
-    
+
     const options = {
       hostname: parsedUrl.hostname,
       port: parsedUrl.port || 443,
@@ -1812,20 +1811,20 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       }
     };
-    
+
     const req = https.request(options, (res) => {
-      
+
       let data = '';
       res.on('data', chunk => data += chunk);
       res.on('end', async () => {
         try {
           const json = JSON.parse(data);
-          
+
           // Handle game moved to new location (server returns 302 with redirect info)
           if (json.redirect && json.newRemote && json.newPath) {
             // Build new manifest URL with updated remote and path
             const newManifestUrl = `https://${parsedUrl.hostname}${parsedUrl.pathname}?remote=${encodeURIComponent(json.newRemote)}&path=${encodeURIComponent(json.newPath)}`;
-            
+
             try {
               // Recursively fetch from new location
               const newManifest = await fetchManifestInternal(newManifestUrl, token, redirectCount + 1);
@@ -1835,12 +1834,12 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
             }
             return;
           }
-          
+
           if (json.success === false) {
             reject(new Error(json.error || 'Server returned error'));
             return;
           }
-          
+
           resolve(json);
         } catch (e) {
           console.error('Failed to parse manifest:', data);
@@ -1848,7 +1847,7 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
         }
       });
     });
-    
+
     req.on('error', (err) => {
       console.error('Request error:', err);
       reject(err);
@@ -1864,7 +1863,7 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
   if (!isValidToken(token)) {
     throw new Error('Invalid or missing authentication token');
   }
-  
+
   return fetchManifestInternal(manifestUrl, token);
 });
 
@@ -1968,10 +1967,10 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
     };
 
     const req = https.request(options, (res) => {
-      res.on('data', () => {});
-      res.on('end', () => {});
+      res.on('data', () => { });
+      res.on('end', () => { });
     });
-    req.on('error', () => {});
+    req.on('error', () => { });
     req.write(postData);
     req.end();
   } catch (e) {
@@ -2004,13 +2003,13 @@ function normalizeFileSize(size) {
 // Report progress to website server
 async function reportProgressToServer(download, token) {
   logToFile(`reportProgressToServer called - token: ${token ? 'present' : 'MISSING'}, download: ${download?.name}`);
-  
+
   if (!token) {
     logToFile('[Progress] No token for progress reporting');
     debugLog('No token for progress reporting');
     return;
   }
-  
+
   try {
     // Calculate bytes downloaded based on completed bytes plus partial progress
     // of active files, so server-side progress matches the UI.
@@ -2041,7 +2040,7 @@ async function reportProgressToServer(download, token) {
       const step = Math.max(1, Math.floor(totalBytes / 100)); // subtract ~1% so Math.round() won't hit 100
       bytesDownloaded = Math.max(0, totalBytes - step);
     }
-    
+
     const postData = JSON.stringify({
       downloadId: download.id,
       fileName: download.name,
@@ -2053,10 +2052,10 @@ async function reportProgressToServer(download, token) {
       statusMessage: download.statusMessage || '',
       error: download.error || null
     });
-    
+
     logToFile(`[Progress] Sending: ${postData.substring(0, 150)}`);
     debugLog(`Reporting progress: ${postData.substring(0, 100)}...`);
-    
+
     const targetHost = download.progressHost || 'www.armgddnbrowser.com';
     if (!isAllowedServiceHost(targetHost)) {
       logToFile(`[Progress] Blocked progress host: ${targetHost}`);
@@ -2074,7 +2073,7 @@ async function reportProgressToServer(download, token) {
         'Authorization': `Bearer ${token}`
       }
     };
-    
+
     const req = https.request(options, (res) => {
       let responseData = '';
       res.on('data', (chunk) => { responseData += chunk; });
@@ -2083,12 +2082,12 @@ async function reportProgressToServer(download, token) {
         debugLog(`Progress response: ${res.statusCode} ${responseData}`);
       });
     });
-    
+
     req.on('error', (err) => {
       logToFile(`[Progress] Request error: ${err.message}`);
       debugLog(`Progress report error: ${err.message}`);
     });
-    
+
     req.write(postData);
     req.end();
     logToFile(`[Progress] Request sent`);
@@ -2119,7 +2118,7 @@ function getFreeDiskSpace(targetPath) {
       if (parent === current) break; // Root reached
       current = parent;
     }
-    
+
     if (fs.statfsSync) {
       const stats = fs.statfsSync(current);
       return stats.bavail * stats.bsize; // Available blocks * block size
@@ -2138,12 +2137,12 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   }
 
   debugLog(`Download started - Token: [PRESENT]`);
-  
+
   // Save/update the token as session for connection status
   // Always update on new download to refresh token if server restarted
   saveSession(token);
   logToFile('Session token saved/updated from download');
-  
+
   const downloadId = crypto.randomUUID();
 
   // Default progress reporting target
@@ -2163,22 +2162,22 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   } catch (e) {
     // ignore parse failure, fall back to default
   }
-  
+
   // Handle different manifest structures
   let files = [];
   let name = 'Unknown';
   let totalSize = 0;
   let remotePath = '';  // Full path like "PC1/Game Name" for trending
-  
+
   if (manifest.files && Array.isArray(manifest.files)) {
     // Standard format: { files: [...], path: "...", ... }
     files = manifest.files;
-    
+
     // Check if no files were found
     if (files.length === 0) {
       throw new Error('No files found for this game. The game may not be available on any mirror.');
     }
-    
+
     // Store full path for trending (e.g., "PC1/Game Name")
     remotePath = manifest.path || manifest.name || '';
     // Extract folder name from path (e.g., "PC1/Game Name" -> "Game Name")
@@ -2210,11 +2209,11 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   try {
     const targetPath = path.resolve(settings.downloadPath);
     const freeBytes = getFreeDiskSpace(targetPath);
-    
+
     if (freeBytes !== -1 && totalSize > 0) {
       const SAFETY_BUFFER = 500 * 1024 * 1024; // 500 MB
       const requiredForDownload = totalSize + SAFETY_BUFFER;
-      
+
       // Check 1: Enough space for download?
       if (freeBytes < requiredForDownload) {
         const msg = `Not enough disk space to download this game.\n\nRequired: ${formatBytes(requiredForDownload)}\nAvailable: ${formatBytes(freeBytes)}\n\nPlease free up some space and try again.`;
@@ -2256,7 +2255,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     }
     logToFile(`[DiskCheck] Warning: skipped check due to error: ${e.message}`);
   }
-  
+
   const download = {
     id: downloadId,
     name: name,
@@ -2298,7 +2297,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     if (initial) {
       download.triedMirrors = [initial];
     }
-  } catch (e) {}
+  } catch (e) { }
 
   activeDownloads.set(downloadId, download);
   mainWindow.webContents.send('download-started', downloadToRenderer(download));
@@ -2315,7 +2314,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
         fileCount: download.fileCount
       });
     }
-  } catch (e) {}
+  } catch (e) { }
 
   // Create download directory
   const downloadDir = resolveInside(settings.downloadPath, name);
@@ -2327,7 +2326,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   }
 
   download.statusMessage = 'Checking existing files...';
-  try { updateProgress(downloadId); } catch (e) {}
+  try { updateProgress(downloadId); } catch (e) { }
 
   // Skip files that are already complete on disk
   try {
@@ -2342,7 +2341,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
         downloadedSize += normalizeFileSize(f.size);
         try {
           reportFileProgressToServer(download, token, f, 'completed', normalizeFileSize(f.size));
-        } catch (e) {}
+        } catch (e) { }
       } else {
         remainingFiles.push(f);
       }
@@ -2358,7 +2357,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     } else {
       download.statusMessage = 'Starting download...';
     }
-    try { updateProgress(downloadId); } catch (e) {}
+    try { updateProgress(downloadId); } catch (e) { }
   } catch (e) {
     // ignore
   }
@@ -2371,12 +2370,12 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     progress: 0,
     statusMessage: download.statusMessage || ''
   });
-  
+
   // Report initial progress to server
   reportProgressToServer(download, token);
 
   download.statusMessage = 'Checking server load...';
-  try { updateProgress(downloadId); } catch (e) {}
+  try { updateProgress(downloadId); } catch (e) { }
 
   // Download files in parallel (controlled by user setting)
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
@@ -2393,7 +2392,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     }
   }
   download.statusMessage = download.statusMessage || 'Starting downloads...';
-  try { updateProgress(downloadId); } catch (e2) {}
+  try { updateProgress(downloadId); } catch (e2) { }
 
   // Spawn at most the requested workers; concurrency is enforced dynamically by waiting
   // when active files exceed the server's effective limit.
@@ -2408,8 +2407,8 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       if (!fileQueue || fileQueue.length === 0) return;
       refreshDownloadConcurrency(download, token, manifestUrl);
     }, 30000);
-  } catch (e) {}
-  
+  } catch (e) { }
+
   const processNext = async () => {
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
       const eff = Number(download && download.effectiveConcurrency);
@@ -2423,7 +2422,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
             download.__lastConcurrencyWaitLogMs = now;
             logToFile(`[Concurrency] wait active=${activeNow} limit=${limit} requested=${requestedWorkers} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} completed=${typeof download.completedFiles === 'number' ? download.completedFiles : 'n/a'} fileCount=${typeof download.fileCount === 'number' ? download.fileCount : 'n/a'}`);
           }
-        } catch (e) {}
+        } catch (e) { }
         await new Promise(r => setTimeout(r, 250));
         continue;
       }
@@ -2432,7 +2431,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       if (!file) break;
       try {
         logToFile(`[Concurrency] start-file active=${activeNow} limit=${limit} requested=${requestedWorkers} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} file=${file && file.name ? String(file.name) : ''}`);
-      } catch (e) {}
+      } catch (e) { }
       try {
         await downloadFile(downloadId, file, downloadDir);
       } catch (err) {
@@ -2443,18 +2442,18 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       }
     }
   };
-  
+
   // Start parallel download workers
   for (let i = 0; i < Math.min(PARALLEL_DOWNLOADS, fileQueue.length); i++) {
     activePromises.push(processNext());
   }
-  
+
   await Promise.all(activePromises);
 
   try {
     if (concurrencyPoll) clearInterval(concurrencyPoll);
-  } catch (e) {}
-  
+  } catch (e) { }
+
   const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
   // Only mark as completed if not cancelled, not paused, and with no failed files
   if (!download.cancelled && !download.paused && !hasErrors) {
@@ -2508,9 +2507,9 @@ function isQuotaError(output) {
 function isServerBusyError(output) {
   const lowerOutput = output.toLowerCase();
   return lowerOutput.includes('too many active downloads') ||
-         lowerOutput.includes('download rejected due to concurrency') ||
-         lowerOutput.includes('global concurrency') ||
-         lowerOutput.includes('please try again shortly');
+    lowerOutput.includes('download rejected due to concurrency') ||
+    lowerOutput.includes('global concurrency') ||
+    lowerOutput.includes('please try again shortly');
 }
 
 // Check if URL contains expired token indicators
@@ -2550,7 +2549,7 @@ async function downloadFile(downloadId, file, downloadDir) {
       reject(new Error('Download not found'));
       return;
     }
-    
+
     // Security: Validate file URL is HTTPS
     if (!file.url || !file.url.startsWith('https://')) {
       reject(new Error('Security error: File URL must use HTTPS'));
@@ -2574,7 +2573,7 @@ async function downloadFile(downloadId, file, downloadDir) {
       updateProgress(downloadId);
       try {
         reportFileProgressToServer(download, download.token, file, 'completed', normalizeFileSize(file.size));
-      } catch (e) {}
+      } catch (e) { }
       resolve();
       return;
     }
@@ -2592,7 +2591,7 @@ async function downloadFile(downloadId, file, downloadDir) {
     }
 
     const fileKey = getActiveFileKey(file);
-    
+
     // Initialize per-file tracking
     download.activeFiles[fileKey] = {
       id: fileKey,
@@ -2620,7 +2619,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         if (!d || !Array.isArray(d.activeProcesses)) continue;
         for (const p of d.activeProcesses) {
           if (!p) continue;
-          if (p.killed) continue;
+          if (p.killed || p.exitCode !== null) continue;
           globalActiveProcs++;
         }
       }
@@ -2633,7 +2632,7 @@ async function downloadFile(downloadId, file, downloadDir) {
     if (globalActiveProcs >= 200) bufferSize = '4M';
     else if (globalActiveProcs >= 100) bufferSize = '8M';
     else if (globalActiveProcs >= 50) bufferSize = '16M';
-    else bufferSize = (fileSize >= (2 * 1024 * 1024 * 1024)) ? '32M' : '16M';
+    else bufferSize = (fileSize >= (2 * 1024 * 1024 * 1024)) ? '64M' : '16M';
 
     let route = 'direct';
     try {
@@ -2642,16 +2641,17 @@ async function downloadFile(downloadId, file, downloadDir) {
       const host2 = (u2 && u2.hostname) ? String(u2.hostname).toLowerCase() : '';
       const isProxyRoute2 = host2 === 'www.armgddnbrowser.com' || host2 === 'armgddnbrowser.com' || host2.endsWith('.armgddnbrowser.com');
       route = isProxyRoute2 ? 'proxy' : 'direct';
-    } catch (e) {}
+    } catch (e) { }
 
     let multiThreadStreams = 0;
-    let multiThreadCutoff = '64M';
+    let multiThreadCutoff = '128M';
     if (fileSize >= (512 * 1024 * 1024) && globalActiveProcs < 50) {
       if (route === 'proxy') {
         // Drastically reduce streams to bypass aggressive IP-level source throttling
         multiThreadStreams = globalActiveProcs < 10 ? 2 : 1;
       } else {
-        multiThreadStreams = globalActiveProcs < 20 ? 8 : 4;
+        // Direct/Whatbox: High thread count for maximum throughput (targeting 2Gbps+)
+        multiThreadStreams = globalActiveProcs < 20 ? 16 : 8;
       }
     }
 
@@ -2697,22 +2697,22 @@ async function downloadFile(downloadId, file, downloadDir) {
         const host2 = (u2 && u2.hostname) ? String(u2.hostname).toLowerCase() : '';
         const isProxyRoute2 = host2 === 'www.armgddnbrowser.com' || host2 === 'armgddnbrowser.com' || host2.endsWith('.armgddnbrowser.com');
         route = isProxyRoute2 ? 'proxy' : 'direct';
-      } catch (e) {}
+      } catch (e) { }
       logToFile(`[rclone-spawn] route=${route} activeProcs=${globalActiveProcs} fileSize=${fileSize} buffer=${bufferSize} mt=${multiThreadStreams > 0 ? String(multiThreadStreams) : '0'} bwlimit=${appliedBwLimit || 'none'} file=${name}`);
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       const urlStr = file && file.url ? String(file.url) : '';
       const full = String(process.env.ARMGDDN_LOG_FULL_URLS || '').trim() === '1';
       const shown = full ? urlStr : redactUrlQueryStrings(urlStr);
       logToFile(`[rclone-copyurl] url=${shown}`);
-    } catch (e) {}
+    } catch (e) { }
 
     const proc = spawn(rclonePath, args);
     download.activeProcesses.push(proc);  // Track for cancellation
 
     let errorOutput = '';
-    
+
     proc.stdout.on('data', (data) => {
       const output = data.toString();
       parseRcloneProgress(downloadId, fileKey, output);
@@ -2765,7 +2765,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         }
         try {
           reportFileProgressToServer(download, download.token, file, 'completed', normalizeFileSize(file.size));
-        } catch (e) {}
+        } catch (e) { }
         updateProgress(downloadId);
         resolve();
       } else {
@@ -2780,7 +2780,7 @@ async function downloadFile(downloadId, file, downloadDir) {
           // Remove from active to avoid permanently consuming a concurrency slot.
           delete download.activeFiles[fileKey];
         }
-        
+
         // Check for specific error types
         const quota = isQuotaError(errorOutput);
         const busy = isServerBusyError(errorOutput);
@@ -2827,7 +2827,7 @@ async function downloadFile(downloadId, file, downloadDir) {
                 try {
                   if (!Array.isArray(download.triedMirrors)) download.triedMirrors = [];
                   download.triedMirrors.push(newActual);
-                } catch (e) {}
+                } catch (e) { }
                 const retryFile = { ...file, url: String(match.url) };
                 logToFile(`[MirrorFailover] retrying on new mirror actualRemote=${newActual} file=${wantName}`);
 
@@ -2836,7 +2836,7 @@ async function downloadFile(downloadId, file, downloadDir) {
                   if (Array.isArray(download.failedFiles)) {
                     download.failedFiles = download.failedFiles.filter(n => String(n) !== String(file.name));
                   }
-                } catch (e) {}
+                } catch (e) { }
 
                 // Reset status so the UI doesn't stay in an error state if retry succeeds.
                 download.status = 'downloading';
@@ -2854,7 +2854,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         } catch (e) {
           try {
             logToFile(`[MirrorFailover] failed to refetch manifest/retry: ${e && e.message ? e.message : String(e)}`);
-          } catch (e2) {}
+          } catch (e2) { }
         }
 
         try {
@@ -2865,7 +2865,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         } catch (e) {
           try {
             logToFile(`[rclone] copyurl failed code=${code} file=${file && file.name ? String(file.name) : ''} (failed to log stderr)`);
-          } catch (e2) {}
+          } catch (e2) { }
         }
 
         if (busy) {
@@ -2881,7 +2881,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         } else {
           download.error = formatDownloadFailedMessage(code);
         }
-        
+
         updateProgress(downloadId);
         mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
         let shouldShowNotification = true;
@@ -2905,16 +2905,16 @@ async function downloadFile(downloadId, file, downloadDir) {
       try {
         const idx = download.activeProcesses.indexOf(proc);
         if (idx !== -1) download.activeProcesses.splice(idx, 1);
-      } catch (e) {}
+      } catch (e) { }
       try {
         if (download.activeFiles && download.activeFiles[fileKey]) {
           download.activeFiles[fileKey].status = 'error';
           delete download.activeFiles[fileKey];
         }
-      } catch (e) {}
+      } catch (e) { }
       try {
         logToFile(`[rclone] spawn error: ${err && err.message ? err.message : String(err)}`);
-      } catch (e) {}
+      } catch (e) { }
       mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
       showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
       reject(err);
@@ -2983,11 +2983,11 @@ setInterval(() => {
                 fileCount: download.fileCount
               });
             }
-          } catch (e) {}
+          } catch (e) { }
         }
       }
     }
-  } catch (e) {}
+  } catch (e) { }
 }, 2000);
 
 function shouldFinalizeDownload(download) {
@@ -3074,7 +3074,7 @@ function run7zExtract(archivePath, outputDir) {
 
     try {
       logToFile(`[7z] Extract start: ${archivePath} -> ${outputDir}`);
-    } catch (e) {}
+    } catch (e) { }
 
     const password = 'ARMGDDNGames';
     const isPasswordErrorText = (text) => {
@@ -3098,7 +3098,7 @@ function run7zExtract(archivePath, outputDir) {
           const le = listResult && listResult.error ? (listResult.error.message || String(listResult.error)) : '';
           const ls = listResult && listResult.signal ? String(listResult.signal) : '';
           logToFile(`[7z] List failed: code=${code} signal=${ls} err=${le ? 'yes' : 'no'} stdoutLen=${so.length} stderrLen=${se.length}`);
-        } catch (e) {}
+        } catch (e) { }
 
         if (listResult && listResult.error && listResult.error.code === 'ETIMEDOUT') {
           reject(new Error('7z extraction failed: validation timed out'));
@@ -3134,9 +3134,9 @@ function run7zExtract(archivePath, outputDir) {
       if (process.platform !== 'win32') {
         try {
           fs.chmodSync(exe, 0o755);
-        } catch (e) {}
+        } catch (e) { }
       }
-    } catch (e) {}
+    } catch (e) { }
 
     const spawnExtract = () => {
       const args = [
@@ -3156,7 +3156,7 @@ function run7zExtract(archivePath, outputDir) {
       let lastOutputAt = Date.now();
       const timeout = setTimeout(() => {
         killedByTimeout = true;
-        try { proc.kill(); } catch (e) {}
+        try { proc.kill(); } catch (e) { }
       }, 60 * 60 * 1000);
 
       const inactivityInterval = setInterval(() => {
@@ -3164,12 +3164,12 @@ function run7zExtract(archivePath, outputDir) {
         const now = Date.now();
         if (now - lastOutputAt > 5 * 60 * 1000) {
           killedByInactivity = true;
-          try { proc.kill(); } catch (e) {}
+          try { proc.kill(); } catch (e) { }
         }
       }, 15000);
       try {
         if (proc.stdin) proc.stdin.end();
-      } catch (e) {}
+      } catch (e) { }
       proc.stdout.on('data', (d) => {
         lastOutputAt = Date.now();
         out += d.toString();
@@ -3193,14 +3193,14 @@ function run7zExtract(archivePath, outputDir) {
         if (killedByInactivity) {
           try {
             logToFile(`[7z] Extract stalled (no output): ${archivePath}`);
-          } catch (e) {}
+          } catch (e) { }
           reject(new Error('7z extraction failed: extraction stalled'));
           return;
         }
         if (code === 0) {
           try {
             logToFile(`[7z] Extract ok: ${archivePath}`);
-          } catch (e) {}
+          } catch (e) { }
           resolve({ out, err });
           return;
         }
@@ -3211,7 +3211,7 @@ function run7zExtract(archivePath, outputDir) {
         }
         try {
           logToFile(`[7z] Extract failed: ${archivePath} code=${code} outLen=${out.length} errLen=${err.length}`);
-        } catch (e) {}
+        } catch (e) { }
         reject(new Error(`7z extraction failed (code ${code})${err ? `: ${err.trim()}` : ''}`));
       });
     };
@@ -3335,7 +3335,7 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     completedFiles: download.completedFiles,
     fileCount: download.fileCount
   });
-  
+
   // Report to server (throttled separately from UI updates)
   const now2 = Date.now();
   if (now2 - lastProgressReport > 2000) {
@@ -3422,7 +3422,7 @@ function updateProgress(downloadId) {
     completedFiles: download.completedFiles,
     fileCount: download.fileCount
   });
-  
+
   // Report to server every 2 seconds (throttled)
   const now = Date.now();
   if (now - lastProgressReport > 2000) {
@@ -3442,7 +3442,7 @@ ipcMain.handle('cancel-download', (event, downloadId) => {
   if (download) {
     download.cancelled = true;
     download.status = 'cancelled';
-    
+
     // Kill all active processes
     if (download.activeProcesses && download.activeProcesses.length > 0) {
       for (const proc of download.activeProcesses) {
@@ -3453,7 +3453,7 @@ ipcMain.handle('cancel-download', (event, downloadId) => {
         }
       }
     }
-    
+
     mainWindow.webContents.send('download-cancelled', { id: downloadId });
     activeDownloads.delete(downloadId);
   }
@@ -3481,7 +3481,7 @@ ipcMain.handle('pause-download', (event, downloadId) => {
         // @ts-ignore
         proc.__armgddnStopReason = 'pause';
         proc.kill('SIGTERM');
-      } catch (e) {}
+      } catch (e) { }
     }
   }
 
@@ -3588,7 +3588,7 @@ async function resumeDownloadFiles(downloadId) {
   try {
     const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
     await refreshDownloadConcurrency(download, download.token, manifestUrl);
-  } catch (e) {}
+  } catch (e) { }
 
   const PARALLEL_DOWNLOADS = requestedWorkers;
   const fileQueue = [...remainingFiles];
@@ -3602,7 +3602,7 @@ async function resumeDownloadFiles(downloadId) {
       if (!fileQueue || fileQueue.length === 0) return;
       refreshDownloadConcurrency(download, download.token, manifestUrl);
     }, 30000);
-  } catch (e) {}
+  } catch (e) { }
 
   const processNext = async () => {
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
@@ -3772,7 +3772,7 @@ function completeDownload(downloadId) {
             fileCount: download.fileCount
           });
         }
-      } catch (e) {}
+      } catch (e) { }
 
       (async () => {
         try {
@@ -3795,7 +3795,7 @@ function completeDownload(downloadId) {
                 extractionError: download.extractionError
               });
             }
-          } catch (e2) {}
+          } catch (e2) { }
         } finally {
           download.__armgddnFinalizing = false;
           finalizeCompletedDownload(downloadId);
@@ -3861,7 +3861,7 @@ ipcMain.handle('check-updates', async () => {
         'Accept': 'application/vnd.github.v3+json'
       }
     };
-    
+
     const req = https.request(options, (res) => {
       let data = '';
       let bytes = 0;
@@ -3869,7 +3869,7 @@ ipcMain.handle('check-updates', async () => {
       res.on('data', chunk => {
         bytes += chunk.length;
         if (bytes > 1024 * 1024) {
-          try { res.destroy(new Error('Response too large')); } catch (e) {}
+          try { res.destroy(new Error('Response too large')); } catch (e) { }
         }
       });
       res.on('end', () => {
@@ -3888,16 +3888,16 @@ ipcMain.handle('check-updates', async () => {
           const release = latestRelease;
           const latestVersion = (release.tag_name || '').replace(/^v/, '');
           const currentVersion = app.getVersion();
-          
+
           // Compare versions
           const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
-          
+
           // Find the appropriate installer asset
           let installerUrl = null;
           let installerName = null;
           const assets = release.assets || [];
           const platform = process.platform;
-          
+
           if (platform === 'win32') {
             // Look for .exe installer
             const exeAsset = assets.find(a => a.name.endsWith('.exe'));
@@ -3947,7 +3947,7 @@ ipcMain.handle('check-updates', async () => {
               installerUrl = null;
             }
           }
-          
+
           resolve({
             hasUpdate,
             version: currentVersion,
@@ -3964,14 +3964,14 @@ ipcMain.handle('check-updates', async () => {
     });
 
     req.setTimeout(10000, () => {
-      try { req.destroy(new Error('Update check timeout')); } catch (e) {}
+      try { req.destroy(new Error('Update check timeout')); } catch (e) { }
     });
-    
+
     req.on('error', (err) => {
       console.error('Update check failed:', err);
       resolve({ hasUpdate: false, version: app.getVersion(), error: err.message });
     });
-    
+
     req.end();
   });
 });
@@ -4006,7 +4006,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
       const evt = pendingUpdateEvents.shift();
       try {
         progressWin.webContents.send(evt.channel, evt.payload);
-      } catch (e) {}
+      } catch (e) { }
     }
   };
   const safeSendUpdateEvent = (channel, payload) => {
@@ -4014,7 +4014,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
     if (progressWinReady) {
       try {
         progressWin.webContents.send(channel, payload);
-      } catch (e) {}
+      } catch (e) { }
       return;
     }
     pendingUpdateEvents.push({ channel, payload });
@@ -4040,13 +4040,13 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
     });
 
     progressWin.loadFile(path.join(__dirname, 'renderer', 'update.html'));
-    try { progressWin.setMenu(null); } catch (e) {}
+    try { progressWin.setMenu(null); } catch (e) { }
     try {
       progressWin.webContents.on('did-finish-load', () => {
         progressWinReady = true;
         flushPendingUpdateEvents();
       });
-    } catch (e) {}
+    } catch (e) { }
     progressWin.on('closed', () => {
       progressWin = null;
     });
@@ -4059,18 +4059,18 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
   const platform = process.platform;
   const timestamp = Date.now();
   let fileName;
-  
+
   if (platform === 'win32') {
     // Use unique filename to avoid EBUSY errors
     fileName = `ARMGDDN-Companion-Setup-${timestamp}.exe`;
   } else if (platform === 'linux') {
-    fileName = installerUrl.endsWith('.deb') 
-      ? `armgddn-companion-${timestamp}.deb` 
+    fileName = installerUrl.endsWith('.deb')
+      ? `armgddn-companion-${timestamp}.deb`
       : `ARMGDDN-Companion-${timestamp}.AppImage`;
   } else {
     fileName = `ARMGDDN-Companion-${timestamp}.dmg`;
   }
-  
+
   const downloadDir = (platform === 'linux') ? updatesDir : tempDir;
   const filePath = path.join(downloadDir, fileName);
 
@@ -4079,7 +4079,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
       if (filePath && fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
-    } catch (e) {}
+    } catch (e) { }
   };
   const MAX_INSTALLER_BYTES = 8 * 1024 * 1024 * 1024; // 8 GiB safety cap
   // Signature assets live alongside the original GitHub release asset URL.
@@ -4096,7 +4096,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
       return (installerUrl || '').split('#')[0].split('?')[0];
     }
   })();
-  
+
   return new Promise((resolve) => {
     const downloadSignature = (url, redirectCount = 0) => {
       return new Promise((resolveSig) => {
@@ -4161,7 +4161,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
           res.on('data', (chunk) => {
             bytes += chunk.length;
             if (bytes > 65536) {
-              try { res.destroy(new Error('Signature too large')); } catch (e) {}
+              try { res.destroy(new Error('Signature too large')); } catch (e) { }
               return;
             }
             data += chunk.toString('utf8');
@@ -4176,7 +4176,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         });
 
         reqSig.setTimeout(15000, () => {
-          try { reqSig.destroy(new Error('Signature request timeout')); } catch (e) {}
+          try { reqSig.destroy(new Error('Signature request timeout')); } catch (e) { }
         });
         reqSig.on('error', (err) => {
           finish({ ok: false, error: err && err.message ? err.message : 'Signature request error' });
@@ -4223,7 +4223,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
           const nextUrl = location.startsWith('http') ? location : new URL(location, parsed).toString();
           return downloadInstaller(nextUrl, redirectCount + 1);
         }
-        
+
         if (res.statusCode !== 200) {
           cleanupPartialInstaller();
           resolve({ success: false, error: `Download failed with status ${res.statusCode}` });
@@ -4234,13 +4234,13 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         if (Number.isFinite(totalBytes) && totalBytes > MAX_INSTALLER_BYTES) {
           cleanupPartialInstaller();
           resolve({ success: false, error: 'Installer too large' });
-          try { res.destroy(new Error('Installer too large')); } catch (e) {}
+          try { res.destroy(new Error('Installer too large')); } catch (e) { }
           return;
         }
-        
+
         try {
           fs.mkdirSync(path.dirname(filePath), { recursive: true });
-        } catch (e) {}
+        } catch (e) { }
 
         const fileStream = fs.createWriteStream(filePath);
         res.pipe(fileStream);
@@ -4251,32 +4251,32 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         res.on('data', (chunk) => {
           receivedBytes += chunk.length;
           if (receivedBytes > MAX_INSTALLER_BYTES) {
-            try { res.destroy(new Error('Installer too large')); } catch (e) {}
-            try { fileStream.destroy(new Error('Installer too large')); } catch (e) {}
+            try { res.destroy(new Error('Installer too large')); } catch (e) { }
+            try { fileStream.destroy(new Error('Installer too large')); } catch (e) { }
             cleanupPartialInstaller();
             resolve({ success: false, error: 'Installer too large' });
             return;
           }
           if (progressWin && !progressWin.isDestroyed()) {
-             const percent = totalBytes ? (receivedBytes / totalBytes) * 100 : 0;
-             const elapsed = (Date.now() - startTime) / 1000;
-             const speed = elapsed > 0 ? (receivedBytes / elapsed) : 0; // bytes/sec
-             
-             // Simple formatting for speed
-             let speedStr = '';
-             if (speed > 1024 * 1024) speedStr = (speed / (1024 * 1024)).toFixed(1) + ' MB/s';
-             else speedStr = (speed / 1024).toFixed(1) + ' KB/s';
+            const percent = totalBytes ? (receivedBytes / totalBytes) * 100 : 0;
+            const elapsed = (Date.now() - startTime) / 1000;
+            const speed = elapsed > 0 ? (receivedBytes / elapsed) : 0; // bytes/sec
 
-             safeSendUpdateEvent('update-progress', {
-               percent,
-               transferred: receivedBytes,
-               total: totalBytes,
-               speed: speedStr,
-               status: 'Downloading update...'
-             });
+            // Simple formatting for speed
+            let speedStr = '';
+            if (speed > 1024 * 1024) speedStr = (speed / (1024 * 1024)).toFixed(1) + ' MB/s';
+            else speedStr = (speed / 1024).toFixed(1) + ' KB/s';
+
+            safeSendUpdateEvent('update-progress', {
+              percent,
+              transferred: receivedBytes,
+              total: totalBytes,
+              speed: speedStr,
+              status: 'Downloading update...'
+            });
           }
         });
-        
+
         fileStream.on('finish', () => {
           fileStream.close(() => {
             safeSendUpdateEvent('update-status', 'Verifying update...');
@@ -4287,7 +4287,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               verifyResolved = true;
               try {
                 if (verifyTimeout) clearTimeout(verifyTimeout);
-              } catch (e) {}
+              } catch (e) { }
               resolve(val);
             };
 
@@ -4295,17 +4295,17 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
             const verifyTimeout = setTimeout(() => {
               try {
                 logToFile('Update - verification timed out');
-              } catch (e) {}
-              try { safeSendUpdateEvent('update-status', 'Manual update required: verification timed out.'); } catch (e) {}
+              } catch (e) { }
+              try { safeSendUpdateEvent('update-status', 'Manual update required: verification timed out.'); } catch (e) { }
               resolveOnce({ success: false, error: 'Update verification timed out' });
             }, VERIFY_TIMEOUT_MS);
 
             const failUpdate = (publicMsg, internalErr) => {
               try {
                 logToFile(`Update - verification failed: ${internalErr || publicMsg}`);
-              } catch (e) {}
+              } catch (e) { }
 
-              try { safeSendUpdateEvent('update-status', `Manual update required: ${publicMsg}`); } catch (e) {}
+              try { safeSendUpdateEvent('update-status', `Manual update required: ${publicMsg}`); } catch (e) { }
             };
 
             try {
@@ -4322,7 +4322,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
             }
 
             const sigUrl = `${signatureUrlBase}.sig`;
-            try { safeSendUpdateEvent('update-status', 'Downloading signature...'); } catch (e) {}
+            try { safeSendUpdateEvent('update-status', 'Downloading signature...'); } catch (e) { }
             logToFile(`Update - verifying: downloading signature: ${sigUrl}`);
             const withTimeout = (p, ms, label) => {
               let t = null;
@@ -4330,7 +4330,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                 t = setTimeout(() => reject(new Error(`${label} timeout`)), ms);
               });
               return Promise.race([p, timeoutPromise]).finally(() => {
-                try { if (t) clearTimeout(t); } catch (e) {}
+                try { if (t) clearTimeout(t); } catch (e) { }
               });
             };
 
@@ -4338,7 +4338,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               if (!sigRes || sigRes.ok !== true || !sigRes.text) {
                 try {
                   logToFile(`Update - signature download failed: url=${sigUrl} err=${sigRes && sigRes.error ? sigRes.error : 'unknown'}`);
-                } catch (e) {}
+                } catch (e) { }
                 failUpdate('Update signature missing.', sigRes && sigRes.error ? sigRes.error : 'Signature download failed');
                 resolveOnce({ success: false, error: 'Update signature missing or could not be downloaded' });
                 return;
@@ -4352,7 +4352,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               }
 
               logToFile(`Update - verifying: reading installer: ${filePath}`);
-              try { safeSendUpdateEvent('update-status', 'Reading installer...'); } catch (e) {}
+              try { safeSendUpdateEvent('update-status', 'Reading installer...'); } catch (e) { }
               let installerBytes = null;
               try {
                 installerBytes = await fs.promises.readFile(filePath);
@@ -4366,7 +4366,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               await new Promise((r) => setImmediate(r));
 
               const pubKeyPem = getUpdateEd25519PublicKeyPem();
-              try { safeSendUpdateEvent('update-status', 'Checking signature...'); } catch (e) {}
+              try { safeSendUpdateEvent('update-status', 'Checking signature...'); } catch (e) { }
               logToFile('Update - verifying: checking Ed25519 signature');
               const ok = verifyEd25519Signature(installerBytes, sigBuf, pubKeyPem);
               if (!ok) {
@@ -4376,214 +4376,214 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               }
 
               safeSendUpdateEvent('update-status', 'Installing update... The app will restart shortly.');
-            
-            // Run the installer after app exits
-            try {
-              if (platform === 'win32') {
-                // Log paths for debugging
-                logToFile(`Update - tempDir: ${tempDir}`);
-                logToFile(`Update - filePath: ${filePath}`);
-                logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
 
-                const installerArgs = [];
-                if (silent) installerArgs.push('/S');
+              // Run the installer after app exits
+              try {
+                if (platform === 'win32') {
+                  // Log paths for debugging
+                  logToFile(`Update - tempDir: ${tempDir}`);
+                  logToFile(`Update - filePath: ${filePath}`);
+                  logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
 
-                // We want the app to be closed before the installer replaces files.
-                // On Windows, run a detached PowerShell wrapper that:
-                // 1) waits for this app PID to exit
-                // 2) runs the installer (optionally /S)
-                // 3) if requested, relaunches the app
-                try {
-                  const pid = process.pid;
-                  const shouldRelaunch = relaunchAfterInstall ? 1 : 0;
-                  const wrapperLogPath = path.join(app.getPath('userData'), 'update-wrapper.log');
-                  const resultPath = path.join(app.getPath('userData'), 'update-result.json');
-                  const runnerPath = path.join(tempDir, `armgddn-update-runner-${Date.now()}.cmd`);
-                  const vbsPath = path.join(tempDir, `armgddn-update-runner-${Date.now()}.vbs`);
+                  const installerArgs = [];
+                  if (silent) installerArgs.push('/S');
 
+                  // We want the app to be closed before the installer replaces files.
+                  // On Windows, run a detached PowerShell wrapper that:
+                  // 1) waits for this app PID to exit
+                  // 2) runs the installer (optionally /S)
+                  // 3) if requested, relaunches the app
                   try {
-                    fs.appendFileSync(wrapperLogPath, `[${new Date().toISOString()}] preparing update runner\r\n`, { encoding: 'utf8' });
-                  } catch (e) {}
+                    const pid = process.pid;
+                    const shouldRelaunch = relaunchAfterInstall ? 1 : 0;
+                    const wrapperLogPath = path.join(app.getPath('userData'), 'update-wrapper.log');
+                    const resultPath = path.join(app.getPath('userData'), 'update-result.json');
+                    const runnerPath = path.join(tempDir, `armgddn-update-runner-${Date.now()}.cmd`);
+                    const vbsPath = path.join(tempDir, `armgddn-update-runner-${Date.now()}.vbs`);
 
-                  const installerQuoted = `"${filePath}"`;
-                  const appQuoted = `"${process.execPath}"`;
-                  const logQuoted = `"${wrapperLogPath}"`;
-                  const resultQuoted = `"${resultPath}"`;
-                  const silentArg = silent ? '/S' : '';
-                  const runner = [
-                    '@echo off',
-                    `set "RESULT=${resultPath}"`,
-                    `echo {^"ts^":${Date.now()},^"state^":^"starting^",^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}`,
-                    `echo [%DATE% %TIME%] runner start>>${logQuoted}`,
-                    `echo [%DATE% %TIME%] pid=${pid}>>${logQuoted}`,
-                    `echo [%DATE% %TIME%] installer=${installerQuoted}>>${logQuoted}`,
-                    `echo [%DATE% %TIME%] silent=${silent ? 1 : 0} relaunch=${shouldRelaunch}>>${logQuoted}`,
-                    ':wait',
-                    `tasklist /FI "PID eq ${pid}" 2>NUL | find "${pid}" >NUL`,
-                    'if "%ERRORLEVEL%"=="0" (timeout /t 1 /nobreak >NUL & goto wait)',
-                    `echo [%DATE% %TIME%] parent exited>>${logQuoted}`,
-                    `echo {^"ts^":${Date.now()},^"state^":^"installing^",^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}`,
-                    `start "" /wait ${installerQuoted} ${silentArg}`,
-                    `echo [%DATE% %TIME%] installer finished rc=%ERRORLEVEL%>>${logQuoted}`,
-                    `if "%ERRORLEVEL%"=="0" (echo {^"ts^":${Date.now()},^"state^":^"success^",^"exitCode^":0,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}) else (echo {^"ts^":${Date.now()},^"state^":^"failed^",^"exitCode^":%ERRORLEVEL%,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted})`,
-                    // Only relaunch if installer succeeded (exit code 0)
-                    `if "%ERRORLEVEL%"=="0" (`,
-                    shouldRelaunch ? `  start "" ${appQuoted}` : '  rem',
-                    `) else (`,
-                    `  echo [%DATE% %TIME%] installer failed with rc=%ERRORLEVEL%, cancelling relaunch>>${logQuoted}`,
-                    `  rem installer failed; details are in update-wrapper.log`,
-                    `)`,
-                    `echo [%DATE% %TIME%] runner done>>${logQuoted}`,
-                    'del "%~f0" >NUL 2>&1',
-                    'exit /b 0'
-                  ].join("\r\n");
+                    try {
+                      fs.appendFileSync(wrapperLogPath, `[${new Date().toISOString()}] preparing update runner\r\n`, { encoding: 'utf8' });
+                    } catch (e) { }
 
-                  const vbs = [
-                    'On Error Resume Next',
-                    'Dim sh',
-                    'Set sh = CreateObject("WScript.Shell")',
-                    // Run the cmd runner hidden (windowStyle=0) so we keep UX inside the Electron update window.
-                    `sh.Run "cmd.exe /c """ & "${runnerPath}" & """", 0, False`,
-                    'Set sh = Nothing'
-                  ].join("\r\n");
+                    const installerQuoted = `"${filePath}"`;
+                    const appQuoted = `"${process.execPath}"`;
+                    const logQuoted = `"${wrapperLogPath}"`;
+                    const resultQuoted = `"${resultPath}"`;
+                    const silentArg = silent ? '/S' : '';
+                    const runner = [
+                      '@echo off',
+                      `set "RESULT=${resultPath}"`,
+                      `echo {^"ts^":${Date.now()},^"state^":^"starting^",^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}`,
+                      `echo [%DATE% %TIME%] runner start>>${logQuoted}`,
+                      `echo [%DATE% %TIME%] pid=${pid}>>${logQuoted}`,
+                      `echo [%DATE% %TIME%] installer=${installerQuoted}>>${logQuoted}`,
+                      `echo [%DATE% %TIME%] silent=${silent ? 1 : 0} relaunch=${shouldRelaunch}>>${logQuoted}`,
+                      ':wait',
+                      `tasklist /FI "PID eq ${pid}" 2>NUL | find "${pid}" >NUL`,
+                      'if "%ERRORLEVEL%"=="0" (timeout /t 1 /nobreak >NUL & goto wait)',
+                      `echo [%DATE% %TIME%] parent exited>>${logQuoted}`,
+                      `echo {^"ts^":${Date.now()},^"state^":^"installing^",^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}`,
+                      `start "" /wait ${installerQuoted} ${silentArg}`,
+                      `echo [%DATE% %TIME%] installer finished rc=%ERRORLEVEL%>>${logQuoted}`,
+                      `if "%ERRORLEVEL%"=="0" (echo {^"ts^":${Date.now()},^"state^":^"success^",^"exitCode^":0,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}) else (echo {^"ts^":${Date.now()},^"state^":^"failed^",^"exitCode^":%ERRORLEVEL%,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted})`,
+                      // Only relaunch if installer succeeded (exit code 0)
+                      `if "%ERRORLEVEL%"=="0" (`,
+                      shouldRelaunch ? `  start "" ${appQuoted}` : '  rem',
+                      `) else (`,
+                      `  echo [%DATE% %TIME%] installer failed with rc=%ERRORLEVEL%, cancelling relaunch>>${logQuoted}`,
+                      `  rem installer failed; details are in update-wrapper.log`,
+                      `)`,
+                      `echo [%DATE% %TIME%] runner done>>${logQuoted}`,
+                      'del "%~f0" >NUL 2>&1',
+                      'exit /b 0'
+                    ].join("\r\n");
 
-                  try {
-                    fs.writeFileSync(runnerPath, runner, { encoding: 'utf8' });
-                    fs.writeFileSync(vbsPath, vbs, { encoding: 'utf8' });
-                    logToFile(`Update - wrote cmd runner: ${runnerPath}`);
-                    logToFile(`Update - wrote vbs runner: ${vbsPath}`);
-                    logToFile(`Update - wrapper log: ${wrapperLogPath}`);
-                  } catch (writeErr) {
-                    logToFile(`Update - failed to write update runner: ${writeErr && writeErr.message ? writeErr.message : writeErr}`);
-                    resolve({ success: false, error: 'Failed to prepare installer runner script' });
+                    const vbs = [
+                      'On Error Resume Next',
+                      'Dim sh',
+                      'Set sh = CreateObject("WScript.Shell")',
+                      // Run the cmd runner hidden (windowStyle=0) so we keep UX inside the Electron update window.
+                      `sh.Run "cmd.exe /c """ & "${runnerPath}" & """", 0, False`,
+                      'Set sh = Nothing'
+                    ].join("\r\n");
+
+                    try {
+                      fs.writeFileSync(runnerPath, runner, { encoding: 'utf8' });
+                      fs.writeFileSync(vbsPath, vbs, { encoding: 'utf8' });
+                      logToFile(`Update - wrote cmd runner: ${runnerPath}`);
+                      logToFile(`Update - wrote vbs runner: ${vbsPath}`);
+                      logToFile(`Update - wrapper log: ${wrapperLogPath}`);
+                    } catch (writeErr) {
+                      logToFile(`Update - failed to write update runner: ${writeErr && writeErr.message ? writeErr.message : writeErr}`);
+                      resolve({ success: false, error: 'Failed to prepare installer runner script' });
+                      return;
+                    }
+
+                    logToFile(`Update - launching installer runner via shell.openPath (hidden vbs) (silent=${silent} relaunch=${relaunchAfterInstall})`);
+                    shell.openPath(vbsPath);
+                    setTimeout(() => {
+                      app.isQuitting = true;
+                      app.quit();
+                      resolveOnce({ success: true });
+                    }, 3000); // Increased delay to let user read the "Installing..." message
+                    return;
+                  } catch (spawnErr) {
+                    logToFile(`Update - failed to spawn installer wrapper: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
+                    resolveOnce({ success: false, error: 'Failed to launch installer process' });
                     return;
                   }
 
-                  logToFile(`Update - launching installer runner via shell.openPath (hidden vbs) (silent=${silent} relaunch=${relaunchAfterInstall})`);
-                  shell.openPath(vbsPath);
-                  setTimeout(() => {
-                    app.isQuitting = true;
-                    app.quit();
-                    resolveOnce({ success: true });
-                  }, 3000); // Increased delay to let user read the "Installing..." message
-                  return;
-                } catch (spawnErr) {
-                  logToFile(`Update - failed to spawn installer wrapper: ${spawnErr && spawnErr.message ? spawnErr.message : spawnErr}`);
-                  resolveOnce({ success: false, error: 'Failed to launch installer process' });
-                  return;
-                }
+                  // Windows branch returns from the setTimeout above.
+                } else if (platform === 'linux') {
+                  logToFile(`Update - filePath: ${filePath}`);
+                  logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
 
-                // Windows branch returns from the setTimeout above.
-              } else if (platform === 'linux') {
-                logToFile(`Update - filePath: ${filePath}`);
-                logToFile(`Update - file exists: ${fs.existsSync(filePath)}`);
-                
-                if (filePath.endsWith('.AppImage')) {
-                  // Make executable
-                  fs.chmodSync(filePath, '755');
-                  
-                  // Handle AppImage replacement if running as an AppImage
-                  if (process.env.APPIMAGE) {
-                    logToFile(`Update - Running as AppImage at ${process.env.APPIMAGE}`);
-                    const currentPath = process.env.APPIMAGE;
-                    const updateScriptPath = path.join(path.dirname(filePath), `update-armgddn-${Date.now()}.sh`);
-                    
-                    // Create a script to replace the old AppImage with the new one
-                    const scriptContent = [
-                      '#!/bin/bash',
-                      '# Wait for the main application to close',
-                      `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.5; done`,
-                      '',
-                      '# Move old version to backup',
-                      `mv "${currentPath}" "${currentPath}.old"`,
-                      '',
-                      '# Move new version to original location',
-                      `mv "${filePath}" "${currentPath}"`,
-                      `chmod +x "${currentPath}"`,
-                      '',
-                      '# Launch new version',
-                      `"${currentPath}" &`,
-                      'exit 0'
-                    ].join('\n');
+                  if (filePath.endsWith('.AppImage')) {
+                    // Make executable
+                    fs.chmodSync(filePath, '755');
 
-                    try {
-                      fs.writeFileSync(updateScriptPath, scriptContent, { mode: 0o755 });
-                      logToFile(`Update - Created replacement script at ${updateScriptPath}`);
-                      
-                      const child = spawn(updateScriptPath, [], {
-                        detached: true,
-                        stdio: 'ignore'
-                      });
-                      child.unref();
-                      
-                      safeSendUpdateEvent('update-status', 'Restarting updated version...');
-                      
-                      setTimeout(() => {
-                        app.isQuitting = true;
-                        app.quit();
-                        resolve({ success: true, installerPath: filePath });
-                      }, 3000); // Increased delay to allow installer to fully start
-                      return;
-                    } catch (err) {
-                      logToFile(`Update - Failed to create/run replacement script: ${err.message}`);
-                      // Fallback to simple launch if replacement fails
+                    // Handle AppImage replacement if running as an AppImage
+                    if (process.env.APPIMAGE) {
+                      logToFile(`Update - Running as AppImage at ${process.env.APPIMAGE}`);
+                      const currentPath = process.env.APPIMAGE;
+                      const updateScriptPath = path.join(path.dirname(filePath), `update-armgddn-${Date.now()}.sh`);
+
+                      // Create a script to replace the old AppImage with the new one
+                      const scriptContent = [
+                        '#!/bin/bash',
+                        '# Wait for the main application to close',
+                        `while kill -0 ${process.pid} 2>/dev/null; do sleep 0.5; done`,
+                        '',
+                        '# Move old version to backup',
+                        `mv "${currentPath}" "${currentPath}.old"`,
+                        '',
+                        '# Move new version to original location',
+                        `mv "${filePath}" "${currentPath}"`,
+                        `chmod +x "${currentPath}"`,
+                        '',
+                        '# Launch new version',
+                        `"${currentPath}" &`,
+                        'exit 0'
+                      ].join('\n');
+
+                      try {
+                        fs.writeFileSync(updateScriptPath, scriptContent, { mode: 0o755 });
+                        logToFile(`Update - Created replacement script at ${updateScriptPath}`);
+
+                        const child = spawn(updateScriptPath, [], {
+                          detached: true,
+                          stdio: 'ignore'
+                        });
+                        child.unref();
+
+                        safeSendUpdateEvent('update-status', 'Restarting updated version...');
+
+                        setTimeout(() => {
+                          app.isQuitting = true;
+                          app.quit();
+                          resolve({ success: true, installerPath: filePath });
+                        }, 3000); // Increased delay to allow installer to fully start
+                        return;
+                      } catch (err) {
+                        logToFile(`Update - Failed to create/run replacement script: ${err.message}`);
+                        // Fallback to simple launch if replacement fails
+                      }
                     }
+
+                    logToFile('Update - launching AppImage (no replacement)');
+
+                    safeSendUpdateEvent('update-status', 'Restarting into new version...');
+
+                    let spawnFailed = false;
+                    let resolved = false;
+                    const child = spawn(filePath, [], {
+                      detached: true,
+                      stdio: 'ignore'
+                    });
+                    child.on('error', (err) => {
+                      spawnFailed = true;
+                      logToFile(`Update - AppImage spawn error: ${err && err.message ? err.message : err}`);
+                    });
+                    child.unref();
+
+                    setTimeout(() => {
+                      if (resolved) return;
+                      resolved = true;
+
+                      if (spawnFailed) {
+                        shell.showItemInFolder(filePath);
+                        resolve({ success: true, message: 'Update downloaded but could not be launched automatically. Please install manually.' });
+                        return;
+                      }
+
+                      app.isQuitting = true;
+                      app.quit();
+                      resolve({ success: true, installerPath: filePath });
+                    }, 2000); // Increased delay for AppImage
+
+                    return;
+                  } else {
+                    // For .deb, open file manager or show location
+                    shell.showItemInFolder(filePath);
+                    resolve({ success: true, message: 'Installer downloaded. Please install manually.' });
+                    return;
                   }
-
-                  logToFile('Update - launching AppImage (no replacement)');
-                  
-                  safeSendUpdateEvent('update-status', 'Restarting into new version...');
-
-                  let spawnFailed = false;
-                  let resolved = false;
-                  const child = spawn(filePath, [], {
-                    detached: true,
-                    stdio: 'ignore'
-                  });
-                  child.on('error', (err) => {
-                    spawnFailed = true;
-                    logToFile(`Update - AppImage spawn error: ${err && err.message ? err.message : err}`);
-                  });
-                  child.unref();
-
-                  setTimeout(() => {
-                    if (resolved) return;
-                    resolved = true;
-
-                    if (spawnFailed) {
-                      shell.showItemInFolder(filePath);
-                      resolve({ success: true, message: 'Update downloaded but could not be launched automatically. Please install manually.' });
-                      return;
-                    }
-
-                    app.isQuitting = true;
-                    app.quit();
-                    resolve({ success: true, installerPath: filePath });
-                  }, 2000); // Increased delay for AppImage
-
-                  return;
                 } else {
-                  // For .deb, open file manager or show location
-                  shell.showItemInFolder(filePath);
-                  resolve({ success: true, message: 'Installer downloaded. Please install manually.' });
+                  // macOS - open the DMG
+                  shell.openPath(filePath);
+                  resolve({ success: true, message: 'Installer opened. Please complete installation.' });
                   return;
                 }
-              } else {
-                // macOS - open the DMG
-                shell.openPath(filePath);
-                resolve({ success: true, message: 'Installer opened. Please complete installation.' });
-                return;
+              } catch (e) {
+                resolveOnce({ success: false, error: e.message });
               }
-            } catch (e) {
-              resolveOnce({ success: false, error: e.message });
-            }
             }).catch((e) => {
               failUpdate('Update verification failed.', e && e.message ? e.message : 'Verification error');
               resolveOnce({ success: false, error: 'Update verification failed' });
             });
           });
         });
-        
+
         fileStream.on('error', (err) => {
           cleanupPartialInstaller();
           resolve({ success: false, error: err.message });
@@ -4593,12 +4593,12 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
           if (progressWin && !progressWin.isDestroyed()) progressWin.close();
           cleanupPartialInstaller();
           resolve({ success: false, error: 'Download stream error' });
-      });
+        });
 
       });
 
       reqDl.setTimeout(300000, () => {
-        try { reqDl.destroy(new Error('Update download timeout')); } catch (e) {}
+        try { reqDl.destroy(new Error('Update download timeout')); } catch (e) { }
       });
       reqDl.on('error', (err) => {
         logToFile(`Update - request error: ${err.message}`);
@@ -4606,9 +4606,9 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
         cleanupPartialInstaller();
         resolve({ success: false, error: 'Update request error: ' + err.message });
       });
-  };
+    };
 
-  return downloadInstaller(installerUrl);
+    return downloadInstaller(installerUrl);
   });
 });
 
@@ -4617,7 +4617,7 @@ function compareVersions(a, b) {
   if (!a || !b) return 0;
   const partsA = a.split('.').map(n => parseInt(n, 10) || 0);
   const partsB = b.split('.').map(n => parseInt(n, 10) || 0);
-  
+
   for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
     const numA = partsA[i] || 0;
     const numB = partsB[i] || 0;
