@@ -2536,9 +2536,12 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   try { updateProgress(downloadId); } catch (e) { }
 
   // Download files in parallel (controlled by user setting)
-  const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
+  const getRequestedWorkersNow = () => {
+    const requestedParallelNow = Number(settings && settings.maxConcurrentDownloads);
+    return Math.min(20, Math.max(1, Number.isFinite(requestedParallelNow) ? requestedParallelNow : 3));
+  };
 
-  const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
+  const requestedWorkers = getRequestedWorkersNow();
   let shouldApplyServerConcurrency = true;
   try {
     const filesToCheck = Array.isArray(files) ? files : [];
@@ -2585,7 +2588,8 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   const processNext = async () => {
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
       const eff = Number(download && download.effectiveConcurrency);
-      const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkers, eff) : requestedWorkers;
+      const requestedWorkersNow = getRequestedWorkersNow();
+      const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkersNow, eff) : requestedWorkersNow;
       const activeNow = getActiveFileCount(download);
       if (activeNow >= limit) {
         try {
@@ -2593,7 +2597,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
           const last = Number(download.__lastConcurrencyWaitLogMs) || 0;
           if (now - last > 3000) {
             download.__lastConcurrencyWaitLogMs = now;
-            logToFile(`[Concurrency] wait active=${activeNow} limit=${limit} requested=${requestedWorkers} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} completed=${typeof download.completedFiles === 'number' ? download.completedFiles : 'n/a'} fileCount=${typeof download.fileCount === 'number' ? download.fileCount : 'n/a'}`);
+            logToFile(`[Concurrency] wait active=${activeNow} limit=${limit} requested=${requestedWorkersNow} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} completed=${typeof download.completedFiles === 'number' ? download.completedFiles : 'n/a'} fileCount=${typeof download.fileCount === 'number' ? download.fileCount : 'n/a'}`);
           }
         } catch (e) { }
         await new Promise(r => setTimeout(r, 250));
@@ -2603,7 +2607,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       const file = fileQueue.shift();
       if (!file) break;
       try {
-        logToFile(`[Concurrency] start-file active=${activeNow} limit=${limit} requested=${requestedWorkers} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} file=${file && file.name ? String(file.name) : ''}`);
+        logToFile(`[Concurrency] start-file active=${activeNow} limit=${limit} requested=${getRequestedWorkersNow()} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} file=${file && file.name ? String(file.name) : ''}`);
       } catch (e) { }
       try {
         await downloadFile(downloadId, file, downloadDir);
@@ -2616,6 +2620,26 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     }
   };
 
+  // If the user increases maxConcurrentDownloads while a download is running,
+  // spin up additional worker loops so the new setting takes effect without restarting.
+  let concurrencyWorkerAdjust = null;
+  try {
+    concurrencyWorkerAdjust = setInterval(() => {
+      try {
+        if (!download || download.cancelled || download.paused) return;
+        if (!fileQueue || fileQueue.length === 0) return;
+        const desired = getRequestedWorkersNow();
+        while (activePromises.length < Math.min(desired, fileQueue.length)) {
+          activePromises.push(processNext());
+        }
+      } catch (e) {
+      }
+    }, 1000);
+    if (concurrencyWorkerAdjust && typeof concurrencyWorkerAdjust.unref === 'function') {
+      concurrencyWorkerAdjust.unref();
+    }
+  } catch (e) { }
+
   // Start parallel download workers
   for (let i = 0; i < Math.min(PARALLEL_DOWNLOADS, fileQueue.length); i++) {
     activePromises.push(processNext());
@@ -2625,6 +2649,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
   try {
     if (concurrencyPoll) clearInterval(concurrencyPoll);
+  } catch (e) { }
+  try {
+    if (concurrencyWorkerAdjust) clearInterval(concurrencyWorkerAdjust);
   } catch (e) { }
 
   const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
@@ -3847,7 +3874,11 @@ async function resumeDownloadFiles(downloadId) {
   });
 
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
-  const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
+  const getRequestedWorkersNow = () => {
+    const requestedParallelNow = Number(settings && settings.maxConcurrentDownloads);
+    return Math.min(20, Math.max(1, Number.isFinite(requestedParallelNow) ? requestedParallelNow : 3));
+  };
+  const requestedWorkers = getRequestedWorkersNow();
 
   let shouldApplyServerConcurrency = true;
   try {
@@ -3887,7 +3918,8 @@ async function resumeDownloadFiles(downloadId) {
   const processNext = async () => {
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
       const eff = Number(download && download.effectiveConcurrency);
-      const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkers, eff) : requestedWorkers;
+      const requestedWorkersNow = getRequestedWorkersNow();
+      const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkersNow, eff) : requestedWorkersNow;
       if (getActiveFileCount(download) >= limit) {
         await new Promise(r => setTimeout(r, 250));
         continue;
@@ -3909,10 +3941,32 @@ async function resumeDownloadFiles(downloadId) {
     activePromises.push(processNext());
   }
 
+  // Allow increasing concurrency mid-resume by spawning additional worker loops.
+  let concurrencyWorkerAdjust = null;
+  try {
+    concurrencyWorkerAdjust = setInterval(() => {
+      try {
+        if (!download || download.cancelled || download.paused) return;
+        if (!fileQueue || fileQueue.length === 0) return;
+        const desired = getRequestedWorkersNow();
+        while (activePromises.length < Math.min(desired, fileQueue.length)) {
+          activePromises.push(processNext());
+        }
+      } catch (e) {
+      }
+    }, 1000);
+    if (concurrencyWorkerAdjust && typeof concurrencyWorkerAdjust.unref === 'function') {
+      concurrencyWorkerAdjust.unref();
+    }
+  } catch (e) { }
+
   await Promise.all(activePromises);
 
   try {
     if (concurrencyPoll) clearInterval(concurrencyPoll);
+  } catch (e) { }
+  try {
+    if (concurrencyWorkerAdjust) clearInterval(concurrencyWorkerAdjust);
   } catch (e) { }
 
   const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
