@@ -51,6 +51,20 @@ function decodeBase64Signature(raw) {
   }
 }
 
+const SUPPORT_TELEGRAM_URL = 'https://t.me/ARMGDDNGames';
+
+function withSupportFooter(message, fix) {
+  try {
+    const msg = String(message || '').trim();
+    const fixText = String(fix || '').trim();
+    const fixLine = fixText ? `Most likely fix: ${fixText}` : '';
+    const supportLine = `If that doesn't help, contact support on Telegram: ${SUPPORT_TELEGRAM_URL}`;
+    return [msg, fixLine, supportLine].filter(Boolean).join('\n');
+  } catch (e) {
+    return String(message || '');
+  }
+}
+
 function verifyEd25519Signature(message, signature, publicKeyPem) {
   try {
     if (!message || !Buffer.isBuffer(message)) return false;
@@ -865,21 +879,132 @@ function redactUrlQueryStrings(text) {
   }
 }
 
+function extractRcloneErrorDetail(errorOutput) {
+  try {
+    const raw = String(errorOutput || '');
+    if (!raw.trim()) return '';
+    const redacted = redactUrlQueryStrings(raw);
+    const lines = redacted
+      .split(/\r?\n/)
+      .map(l => String(l || '').trim())
+      .filter(Boolean);
+
+    if (!lines.length) return '';
+
+    const ignore = (l) => {
+      const lower = l.toLowerCase();
+      if (lower.startsWith('transferred:')) return true;
+      if (lower.startsWith('elapsed time:')) return true;
+      if (lower.startsWith('errors:')) return true;
+      if (lower.startsWith('checks:')) return true;
+      if (lower.startsWith('transfers:')) return true;
+      if (lower.startsWith('deleted:')) return true;
+      if (lower.startsWith('renamed:')) return true;
+      if (lower.startsWith('skipped:')) return true;
+      if (lower.startsWith('server side copies:')) return true;
+      if (lower.startsWith('elapsed:')) return true;
+      if (lower.startsWith('eta:')) return true;
+      return false;
+    };
+
+    const candidates = lines.filter(l => !ignore(l));
+    const pickFrom = candidates.length ? candidates : lines;
+
+    const interesting = pickFrom.find(l => /\berror\b|\bfatal\b|\bfailed\b|\bpanic\b/i.test(l));
+    const chosen = interesting || pickFrom[pickFrom.length - 1] || '';
+
+    const compact = chosen.replace(/\s+/g, ' ').trim();
+    return compact.length > 280 ? compact.slice(0, 280) : compact;
+  } catch (e) {
+    return '';
+  }
+}
+
 function formatRcloneExitCodeHint(code) {
   if (code === 1) {
     return 'Something went wrong while downloading. This is often caused by an expired link, temporary provider limits, a network hiccup, or not being able to write the file to disk.';
   }
-  if (typeof code === 'number') {
-    return 'Something went wrong while downloading.';
-  }
+
   return 'Something went wrong while downloading.';
 }
 
-function formatDownloadFailedMessage(code) {
-  const logPath = getDebugLogPath();
+function formatDownloadFailedMessage(code, errorOutput) {
+  const detail = extractRcloneErrorDetail(errorOutput);
+  const lower = String(errorOutput || '').toLowerCase();
+
+  if (detail) {
+    if (/(permission denied|access is denied|operation not permitted)/i.test(detail) || lower.includes('permission denied') || lower.includes('access is denied')) {
+      return withSupportFooter(
+        `Can't write the file to your download folder. (${detail})`,
+        'Change the download folder to a writable location (e.g. inside your home folder) and retry.'
+      );
+    }
+    if (/(no space left on device|disk full|not enough space)/i.test(detail) || lower.includes('no space left')) {
+      return withSupportFooter(
+        `You're out of disk space. (${detail})`,
+        'Free up disk space or switch to a drive with more space, then retry.'
+      );
+    }
+    if (/(file exists|already exists)/i.test(detail)) {
+      return withSupportFooter(
+        `A file with the same name already exists. (${detail})`,
+        'Delete/rename the existing file or choose a different folder, then retry.'
+      );
+    }
+    if (/(404|not found)/i.test(detail) || lower.includes('404') || lower.includes('not found')) {
+      return withSupportFooter(
+        `The download link looks invalid or expired (file not found). (${detail})`,
+        'Go back to the website and start the download again to generate a fresh link.'
+      );
+    }
+    if (/(401|403|unauthorized|forbidden)/i.test(detail) || lower.includes('unauthorized') || lower.includes('forbidden')) {
+      return withSupportFooter(
+        `Authorization failed (the link may be expired). (${detail})`,
+        'Go back to the website and start the download again to generate a fresh link.'
+      );
+    }
+    if (/(429|too many requests|rate limit)/i.test(detail) || lower.includes('too many requests')) {
+      return withSupportFooter(
+        `The server is rate-limiting the download right now. (${detail})`,
+        'Wait a few minutes and retry. Avoid running multiple downloads at once.'
+      );
+    }
+    if (/(timeout|timed out|deadline exceeded)/i.test(detail) || lower.includes('timeout')) {
+      return withSupportFooter(
+        `The download timed out. (${detail})`,
+        'Retry the download. If it keeps timing out, try a different network or lower concurrency.'
+      );
+    }
+    if (/(connection reset|broken pipe|unexpected eof|received from peer|econnreset|rst_stream|http2)/i.test(detail) || lower.includes('connection reset')) {
+      return withSupportFooter(
+        `The connection dropped mid-download. (${detail})`,
+        'Retry the download. If it repeats, try a different network or lower concurrency.'
+      );
+    }
+    if (/(x509|certificate|ssl)/i.test(detail)) {
+      return withSupportFooter(
+        `SSL/Certificate error. (${detail})`,
+        'On Linux, install/update ca-certificates, then retry.'
+      );
+    }
+    if (/(no such host|name resolution|lookup)/i.test(detail)) {
+      return withSupportFooter(
+        `Network/DNS error. (${detail})`,
+        'Check your internet connection, DNS/VPN settings, then retry.'
+      );
+    }
+    return withSupportFooter(
+      `Download failed. ${detail}`,
+      'Retry the download. If it keeps failing, restart the app and try again.'
+    );
+  }
+
   const hint = formatRcloneExitCodeHint(code);
   const codeText = (typeof code === 'number') ? `code ${code}` : 'unknown error';
-  return `Download failed (${codeText}). ${hint} If it keeps happening, check debug.log for details: ${logPath}`;
+  return withSupportFooter(
+    `Download failed (${codeText}). ${hint}`,
+    'Retry the download. If it keeps failing, restart the app and try again.'
+  );
 }
 
 // Paths
@@ -2372,6 +2497,16 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     download.completedFiles = completedFiles;
     download.downloadedSize = downloadedSize;
     files = remainingFiles;
+
+    try {
+      for (const f of files) {
+        if (!f || !f.url) continue;
+        const transformed = transformProxyUrlToDirectIfPossible(f.url);
+        if (transformed && transformed !== f.url) {
+          f.url = transformed;
+        }
+      }
+    } catch (e) { }
     download.files = allFiles;
     if (allFiles.length > 0) {
       download.statusMessage = completedFiles > 0
@@ -2404,15 +2539,28 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
 
   const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
-  // Try to refresh server concurrency, but don’t let a failure block the download entirely.
+  let shouldApplyServerConcurrency = true;
   try {
-    await refreshDownloadConcurrency(download, token, manifestUrl);
+    const filesToCheck = Array.isArray(files) ? files : [];
+    shouldApplyServerConcurrency = filesToCheck.some(f => isProxyDownloadUrl(f && f.url ? String(f.url) : ''));
   } catch (e) {
-    logToFile(`[Concurrency] Initial refresh failed, proceeding with default: ${e && e.message ? e.message : e}`);
-    // Ensure we have a usable effectiveConcurrency even if server check failed
-    if (!Number.isFinite(download.effectiveConcurrency) || download.effectiveConcurrency <= 0) {
-      download.effectiveConcurrency = requestedWorkers;
+    shouldApplyServerConcurrency = true;
+  }
+
+  if (shouldApplyServerConcurrency) {
+    try {
+      await refreshDownloadConcurrency(download, token, manifestUrl);
+    } catch (e) {
+      logToFile(`[Concurrency] Initial refresh failed, proceeding with default: ${e && e.message ? e.message : e}`);
+      if (!Number.isFinite(download.effectiveConcurrency) || download.effectiveConcurrency <= 0) {
+        download.effectiveConcurrency = requestedWorkers;
+      }
     }
+  } else {
+    download.effectiveConcurrency = requestedWorkers;
+    try {
+      logToFile(`[Concurrency] Skipping server throttle (direct routes). appliedEffective=${requestedWorkers}`);
+    } catch (e) { }
   }
   download.statusMessage = download.statusMessage || 'Starting downloads...';
   try { updateProgress(downloadId); } catch (e2) { }
@@ -2424,13 +2572,15 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   const activePromises = [];
 
   let concurrencyPoll = null;
-  try {
-    concurrencyPoll = setInterval(() => {
-      if (!download || download.cancelled || download.paused) return;
-      if (!fileQueue || fileQueue.length === 0) return;
-      refreshDownloadConcurrency(download, token, manifestUrl);
-    }, 30000);
-  } catch (e) { }
+  if (shouldApplyServerConcurrency) {
+    try {
+      concurrencyPoll = setInterval(() => {
+        if (!download || download.cancelled || download.paused) return;
+        if (!fileQueue || fileQueue.length === 0) return;
+        refreshDownloadConcurrency(download, token, manifestUrl);
+      }, 30000);
+    } catch (e) { }
+  }
 
   const processNext = async () => {
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
@@ -2564,6 +2714,29 @@ function getActiveFileKey(file) {
   }
 }
 
+function isProxyDownloadUrl(urlString) {
+  try {
+    const u = new URL(String(urlString || ''));
+    const host = (u && u.hostname) ? String(u.hostname).toLowerCase() : '';
+    return host === 'www.armgddnbrowser.com' || host === 'armgddnbrowser.com' || host.endsWith('.armgddnbrowser.com');
+  } catch (e) {
+    return false;
+  }
+}
+
+function transformProxyUrlToDirectIfPossible(urlString) {
+  try {
+    const s = String(urlString || '');
+    if (!s || !s.includes('armgddnbrowser.com')) return s;
+    const u = new URL(s);
+    const rpath = u.searchParams.get('path');
+    if (!rpath) return s;
+    return `https://dl.neatbarb.box.ca/${rpath}`;
+  } catch (e) {
+    return String(urlString || '');
+  }
+}
+
 // Download a single file using rclone
 async function downloadFile(downloadId, file, downloadDir) {
   return new Promise((resolve, reject) => {
@@ -2578,6 +2751,13 @@ async function downloadFile(downloadId, file, downloadDir) {
       reject(new Error('Security error: File URL must use HTTPS'));
       return;
     }
+
+    try {
+      const transformed = transformProxyUrlToDirectIfPossible(file.url);
+      if (transformed && transformed !== file.url) {
+        file.url = transformed;
+      }
+    } catch (e) { }
 
     const safeRel = sanitizeRelativePath(file.name);
     if (!safeRel) {
@@ -2626,19 +2806,34 @@ async function downloadFile(downloadId, file, downloadDir) {
       status: 'downloading'
     };
 
-    // ARMGDDN - Universal Direct Routing
-    // Automatically transform ANY proxy URL (armgddnbrowser.com) to direct Whatbox static routing
-    // This handles all 6 current remotes and any future remotes added to the system.
+    if (isProxyDownloadUrl(file.url)) {
+      const err = new Error(withSupportFooter(
+        `Proxy routed downloads are disabled (blocked: ${file && file.name ? String(file.name) : 'unknown file'}).`,
+        'Retry the download. If it keeps failing, start the download again from the website to get a fresh direct link.'
+      ));
+      try {
+        download.status = 'error';
+        if (!Array.isArray(download.failedFiles)) {
+          download.failedFiles = [];
+        }
+        download.failedFiles.push(file.name);
+        if (download.activeFiles[fileKey]) {
+          download.activeFiles[fileKey].status = 'error';
+          delete download.activeFiles[fileKey];
+        }
+        download.statusMessage = err.message;
+        updateProgress(downloadId);
+      } catch (e) { }
+      reject(err);
+      return;
+    }
+
     try {
       if (file.url && file.url.includes('armgddnbrowser.com')) {
         const u = new URL(file.url);
-        const rpath = u.searchParams.get('path');
         const remote = u.searchParams.get('remote');
-
-        // If it has a path, it's a file on Whatbox.
-        // We transform this to direct routing to bypass the proxy bottleneck.
-        if (rpath) {
-          const directUrl = `https://dl.neatbarb.box.ca/${rpath}`;
+        const directUrl = transformProxyUrlToDirectIfPossible(file.url);
+        if (directUrl && directUrl !== file.url) {
           logToFile(`[Route] Direct Routing Engaged: remote=${remote || 'Unknown'} to=${directUrl}`);
           file.url = directUrl;
         }
@@ -2914,17 +3109,32 @@ async function downloadFile(downloadId, file, downloadDir) {
         }
 
         if (busy) {
-          download.error = 'Server is busy due to high demand. Please wait a moment and try again.';
+          download.error = withSupportFooter(
+            'Server is busy due to high demand.',
+            'Wait a minute and retry. If it keeps happening, lower concurrency.'
+          );
         } else if (quota) {
-          download.error = 'Download quota exceeded. This file is temporarily unavailable due to high demand. Please try again later or try a different game.';
+          download.error = withSupportFooter(
+            'Download quota exceeded. This file is temporarily unavailable due to high demand.',
+            'Wait a few hours and retry, or try a different title/mirror if available.'
+          );
         } else if (isTokenExpiredError(errorOutput)) {
-          download.error = 'Download link expired. Please try downloading again from the website.';
+          download.error = withSupportFooter(
+            'Download link expired.',
+            'Go back to the website and start the download again to generate a fresh link.'
+          );
         } else if (sslError) {
-          download.error = 'SSL/Certificate error. On Linux, ensure ca-certificates is installed. Check debug.log for details.';
+          download.error = withSupportFooter(
+            'SSL/Certificate error.',
+            'On Linux, install/update ca-certificates, then retry.'
+          );
         } else if (dnsError) {
-          download.error = 'Network/DNS error. Please check your internet connection.';
+          download.error = withSupportFooter(
+            'Network/DNS error.',
+            'Check your internet connection, DNS/VPN settings, then retry.'
+          );
         } else {
-          download.error = formatDownloadFailedMessage(code);
+          download.error = formatDownloadFailedMessage(code, errorOutput);
         }
 
         updateProgress(downloadId);
@@ -3581,6 +3791,16 @@ async function resumeDownloadFiles(downloadId) {
   const allFiles = Array.isArray(download.files) ? download.files : [];
   const remainingFiles = allFiles.filter(f => f && f.name && !isFileComplete(f));
 
+  try {
+    for (const f of remainingFiles) {
+      if (!f || !f.url) continue;
+      const transformed = transformProxyUrlToDirectIfPossible(f.url);
+      if (transformed && transformed !== f.url) {
+        f.url = transformed;
+      }
+    }
+  } catch (e) { }
+
   // Reset state
   download.paused = false;
   download.status = 'in_progress';
@@ -3629,25 +3849,40 @@ async function resumeDownloadFiles(downloadId) {
   const requestedParallel = Number(settings && settings.maxConcurrentDownloads);
   const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requestedParallel) ? requestedParallel : 3));
 
-  // Best-effort: refresh concurrency limits before resuming.
+  let shouldApplyServerConcurrency = true;
   try {
-    const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
-    await refreshDownloadConcurrency(download, download.token, manifestUrl);
-  } catch (e) { }
+    shouldApplyServerConcurrency = remainingFiles.some(f => isProxyDownloadUrl(f && f.url ? String(f.url) : ''));
+  } catch (e) {
+    shouldApplyServerConcurrency = true;
+  }
+
+  if (shouldApplyServerConcurrency) {
+    try {
+      const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
+      await refreshDownloadConcurrency(download, download.token, manifestUrl);
+    } catch (e) { }
+  } else {
+    download.effectiveConcurrency = requestedWorkers;
+    try {
+      logToFile(`[Concurrency] (resume) Skipping server throttle (direct routes). appliedEffective=${requestedWorkers}`);
+    } catch (e) { }
+  }
 
   const PARALLEL_DOWNLOADS = requestedWorkers;
   const fileQueue = [...remainingFiles];
   const activePromises = [];
 
   let concurrencyPoll = null;
-  try {
-    const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
-    concurrencyPoll = setInterval(() => {
-      if (!download || download.cancelled || download.paused) return;
-      if (!fileQueue || fileQueue.length === 0) return;
-      refreshDownloadConcurrency(download, download.token, manifestUrl);
-    }, 30000);
-  } catch (e) { }
+  if (shouldApplyServerConcurrency) {
+    try {
+      const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
+      concurrencyPoll = setInterval(() => {
+        if (!download || download.cancelled || download.paused) return;
+        if (!fileQueue || fileQueue.length === 0) return;
+        refreshDownloadConcurrency(download, download.token, manifestUrl);
+      }, 30000);
+    } catch (e) { }
+  }
 
   const processNext = async () => {
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
@@ -3675,6 +3910,10 @@ async function resumeDownloadFiles(downloadId) {
   }
 
   await Promise.all(activePromises);
+
+  try {
+    if (concurrencyPoll) clearInterval(concurrencyPoll);
+  } catch (e) { }
 
   const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
   logToFile(`[Resume] After Promise.all - cancelled: ${download.cancelled}, paused: ${download.paused}, hasErrors: ${hasErrors}, failedFiles: ${JSON.stringify(download.failedFiles)}`);

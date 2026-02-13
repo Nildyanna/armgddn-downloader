@@ -418,7 +418,27 @@ async function showAlertDialog(title, message) {
         const msg = download && typeof download.statusMessage === 'string' ? download.statusMessage : '';
         msgEl.style.display = msg ? '' : 'none';
         if (msg) {
-          msgEl.textContent = msg;
+          msgEl.innerHTML = formatSupportText(msg);
+        }
+      }
+
+      const failedEl = item.querySelector('.download-failed-message');
+      if (failedEl) {
+        let failedText = '';
+        try {
+          const failed = Array.isArray(download.failedFiles) ? download.failedFiles : [];
+          const uniq = Array.from(new Set(failed.map(f => String(f || '').trim()).filter(Boolean)));
+          if (uniq.length > 0) {
+            const shown = uniq.slice(0, 3);
+            const suffix = uniq.length > 3 ? ` (+${uniq.length - 3} more)` : '';
+            failedText = `Failed: ${shown.join(', ')}${suffix}`;
+          }
+        } catch (e) {
+          failedText = '';
+        }
+        failedEl.style.display = failedText ? '' : 'none';
+        if (failedText) {
+          failedEl.textContent = failedText;
         }
       }
 
@@ -430,7 +450,7 @@ async function showAlertDialog(title, message) {
       if (errEl) {
         errEl.style.display = showErr ? '' : 'none';
         if (showErr) {
-          errEl.textContent = errMsg;
+          errEl.innerHTML = formatSupportText(errMsg);
         }
       }
 
@@ -687,7 +707,8 @@ async function showAlertDialog(title, message) {
         <span class="download-filename">${escapeHtml(download.name)}</span>
         <span class="download-state">${statusDisplay}</span>
       </div>
-      <div class="download-status-message" style="display: ${download.statusMessage ? 'block' : 'none'};">${escapeHtml(download.statusMessage || '')}</div>
+      <div class="download-status-message" style="display: ${download.statusMessage ? 'block' : 'none'};">${formatSupportText(download.statusMessage || '')}</div>
+      <div class="download-failed-message" style="display: ${Array.isArray(download.failedFiles) && download.failedFiles.length ? 'block' : 'none'};">${escapeHtml((() => { try { const failed = Array.isArray(download.failedFiles) ? download.failedFiles : []; const uniq = Array.from(new Set(failed.map(f => String(f || '').trim()).filter(Boolean))); if (!uniq.length) return ''; const shown = uniq.slice(0, 3); const suffix = uniq.length > 3 ? ` (+${uniq.length - 3} more)` : ''; return `Failed: ${shown.join(', ')}${suffix}`; } catch (e) { return ''; } })())}</div>
       <div class="progress-bar">
         <div class="progress-fill" style="width: ${download.progress || 0}%"></div>
       </div>
@@ -696,7 +717,7 @@ async function showAlertDialog(title, message) {
         <span class="total-speed">${(download.status === 'extracting' || download.status === 'completed') ? (download.totalSpeed ? `Peak: ${download.totalSpeed}` : '') : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
       </div>
       <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives, please wait..</div>
-      ${showErrMsg ? `<div class="download-error-message">${escapeHtml(errMsg)}</div>` : ''}
+      ${showErrMsg ? `<div class="download-error-message">${formatSupportText(errMsg)}</div>` : ''}
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
       <div class="download-disclaimer">
         If you use Pause/Resume, files that already finished will not be downloaded again, but the file that was in progress may restart from the beginning.
@@ -1136,6 +1157,14 @@ async function showAlertDialog(title, message) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+  }
+
+  function formatSupportText(text) {
+    const TELEGRAM_URL = 'https://t.me/ARMGDDNGames';
+    const safe = escapeHtml(String(text || ''));
+    const withBreaks = safe.replace(/\r?\n/g, '<br>');
+    const link = `<a href="${TELEGRAM_URL}" target="_blank" rel="noreferrer">${escapeHtml(TELEGRAM_URL)}</a>`;
+    return withBreaks.split(escapeHtml(TELEGRAM_URL)).join(link);
   }
 
   function formatBytes(bytes) {
