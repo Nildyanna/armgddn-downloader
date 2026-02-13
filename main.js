@@ -2626,21 +2626,25 @@ async function downloadFile(downloadId, file, downloadDir) {
       status: 'downloading'
     };
 
-    // ARMGDDN - Auto-transform Proxy URLs to Direct Whatbox URLs for 2Gbps performance
+    // ARMGDDN - Universal Direct Routing
+    // Automatically transform ANY proxy URL (armgddnbrowser.com) to direct Whatbox static routing
+    // This handles all 6 current remotes and any future remotes added to the system.
     try {
       if (file.url && file.url.includes('armgddnbrowser.com')) {
         const u = new URL(file.url);
-        const remote = u.searchParams.get('remote');
         const rpath = u.searchParams.get('path');
-        if ((remote === 'GameServer' || remote === 'Receive') && rpath) {
-          // Transform to direct static URL on Whatbox Gateway
+        const remote = u.searchParams.get('remote');
+
+        // If it has a path, it's a file on Whatbox.
+        // We transform this to direct routing to bypass the proxy bottleneck.
+        if (rpath) {
           const directUrl = `https://dl.neatbarb.box.ca/${rpath}`;
-          logToFile(`[Route] transforming proxy URL to direct: from=${file.url} to=${directUrl}`);
+          logToFile(`[Route] Direct Routing Engaged: remote=${remote || 'Unknown'} to=${directUrl}`);
           file.url = directUrl;
         }
       }
     } catch (e) {
-      logToFile(`[Route] failed to transform URL: ${e.message}`);
+      logToFile(`[Route] Failed universal transformation: ${e.message}`);
     }
 
     updateProgress(downloadId);
