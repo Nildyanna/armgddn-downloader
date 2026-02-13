@@ -3,7 +3,7 @@ async function showConfirmDialog(title, message, yesText = 'Yes', noText = 'No')
   const result = await window.electronAPI.showMessageBox({
     type: 'question',
     buttons: [noText, yesText],
-    defaultId: 0,
+    defaultId: 1, // Default to Yes
     title: title,
     message: message,
     detail: ''
@@ -11,471 +11,483 @@ async function showConfirmDialog(title, message, yesText = 'Yes', noText = 'No')
   return result === 1; // yesText is index 1
 }
 
+// Helper: show native alert dialog
+async function showAlertDialog(title, message) {
+  await window.electronAPI.showMessageBox({
+    type: 'info',
+    buttons: ['OK'],
+    defaultId: 0,
+    title: title,
+    message: message,
+    detail: ''
+  });
+}
+
 // ARMGDDN Downloader - Electron Renderer
-(function() {
-'use strict';
+(function () {
+  'use strict';
 
-const api = window.electronAPI;
+  const api = window.electronAPI;
 
-// State
-let downloads = new Map();
+  // State
+  let downloads = new Map();
 
-function normalizeActiveFiles(value) {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  if (typeof value === 'object') return Object.values(value);
-  return [];
-}
-let settings = {};
-
-let lastOverheadNotice = '';
-let lastEffectiveConcurrency = null;
-
-function setOverheadNotice(text) {
-  const banner = document.getElementById('overhead-notice');
-  const textEl = document.getElementById('overhead-notice-text');
-  if (!banner || !textEl) return;
-
-  const msg = (text && typeof text === 'string') ? text.trim() : '';
-  if (!msg) {
-    banner.style.display = 'none';
-    textEl.textContent = '';
-    lastOverheadNotice = '';
-    return;
+  function normalizeActiveFiles(value) {
+    if (!value) return [];
+    if (Array.isArray(value)) return value;
+    if (typeof value === 'object') return Object.values(value);
+    return [];
   }
+  let settings = {};
 
-  lastOverheadNotice = msg;
-  textEl.textContent = msg;
-  banner.style.display = '';
-}
+  let lastOverheadNotice = '';
+  let lastEffectiveConcurrency = null;
 
-async function refreshServerLoad(manifestUrl) {
-  try {
-    const session = await api.getSessionStatus();
-    const token = session && session.token ? session.token : null;
-    if (!token) {
-      lastEffectiveConcurrency = null;
-      setOverheadNotice('');
+  function setOverheadNotice(text) {
+    const banner = document.getElementById('overhead-notice');
+    const textEl = document.getElementById('overhead-notice-text');
+    if (!banner || !textEl) return;
+
+    const msg = (text && typeof text === 'string') ? text.trim() : '';
+    if (!msg) {
+      banner.style.display = 'none';
+      textEl.textContent = '';
+      lastOverheadNotice = '';
       return;
     }
 
-    const result = await api.getAppLoad(token, manifestUrl || '');
-    if (!result || result.success !== true || !result.concurrency) {
-      lastEffectiveConcurrency = null;
-      setOverheadNotice('');
-      return;
-    }
-
-    const effective = Number(result.concurrency.effective);
-    lastEffectiveConcurrency = Number.isFinite(effective) && effective > 0 ? effective : null;
-
-    const notice = result.concurrency.notice ? String(result.concurrency.notice) : '';
-    const requested = Number(settings && settings.maxConcurrentDownloads);
-    const effectiveNow = lastEffectiveConcurrency;
-    const shouldWarn = Number.isFinite(requested) && requested > 0 && Number.isFinite(effectiveNow) && effectiveNow > 0 && requested > effectiveNow;
-    const derivedNotice = shouldWarn
-      ? `Server load is high. Concurrent downloads may be throttled (${effectiveNow} / ${requested}).`
-      : '';
-    setOverheadNotice(notice || derivedNotice);
-  } catch (e) {
-    lastEffectiveConcurrency = null;
-    setOverheadNotice('');
+    lastOverheadNotice = msg;
+    textEl.textContent = msg;
+    banner.style.display = '';
   }
-}
 
-function formatBitRate(bitsPerSec) {
-  const n = Number(bitsPerSec);
-  const units = ['bp/s', 'Kbp/s', 'Mbp/s', 'Gbp/s', 'Tbp/s'];
-  if (!Number.isFinite(n) || n <= 0) return '0 bp/s';
-  const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1000)));
-  const value = n / Math.pow(1000, i);
-  const decimals = i >= 2 ? 1 : 0;
-  const s = value.toFixed(decimals).replace(/\.0$/, '');
-  return s + ' ' + units[i];
-}
-
-function formatBitRateFromMBps(mbPerSec) {
-  const mb = Number(mbPerSec);
-  if (!Number.isFinite(mb) || mb <= 0) return '';
-  return formatBitRate(mb * 1000 * 1000 * 8);
-}
-
-// Initialize
-async function init() {
-  // Load settings
-  settings = await api.getSettings();
-  updateSettingsUI();
-  
-  // Load history
-  await loadHistory();
-  
-  // Display version in UI and title bar
-  const version = await api.getVersion();
-  document.getElementById('version-display').textContent = `Version ${version}`;
-  document.title = `ARMGDDN Companion v${version}`;
-  
-  // Check connection status
-  checkConnectionStatus();
-  // Re-check connection status periodically
-  setInterval(checkConnectionStatus, 30000);
-
-  // Check server overhead periodically (used to lower concurrency and show notice)
-  refreshServerLoad();
-  setInterval(refreshServerLoad, 30000);
-  
-  // Setup event listeners
-  setupEventListeners();
-  
-  // Setup IPC listeners
-  setupIPCListeners();
-  
-  // Auto-check for updates on startup
-  // - If Auto-update is enabled, install automatically without prompting.
-  // - Otherwise, keep the existing "silent check" behavior (notify only if update exists).
-  if (settings && settings.autoUpdate) {
-    autoInstallUpdatesOnStartup();
-  } else {
-    checkForUpdatesSilent();
-  }
-}
-
-async function autoInstallUpdatesOnStartup() {
-  try {
-    // Check for active downloads before updating
-    const downloads = await api.getDownloads();
-    if (!Array.isArray(downloads)) {
-      console.error('Failed to get downloads list:', downloads);
-      // Proceed without prompting if we can't determine active downloads
-    } else {
-      const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
-      if (activeDownloads.length > 0) {
-        const proceed = await showConfirmDialog(
-          'Update Available',
-          `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
-          'Update Now',
-          'Wait'
-        );
-        if (!proceed) return; // User chose to wait
-        // User chose to update now; abandon active downloads
-        for (const d of activeDownloads) {
-          await api.cancelDownload(d.id);
-        }
-      }
-    }
-
-    const result = await api.checkUpdates();
-    if (!result || result.error) {
-      console.error('Auto-update check failed:', result && result.error ? result.error : 'unknown');
-      return;
-    }
-    if (!result.hasUpdate) return;
-    if (!result.installerUrl) {
-      console.warn('Auto-update available but no installer URL; skipping auto-install');
-      return;
-    }
-
-    // Fully automatic: do not prompt. Install silently and relaunch after install.
-    await api.installUpdate(result.installerUrl, { silent: true, relaunchAfterInstall: true, source: 'auto-update' });
-  } catch (e) {
-    console.error('Auto-update failed:', e && e.message ? e.message : e);
-  }
-}
-
-// Setup UI event listeners
-function setupEventListeners() {
-  // Settings
-  document.getElementById('settings-btn').addEventListener('click', openSettings);
-  document.getElementById('close-settings-btn').addEventListener('click', closeSettings);
-  document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
-  document.getElementById('browse-path-btn').addEventListener('click', browseDownloadPath);
-  const help7zBtn = document.getElementById('help-7z-btn');
-  if (help7zBtn) {
-    help7zBtn.addEventListener('click', openHelp7z);
-  }
-  const closeHelp7zBtn = document.getElementById('close-help-7z-btn');
-  if (closeHelp7zBtn) {
-    closeHelp7zBtn.addEventListener('click', closeHelp7z);
-  }
-  const help7zVideo = document.getElementById('help-7z-video');
-  if (help7zVideo) {
-    help7zVideo.addEventListener('loadedmetadata', () => {
-    });
-    help7zVideo.addEventListener('canplay', () => {
-    });
-    help7zVideo.addEventListener('error', () => {
-      const err = help7zVideo.error;
-      if (err) {
-        console.error('[7z-video] error event', { code: err.code, message: err.message });
-      } else {
-        console.error('[7z-video] error event with no mediaError object');
-      }
-    });
-  } else {
-    console.warn('[7z-video] element not found when initializing event listeners');
-  }
-  
-  // History
-  document.getElementById('history-btn').addEventListener('click', openHistory);
-  document.getElementById('close-history-btn').addEventListener('click', closeHistory);
-  document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
-  
-  // Updates
-  document.getElementById('check-updates-btn').addEventListener('click', checkForUpdates);
-}
-
-// Setup IPC listeners from main process
-function setupIPCListeners() {
-  // Deep link handler
-  api.onDeepLink((url) => {
-    handleDeepLink(url);
-  });
-  
-  // Download events
-  api.onDownloadStarted((data) => {
-    const normalized = { ...data, activeFiles: normalizeActiveFiles(data.activeFiles) };
-    downloads.set(data.id, normalized);
-    renderDownloads();
-    checkConnectionStatus();
-  });
-  
-  api.onDownloadProgress((data) => {
-    const download = downloads.get(data.id);
-    if (!download) {
-      // IPC ordering can occasionally deliver progress before started; don't drop the update.
-      downloads.set(data.id, { id: data.id, ...data, activeFiles: normalizeActiveFiles(data.activeFiles) });
-      renderDownloads();
-      return;
-    }
-    Object.assign(download, data);
-    if ('activeFiles' in data) {
-      download.activeFiles = normalizeActiveFiles(data.activeFiles);
-    }
-    renderDownloads();
-  });
-  
-  api.onDownloadCompleted((data) => {
-    const download = downloads.get(data.id);
-    if (download) {
-      download.status = 'completed';
-      download.progress = 100;
-      renderDownloads();
-    } else {
-      // If completion arrives before started/progress, create it so the UI reflects completion.
-      downloads.set(data.id, { id: data.id, status: 'completed', progress: 100 });
-      renderDownloads();
-    }
-  });
-  
-  api.onDownloadError((data) => {
-    const download = downloads.get(data.id);
-    if (!download) {
-      downloads.set(data.id, { id: data.id, status: 'error', error: data.error, progress: 0 });
-      renderDownloads();
-      return;
-    }
-    download.status = 'error';
-    download.error = data.error;
-    renderDownloads();
-  });
-  
-  api.onDownloadCancelled((data) => {
-    downloads.delete(data.id);
-    renderDownloads();
-  });
-}
-
-// Handle deep link
-async function handleDeepLink(url) {
-  try {
-    // Parse the URL:
-    // - Legacy: armgddn://download?manifest=MANIFEST_URL&token=TOKEN
-    // - New:    armgddn://download?downloadToken=DOWNLOAD_TOKEN&token=TOKEN
-    const urlObj = new URL(url);
-    let manifestUrl = urlObj.searchParams.get('manifest');
-    const downloadToken = urlObj.searchParams.get('downloadToken');
-    const token = urlObj.searchParams.get('token');
-    
-    if (!manifestUrl && downloadToken) {
-      const resolved = await api.resolveDownloadToken(downloadToken, token);
-      if (!resolved || !resolved.manifestUrl) {
-        console.error('Failed to resolve download token');
-        alert('Invalid download link: failed to resolve token');
+  async function refreshServerLoad(manifestUrl) {
+    try {
+      const session = await api.getSessionStatus();
+      const token = session && session.token ? session.token : null;
+      if (!token) {
+        lastEffectiveConcurrency = null;
+        setOverheadNotice('');
         return;
       }
-      manifestUrl = resolved.manifestUrl;
-    }
 
-    if (!manifestUrl) {
-      console.error('No manifest URL in deep link');
-      alert('Invalid download link: no manifest URL');
-      return;
+      const result = await api.getAppLoad(token, manifestUrl || '');
+      if (!result || result.success !== true || !result.concurrency) {
+        lastEffectiveConcurrency = null;
+        setOverheadNotice('');
+        return;
+      }
+
+      const effective = Number(result.concurrency.effective);
+      lastEffectiveConcurrency = Number.isFinite(effective) && effective > 0 ? effective : null;
+
+      const notice = result.concurrency.notice ? String(result.concurrency.notice) : '';
+      const requested = Number(settings && settings.maxConcurrentDownloads);
+      const effectiveNow = lastEffectiveConcurrency;
+      const shouldWarn = Number.isFinite(requested) && requested > 0 && Number.isFinite(effectiveNow) && effectiveNow > 0 && requested > effectiveNow;
+      const derivedNotice = shouldWarn
+        ? `Server load is high. Concurrent downloads may be throttled (${effectiveNow} / ${requested}).`
+        : '';
+      setOverheadNotice(notice || derivedNotice);
+    } catch (e) {
+      lastEffectiveConcurrency = null;
+      setOverheadNotice('');
     }
-    
-    // Accept either a direct https URL or a base64-encoded https URL
-    let manifestUrlStr = String(manifestUrl);
+  }
+
+  function formatBitRate(bitsPerSec) {
+    const n = Number(bitsPerSec);
+    const units = ['bp/s', 'Kbp/s', 'Mbp/s', 'Gbp/s', 'Tbp/s'];
+    if (!Number.isFinite(n) || n <= 0) return '0 bp/s';
+    const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1000)));
+    const value = n / Math.pow(1000, i);
+    const decimals = i >= 2 ? 1 : 0;
+    const s = value.toFixed(decimals).replace(/\.0$/, '');
+    return s + ' ' + units[i];
+  }
+
+  function formatBitRateFromMBps(mbPerSec) {
+    const mb = Number(mbPerSec);
+    if (!Number.isFinite(mb) || mb <= 0) return '';
+    return formatBitRate(mb * 1000 * 1000 * 8);
+  }
+
+  // Initialize
+  async function init() {
+    // Load settings
+    settings = await api.getSettings();
+    updateSettingsUI();
+
+    // Load history
+    await loadHistory();
+
+    // Display version in UI and title bar
+    const version = await api.getVersion();
+    document.getElementById('version-display').textContent = `Version ${version}`;
+    document.title = `ARMGDDN Companion v${version}`;
+
+    // Check connection status
+    checkConnectionStatus();
+    // Re-check connection status periodically
+    setInterval(checkConnectionStatus, 30000);
+
+    // Check server overhead periodically (used to lower concurrency and show notice)
+    refreshServerLoad();
+    setInterval(refreshServerLoad, 30000);
+
+    // Setup event listeners
+    setupEventListeners();
+
+    // Setup IPC listeners
+    setupIPCListeners();
+
+    // Auto-check for updates on startup
+    // - If Auto-update is enabled, install automatically without prompting.
+    // - Otherwise, keep the existing "silent check" behavior (notify only if update exists).
+    if (settings && settings.autoUpdate) {
+      autoInstallUpdatesOnStartup();
+    } else {
+      checkForUpdatesSilent();
+    }
+  }
+
+  async function autoInstallUpdatesOnStartup() {
     try {
-      const decoded = atob(manifestUrlStr);
-      if (decoded && typeof decoded === 'string' && decoded.startsWith('https://')) {
-        manifestUrlStr = decoded;
-      }
-    } catch (e) {}
-    
-    // Fetch the manifest via main process (bypasses CORS)
-    const manifest = await api.fetchManifest(manifestUrlStr, token);
-    
-    // Start download with token for progress reporting
-    // Pass manifestUrl so main process can report to the same server.
-    await api.startDownload(manifest, token, manifestUrlStr);
-    
-  } catch (error) {
-    console.error('Failed to handle deep link:', error);
-    alert(`Failed to start download: ${error.message}`);
-  }
-}
-
-// Throttle rendering to prevent flashing
-let renderScheduled = false;
-let lastRenderTime = 0;
-const RENDER_THROTTLE = 500; // Render at most every 500ms
-
-let deferredStructureRender = false;
-
-let lastStructureKey = '';
-
-function hasHoveredActionButton() {
-  try {
-    return !!document.querySelector('.download-actions button:hover');
-  } catch (e) {
-    return false;
-  }
-}
-
-function scheduleRender() {
-  if (renderScheduled) return;
-  
-  const now = Date.now();
-  const timeSinceLastRender = now - lastRenderTime;
-  
-  if (timeSinceLastRender >= RENDER_THROTTLE) {
-    // Render immediately
-    requestAnimationFrame(renderDownloadsNow);
-  } else {
-    // Schedule render
-    renderScheduled = true;
-    setTimeout(() => {
-      renderScheduled = false;
-      requestAnimationFrame(renderDownloadsNow);
-    }, RENDER_THROTTLE - timeSinceLastRender);
-  }
-}
-
-// Render downloads list - updates in place when possible
-function renderDownloads() {
-  scheduleRender();
-}
-
-function updateItemsInPlace(items, container) {
-  for (const [id, download] of items) {
-    const item = container.querySelector(`.download-item[data-id="${CSS.escape(String(id))}"]`);
-    if (!item) continue;
-
-    item.className = `download-item ${download.status}`;
-
-    const progressFill = item.querySelector('.progress-bar .progress-fill');
-    if (progressFill) {
-      progressFill.style.width = `${download.progress || 0}%`;
-    }
-
-    const stateEl = item.querySelector('.download-header .download-state');
-    if (stateEl) {
-      const statusDisplay = {
-        'starting': 'Starting',
-        'in_progress': 'In Progress',
-        'downloading': 'Downloading',
-        'extracting': 'Extracting, please wait..',
-        'completed': 'Completed',
-        'cancelled': 'Cancelled',
-        'error': 'Error',
-        'paused': 'Paused'
-      }[download.status] || download.status;
-      stateEl.textContent = statusDisplay;
-    }
-
-    const msgEl = item.querySelector('.download-status-message');
-    if (msgEl) {
-      const msg = download && typeof download.statusMessage === 'string' ? download.statusMessage : '';
-      msgEl.style.display = msg ? '' : 'none';
-      if (msg) {
-        msgEl.textContent = msg;
-      }
-    }
-
-    const extractionErr = download && typeof download.extractionError === 'string' ? download.extractionError : '';
-    const transferErr = download && typeof download.error === 'string' ? download.error : '';
-    const showErr = (download.status === 'error' && transferErr) || extractionErr;
-    const errMsg = (download.status === 'error' && transferErr) ? transferErr : extractionErr;
-    const errEl = item.querySelector('.download-error-message');
-    if (errEl) {
-      errEl.style.display = showErr ? '' : 'none';
-      if (showErr) {
-        errEl.textContent = errMsg;
-      }
-    }
-
-    const infoSpans = item.querySelectorAll('.download-info span');
-    const leftInfo = infoSpans && infoSpans.length ? infoSpans[0] : null;
-    const rightInfo = item.querySelector('.download-info .total-speed');
-
-    const hasMultipleFiles = download.fileCount > 1;
-    const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting' || download.status === 'extracting';
-    let completedFiles = download.completedFiles || 0;
-    if (download.status === 'completed' && hasMultipleFiles && download.fileCount) {
-      completedFiles = download.fileCount;
-    }
-    const fileCountText = hasMultipleFiles ? `${completedFiles}/${download.fileCount} files` : '';
-
-    const activeFilesCount = normalizeActiveFiles(download.activeFiles).length;
-    const workersSetting = Number(settings && settings.maxConcurrentDownloads);
-    const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
-    const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
-    const streamsText = (hasMultipleFiles && isRunning)
-      ? ` • Streams: ${activeFilesCount}/${workers}`
-      : '';
-
-    if (leftInfo) {
-      leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}`;
-    }
-    if (rightInfo) {
-      if (download.status === 'extracting' || download.status === 'completed') {
-        rightInfo.textContent = download.totalSpeed ? `Peak: ${download.totalSpeed}` : '';
+      // Check for active downloads before updating
+      const downloads = await api.getDownloads();
+      if (!Array.isArray(downloads)) {
+        console.error('Failed to get downloads list:', downloads);
+        // Proceed without prompting if we can't determine active downloads
       } else {
-        const capMb = Number(settings && settings.maxDownloadSpeedMBps);
-        const capStr = formatBitRateFromMBps(capMb);
-        const capText = (capStr && download.totalSpeed) ? ` (cap ${capStr})` : '';
-        rightInfo.textContent = download.totalSpeed
-          ? (hasMultipleFiles ? `Total: ${download.totalSpeed}${capText}` : `${download.totalSpeed}${capText}`)
-          : '';
+        const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
+        if (activeDownloads.length > 0) {
+          const proceed = await showConfirmDialog(
+            'Update Available',
+            `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
+            'Update Now',
+            'Wait'
+          );
+          if (!proceed) return; // User chose to wait
+          // User chose to update now; abandon active downloads
+          for (const d of activeDownloads) {
+            await api.cancelDownload(d.id);
+          }
+        }
       }
+
+      const result = await api.checkUpdates();
+      if (!result || result.error) {
+        console.error('Auto-update check failed:', result && result.error ? result.error : 'unknown');
+        return;
+      }
+      if (!result.hasUpdate) return;
+      if (!result.installerUrl) {
+        console.warn('Auto-update available but no installer URL; skipping auto-install');
+        return;
+      }
+
+      // Fully automatic: do not prompt. Install silently and relaunch after install.
+      await api.installUpdate(result.installerUrl, { silent: true, relaunchAfterInstall: true, source: 'auto-update' });
+    } catch (e) {
+      console.error('Auto-update failed:', e && e.message ? e.message : e);
+    }
+  }
+
+  // Setup UI event listeners
+  function setupEventListeners() {
+    // Settings
+    document.getElementById('settings-btn').addEventListener('click', openSettings);
+    document.getElementById('close-settings-btn').addEventListener('click', closeSettings);
+    document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
+    document.getElementById('browse-path-btn').addEventListener('click', browseDownloadPath);
+    const help7zBtn = document.getElementById('help-7z-btn');
+    if (help7zBtn) {
+      help7zBtn.addEventListener('click', openHelp7z);
+    }
+    const closeHelp7zBtn = document.getElementById('close-help-7z-btn');
+    if (closeHelp7zBtn) {
+      closeHelp7zBtn.addEventListener('click', closeHelp7z);
+    }
+    const help7zVideo = document.getElementById('help-7z-video');
+    if (help7zVideo) {
+      help7zVideo.addEventListener('loadedmetadata', () => {
+      });
+      help7zVideo.addEventListener('canplay', () => {
+      });
+      help7zVideo.addEventListener('error', () => {
+        const err = help7zVideo.error;
+        if (err) {
+          console.error('[7z-video] error event', { code: err.code, message: err.message });
+        } else {
+          console.error('[7z-video] error event with no mediaError object');
+        }
+      });
+    } else {
+      console.warn('[7z-video] element not found when initializing event listeners');
     }
 
-    const extractingEl = item.querySelector('.download-extracting-message');
-    if (extractingEl) {
-      extractingEl.style.display = download.status === 'extracting' ? '' : 'none';
-    }
+    // History
+    document.getElementById('history-btn').addEventListener('click', openHistory);
+    document.getElementById('close-history-btn').addEventListener('click', closeHistory);
+    document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
 
-    const activeFilesEl = item.querySelector('.active-files');
-    if (activeFilesEl) {
-      const activeFiles = normalizeActiveFiles(download.activeFiles);
-      const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && activeFiles.length > 0;
-      if (showActiveFiles) {
-        const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
-        const workersSetting = Number(settings && settings.maxConcurrentDownloads);
-        const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
-        const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
-        const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
-        const perWorkerStr = formatBitRateFromMBps(perWorker);
-        const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';
-        activeFilesEl.innerHTML = activeFiles.map(f => `
+    // Updates
+    document.getElementById('check-updates-btn').addEventListener('click', checkForUpdates);
+  }
+
+  // Setup IPC listeners from main process
+  function setupIPCListeners() {
+    // Deep link handler
+    api.onDeepLink((url) => {
+      handleDeepLink(url);
+    });
+
+    // Download events
+    api.onDownloadStarted((data) => {
+      const normalized = { ...data, activeFiles: normalizeActiveFiles(data.activeFiles) };
+      downloads.set(data.id, normalized);
+      renderDownloads();
+      checkConnectionStatus();
+    });
+
+    api.onDownloadProgress((data) => {
+      const download = downloads.get(data.id);
+      if (!download) {
+        // IPC ordering can occasionally deliver progress before started; don't drop the update.
+        downloads.set(data.id, { id: data.id, ...data, activeFiles: normalizeActiveFiles(data.activeFiles) });
+        renderDownloads();
+        return;
+      }
+      Object.assign(download, data);
+      if ('activeFiles' in data) {
+        download.activeFiles = normalizeActiveFiles(data.activeFiles);
+      }
+      renderDownloads();
+    });
+
+    api.onDownloadCompleted((data) => {
+      const download = downloads.get(data.id);
+      if (download) {
+        download.status = 'completed';
+        download.progress = 100;
+        renderDownloads();
+      } else {
+        // If completion arrives before started/progress, create it so the UI reflects completion.
+        downloads.set(data.id, { id: data.id, status: 'completed', progress: 100 });
+        renderDownloads();
+      }
+    });
+
+    api.onDownloadError((data) => {
+      const download = downloads.get(data.id);
+      if (!download) {
+        downloads.set(data.id, { id: data.id, status: 'error', error: data.error, progress: 0 });
+        renderDownloads();
+        return;
+      }
+      download.status = 'error';
+      download.error = data.error;
+      renderDownloads();
+    });
+
+    api.onDownloadCancelled((data) => {
+      downloads.delete(data.id);
+      renderDownloads();
+    });
+  }
+
+  // Handle deep link
+  async function handleDeepLink(url) {
+    try {
+      // Parse the URL:
+      // - Legacy: armgddn://download?manifest=MANIFEST_URL&token=TOKEN
+      // - New:    armgddn://download?downloadToken=DOWNLOAD_TOKEN&token=TOKEN
+      const urlObj = new URL(url);
+      let manifestUrl = urlObj.searchParams.get('manifest');
+      const downloadToken = urlObj.searchParams.get('downloadToken');
+      const token = urlObj.searchParams.get('token');
+
+      if (!manifestUrl && downloadToken) {
+        const resolved = await api.resolveDownloadToken(downloadToken, token);
+        if (!resolved || !resolved.manifestUrl) {
+          console.error('Failed to resolve download token');
+          alert('Invalid download link: failed to resolve token');
+          return;
+        }
+        manifestUrl = resolved.manifestUrl;
+      }
+
+      if (!manifestUrl) {
+        console.error('No manifest URL in deep link');
+        alert('Invalid download link: no manifest URL');
+        return;
+      }
+
+      // Accept either a direct https URL or a base64-encoded https URL
+      let manifestUrlStr = String(manifestUrl);
+      try {
+        const decoded = atob(manifestUrlStr);
+        if (decoded && typeof decoded === 'string' && decoded.startsWith('https://')) {
+          manifestUrlStr = decoded;
+        }
+      } catch (e) { }
+
+      // Fetch the manifest via main process (bypasses CORS)
+      const manifest = await api.fetchManifest(manifestUrlStr, token);
+
+      // Start download with token for progress reporting
+      // Pass manifestUrl so main process can report to the same server.
+      await api.startDownload(manifest, token, manifestUrlStr);
+
+    } catch (error) {
+      console.error('Failed to handle deep link:', error);
+      alert(`Failed to start download: ${error.message}`);
+    }
+  }
+
+  // Throttle rendering to prevent flashing
+  let renderScheduled = false;
+  let lastRenderTime = 0;
+  const RENDER_THROTTLE = 500; // Render at most every 500ms
+
+  let deferredStructureRender = false;
+
+  let lastStructureKey = '';
+
+  function hasHoveredActionButton() {
+    try {
+      return !!document.querySelector('.download-actions button:hover');
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function scheduleRender() {
+    if (renderScheduled) return;
+
+    const now = Date.now();
+    const timeSinceLastRender = now - lastRenderTime;
+
+    if (timeSinceLastRender >= RENDER_THROTTLE) {
+      // Render immediately
+      requestAnimationFrame(renderDownloadsNow);
+    } else {
+      // Schedule render
+      renderScheduled = true;
+      setTimeout(() => {
+        renderScheduled = false;
+        requestAnimationFrame(renderDownloadsNow);
+      }, RENDER_THROTTLE - timeSinceLastRender);
+    }
+  }
+
+  // Render downloads list - updates in place when possible
+  function renderDownloads() {
+    scheduleRender();
+  }
+
+  function updateItemsInPlace(items, container) {
+    for (const [id, download] of items) {
+      const item = container.querySelector(`.download-item[data-id="${CSS.escape(String(id))}"]`);
+      if (!item) continue;
+
+      item.className = `download-item ${download.status}`;
+
+      const progressFill = item.querySelector('.progress-bar .progress-fill');
+      if (progressFill) {
+        progressFill.style.width = `${download.progress || 0}%`;
+      }
+
+      const stateEl = item.querySelector('.download-header .download-state');
+      if (stateEl) {
+        const statusDisplay = {
+          'starting': 'Starting',
+          'in_progress': 'In Progress',
+          'downloading': 'Downloading',
+          'extracting': 'Extracting, please wait..',
+          'completed': 'Completed',
+          'cancelled': 'Cancelled',
+          'error': 'Error',
+          'paused': 'Paused'
+        }[download.status] || download.status;
+        stateEl.textContent = statusDisplay;
+      }
+
+      const msgEl = item.querySelector('.download-status-message');
+      if (msgEl) {
+        const msg = download && typeof download.statusMessage === 'string' ? download.statusMessage : '';
+        msgEl.style.display = msg ? '' : 'none';
+        if (msg) {
+          msgEl.textContent = msg;
+        }
+      }
+
+      const extractionErr = download && typeof download.extractionError === 'string' ? download.extractionError : '';
+      const transferErr = download && typeof download.error === 'string' ? download.error : '';
+      const showErr = (download.status === 'error' && transferErr) || extractionErr;
+      const errMsg = (download.status === 'error' && transferErr) ? transferErr : extractionErr;
+      const errEl = item.querySelector('.download-error-message');
+      if (errEl) {
+        errEl.style.display = showErr ? '' : 'none';
+        if (showErr) {
+          errEl.textContent = errMsg;
+        }
+      }
+
+      const infoSpans = item.querySelectorAll('.download-info span');
+      const leftInfo = infoSpans && infoSpans.length ? infoSpans[0] : null;
+      const rightInfo = item.querySelector('.download-info .total-speed');
+
+      const hasMultipleFiles = download.fileCount > 1;
+      const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting' || download.status === 'extracting';
+      let completedFiles = download.completedFiles || 0;
+      if (download.status === 'completed' && hasMultipleFiles && download.fileCount) {
+        completedFiles = download.fileCount;
+      }
+      const fileCountText = hasMultipleFiles ? `${completedFiles}/${download.fileCount} files` : '';
+
+      const activeFilesCount = normalizeActiveFiles(download.activeFiles).length;
+      const workersSetting = Number(settings && settings.maxConcurrentDownloads);
+      const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+      const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
+      const streamsText = (hasMultipleFiles && isRunning)
+        ? ` • Streams: ${activeFilesCount}/${workers}`
+        : '';
+
+      if (leftInfo) {
+        leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}`;
+      }
+      if (rightInfo) {
+        if (download.status === 'extracting' || download.status === 'completed') {
+          rightInfo.textContent = download.totalSpeed ? `Peak: ${download.totalSpeed}` : '';
+        } else {
+          const capMb = Number(settings && settings.maxDownloadSpeedMBps);
+          const capStr = formatBitRateFromMBps(capMb);
+          const capText = (capStr && download.totalSpeed) ? ` (cap ${capStr})` : '';
+          rightInfo.textContent = download.totalSpeed
+            ? (hasMultipleFiles ? `Total: ${download.totalSpeed}${capText}` : `${download.totalSpeed}${capText}`)
+            : '';
+        }
+      }
+
+      const extractingEl = item.querySelector('.download-extracting-message');
+      if (extractingEl) {
+        extractingEl.style.display = download.status === 'extracting' ? '' : 'none';
+      }
+
+      const activeFilesEl = item.querySelector('.active-files');
+      if (activeFilesEl) {
+        const activeFiles = normalizeActiveFiles(download.activeFiles);
+        const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && activeFiles.length > 0;
+        if (showActiveFiles) {
+          const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
+          const workersSetting = Number(settings && settings.maxConcurrentDownloads);
+          const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+          const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
+          const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
+          const perWorkerStr = formatBitRateFromMBps(perWorker);
+          const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';
+          activeFilesEl.innerHTML = activeFiles.map(f => `
           <div class="file-progress">
             <div class="file-progress-header">
               <span class="file-name">${escapeHtml(f.name)}</span>
@@ -486,144 +498,144 @@ function updateItemsInPlace(items, container) {
             </div>
           </div>
         `).join('');
-      } else {
-        activeFilesEl.innerHTML = '';
+        } else {
+          activeFilesEl.innerHTML = '';
+        }
       }
     }
   }
-}
 
-function renderDownloadsNow() {
-  const now = Date.now();
-  const container = document.getElementById('downloads-list');
-  
-  if (downloads.size === 0) {
-    container.innerHTML = '<div class="empty-state">No downloads yet. Click "Download with App" on the website to get started.</div>';
-    lastRenderTime = now;
-    return;
-  }
-  
-  // Create a sorted list that preserves batch/group adjacency even as items complete.
-  // Previously we sorted "all active first" globally, which caused completed items to
-  // jump away into a separate cluster mid-batch.
-  const items = Array.from(downloads.entries());
+  function renderDownloadsNow() {
+    const now = Date.now();
+    const container = document.getElementById('downloads-list');
 
-  const isActive = (d) => d && (d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting' || d.status === 'extracting');
+    if (downloads.size === 0) {
+      container.innerHTML = '<div class="empty-state">No downloads yet. Click "Download with App" on the website to get started.</div>';
+      lastRenderTime = now;
+      return;
+    }
 
-  function getGroupKey(d) {
-    try {
-      const raw = d && d.remotePath ? String(d.remotePath) : '';
-      const p = raw.replace(/\\/g, '/').trim().replace(/\/+$/g, '').replace(/^\/+/, '');
-      if (p) {
-        const parts = p.split('/').filter(Boolean);
-        if (parts.length >= 2) return `${parts[0]}/${parts[1]}`;
-        return parts[0] || '';
+    // Create a sorted list that preserves batch/group adjacency even as items complete.
+    // Previously we sorted "all active first" globally, which caused completed items to
+    // jump away into a separate cluster mid-batch.
+    const items = Array.from(downloads.entries());
+
+    const isActive = (d) => d && (d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting' || d.status === 'extracting');
+
+    function getGroupKey(d) {
+      try {
+        const raw = d && d.remotePath ? String(d.remotePath) : '';
+        const p = raw.replace(/\\/g, '/').trim().replace(/\/+$/g, '').replace(/^\/+/, '');
+        if (p) {
+          const parts = p.split('/').filter(Boolean);
+          if (parts.length >= 2) return `${parts[0]}/${parts[1]}`;
+          return parts[0] || '';
+        }
+        return d && d.name ? String(d.name) : '';
+      } catch (e) {
+        return d && d.name ? String(d.name) : '';
       }
-      return d && d.name ? String(d.name) : '';
-    } catch (e) {
-      return d && d.name ? String(d.name) : '';
-    }
-  }
-
-  const groupOrder = new Map(); // groupKey -> { lastStartMs }
-  for (const [, d] of items) {
-    const gk = getGroupKey(d) || '__ungrouped__';
-    const t = d && d.startTime ? new Date(d.startTime).getTime() : 0;
-    const prev = groupOrder.get(gk);
-    if (!prev || t > prev.lastStartMs) {
-      groupOrder.set(gk, { lastStartMs: t });
-    }
-  }
-
-  items.sort((a, b) => {
-    const da = a[1];
-    const db = b[1];
-    const ga = getGroupKey(da) || '__ungrouped__';
-    const gb = getGroupKey(db) || '__ungrouped__';
-
-    if (ga !== gb) {
-      const ta = groupOrder.get(ga)?.lastStartMs || 0;
-      const tb = groupOrder.get(gb)?.lastStartMs || 0;
-      return tb - ta; // newest group first
     }
 
-    const aActive = isActive(da);
-    const bActive = isActive(db);
-    if (aActive !== bActive) {
-      return aActive ? -1 : 1; // active first within the group
+    const groupOrder = new Map(); // groupKey -> { lastStartMs }
+    for (const [, d] of items) {
+      const gk = getGroupKey(d) || '__ungrouped__';
+      const t = d && d.startTime ? new Date(d.startTime).getTime() : 0;
+      const prev = groupOrder.get(gk);
+      if (!prev || t > prev.lastStartMs) {
+        groupOrder.set(gk, { lastStartMs: t });
+      }
     }
 
-    const aTime = da && da.startTime ? new Date(da.startTime).getTime() : 0;
-    const bTime = db && db.startTime ? new Date(db.startTime).getTime() : 0;
-    return bTime - aTime; // newest first within group
-  });
+    items.sort((a, b) => {
+      const da = a[1];
+      const db = b[1];
+      const ga = getGroupKey(da) || '__ungrouped__';
+      const gb = getGroupKey(db) || '__ungrouped__';
 
-  // If only progress numbers are changing, update the existing DOM in-place to
-  // avoid hover flicker (Pause button re-created under the cursor).
-  const structureKey = items.map(([id, d]) => {
-    const hasErr = d && d.error ? 1 : 0;
-    const hasExtractionErr = d && d.extractionError ? 1 : 0;
-    const fc = d && typeof d.fileCount === 'number' ? d.fileCount : 0;
-    return `${id}:${d && d.status ? d.status : ''}:${fc}:${hasErr}:${hasExtractionErr}`;
-  }).join('|');
+      if (ga !== gb) {
+        const ta = groupOrder.get(ga)?.lastStartMs || 0;
+        const tb = groupOrder.get(gb)?.lastStartMs || 0;
+        return tb - ta; // newest group first
+      }
 
-  const prevStructureKey = lastStructureKey;
-  const structureChanged = !!(prevStructureKey && structureKey !== prevStructureKey);
-  const hovering = hasHoveredActionButton();
+      const aActive = isActive(da);
+      const bActive = isActive(db);
+      if (aActive !== bActive) {
+        return aActive ? -1 : 1; // active first within the group
+      }
 
-  if (hovering && structureChanged && container.children.length > 0) {
-    updateItemsInPlace(items, container);
-    if (!deferredStructureRender) {
-      deferredStructureRender = true;
-      setTimeout(() => {
-        deferredStructureRender = false;
-        renderDownloadsNow();
-      }, 100);
-    }
-    lastRenderTime = now;
-    return;
-  }
+      const aTime = da && da.startTime ? new Date(da.startTime).getTime() : 0;
+      const bTime = db && db.startTime ? new Date(db.startTime).getTime() : 0;
+      return bTime - aTime; // newest first within group
+    });
 
-  const canUpdateInPlace = container.children.length > 0 && prevStructureKey && structureKey === prevStructureKey;
-  lastStructureKey = structureKey;
+    // If only progress numbers are changing, update the existing DOM in-place to
+    // avoid hover flicker (Pause button re-created under the cursor).
+    const structureKey = items.map(([id, d]) => {
+      const hasErr = d && d.error ? 1 : 0;
+      const hasExtractionErr = d && d.extractionError ? 1 : 0;
+      const fc = d && typeof d.fileCount === 'number' ? d.fileCount : 0;
+      return `${id}:${d && d.status ? d.status : ''}:${fc}:${hasErr}:${hasExtractionErr}`;
+    }).join('|');
 
-  if (canUpdateInPlace) {
-    updateItemsInPlace(items, container);
-    lastRenderTime = now;
-    return;
-  }
+    const prevStructureKey = lastStructureKey;
+    const structureChanged = !!(prevStructureKey && structureKey !== prevStructureKey);
+    const hovering = hasHoveredActionButton();
 
-  // Structure changed; clear and fully rebuild list.
-  container.innerHTML = '';
-
-  // Render each download item
-  for (const [id, download] of items) {
-    const item = document.createElement('div');
-    item.className = `download-item ${download.status}`;
-    item.dataset.id = id;
-    container.appendChild(item);
-    
-    const hasMultipleFiles = download.fileCount > 1;
-
-    // Clamp completedFiles for completed downloads so header always shows N/N
-    let completedFiles = download.completedFiles || 0;
-    if (download.status === 'completed' && hasMultipleFiles && download.fileCount) {
-      completedFiles = download.fileCount;
+    if (hovering && structureChanged && container.children.length > 0) {
+      updateItemsInPlace(items, container);
+      if (!deferredStructureRender) {
+        deferredStructureRender = true;
+        setTimeout(() => {
+          deferredStructureRender = false;
+          renderDownloadsNow();
+        }, 100);
+      }
+      lastRenderTime = now;
+      return;
     }
 
-    // Build active files list - only show when not fully completed
-    let activeFilesHtml = '';
-    const activeFiles = normalizeActiveFiles(download.activeFiles);
-    const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && activeFiles.length > 0;
-    if (showActiveFiles) {
-      const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
-      const workersSetting = Number(settings && settings.maxConcurrentDownloads);
-      const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
-      const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
-      const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
-      const perWorkerStr = formatBitRateFromMBps(perWorker);
-      const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';
-      activeFilesHtml = activeFiles.map(f => `
+    const canUpdateInPlace = container.children.length > 0 && prevStructureKey && structureKey === prevStructureKey;
+    lastStructureKey = structureKey;
+
+    if (canUpdateInPlace) {
+      updateItemsInPlace(items, container);
+      lastRenderTime = now;
+      return;
+    }
+
+    // Structure changed; clear and fully rebuild list.
+    container.innerHTML = '';
+
+    // Render each download item
+    for (const [id, download] of items) {
+      const item = document.createElement('div');
+      item.className = `download-item ${download.status}`;
+      item.dataset.id = id;
+      container.appendChild(item);
+
+      const hasMultipleFiles = download.fileCount > 1;
+
+      // Clamp completedFiles for completed downloads so header always shows N/N
+      let completedFiles = download.completedFiles || 0;
+      if (download.status === 'completed' && hasMultipleFiles && download.fileCount) {
+        completedFiles = download.fileCount;
+      }
+
+      // Build active files list - only show when not fully completed
+      let activeFilesHtml = '';
+      const activeFiles = normalizeActiveFiles(download.activeFiles);
+      const showActiveFiles = hasMultipleFiles && download.status !== 'completed' && activeFiles.length > 0;
+      if (showActiveFiles) {
+        const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
+        const workersSetting = Number(settings && settings.maxConcurrentDownloads);
+        const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+        const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
+        const perWorker = Number.isFinite(maxMb) && maxMb > 0 ? (maxMb / workers) : 0;
+        const perWorkerStr = formatBitRateFromMBps(perWorker);
+        const perFileCapText = perWorkerStr ? ` (cap ${perWorkerStr})` : '';
+        activeFilesHtml = activeFiles.map(f => `
         <div class="file-progress">
           <div class="file-progress-header">
             <span class="file-name">${escapeHtml(f.name)}</span>
@@ -634,43 +646,43 @@ function renderDownloadsNow() {
           </div>
         </div>
       `).join('');
-    }
-    
-    const fileCountText = hasMultipleFiles 
-      ? `${completedFiles}/${download.fileCount} files` 
-      : '';
+      }
 
-    const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting' || download.status === 'extracting';
-    const activeFilesCount = activeFiles.length;
-    const workersSetting = Number(settings && settings.maxConcurrentDownloads);
-    const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
-    const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
-    const streamsText = (hasMultipleFiles && isRunning)
-      ? ` • Streams: ${activeFilesCount}/${workers}`
-      : '';
-    
-    // Format status for display
-    const statusDisplay = {
-      'starting': 'Starting',
-      'in_progress': 'In Progress',
-      'downloading': 'Downloading',
-      'extracting': 'Extracting, please wait..',
-      'completed': 'Completed',
-      'cancelled': 'Cancelled',
-      'error': 'Error',
-      'paused': 'Paused'
-    }[download.status] || download.status;
-    
-    const canPause = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting';
-    const isPaused = download.status === 'paused';
-    const canCancel = isRunning || isPaused;
-    
-    const extractionErr = download && typeof download.extractionError === 'string' ? download.extractionError : '';
-    const transferErr = download && typeof download.error === 'string' ? download.error : '';
-    const errMsg = (download.status === 'error' && transferErr) ? transferErr : extractionErr;
-    const showErrMsg = (download.status === 'error' && transferErr) || extractionErr;
+      const fileCountText = hasMultipleFiles
+        ? `${completedFiles}/${download.fileCount} files`
+        : '';
 
-    item.innerHTML = `
+      const isRunning = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting' || download.status === 'extracting';
+      const activeFilesCount = activeFiles.length;
+      const workersSetting = Number(settings && settings.maxConcurrentDownloads);
+      const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(workersSetting) ? workersSetting : 3));
+      const workers = lastEffectiveConcurrency ? Math.min(requestedWorkers, lastEffectiveConcurrency) : requestedWorkers;
+      const streamsText = (hasMultipleFiles && isRunning)
+        ? ` • Streams: ${activeFilesCount}/${workers}`
+        : '';
+
+      // Format status for display
+      const statusDisplay = {
+        'starting': 'Starting',
+        'in_progress': 'In Progress',
+        'downloading': 'Downloading',
+        'extracting': 'Extracting, please wait..',
+        'completed': 'Completed',
+        'cancelled': 'Cancelled',
+        'error': 'Error',
+        'paused': 'Paused'
+      }[download.status] || download.status;
+
+      const canPause = download.status === 'downloading' || download.status === 'in_progress' || download.status === 'starting';
+      const isPaused = download.status === 'paused';
+      const canCancel = isRunning || isPaused;
+
+      const extractionErr = download && typeof download.extractionError === 'string' ? download.extractionError : '';
+      const transferErr = download && typeof download.error === 'string' ? download.error : '';
+      const errMsg = (download.status === 'error' && transferErr) ? transferErr : extractionErr;
+      const showErrMsg = (download.status === 'error' && transferErr) || extractionErr;
+
+      item.innerHTML = `
       <div class="download-header">
         <span class="download-filename">${escapeHtml(download.name)}</span>
         <span class="download-state">${statusDisplay}</span>
@@ -697,262 +709,262 @@ function renderDownloadsNow() {
         ${download.status === 'error' ? `<button class="retry-btn" data-download-id="${id}">Retry</button>` : ''}
       </div>
     `;
-    
-    // Attach event listeners directly instead of using onclick
-    const cancelBtn = item.querySelector('.cancel-btn');
-    if (cancelBtn) {
-      cancelBtn.onclick = () => cancelDownload(id);
-    }
-    const pauseBtn = item.querySelector('.pause-btn');
-    if (pauseBtn) {
-      pauseBtn.onclick = () => pauseDownload(id);
-    }
-    const resumeBtn = item.querySelector('.resume-btn');
-    if (resumeBtn) {
-      resumeBtn.onclick = () => resumeDownload(id);
-    }
-    const openBtn = item.querySelector('.open-folder-btn');
-    if (openBtn) {
-      openBtn.onclick = () => openDownloadFolder();
-    }
-    const retryBtn = item.querySelector('.retry-btn');
-    if (retryBtn) {
-      retryBtn.onclick = () => retryDownload(id);
-    }
-  }
 
-  lastRenderTime = now;
-}
-
-// Cancel download
-async function cancelDownload(id) {
-  const confirmed = await showConfirmDialog(
-    'Cancel Download',
-    'If you cancel this download, completed files will not need to be redownloaded, but incomplete files will not resume and must be restarted. Are you sure you want to cancel?'
-  );
-  if (!confirmed) return;
-  await api.cancelDownload(id);
-  downloads.delete(id);
-  renderDownloads();
-}
-
-async function pauseDownload(id) {
-  const confirmed = await showConfirmDialog(
-    'Pause Download',
-    'If you pause this download, completed files will not need to be redownloaded, but incomplete files will not resume and must be restarted when you resume. Are you sure you want to pause?'
-  );
-  if (!confirmed) return;
-  const ok = await api.pauseDownload(id);
-  if (!ok) return;
-  const download = downloads.get(id);
-  if (download) {
-    download.status = 'paused';
-    renderDownloads();
-  }
-}
-
-async function resumeDownload(id) {
-  const download = downloads.get(id);
-  const prevStatus = download ? download.status : null;
-  if (download && download.status !== 'completed') {
-    download.status = 'in_progress';
-    renderDownloads();
-  }
-
-  const ok = await api.resumeDownload(id);
-  if (!ok) {
-    // If resume was rejected, restore previous status (unless it already completed via IPC).
-    const d2 = downloads.get(id);
-    if (d2 && d2.status !== 'completed' && prevStatus) {
-      d2.status = prevStatus;
-      renderDownloads();
-    }
-    return;
-  }
-}
-
-async function retryDownload(id) {
-  const download = downloads.get(id);
-  const prevStatus = download ? download.status : null;
-  const prevError = download ? download.error : null;
-
-  if (download && download.status !== 'completed') {
-    download.status = 'in_progress';
-    download.error = '';
-    renderDownloads();
-  }
-
-  const ok = await api.retryDownload(id);
-  if (!ok) {
-    const d2 = downloads.get(id);
-    if (d2 && d2.status !== 'completed') {
-      if (prevStatus) d2.status = prevStatus;
-      if (typeof prevError === 'string') d2.error = prevError;
-      renderDownloads();
-    }
-    return;
-  }
-}
-
-// Open download folder
-async function openDownloadFolder() {
-  await api.openFolder(settings.downloadPath);
-}
-
-// Settings
-function openSettings() {
-  document.getElementById('settings-panel').style.display = 'block';
-}
-
-function closeSettings() {
-  document.getElementById('settings-panel').style.display = 'none';
-}
-
-async function openHelp7z() {
-  const panel = document.getElementById('help-7z-panel');
-  if (!panel) return;
-  panel.style.display = 'block';
-  const video = document.getElementById('help-7z-video');
-  if (video) {
-    try {
-      const src = await api.getHelp7zVideoSrc();
-      video.src = src;
-      video.load();
-      video.currentTime = 0;
-      try {
-        await video.play();
-      } catch (playErr) {
-        console.warn('[7z-video] autoplay failed, video will remain paused', playErr);
+      // Attach event listeners directly instead of using onclick
+      const cancelBtn = item.querySelector('.cancel-btn');
+      if (cancelBtn) {
+        cancelBtn.onclick = () => cancelDownload(id);
       }
-    } catch (e) {
-      console.error('[7z-video] failed to set help video src', e);
+      const pauseBtn = item.querySelector('.pause-btn');
+      if (pauseBtn) {
+        pauseBtn.onclick = () => pauseDownload(id);
+      }
+      const resumeBtn = item.querySelector('.resume-btn');
+      if (resumeBtn) {
+        resumeBtn.onclick = () => resumeDownload(id);
+      }
+      const openBtn = item.querySelector('.open-folder-btn');
+      if (openBtn) {
+        openBtn.onclick = () => openDownloadFolder();
+      }
+      const retryBtn = item.querySelector('.retry-btn');
+      if (retryBtn) {
+        retryBtn.onclick = () => retryDownload(id);
+      }
+    }
+
+    lastRenderTime = now;
+  }
+
+  // Cancel download
+  async function cancelDownload(id) {
+    const confirmed = await showConfirmDialog(
+      'Cancel Download',
+      'If you cancel this download, completed files will not need to be redownloaded, but incomplete files will not resume and must be restarted. Are you sure you want to cancel?'
+    );
+    if (!confirmed) return;
+    await api.cancelDownload(id);
+    downloads.delete(id);
+    renderDownloads();
+  }
+
+  async function pauseDownload(id) {
+    const confirmed = await showConfirmDialog(
+      'Pause Download',
+      'If you pause this download, completed files will not need to be redownloaded, but incomplete files will not resume and must be restarted when you resume. Are you sure you want to pause?'
+    );
+    if (!confirmed) return;
+    const ok = await api.pauseDownload(id);
+    if (!ok) return;
+    const download = downloads.get(id);
+    if (download) {
+      download.status = 'paused';
+      renderDownloads();
     }
   }
-}
 
-function closeHelp7z() {
-  const panel = document.getElementById('help-7z-panel');
-  if (!panel) return;
-  panel.style.display = 'none';
-  const video = document.getElementById('help-7z-video');
-  if (video && typeof video.pause === 'function') {
-    try {
-      video.pause();
-    } catch (e) {}
-  }
-}
+  async function resumeDownload(id) {
+    const download = downloads.get(id);
+    const prevStatus = download ? download.status : null;
+    if (download && download.status !== 'completed') {
+      download.status = 'in_progress';
+      renderDownloads();
+    }
 
-function updateSettingsUI() {
-  document.getElementById('download-path').value = settings.downloadPath || '';
-  document.getElementById('max-concurrent').value = settings.maxConcurrentDownloads || 2;
-  const maxSpeedEl = document.getElementById('max-speed-mbps');
-  if (maxSpeedEl) {
-    const v = Number(settings.maxDownloadSpeedMBps);
-    maxSpeedEl.value = Number.isFinite(v) && v > 0 ? String(Math.round(v)) : '';
-  }
-  const autoExtractEl = document.getElementById('auto-extract-7z');
-  if (autoExtractEl) {
-    autoExtractEl.checked = !!settings.autoExtract7z;
-  }
-  document.getElementById('show-notifications').checked = settings.showNotifications !== false;
-  document.getElementById('minimize-to-tray-on-minimize').checked = !!settings.minimizeToTrayOnMinimize;
-  document.getElementById('minimize-to-tray-on-exit').checked = !!settings.minimizeToTrayOnClose;
-
-  const autoUpdateEl = document.getElementById('auto-update');
-  if (autoUpdateEl) {
-    autoUpdateEl.checked = !!settings.autoUpdate;
-  }
-  const startupEl = document.getElementById('start-with-os-startup');
-  if (startupEl) {
-    startupEl.checked = !!settings.startWithOsStartup;
+    const ok = await api.resumeDownload(id);
+    if (!ok) {
+      // If resume was rejected, restore previous status (unless it already completed via IPC).
+      const d2 = downloads.get(id);
+      if (d2 && d2.status !== 'completed' && prevStatus) {
+        d2.status = prevStatus;
+        renderDownloads();
+      }
+      return;
+    }
   }
 
-  const startupMinEl = document.getElementById('start-with-os-minimized');
-  if (startupMinEl) {
-    startupMinEl.checked = !!settings.startWithOsMinimized;
-  }
-}
+  async function retryDownload(id) {
+    const download = downloads.get(id);
+    const prevStatus = download ? download.status : null;
+    const prevError = download ? download.error : null;
 
-async function saveSettings() {
-  settings.downloadPath = document.getElementById('download-path').value;
-  settings.maxConcurrentDownloads = parseInt(document.getElementById('max-concurrent').value);
-  const maxSpeedEl = document.getElementById('max-speed-mbps');
-  if (maxSpeedEl) {
-    const raw = String(maxSpeedEl.value || '').trim();
-    const v = raw === '' ? 0 : Number(raw);
-    settings.maxDownloadSpeedMBps = Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
-  }
-  const autoExtractEl = document.getElementById('auto-extract-7z');
-  if (autoExtractEl) {
-    settings.autoExtract7z = !!autoExtractEl.checked;
-  }
-  settings.showNotifications = document.getElementById('show-notifications').checked;
-  settings.minimizeToTrayOnMinimize = document.getElementById('minimize-to-tray-on-minimize').checked;
-  settings.minimizeToTrayOnClose = document.getElementById('minimize-to-tray-on-exit').checked;
+    if (download && download.status !== 'completed') {
+      download.status = 'in_progress';
+      download.error = '';
+      renderDownloads();
+    }
 
-  const autoUpdateEl = document.getElementById('auto-update');
-  if (autoUpdateEl) {
-    settings.autoUpdate = !!autoUpdateEl.checked;
-  }
-  const startupEl = document.getElementById('start-with-os-startup');
-  if (startupEl) {
-    settings.startWithOsStartup = !!startupEl.checked;
+    const ok = await api.retryDownload(id);
+    if (!ok) {
+      const d2 = downloads.get(id);
+      if (d2 && d2.status !== 'completed') {
+        if (prevStatus) d2.status = prevStatus;
+        if (typeof prevError === 'string') d2.error = prevError;
+        renderDownloads();
+      }
+      return;
+    }
   }
 
-  const startupMinEl = document.getElementById('start-with-os-minimized');
-  if (startupMinEl) {
-    settings.startWithOsMinimized = !!startupMinEl.checked;
+  // Open download folder
+  async function openDownloadFolder() {
+    await api.openFolder(settings.downloadPath);
   }
-  
-  await api.saveSettings(settings);
-  closeSettings();
-}
 
-async function browseDownloadPath() {
-  const path = await api.browseFolder();
-  if (path) {
-    // Update UI field
-    document.getElementById('download-path').value = path;
+  // Settings
+  function openSettings() {
+    document.getElementById('settings-panel').style.display = 'block';
+  }
 
-    // Persist immediately so this location sticks until changed again
-    settings.downloadPath = path;
+  function closeSettings() {
+    document.getElementById('settings-panel').style.display = 'none';
+  }
+
+  async function openHelp7z() {
+    const panel = document.getElementById('help-7z-panel');
+    if (!panel) return;
+    panel.style.display = 'block';
+    const video = document.getElementById('help-7z-video');
+    if (video) {
+      try {
+        const src = await api.getHelp7zVideoSrc();
+        video.src = src;
+        video.load();
+        video.currentTime = 0;
+        try {
+          await video.play();
+        } catch (playErr) {
+          console.warn('[7z-video] autoplay failed, video will remain paused', playErr);
+        }
+      } catch (e) {
+        console.error('[7z-video] failed to set help video src', e);
+      }
+    }
+  }
+
+  function closeHelp7z() {
+    const panel = document.getElementById('help-7z-panel');
+    if (!panel) return;
+    panel.style.display = 'none';
+    const video = document.getElementById('help-7z-video');
+    if (video && typeof video.pause === 'function') {
+      try {
+        video.pause();
+      } catch (e) { }
+    }
+  }
+
+  function updateSettingsUI() {
+    document.getElementById('download-path').value = settings.downloadPath || '';
+    document.getElementById('max-concurrent').value = settings.maxConcurrentDownloads || 2;
+    const maxSpeedEl = document.getElementById('max-speed-mbps');
+    if (maxSpeedEl) {
+      const v = Number(settings.maxDownloadSpeedMBps);
+      maxSpeedEl.value = Number.isFinite(v) && v > 0 ? String(Math.round(v)) : '';
+    }
+    const autoExtractEl = document.getElementById('auto-extract-7z');
+    if (autoExtractEl) {
+      autoExtractEl.checked = !!settings.autoExtract7z;
+    }
+    document.getElementById('show-notifications').checked = settings.showNotifications !== false;
+    document.getElementById('minimize-to-tray-on-minimize').checked = !!settings.minimizeToTrayOnMinimize;
+    document.getElementById('minimize-to-tray-on-exit').checked = !!settings.minimizeToTrayOnClose;
+
+    const autoUpdateEl = document.getElementById('auto-update');
+    if (autoUpdateEl) {
+      autoUpdateEl.checked = !!settings.autoUpdate;
+    }
+    const startupEl = document.getElementById('start-with-os-startup');
+    if (startupEl) {
+      startupEl.checked = !!settings.startWithOsStartup;
+    }
+
+    const startupMinEl = document.getElementById('start-with-os-minimized');
+    if (startupMinEl) {
+      startupMinEl.checked = !!settings.startWithOsMinimized;
+    }
+  }
+
+  async function saveSettings() {
+    settings.downloadPath = document.getElementById('download-path').value;
+    settings.maxConcurrentDownloads = parseInt(document.getElementById('max-concurrent').value);
+    const maxSpeedEl = document.getElementById('max-speed-mbps');
+    if (maxSpeedEl) {
+      const raw = String(maxSpeedEl.value || '').trim();
+      const v = raw === '' ? 0 : Number(raw);
+      settings.maxDownloadSpeedMBps = Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
+    }
+    const autoExtractEl = document.getElementById('auto-extract-7z');
+    if (autoExtractEl) {
+      settings.autoExtract7z = !!autoExtractEl.checked;
+    }
+    settings.showNotifications = document.getElementById('show-notifications').checked;
+    settings.minimizeToTrayOnMinimize = document.getElementById('minimize-to-tray-on-minimize').checked;
+    settings.minimizeToTrayOnClose = document.getElementById('minimize-to-tray-on-exit').checked;
+
+    const autoUpdateEl = document.getElementById('auto-update');
+    if (autoUpdateEl) {
+      settings.autoUpdate = !!autoUpdateEl.checked;
+    }
+    const startupEl = document.getElementById('start-with-os-startup');
+    if (startupEl) {
+      settings.startWithOsStartup = !!startupEl.checked;
+    }
+
+    const startupMinEl = document.getElementById('start-with-os-minimized');
+    if (startupMinEl) {
+      settings.startWithOsMinimized = !!startupMinEl.checked;
+    }
+
     await api.saveSettings(settings);
+    closeSettings();
   }
-}
 
-// History
-function openHistory() {
-  document.getElementById('history-panel').style.display = 'block';
-  loadHistory();
-}
+  async function browseDownloadPath() {
+    const path = await api.browseFolder();
+    if (path) {
+      // Update UI field
+      document.getElementById('download-path').value = path;
 
-function closeHistory() {
-  document.getElementById('history-panel').style.display = 'none';
-}
-
-async function loadHistory() {
-  const history = await api.getHistory();
-  renderHistory(history);
-}
-
-function renderHistory(history) {
-  const container = document.getElementById('history-list');
-  
-  if (!history || history.length === 0) {
-    container.innerHTML = '<div class="empty-state">No download history yet.</div>';
-    return;
+      // Persist immediately so this location sticks until changed again
+      settings.downloadPath = path;
+      await api.saveSettings(settings);
+    }
   }
-  
-  container.innerHTML = '';
-  
-  for (const item of history) {
-    const div = document.createElement('div');
-    div.className = 'history-item';
-    
-    const date = new Date(item.endTime || item.startTime);
-    const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
-    
-    div.innerHTML = `
+
+  // History
+  function openHistory() {
+    document.getElementById('history-panel').style.display = 'block';
+    loadHistory();
+  }
+
+  function closeHistory() {
+    document.getElementById('history-panel').style.display = 'none';
+  }
+
+  async function loadHistory() {
+    const history = await api.getHistory();
+    renderHistory(history);
+  }
+
+  function renderHistory(history) {
+    const container = document.getElementById('history-list');
+
+    if (!history || history.length === 0) {
+      container.innerHTML = '<div class="empty-state">No download history yet.</div>';
+      return;
+    }
+
+    container.innerHTML = '';
+
+    for (const item of history) {
+      const div = document.createElement('div');
+      div.className = 'history-item';
+
+      const date = new Date(item.endTime || item.startTime);
+      const dateStr = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+
+      div.innerHTML = `
       <div class="history-item-header">
         <span class="history-filename">${escapeHtml(item.name)}</span>
         <span class="history-size">${formatBytes(item.totalSize)}</span>
@@ -961,215 +973,215 @@ function renderHistory(history) {
         <span class="history-date">📅 ${dateStr}</span>
       </div>
     `;
-    
-    container.appendChild(div);
-  }
-}
 
-async function clearHistory() {
-  if (confirm('Are you sure you want to clear download history?')) {
-    await api.clearHistory();
-    await loadHistory();
-  }
-}
-
-// Check for updates (manual - shows all results)
-async function checkForUpdates() {
-  try {
-    const result = await api.checkUpdates();
-    
-    if (result.error) {
-      alert(`Could not check for updates: ${result.error}`);
-      return;
+      container.appendChild(div);
     }
-    
-    if (result.hasUpdate) {
-      // Check for active downloads before offering install
-      const downloads = await api.getDownloads();
-      if (!Array.isArray(downloads)) {
-        console.error('Failed to get downloads list:', downloads);
-        // Proceed without prompting if we can't determine active downloads
-        showUpdateNotification(result);
-      } else {
-        const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
-        if (activeDownloads.length > 0) {
-          const proceed = await showConfirmDialog(
-            'Update Available',
-            `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
-            'Update Now',
-            'Wait'
-          );
-          if (!proceed) {
-            // User chose to wait; just notify that an update is available
-            showUpdateNotification(result);
-            return;
+  }
+
+  async function clearHistory() {
+    if (await showConfirmDialog('Clear History', 'Are you sure you want to clear download history?', 'Clear', 'Cancel')) {
+      await api.clearHistory();
+      await loadHistory();
+    }
+  }
+
+  // Check for updates (manual - shows all results)
+  async function checkForUpdates() {
+    try {
+      const result = await api.checkUpdates();
+
+      if (result.error) {
+        await showAlertDialog('Update Error', `Could not check for updates: ${result.error}`);
+        return;
+      }
+
+      if (result.hasUpdate) {
+        // Check for active downloads before offering install
+        const downloads = await api.getDownloads();
+        if (!Array.isArray(downloads)) {
+          console.error('Failed to get downloads list:', downloads);
+          // Proceed without prompting if we can't determine active downloads
+          showUpdateNotification(result);
+        } else {
+          const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
+          if (activeDownloads.length > 0) {
+            const proceed = await showConfirmDialog(
+              'Update Available',
+              `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
+              'Update Now',
+              'Wait'
+            );
+            if (!proceed) {
+              // User chose to wait; just notify that an update is available
+              showUpdateNotification(result);
+              return;
+            }
+            // User chose to update now; abandon active downloads
+            for (const d of activeDownloads) {
+              await api.cancelDownload(d.id);
+            }
           }
-          // User chose to update now; abandon active downloads
-          for (const d of activeDownloads) {
-            await api.cancelDownload(d.id);
-          }
+          showUpdateNotification(result);
         }
+      } else {
+        await showAlertDialog('Update Check', `You're running the latest version (v${result.version})`);
+      }
+    } catch (error) {
+      await showAlertDialog('Update Error', `Failed to check for updates: ${error.message}`);
+    }
+  }
+
+  // Check for updates silently (auto - only shows if update available)
+  async function checkForUpdatesSilent() {
+    try {
+      const result = await api.checkUpdates();
+
+      if (result.error) {
+        console.error('Update check failed:', result.error);
+        return;
+      }
+
+      if (result.hasUpdate) {
         showUpdateNotification(result);
       }
-    } else {
-      alert(`You're running the latest version (v${result.version})`);
+    } catch (error) {
+      console.error('Silent update check failed:', error.message);
     }
-  } catch (error) {
-    alert(`Failed to check for updates: ${error.message}`);
   }
-}
 
-// Check for updates silently (auto - only shows if update available)
-async function checkForUpdatesSilent() {
-  try {
-    const result = await api.checkUpdates();
-    
-    if (result.error) {
-      console.error('Update check failed:', result.error);
-      return;
-    }
-    
-    if (result.hasUpdate) {
-      showUpdateNotification(result);
-    }
-  } catch (error) {
-    console.error('Silent update check failed:', error.message);
+  // Show update error message
+  async function showUpdateError() {
+    await showAlertDialog('Update Error', 'Update check not available. Please try again later.');
   }
-}
 
-// Show update error message
-function showUpdateError() {
-  alert('Update check not available. Please try again later.');
-}
+  function getFriendlyUpdateFailureMessage(errorText, releaseUrl) {
+    const err = String(errorText || '').trim();
+    const isHostBlocked = /host not allowed/i.test(err);
+    const isInstallerBlocked = /installer url not allowed/i.test(err);
+    const isSignatureBlocked = /signature/i.test(err);
+    const isOneTimeManual = isHostBlocked || isInstallerBlocked || isSignatureBlocked;
 
-function getFriendlyUpdateFailureMessage(errorText, releaseUrl) {
-  const err = String(errorText || '').trim();
-  const isHostBlocked = /host not allowed/i.test(err);
-  const isInstallerBlocked = /installer url not allowed/i.test(err);
-  const isSignatureBlocked = /signature/i.test(err);
-  const isOneTimeManual = isHostBlocked || isInstallerBlocked || isSignatureBlocked;
+    if (isOneTimeManual) {
+      return (
+        `This version can't auto-update due to a security restriction.\n\n` +
+        `We'll open the download page so you can install the latest version manually (one-time).\n\n` +
+        `Download page:\n${releaseUrl || ''}`
+      );
+    }
 
-  if (isOneTimeManual) {
     return (
-      `This version can't auto-update due to a security restriction.\n\n` +
-      `We'll open the download page so you can install the latest version manually (one-time).\n\n` +
-      `Download page:\n${releaseUrl || ''}`
+      `Update couldn't be installed automatically.\n\n` +
+      `We'll open the download page instead.\n\n` +
+      `Details: ${err}`
     );
   }
 
-  return (
-    `Update couldn't be installed automatically.\n\n` +
-    `We'll open the download page instead.\n\n` +
-    `Details: ${err}`
-  );
-}
+  // Show update notification
+  async function showUpdateNotification(result) {
+    const hasAutoInstall = !!result.installerUrl;
 
-// Show update notification
-async function showUpdateNotification(result) {
-  const hasAutoInstall = !!result.installerUrl;
-  
-  const message = hasAutoInstall
-    ? `Update available!\n\n` +
+    const message = hasAutoInstall
+      ? `Update available!\n\n` +
       `Current version: v${result.version}\n` +
       `Latest version: v${result.latestVersion}\n\n` +
       `Would you like to download and install the update now?`
-    : `Update available!\n\n` +
+      : `Update available!\n\n` +
       `Current version: v${result.version}\n` +
       `Latest version: v${result.latestVersion}\n\n` +
       `Would you like to open the download page?`;
-  
-  const shouldUpdate = confirm(message);
-  
-  if (shouldUpdate) {
-    if (hasAutoInstall) {
-      try {
-        const installResult = await api.installUpdate(result.installerUrl, {
-          silent: true,
-          relaunchAfterInstall: true,
-          source: 'manual-confirm'
-        });
 
-        // Once the updater window is shown, avoid alert()/confirm() flows that can end up
-        // behind it. The updater window itself will surface verification failures and
-        // manual update instructions.
-        if (installResult && installResult.success === false) {
-          // Suppress error popup if installer path was provided (likely ran successfully despite error)
-          if (!installResult.installerPath) {
-            try {
-              console.warn('Update install failed:', installResult.error || installResult.message || 'unknown');
-            } catch (e) {}
-            if (result.releaseUrl) {
-              api.openExternal(result.releaseUrl);
+    const shouldUpdate = await showConfirmDialog('Update Available', message, hasAutoInstall ? 'Download & Install' : 'Open Page', 'Later');
+
+    if (shouldUpdate) {
+      if (hasAutoInstall) {
+        try {
+          const installResult = await api.installUpdate(result.installerUrl, {
+            silent: true,
+            relaunchAfterInstall: true,
+            source: 'manual-confirm'
+          });
+
+          // Once the updater window is shown, avoid alert()/confirm() flows that can end up
+          // behind it. The updater window itself will surface verification failures and
+          // manual update instructions.
+          if (installResult && installResult.success === false) {
+            // Suppress error popup if installer path was provided (likely ran successfully despite error)
+            if (!installResult.installerPath) {
+              try {
+                console.warn('Update install failed:', installResult.error || installResult.message || 'unknown');
+              } catch (e) { }
+              if (result.releaseUrl) {
+                api.openExternal(result.releaseUrl);
+              }
             }
           }
+          // If success without message, app will quit and installer will run
+        } catch (e) {
+          try {
+            console.warn('Update install failed:', e && e.message ? e.message : e);
+          } catch (e2) { }
+          if (result.releaseUrl) {
+            api.openExternal(result.releaseUrl);
+          }
         }
-        // If success without message, app will quit and installer will run
-      } catch (e) {
-        try {
-          console.warn('Update install failed:', e && e.message ? e.message : e);
-        } catch (e2) {}
-        if (result.releaseUrl) {
-          api.openExternal(result.releaseUrl);
-        }
+      } else if (result.releaseUrl) {
+        // Fallback to opening release page
+        api.openExternal(result.releaseUrl);
       }
-    } else if (result.releaseUrl) {
-      // Fallback to opening release page
-      api.openExternal(result.releaseUrl);
     }
   }
-}
 
-// Utility functions
-function escapeHtml(text) {
-  const div = document.createElement('div');
-  div.textContent = text;
-  return div.innerHTML;
-}
+  // Utility functions
+  function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  }
 
-function formatBytes(bytes) {
-  if (!bytes || bytes === 0) return '0 B';
-  const k = 1024;
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-}
+  function formatBytes(bytes) {
+    if (!bytes || bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
 
-// Check connection status with server
-async function checkConnectionStatus() {
-  const statusEl = document.getElementById('connection-status');
-  if (!statusEl) return;
-  
-  try {
-    const status = await api.getSessionStatus();
-    
-    if (status.isValid) {
-      // Session is valid - connected
-      statusEl.className = 'connection-status connected';
-      statusEl.querySelector('.status-text').textContent = 'Connected';
-      statusEl.onclick = null;
-      statusEl.style.cursor = 'default';
-    } else {
-      // No valid session - awaiting first download (or token expired)
+  // Check connection status with server
+  async function checkConnectionStatus() {
+    const statusEl = document.getElementById('connection-status');
+    if (!statusEl) return;
+
+    try {
+      const status = await api.getSessionStatus();
+
+      if (status.isValid) {
+        // Session is valid - connected
+        statusEl.className = 'connection-status connected';
+        statusEl.querySelector('.status-text').textContent = 'Connected';
+        statusEl.onclick = null;
+        statusEl.style.cursor = 'default';
+      } else {
+        // No valid session - awaiting first download (or token expired)
+        statusEl.className = 'connection-status pending';
+        statusEl.querySelector('.status-text').textContent = 'Awaiting First Download';
+        statusEl.onclick = null;
+        statusEl.style.cursor = 'default';
+      }
+    } catch (e) {
+      // Error checking status - show pending
       statusEl.className = 'connection-status pending';
       statusEl.querySelector('.status-text').textContent = 'Awaiting First Download';
       statusEl.onclick = null;
       statusEl.style.cursor = 'default';
     }
-  } catch (e) {
-    // Error checking status - show pending
-    statusEl.className = 'connection-status pending';
-    statusEl.querySelector('.status-text').textContent = 'Awaiting First Download';
-    statusEl.onclick = null;
-    statusEl.style.cursor = 'default';
   }
-}
 
-// Make functions available globally for onclick handlers
-window.cancelDownload = cancelDownload;
-window.retryDownload = retryDownload;
-window.openDownloadFolder = openDownloadFolder;
+  // Make functions available globally for onclick handlers
+  window.cancelDownload = cancelDownload;
+  window.retryDownload = retryDownload;
+  window.openDownloadFolder = openDownloadFolder;
 
-// Initialize when DOM is ready
-document.addEventListener('DOMContentLoaded', init);
+  // Initialize when DOM is ready
+  document.addEventListener('DOMContentLoaded', init);
 
 })();

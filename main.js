@@ -440,6 +440,7 @@ function fetchJsonWithBearer(urlString, method, bearerToken) {
 
 let mainWindow;
 let authWindow;
+let progressWin = null; // Update progress window
 let tray;
 let activeDownloads = new Map();
 let downloadHistory = [];
@@ -477,7 +478,9 @@ function flushPendingDeepLinks() {
 const ALLOWED_SERVICE_HOSTS = new Set([
   'armgddnbrowser.com',
   'www.armgddnbrowser.com',
-  'api.armgddnbrowser.com'
+  'api.armgddnbrowser.com',
+  'box.ca',
+  'whatbox.ca'
 ]);
 
 const ALLOWED_UPDATE_HOSTS = new Set([
@@ -1188,7 +1191,7 @@ function openAuthWindow() {
         nodeIntegration: false,
         contextIsolation: true
       },
-      icon: path.join(__dirname, 'assets', 'icon.png'),
+      icon: getAppIcon(),
       title: 'Login to ARMGDDN Browser'
     });
 
@@ -1301,23 +1304,26 @@ async function verifySession() {
   });
 }
 
-// Create main window
-function createWindow() {
-  let windowIconPath = process.platform === 'win32'
+// Helper to get consistent app icon
+function getAppIcon() {
+  let iconPath = process.platform === 'win32'
     ? path.join(__dirname, 'assets', 'icon.ico')
     : path.join(__dirname, 'assets', 'icon.png');
 
-  if (!fs.existsSync(windowIconPath)) {
-    // Fallback for packaged app where assets might be in resources
+  if (!fs.existsSync(iconPath)) {
     const resourcePath = process.platform === 'win32'
       ? path.join(process.resourcesPath, 'assets', 'icon.ico')
       : path.join(process.resourcesPath, 'assets', 'icon.png');
     if (fs.existsSync(resourcePath)) {
-      windowIconPath = resourcePath;
+      iconPath = resourcePath;
     }
   }
+  return nativeImage.createFromPath(iconPath);
+}
 
-  const windowIcon = nativeImage.createFromPath(windowIconPath);
+// Create main window
+function createWindow() {
+  const windowIcon = getAppIcon();
 
   mainWindow = new BrowserWindow({
     width: 1200,
@@ -1356,7 +1362,18 @@ function createWindow() {
       try { mainWindow.show(); } catch (e) { }
       try { mainWindow.minimize(); } catch (e) { }
     } else {
-      mainWindow.show();
+      if (process.platform === 'win32') {
+        mainWindow.show();
+        // ARMGDDN - Taskbar "nudge" to fix icon not showing up on launch
+        mainWindow.setSkipTaskbar(true);
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.setSkipTaskbar(false);
+          }
+        }, 100);
+      } else {
+        mainWindow.show();
+      }
     }
     // Force icon again to ensure taskbar update
     if (windowIcon && !windowIcon.isEmpty()) {
@@ -1667,8 +1684,14 @@ ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
 
 // Show native message box (Yes/No)
 ipcMain.handle('show-message-box', async (event, options) => {
-  if (!mainWindow || mainWindow.isDestroyed()) return 0;
-  const result = dialog.showMessageBoxSync(mainWindow, options);
+  // Determine parent window for correct layering (Z-index/AlwaysOnTop)
+  let parent = mainWindow;
+  if (progressWin && !progressWin.isDestroyed() && progressWin.isVisible()) {
+    parent = progressWin;
+  }
+
+  if (!parent || parent.isDestroyed()) return 0;
+  const result = dialog.showMessageBoxSync(parent, options);
   return result;
 });
 
@@ -2603,6 +2626,23 @@ async function downloadFile(downloadId, file, downloadDir) {
       status: 'downloading'
     };
 
+    // ARMGDDN - Auto-transform Proxy URLs to Direct Whatbox URLs for 2Gbps performance
+    try {
+      if (file.url && file.url.includes('armgddnbrowser.com')) {
+        const u = new URL(file.url);
+        const remote = u.searchParams.get('remote');
+        const rpath = u.searchParams.get('path');
+        if ((remote === 'GameServer' || remote === 'Receive') && rpath) {
+          // Transform to direct static URL on Whatbox Gateway
+          const directUrl = `https://dl.neatbarb.box.ca/${rpath}`;
+          logToFile(`[Route] transforming proxy URL to direct: from=${file.url} to=${directUrl}`);
+          file.url = directUrl;
+        }
+      }
+    } catch (e) {
+      logToFile(`[Route] failed to transform URL: ${e.message}`);
+    }
+
     updateProgress(downloadId);
 
     const rclonePath = getRclonePath();
@@ -2632,7 +2672,7 @@ async function downloadFile(downloadId, file, downloadDir) {
     if (globalActiveProcs >= 200) bufferSize = '4M';
     else if (globalActiveProcs >= 100) bufferSize = '8M';
     else if (globalActiveProcs >= 50) bufferSize = '16M';
-    else bufferSize = (fileSize >= (2 * 1024 * 1024 * 1024)) ? '64M' : '16M';
+    else bufferSize = (fileSize >= (2 * 1024 * 1024 * 1024)) ? '128M' : '64M';
 
     let route = 'direct';
     try {
@@ -2645,8 +2685,9 @@ async function downloadFile(downloadId, file, downloadDir) {
 
     let multiThreadStreams = 0;
     let multiThreadCutoff = '128M';
-    if (fileSize >= (512 * 1024 * 1024) && globalActiveProcs < 50) {
-      if (route === 'proxy') {
+    if (fileSize >= (128 * 1024 * 1024) && globalActiveProcs < 50) {
+      const isWhatbox = route === 'direct' || (file.url && (file.url.includes('box.ca') || file.url.includes('whatbox.ca')));
+      if (route === 'proxy' && !isWhatbox) {
         // Drastically reduce streams to bypass aggressive IP-level source throttling
         multiThreadStreams = globalActiveProcs < 10 ? 2 : 1;
       } else {
@@ -3997,7 +4038,6 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
   }
 
   // Show progress window
-  let progressWin = null;
   let progressWinReady = false;
   const pendingUpdateEvents = [];
   const flushPendingUpdateEvents = () => {
@@ -4032,6 +4072,7 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
       minimizable: false,
       maximizable: false,
       alwaysOnTop: true, // Ensure it stays on top during update
+      icon: getAppIcon(),
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
