@@ -2885,9 +2885,9 @@ function transformProxyUrlToDirectIfPossible(urlString) {
       ) {
         // These remotes should still avoid proxy routing, but they do not use the
         // Games/PC or Games/PCVR category rewrite. The download-file endpoint
-        // redirects to dl.neatbarb.box.ca using the translated `file` path.
+        // redirects to dl.neatbarb.box.ca using a remote-prefixed path.
         const safePath = relPath.split('/').map(c => encodeURIComponent(c)).join('/');
-        return `${REDIRECT_BASE_URL}/${safePath}`;
+        return `${REDIRECT_BASE_URL}/${encodeURIComponent(remote)}/${safePath}`;
       } else {
         return s;
       }
