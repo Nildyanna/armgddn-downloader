@@ -7,6 +7,13 @@ const crypto = require('crypto');
 const https = require('https');
 const { pathToFileURL } = require('url');
 
+function getDialogParentWindow() {
+  try {
+    if (progressWin && !progressWin.isDestroyed()) return progressWin;
+  } catch (e) { }
+  return mainWindow;
+}
+
 function getUpdateEd25519PublicKeyPem() {
   const v = process.env.ARMGDDN_UPDATE_ED25519_PUBKEY_PEM;
   if (v && typeof v === 'string' && v.trim()) {
@@ -1526,7 +1533,7 @@ function createWindow() {
     // If there are active downloads, ask for confirmation before quitting
     const activeCount = activeDownloads.size;
     if (activeCount > 0) {
-      const result = dialog.showMessageBoxSync(mainWindow, {
+      const result = dialog.showMessageBoxSync(getDialogParentWindow(), {
         type: 'question',
         buttons: ['Cancel', 'Quit Anyway'],
         defaultId: 0,
@@ -1794,7 +1801,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
 
 // Browse for folder
 ipcMain.handle('browse-folder', async () => {
-  const result = await dialog.showOpenDialog(mainWindow, {
+  const result = await dialog.showOpenDialog(getDialogParentWindow(), {
     properties: ['openDirectory']
   });
   if (!result.canceled && result.filePaths.length > 0) {
@@ -1809,12 +1816,7 @@ ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
 
 // Show native message box (Yes/No)
 ipcMain.handle('show-message-box', async (event, options) => {
-  // Determine parent window for correct layering (Z-index/AlwaysOnTop)
-  let parent = mainWindow;
-  if (progressWin && !progressWin.isDestroyed() && progressWin.isVisible()) {
-    parent = progressWin;
-  }
-
+  let parent = getDialogParentWindow();
   if (!parent || parent.isDestroyed()) return 0;
   const result = dialog.showMessageBoxSync(parent, options);
   return result;
@@ -2376,7 +2378,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
         if (freeBytes < requiredForExtract) {
           // We have enough to download (passed Check 1) but not enough to extract.
           // Ask user what to do.
-          const { response } = await dialog.showMessageBox(mainWindow, {
+          const { response } = await dialog.showMessageBox(getDialogParentWindow(), {
             type: 'question',
             buttons: ['Download Only (Disable Auto-Extract)', 'Cancel'],
             defaultId: 0,
@@ -2826,7 +2828,13 @@ function isProxyDownloadUrl(urlString) {
   try {
     const u = new URL(String(urlString || ''));
     const host = (u && u.hostname) ? String(u.hostname).toLowerCase() : '';
-    return host === 'www.armgddnbrowser.com' || host === 'armgddnbrowser.com' || host.endsWith('.armgddnbrowser.com');
+    const isArmgddnHost = host === 'www.armgddnbrowser.com' || host === 'armgddnbrowser.com' || host.endsWith('.armgddnbrowser.com');
+    if (!isArmgddnHost) return false;
+    const pathname = (u && u.pathname) ? String(u.pathname) : '';
+    // /api/download-file is a redirect endpoint to the direct file host.
+    // Do not treat it as a proxy-routed download.
+    if (pathname === '/api/download-file') return false;
+    return true;
   } catch (e) {
     return false;
   }
@@ -2874,20 +2882,6 @@ function transformProxyUrlToDirectIfPossible(urlString) {
           if (parts.length > 0) parts.shift();
           relPath = parts.join('/');
         }
-      } else if (
-        remote === 'Pirated PC Apps' ||
-        remote === '3D Printer Models' ||
-        remote === 'Testing' ||
-        remote === 'Testers' ||
-        remote === 'Coming Attractions' ||
-        remote === 'Coming Attractions - PC' ||
-        remote === 'Coming Attractions - PCVR'
-      ) {
-        // These remotes should still avoid proxy routing, but they do not use the
-        // Games/PC or Games/PCVR category rewrite. The download-file endpoint
-        // redirects to dl.neatbarb.box.ca using a remote-prefixed path.
-        const safePath = relPath.split('/').map(c => encodeURIComponent(c)).join('/');
-        return `${REDIRECT_BASE_URL}/${encodeURIComponent(remote)}/${safePath}`;
       } else {
         return s;
       }
