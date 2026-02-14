@@ -14,6 +14,60 @@ function getDialogParentWindow() {
   return mainWindow;
 }
 
+async function withDialogFocus(fn) {
+  let restoreOnTop = null;
+  try {
+    if (progressWin && !progressWin.isDestroyed()) {
+      try {
+        restoreOnTop = progressWin.isAlwaysOnTop();
+      } catch (e) {
+        restoreOnTop = true;
+      }
+      try {
+        progressWin.setAlwaysOnTop(false);
+      } catch (e) { }
+    }
+
+    return await fn();
+  } finally {
+    if (restoreOnTop != null) {
+      try {
+        if (progressWin && !progressWin.isDestroyed()) {
+          progressWin.setAlwaysOnTop(!!restoreOnTop);
+          try { progressWin.moveTop(); } catch (e) { }
+        }
+      } catch (e) { }
+    }
+  }
+}
+
+function withDialogFocusSync(fn) {
+  let restoreOnTop = null;
+  try {
+    if (progressWin && !progressWin.isDestroyed()) {
+      try {
+        restoreOnTop = progressWin.isAlwaysOnTop();
+      } catch (e) {
+        restoreOnTop = true;
+      }
+      try {
+        progressWin.setAlwaysOnTop(false);
+      } catch (e) { }
+    }
+
+    return fn();
+  } finally {
+    if (restoreOnTop != null) {
+      try {
+        if (progressWin && !progressWin.isDestroyed()) {
+          progressWin.setAlwaysOnTop(!!restoreOnTop);
+          try { progressWin.moveTop(); } catch (e) { }
+        }
+      } catch (e) { }
+    }
+  }
+}
+
 function getUpdateEd25519PublicKeyPem() {
   const v = process.env.ARMGDDN_UPDATE_ED25519_PUBKEY_PEM;
   if (v && typeof v === 'string' && v.trim()) {
@@ -1533,14 +1587,14 @@ function createWindow() {
     // If there are active downloads, ask for confirmation before quitting
     const activeCount = activeDownloads.size;
     if (activeCount > 0) {
-      const result = dialog.showMessageBoxSync(getDialogParentWindow(), {
+      const result = withDialogFocusSync(() => dialog.showMessageBoxSync(getDialogParentWindow(), {
         type: 'question',
         buttons: ['Cancel', 'Quit Anyway'],
         defaultId: 0,
         title: 'Active Downloads',
         message: `There ${activeCount === 1 ? 'is' : 'are'} ${activeCount} active download${activeCount === 1 ? '' : 's'}.`,
         detail: 'Quitting now will interrupt the downloads. Are you sure you want to quit?'
-      });
+      }));
       if (result === 0) {
         // User chose Cancel; prevent quit
         event.preventDefault();
@@ -1683,15 +1737,14 @@ app.whenReady().then(() => {
 
       const buttons = logPath ? ['Open Update Log', 'OK'] : ['OK'];
       const openIdx = 0;
-      const { response } = await dialog.showMessageBox({
+      const { response } = await withDialogFocus(() => dialog.showMessageBox({
         type: 'error',
         buttons,
         defaultId: 0,
         title: 'Update Failed',
         message: 'ARMGDDN Companion update failed',
         detail: msg
-      });
-
+      }));
       if (logPath && response === openIdx) {
         try {
           await shell.openPath(logPath);
@@ -1801,9 +1854,9 @@ ipcMain.handle('save-settings', (event, newSettings) => {
 
 // Browse for folder
 ipcMain.handle('browse-folder', async () => {
-  const result = await dialog.showOpenDialog(getDialogParentWindow(), {
+  const result = await withDialogFocus(() => dialog.showOpenDialog(getDialogParentWindow(), {
     properties: ['openDirectory']
-  });
+  }));
   if (!result.canceled && result.filePaths.length > 0) {
     return result.filePaths[0];
   }
@@ -1818,7 +1871,7 @@ ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
 ipcMain.handle('show-message-box', async (event, options) => {
   let parent = getDialogParentWindow();
   if (!parent || parent.isDestroyed()) return 0;
-  const result = dialog.showMessageBoxSync(parent, options);
+  const result = withDialogFocusSync(() => dialog.showMessageBoxSync(parent, options));
   return result;
 });
 
@@ -2378,7 +2431,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
         if (freeBytes < requiredForExtract) {
           // We have enough to download (passed Check 1) but not enough to extract.
           // Ask user what to do.
-          const { response } = await dialog.showMessageBox(getDialogParentWindow(), {
+          const { response } = await withDialogFocus(() => dialog.showMessageBox(getDialogParentWindow(), {
             type: 'question',
             buttons: ['Download Only (Disable Auto-Extract)', 'Cancel'],
             defaultId: 0,
@@ -2386,7 +2439,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
             title: 'Insufficient Disk Space for Extraction',
             message: 'Not enough disk space for automatic extraction.',
             detail: `You have enough space to download the files, but not enough to extract them automatically.\n\nSpace Available: ${formatBytes(freeBytes)}\nRequired for Download + Extraction: ~${formatBytes(requiredForExtract)}\n\nDo you want to proceed with the download only? You will need to extract the files manually later or free up space.`
-          });
+          }));
 
           if (response === 1) {
             // User cancelled
