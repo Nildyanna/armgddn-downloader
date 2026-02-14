@@ -2712,17 +2712,98 @@ function isServerBusyError(output) {
     lowerOutput.includes('please try again shortly');
 }
 
-// Check if URL contains expired token indicators
-function isTokenExpiredError(output) {
-  const expiredIndicators = [
+function isLikelySignedExpiringUrl(urlString) {
+  try {
+    const u = new URL(String(urlString || ''));
+    const host = (u && u.hostname) ? String(u.hostname).toLowerCase() : '';
+    const pathname = (u && u.pathname) ? String(u.pathname) : '';
+    const hasJd2 = !!u.searchParams.get('jd2');
+    const hasWhatboxSig = !!(u.searchParams.get('exp') && u.searchParams.get('sig'));
+    const isArmgddnHost = host === 'www.armgddnbrowser.com' || host === 'armgddnbrowser.com' || host.endsWith('.armgddnbrowser.com');
+    return hasJd2 || hasWhatboxSig || (isArmgddnHost && (pathname === '/api/download-file' || pathname === '/dl'));
+  } catch (e) {
+    return false;
+  }
+}
+
+// Check output for expired-token indicators.
+// IMPORTANT: do not treat a generic 401 as "expired" unless the URL is actually
+// a signed/expiring URL. Direct Whatbox paths should not surface as "expired".
+function isTokenExpiredError(output, fileUrl) {
+  const lowerOutput = String(output || '').toLowerCase();
+  const isExpiringUrl = isLikelySignedExpiringUrl(fileUrl);
+
+  // Strong signals: treat as expired regardless of URL type.
+  const strongIndicators = [
     'token expired',
     'token invalid',
-    '401',
-    'unauthorized',
-    'access denied'
+    'expired token'
   ];
-  const lowerOutput = output.toLowerCase();
-  return expiredIndicators.some(indicator => lowerOutput.includes(indicator));
+  for (const t of strongIndicators) {
+    if (lowerOutput.includes(t)) return true;
+  }
+
+  // Weak signals: only treat as expired when we know we're using a signed URL.
+  if (!isExpiringUrl) return false;
+
+  const weakIndicators = [
+    'unauthorized',
+    'access denied',
+    'forbidden',
+    ' 401',
+    ' 403',
+    'status code 401',
+    'status code 403'
+  ];
+  return weakIndicators.some(indicator => lowerOutput.includes(indicator));
+}
+
+async function refetchManifestAndRetryExpiredLink(downloadId, download, file, downloadDir) {
+  try {
+    if (!download || !download.manifestUrl || !download.token) return false;
+    download.tokenRefreshes = (Number(download.tokenRefreshes) || 0) + 1;
+    if (download.tokenRefreshes > 2) return false;
+
+    logToFile(`[TokenRefresh] refetching manifest for expired link refreshCount=${download.tokenRefreshes} file=${file && file.name ? String(file.name) : ''}`);
+    const newManifest = await fetchManifestInternal(String(download.manifestUrl), download.token);
+    if (!newManifest || !Array.isArray(newManifest.files)) return false;
+
+    const wantPath = file && file.path ? String(file.path) : '';
+    const wantName = file && file.name ? String(file.name) : '';
+    const match = newManifest.files.find(f => {
+      if (!f) return false;
+      if (wantPath && f.path && String(f.path) === wantPath) return true;
+      if (wantName && f.name && String(f.name) === wantName) return true;
+      return false;
+    });
+
+    if (!match || !match.url) return false;
+
+    const retryFile = { ...file, url: String(match.url) };
+    try {
+      const transformed = transformProxyUrlToDirectIfPossible(retryFile.url);
+      if (transformed && transformed !== retryFile.url) {
+        retryFile.url = transformed;
+      }
+    } catch (e) { }
+
+    // Clear stale error state before retrying.
+    try {
+      download.status = 'downloading';
+      download.error = '';
+      download.statusMessage = '';
+      updateProgress(downloadId);
+    } catch (e) { }
+
+    logToFile(`[TokenRefresh] retrying file with refreshed url file=${wantName}`);
+    await downloadFile(downloadId, retryFile, downloadDir);
+    return true;
+  } catch (e) {
+    try {
+      logToFile(`[TokenRefresh] manifest refetch/retry failed: ${e && e.message ? e.message : String(e)}`);
+    } catch (e2) { }
+    return false;
+  }
 }
 
 function getActiveFileKey(file) {
@@ -2756,9 +2837,68 @@ function transformProxyUrlToDirectIfPossible(urlString) {
     const s = String(urlString || '');
     if (!s || !s.includes('armgddnbrowser.com')) return s;
     const u = new URL(s);
+
+    // Legacy/alternate proxy URL format: https://www.armgddnbrowser.com/?path=...
+    // or similar routes that include a `path` query param.
     const rpath = u.searchParams.get('path');
-    if (!rpath) return s;
-    return `https://dl.neatbarb.box.ca/${rpath}`;
+    if (rpath) {
+      return `https://dl.neatbarb.box.ca/${rpath}`;
+    }
+
+    // Signed /api/download-file URLs (JD2/app manifests) should never be used as
+    // a proxy route by the Companion. When possible, transform them into the
+    // same direct Whatbox URL that the server would 302 to.
+    // Example: /api/download-file?remote=PC-2&file=PC2/Game/Foo.7z&jd2=...
+    const pathname = (u && u.pathname) ? String(u.pathname) : '';
+    if (pathname === '/api/download-file') {
+      const remote = (u.searchParams.get('remote') || '').trim();
+      const file = (u.searchParams.get('file') || '').trim();
+      if (!remote || !file) return s;
+
+      const REDIRECT_BASE_URL = 'https://dl.neatbarb.box.ca';
+
+      let boxCategory = '';
+      let relPath = file;
+
+      if (remote.startsWith('PC-') || remote === 'PC-FTP') {
+        boxCategory = 'Games/PC';
+        if (remote.startsWith('PC-') && remote !== 'PC-FTP') {
+          const parts = relPath.split('/');
+          if (parts.length > 0) parts.shift();
+          relPath = parts.join('/');
+        }
+      } else if (remote.startsWith('PCVR-') || remote === 'PCVR-FTP') {
+        boxCategory = 'Games/PCVR';
+        if (remote.startsWith('PCVR-') && remote !== 'PCVR-FTP') {
+          const parts = relPath.split('/');
+          if (parts.length > 0) parts.shift();
+          relPath = parts.join('/');
+        }
+      } else if (
+        remote === 'Pirated PC Apps' ||
+        remote === '3D Printer Models' ||
+        remote === 'Testing' ||
+        remote === 'Testers' ||
+        remote === 'Coming Attractions' ||
+        remote === 'Coming Attractions - PC' ||
+        remote === 'Coming Attractions - PCVR'
+      ) {
+        // These remotes should still avoid proxy routing, but they do not use the
+        // Games/PC or Games/PCVR category rewrite. The download-file endpoint
+        // redirects to dl.neatbarb.box.ca using the translated `file` path.
+        const safePath = relPath.split('/').map(c => encodeURIComponent(c)).join('/');
+        return `${REDIRECT_BASE_URL}/${safePath}`;
+      } else {
+        return s;
+      }
+
+      if (!boxCategory || !relPath) return s;
+
+      const safePath = relPath.split('/').map(c => encodeURIComponent(c)).join('/');
+      return `${REDIRECT_BASE_URL}/${boxCategory}/${safePath}`;
+    }
+
+    return s;
   } catch (e) {
     return String(urlString || '');
   }
@@ -3054,6 +3194,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         const sslError = errorOutput.includes('x509') || errorOutput.includes('certificate') || errorOutput.includes('ssl');
         const dnsError = errorOutput.includes('lookup') || errorOutput.includes('name resolution') || errorOutput.includes('no such host');
         const networkStream = isNetworkStreamError(errorOutput);
+        const tokenExpired = isTokenExpiredError(errorOutput, (file && file.url) ? String(file.url) : '');
 
         // Attempt mirror failover once for network/stream failures.
         // This only works when the manifest URL points at a mirror group remote.
@@ -3064,7 +3205,7 @@ async function downloadFile(downloadId, file, downloadDir) {
             !busy &&
             !sslError &&
             !dnsError &&
-            !isTokenExpiredError(errorOutput) &&
+            !tokenExpired &&
             download &&
             download.manifestUrl &&
             download.token &&
@@ -3124,6 +3265,19 @@ async function downloadFile(downloadId, file, downloadDir) {
           } catch (e2) { }
         }
 
+        // If this is a signed link expiry, attempt a manifest refetch + retry before surfacing an error.
+        if (tokenExpired) {
+          try {
+            const recovered = await refetchManifestAndRetryExpiredLink(downloadId, download, file, downloadDir);
+            if (recovered) {
+              resolve();
+              return;
+            }
+          } catch (e) {
+            // ignore and fall through to user-visible error
+          }
+        }
+
         try {
           const trimmed = String(errorOutput || '').trim();
           const tail = trimmed.length > 12000 ? trimmed.slice(-12000) : trimmed;
@@ -3145,7 +3299,7 @@ async function downloadFile(downloadId, file, downloadDir) {
             'Download quota exceeded. This file is temporarily unavailable due to high demand.',
             'Wait a few hours and retry, or try a different title/mirror if available.'
           );
-        } else if (isTokenExpiredError(errorOutput)) {
+        } else if (tokenExpired) {
           download.error = withSupportFooter(
             'Download link expired.',
             'Go back to the website and start the download again to generate a fresh link.'
