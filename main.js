@@ -2356,11 +2356,16 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
       ? bytesDownloadedOverride
       : (status === 'completed' ? totalBytes : 0);
 
+    const isActiveStatus = (() => {
+      const s = String(status || '').toLowerCase();
+      return s === 'downloading' || s === 'in_progress' || s === 'starting';
+    })();
+
     const postData = JSON.stringify({
       downloadId: download.id,
       fileName,
       remotePath: download.remotePath || '',
-      activeStreams: getActiveFileCount(download),
+      activeStreams: isActiveStatus ? getActiveFileCount(download) : 0,
       poolId: POOL_ID,
       poolActiveStreams: Math.max(0, Number(globalConcurrencyPool.inUse) || 0),
       poolLimit: getGlobalPoolLimit(),
@@ -2463,17 +2468,23 @@ async function reportProgressToServer(download, token) {
       bytesDownloaded = Math.max(0, totalBytes - step);
     }
 
+    const reportStatus = (download.status === 'in_progress' ? 'downloading' : download.status);
+    const isActiveStatus = (() => {
+      const s = String(reportStatus || '').toLowerCase();
+      return s === 'downloading' || s === 'in_progress' || s === 'starting';
+    })();
+
     const postData = JSON.stringify({
       downloadId: download.id,
       fileName: download.name,
       remotePath: download.remotePath || '',  // For trending (e.g., "PC1/Game Name")
-      activeStreams: getActiveFileCount(download),
+      activeStreams: isActiveStatus ? getActiveFileCount(download) : 0,
       poolId: POOL_ID,
       poolActiveStreams: Math.max(0, Number(globalConcurrencyPool.inUse) || 0),
       poolLimit: getGlobalPoolLimit(),
       bytesDownloaded: bytesDownloaded,
       totalBytes: totalBytes,
-      status: download.status === 'in_progress' ? 'downloading' : download.status,
+      status: reportStatus,
       statusMessage: download.statusMessage || '',
       error: download.error || null
     });
@@ -4496,6 +4507,10 @@ function finalizeCompletedDownload(downloadId) {
   download.progress = 100;
   download.downloadedSize = download.totalSize;
   download.endTime = new Date().toISOString();
+
+  // Ensure no stale running state leaks into the final server report.
+  try { download.activeFiles = {}; } catch (e) { }
+  try { download.activeProcesses = []; } catch (e) { }
 
   // Send a final progress event marking completion.
   // This makes the UI update even if the dedicated 'download-completed' event is missed.
