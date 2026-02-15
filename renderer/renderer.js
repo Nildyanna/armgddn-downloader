@@ -685,6 +685,10 @@ async function showAlertDialog(title, message) {
         ? ` • Streams: ${activeFilesCount}/${workers}`
         : '';
 
+      const etaText = (download && typeof download.eta === 'string' && download.eta.trim())
+        ? ` • ETA: ${download.eta.trim()}`
+        : '';
+
       // Format status for display
       const statusDisplay = {
         'starting': 'Starting',
