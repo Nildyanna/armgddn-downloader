@@ -673,6 +673,220 @@ async function mintAppSessionTokenFromCookies(cookieHeader) {
 
 const DEBUG_LOGGING = process.env.ARMGDDN_DEBUG === '1';
 
+const POOL_ID = crypto.randomUUID();
+
+const globalConcurrencyPool = {
+  limit: 2,
+  inUse: 0,
+  waiters: []
+};
+
+const adaptiveScheduler = {
+  pending: [],
+  pumping: false,
+  runningByDownloadId: new Map(),
+  lastDecisionLogAt: 0
+};
+
+function getTaskRemainingBytes(task) {
+  try {
+    const file = task && task.file ? task.file : null;
+    const downloadDir = task && task.downloadDir ? String(task.downloadDir) : '';
+    const expected = file && typeof file.size === 'number' ? Number(file.size) : 0;
+    if (!downloadDir || !(expected > 0) || !file || !file.name) return expected > 0 ? expected : 0;
+    const safeRel = sanitizeRelativePath(String(file.name));
+    if (!safeRel) return expected;
+    const outputPath = resolveInside(downloadDir, safeRel);
+    if (!outputPath) return expected;
+    if (!fs.existsSync(outputPath)) return expected;
+    const st = fs.statSync(outputPath);
+    const have = st && st.isFile && st.isFile() ? Number(st.size) : 0;
+    return Math.max(0, expected - (Number.isFinite(have) ? have : 0));
+  } catch (e) {
+    try {
+      const file = task && task.file ? task.file : null;
+      const expected = file && typeof file.size === 'number' ? Number(file.size) : 0;
+      return expected > 0 ? expected : 0;
+    } catch (e2) {
+      return 0;
+    }
+  }
+}
+
+function getDownloadRunningCount(downloadId) {
+  try {
+    const n = adaptiveScheduler.runningByDownloadId.get(String(downloadId));
+    return Number.isFinite(Number(n)) ? Number(n) : 0;
+  } catch (e) {
+    return 0;
+  }
+}
+
+function incDownloadRunning(downloadId) {
+  const key = String(downloadId);
+  const prev = getDownloadRunningCount(key);
+  adaptiveScheduler.runningByDownloadId.set(key, prev + 1);
+}
+
+function decDownloadRunning(downloadId) {
+  const key = String(downloadId);
+  const prev = getDownloadRunningCount(key);
+  const next = Math.max(0, prev - 1);
+  if (next === 0) adaptiveScheduler.runningByDownloadId.delete(key);
+  else adaptiveScheduler.runningByDownloadId.set(key, next);
+}
+
+function pickNextAdaptiveTask() {
+  const now = Date.now();
+  let best = null;
+  let bestScore = Infinity;
+  for (const t of adaptiveScheduler.pending) {
+    if (!t || !t.downloadId) continue;
+    const download = activeDownloads.get(String(t.downloadId));
+    if (!download || download.cancelled || download.paused) continue;
+
+    const remaining = getTaskRemainingBytes(t);
+    const ageMs = Math.max(0, now - (Number(t.enqueuedAt) || now));
+    const running = getDownloadRunningCount(t.downloadId);
+
+    const emaSpeedTotal = Number(download && download.__emaSpeedBytesPerSec) || 0;
+    const perTaskSpeed = (Number.isFinite(emaSpeedTotal) && emaSpeedTotal > 0)
+      ? (emaSpeedTotal / Math.max(1, running || 1))
+      : 0;
+    const secondsToFinish = (Number.isFinite(perTaskSpeed) && perTaskSpeed > 0)
+      ? (remaining / Math.max(1, perTaskSpeed))
+      : remaining;
+
+    // Baseline: shortest estimated time-to-finish.
+    // Fairness: strongly prefer giving a slot to a download with no running tasks.
+    // Aging: small nudge so tasks don't starve.
+    let score = secondsToFinish;
+    if (running === 0) score *= 0.5;
+    score -= Math.min(5, (ageMs / 1000) * 0.05);
+
+    if (score < bestScore) {
+      bestScore = score;
+      best = t;
+    }
+  }
+  return best;
+}
+
+async function schedulerPump() {
+  if (adaptiveScheduler.pumping) return;
+  adaptiveScheduler.pumping = true;
+  try {
+    while (adaptiveScheduler.pending.length > 0) {
+      const task = pickNextAdaptiveTask();
+      if (!task) break;
+
+      // Remove selected task from the pending list.
+      const idx = adaptiveScheduler.pending.indexOf(task);
+      if (idx !== -1) adaptiveScheduler.pending.splice(idx, 1);
+
+      const releaseGlobal = await acquireGlobalPoolSlot();
+
+      // Slot acquired; the download may have been cancelled/paused while waiting.
+      const download = activeDownloads.get(String(task.downloadId));
+      if (!download || download.cancelled || download.paused) {
+        try { releaseGlobal(); } catch (e) { }
+        try { if (task && typeof task.reject === 'function') task.reject(new Error('Download cancelled')); } catch (e) { }
+        continue;
+      }
+
+      // Start the task (non-preemptive).
+      incDownloadRunning(task.downloadId);
+
+      try {
+        const now = Date.now();
+        if (DEBUG_LOGGING && (now - (Number(adaptiveScheduler.lastDecisionLogAt) || 0)) > 3000) {
+          adaptiveScheduler.lastDecisionLogAt = now;
+          logToFile(`[Scheduler] start downloadId=${String(task.downloadId)} file=${task && task.file && task.file.name ? String(task.file.name) : ''} pending=${adaptiveScheduler.pending.length} inUse=${Number(globalConcurrencyPool.inUse) || 0} limit=${Number(globalConcurrencyPool.limit) || 0}`);
+        }
+      } catch (e) { }
+
+      downloadFile(task.downloadId, task.file, task.downloadDir, releaseGlobal)
+        .then(() => {
+          try { decDownloadRunning(task.downloadId); } catch (e) { }
+          try { if (task && typeof task.resolve === 'function') task.resolve(); } catch (e) { }
+          try { schedulerPump(); } catch (e) { }
+        })
+        .catch((err) => {
+          try { decDownloadRunning(task.downloadId); } catch (e) { }
+          try { if (task && typeof task.reject === 'function') task.reject(err); } catch (e) { }
+          try { schedulerPump(); } catch (e) { }
+        });
+    }
+  } finally {
+    adaptiveScheduler.pumping = false;
+  }
+}
+
+function enqueueAdaptiveTask(downloadId, file, downloadDir) {
+  return new Promise((resolve, reject) => {
+    adaptiveScheduler.pending.push({
+      downloadId: String(downloadId),
+      file,
+      downloadDir,
+      enqueuedAt: Date.now(),
+      resolve,
+      reject
+    });
+    schedulerPump();
+  });
+}
+
+function getGlobalPoolLimit() {
+  try {
+    const raw = Number(settings && settings.maxConcurrentDownloads);
+    const n = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 2;
+    return Math.min(20, Math.max(1, n));
+  } catch (e) {
+    return 2;
+  }
+}
+
+function refreshGlobalPoolLimit() {
+  try {
+    globalConcurrencyPool.limit = getGlobalPoolLimit();
+    while (globalConcurrencyPool.inUse < globalConcurrencyPool.limit && globalConcurrencyPool.waiters.length > 0) {
+      const next = globalConcurrencyPool.waiters.shift();
+      if (!next) continue;
+      globalConcurrencyPool.inUse++;
+      next(() => {
+        try {
+          globalConcurrencyPool.inUse = Math.max(0, (Number(globalConcurrencyPool.inUse) || 0) - 1);
+          refreshGlobalPoolLimit();
+        } catch (e) {
+        }
+      });
+    }
+  } catch (e) {
+  }
+}
+
+function acquireGlobalPoolSlot() {
+  refreshGlobalPoolLimit();
+  return new Promise((resolve) => {
+    try {
+      if (globalConcurrencyPool.inUse < globalConcurrencyPool.limit) {
+        globalConcurrencyPool.inUse++;
+        resolve(() => {
+          try {
+            globalConcurrencyPool.inUse = Math.max(0, (Number(globalConcurrencyPool.inUse) || 0) - 1);
+            refreshGlobalPoolLimit();
+          } catch (e) {
+          }
+        });
+        return;
+      }
+      globalConcurrencyPool.waiters.push(resolve);
+    } catch (e) {
+      resolve(() => { });
+    }
+  });
+}
+
 let settings = {
   downloadPath: path.join(app.getPath('downloads'), 'ARMGDDN'),
   maxConcurrentDownloads: 2,
@@ -768,6 +982,8 @@ function normalizeSettings() {
     settings.autoUpdate = !!settings.autoUpdate;
     settings.startWithOsStartup = !!settings.startWithOsStartup;
     settings.startWithOsMinimized = !!settings.startWithOsMinimized;
+
+    refreshGlobalPoolLimit();
   } catch (e) {
     logToFile(`[Settings] normalizeSettings failed: ${e && e.message ? e.message : e}`);
   }
@@ -2145,6 +2361,9 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
       fileName,
       remotePath: download.remotePath || '',
       activeStreams: getActiveFileCount(download),
+      poolId: POOL_ID,
+      poolActiveStreams: Math.max(0, Number(globalConcurrencyPool.inUse) || 0),
+      poolLimit: getGlobalPoolLimit(),
       bytesDownloaded,
       totalBytes,
       status,
@@ -2249,6 +2468,9 @@ async function reportProgressToServer(download, token) {
       fileName: download.name,
       remotePath: download.remotePath || '',  // For trending (e.g., "PC1/Game Name")
       activeStreams: getActiveFileCount(download),
+      poolId: POOL_ID,
+      poolActiveStreams: Math.max(0, Number(globalConcurrencyPool.inUse) || 0),
+      poolLimit: getGlobalPoolLimit(),
       bytesDownloaded: bytesDownloaded,
       totalBytes: totalBytes,
       status: download.status === 'in_progress' ? 'downloading' : download.status,
@@ -2400,6 +2622,22 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     throw new Error('Unknown manifest format. Expected files array or url property.');
   }
 
+  try {
+    const canonical = String(remotePath || '').trim();
+    if (canonical) {
+      for (const [, d] of activeDownloads.entries()) {
+        if (!d) continue;
+        const rp = String(d.remotePath || '').trim();
+        if (!rp || rp !== canonical) continue;
+        const st = d.status ? String(d.status) : '';
+        if (st === 'completed' || st === 'cancelled' || st === 'error') continue;
+        throw new Error('You are already downloading this item.');
+      }
+    }
+  } catch (e) {
+    throw e;
+  }
+
   const safeFolderName = sanitizeRelativePath(String(name || ''));
   if (safeFolderName) {
     name = safeFolderName;
@@ -2512,7 +2750,8 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
         id: downloadId,
         status: download.status,
         progress: download.progress,
-        statusMessage: download.statusMessage,
+        eta: download.eta || '',
+        statusMessage: download.statusMessage || '',
         completedFiles: download.completedFiles,
         fileCount: download.fileCount
       });
@@ -2625,89 +2864,20 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
   // Spawn at most the requested workers; concurrency is enforced dynamically by waiting
   // when active files exceed the server's effective limit.
-  const PARALLEL_DOWNLOADS = requestedWorkers;
-  const fileQueue = [...files];
   const activePromises = [];
-
-  let concurrencyPoll = null;
-  if (shouldApplyServerConcurrency) {
-    try {
-      concurrencyPoll = setInterval(() => {
-        if (!download || download.cancelled || download.paused) return;
-        if (!fileQueue || fileQueue.length === 0) return;
-        refreshDownloadConcurrency(download, token, manifestUrl);
-      }, 30000);
-    } catch (e) { }
-  }
-
-  const processNext = async () => {
-    while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
-      const eff = Number(download && download.effectiveConcurrency);
-      const requestedWorkersNow = getRequestedWorkersNow();
-      const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkersNow, eff) : requestedWorkersNow;
-      const activeNow = getActiveFileCount(download);
-      if (activeNow >= limit) {
+  for (const f of files) {
+    if (!f) continue;
+    activePromises.push(enqueueAdaptiveTask(downloadId, f, downloadDir).catch((err) => {
+      if (!download.cancelled) {
         try {
-          const now = Date.now();
-          const last = Number(download.__lastConcurrencyWaitLogMs) || 0;
-          if (now - last > 3000) {
-            download.__lastConcurrencyWaitLogMs = now;
-            logToFile(`[Concurrency] wait active=${activeNow} limit=${limit} requested=${requestedWorkersNow} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} completed=${typeof download.completedFiles === 'number' ? download.completedFiles : 'n/a'} fileCount=${typeof download.fileCount === 'number' ? download.fileCount : 'n/a'}`);
-          }
+          logToFile(`[Scheduler] file task failed: ${err && err.message ? err.message : String(err)} file=${f && f.name ? String(f.name) : ''}`);
         } catch (e) { }
-        await new Promise(r => setTimeout(r, 250));
-        continue;
       }
-
-      const file = fileQueue.shift();
-      if (!file) break;
-      try {
-        logToFile(`[Concurrency] start-file active=${activeNow} limit=${limit} requested=${getRequestedWorkersNow()} eff=${Number.isFinite(eff) ? eff : 'null'} queue=${fileQueue.length} file=${file && file.name ? String(file.name) : ''}`);
-      } catch (e) { }
-      try {
-        await downloadFile(downloadId, file, downloadDir);
-      } catch (err) {
-        if (!download.cancelled) {
-          console.error('File download error:', err);
-        }
-        // Continue with other files even if one fails (unless cancelled)
-      }
-    }
-  };
-
-  // If the user increases maxConcurrentDownloads while a download is running,
-  // spin up additional worker loops so the new setting takes effect without restarting.
-  let concurrencyWorkerAdjust = null;
-  try {
-    concurrencyWorkerAdjust = setInterval(() => {
-      try {
-        if (!download || download.cancelled || download.paused) return;
-        if (!fileQueue || fileQueue.length === 0) return;
-        const desired = getRequestedWorkersNow();
-        while (activePromises.length < Math.min(desired, fileQueue.length)) {
-          activePromises.push(processNext());
-        }
-      } catch (e) {
-      }
-    }, 1000);
-    if (concurrencyWorkerAdjust && typeof concurrencyWorkerAdjust.unref === 'function') {
-      concurrencyWorkerAdjust.unref();
-    }
-  } catch (e) { }
-
-  // Start parallel download workers
-  for (let i = 0; i < Math.min(PARALLEL_DOWNLOADS, fileQueue.length); i++) {
-    activePromises.push(processNext());
+      // Continue with other files.
+    }));
   }
 
   await Promise.all(activePromises);
-
-  try {
-    if (concurrencyPoll) clearInterval(concurrencyPoll);
-  } catch (e) { }
-  try {
-    if (concurrencyWorkerAdjust) clearInterval(concurrencyWorkerAdjust);
-  } catch (e) { }
 
   const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
   // Only mark as completed if not cancelled, not paused, and with no failed files
@@ -2952,19 +3122,34 @@ function transformProxyUrlToDirectIfPossible(urlString) {
 }
 
 // Download a single file using rclone
-async function downloadFile(downloadId, file, downloadDir) {
+async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
   return new Promise((resolve, reject) => {
-    const download = activeDownloads.get(downloadId);
-    if (!download) {
-      reject(new Error('Download not found'));
-      return;
-    }
+    (async () => {
+      const releaseGlobal = (typeof preAcquiredRelease === 'function') ? preAcquiredRelease : await acquireGlobalPoolSlot();
+      let released = false;
+      const releaseOnce = () => {
+        if (released) return;
+        released = true;
+        try { releaseGlobal(); } catch (e) { }
+      };
+
+      const done = (err) => {
+        try { releaseOnce(); } catch (e) { }
+        if (err) reject(err);
+        else resolve();
+      };
+
+      const download = activeDownloads.get(downloadId);
+      if (!download) {
+        done(new Error('Download not found'));
+        return;
+      }
 
     // Security: Validate file URL is HTTPS
-    if (!file.url || !file.url.startsWith('https://')) {
-      reject(new Error('Security error: File URL must use HTTPS'));
-      return;
-    }
+      if (!file.url || !file.url.startsWith('https://')) {
+        done(new Error('Security error: File URL must use HTTPS'));
+        return;
+      }
 
     try {
       const transformed = transformProxyUrlToDirectIfPossible(file.url);
@@ -2973,16 +3158,16 @@ async function downloadFile(downloadId, file, downloadDir) {
       }
     } catch (e) { }
 
-    const safeRel = sanitizeRelativePath(file.name);
-    if (!safeRel) {
-      reject(new Error('Security error: Invalid file name'));
-      return;
-    }
+      const safeRel = sanitizeRelativePath(file.name);
+      if (!safeRel) {
+        done(new Error('Security error: Invalid file name'));
+        return;
+      }
     const outputPath = resolveInside(downloadDir, safeRel);
-    if (!outputPath) {
-      reject(new Error('Security error: Invalid file path'));
-      return;
-    }
+      if (!outputPath) {
+        done(new Error('Security error: Invalid file path'));
+        return;
+      }
 
     if (isFileCompleteOnDisk(downloadDir, file)) {
       download.downloadedSize += normalizeFileSize(file.size);
@@ -2991,7 +3176,7 @@ async function downloadFile(downloadId, file, downloadDir) {
       try {
         reportFileProgressToServer(download, download.token, file, 'completed', normalizeFileSize(file.size));
       } catch (e) { }
-      resolve();
+      done();
       return;
     }
 
@@ -3038,7 +3223,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         download.statusMessage = err.message;
         updateProgress(downloadId);
       } catch (e) { }
-      reject(err);
+      done(err);
       return;
     }
 
@@ -3193,7 +3378,7 @@ async function downloadFile(downloadId, file, downloadDir) {
           delete download.activeFiles[fileKey];
         }
         updateProgress(downloadId);
-        resolve();
+        done();
         return;
       }
 
@@ -3221,7 +3406,7 @@ async function downloadFile(downloadId, file, downloadDir) {
           reportFileProgressToServer(download, download.token, file, 'completed', normalizeFileSize(file.size));
         } catch (e) { }
         updateProgress(downloadId);
-        resolve();
+        done();
       } else {
         download.status = 'error';
 
@@ -3378,7 +3563,7 @@ async function downloadFile(downloadId, file, downloadDir) {
         if (shouldShowNotification) {
           showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
         }
-        reject(new Error(download.error));
+        done(new Error(download.error));
       }
     });
 
@@ -3400,7 +3585,10 @@ async function downloadFile(downloadId, file, downloadDir) {
       } catch (e) { }
       mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
       showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
-      reject(err);
+      done(err);
+    });
+    })().catch((e) => {
+      reject(e);
     });
   });
 }
@@ -3786,6 +3974,75 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     download.peakSpeedBytes = totalSpeedBytes;
   }
 
+  // Update overall ETA for the download.
+  try {
+    const total = Number(download.totalSize) || 0;
+    const doneBytes = Number(download.downloadedSize) || 0;
+    const ema = Number(download.__emaSpeedBytesPerSec) || 0;
+    if (total > 0 && ema > 0) {
+      let activeBytes = 0;
+      for (const f of activeFilesList) {
+        if (!f) continue;
+        const size = typeof f.size === 'number' ? f.size : 0;
+        const p = typeof f.progress === 'number' ? f.progress : 0;
+        if (size > 0 && p > 0 && p < 100) {
+          activeBytes += Math.round((p / 100) * size);
+        }
+      }
+      const bytesSoFar = Math.min(total, Math.max(0, doneBytes + activeBytes));
+      const remainingBytes = Math.max(0, total - bytesSoFar);
+      const etaSec = remainingBytes / Math.max(1, ema);
+      download.eta = formatEtaSeconds(etaSec);
+    } else {
+      download.eta = '';
+    }
+  } catch (e) {
+    download.eta = '';
+  }
+
+  // Track an EMA of observed throughput so the scheduler can estimate time-to-finish.
+  try {
+    const nowEma = Date.now();
+    const sample = Number(totalSpeedBytes) || 0;
+    const prevAt = Number(download.__emaSpeedLastAt) || 0;
+    const prev = Number(download.__emaSpeedBytesPerSec) || 0;
+    const dtMs = prevAt > 0 ? Math.max(0, nowEma - prevAt) : 0;
+    // Adapt smoothing to update cadence (aiming for ~4s half-life-ish).
+    const alpha = dtMs > 0 ? Math.min(0.5, Math.max(0.05, dtMs / 4000)) : 0.25;
+    const next = (prev > 0) ? (prev * (1 - alpha) + sample * alpha) : sample;
+    download.__emaSpeedBytesPerSec = Math.max(0, next);
+    download.__emaSpeedLastAt = nowEma;
+  } catch (e) { }
+
+  // Update overall ETA for the download.
+  try {
+    const total = Number(download.totalSize) || 0;
+    const doneBytes = Number(download.downloadedSize) || 0;
+    const ema = Number(download.__emaSpeedBytesPerSec) || 0;
+    if (total > 0 && ema > 0) {
+      const activeBytes = (() => {
+        let acc = 0;
+        for (const f of activeFilesList) {
+          if (!f) continue;
+          const size = typeof f.size === 'number' ? f.size : 0;
+          const p = typeof f.progress === 'number' ? f.progress : 0;
+          if (size > 0 && p > 0 && p < 100) {
+            acc += Math.round((p / 100) * size);
+          }
+        }
+        return acc;
+      })();
+      const bytesSoFar = Math.min(total, Math.max(0, doneBytes + activeBytes));
+      const remainingBytes = Math.max(0, total - bytesSoFar);
+      const etaSec = remainingBytes / Math.max(1, ema);
+      download.eta = formatEtaSeconds(etaSec);
+    } else {
+      download.eta = '';
+    }
+  } catch (e) {
+    download.eta = '';
+  }
+
   // Calculate overall progress based on bytes, not file-count averaging.
   if (download.totalSize > 0) {
     let bytesSoFar = download.downloadedSize || 0;
@@ -3813,6 +4070,7 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   mainWindow.webContents.send('download-progress', {
     id: downloadId,
     progress: download.progress,
+    eta: download.eta || '',
     totalSpeed: download.totalSpeed,
     activeFiles: activeFilesList,
     completedFiles: download.completedFiles,
@@ -3860,6 +4118,24 @@ function formatSpeed(bytesPerSec) {
   const decimals = i >= 2 ? 1 : 0;
   const s = value.toFixed(decimals).replace(/\.0$/, '');
   return s + ' ' + units[i];
+}
+
+// Format seconds to human readable ETA
+function formatEtaSeconds(totalSeconds) {
+  try {
+    const s = Math.floor(Number(totalSeconds));
+    if (!Number.isFinite(s) || s <= 0) return '';
+    const sec = s % 60;
+    const min = Math.floor(s / 60) % 60;
+    const hr = Math.floor(s / 3600) % 24;
+    const day = Math.floor(s / 86400);
+    if (day > 0) return `${day}d ${hr}h`;
+    if (hr > 0) return `${hr}h ${min}m`;
+    if (min > 0) return `${min}m ${sec}s`;
+    return `${sec}s`;
+  } catch (e) {
+    return '';
+  }
 }
 
 // Update overall progress

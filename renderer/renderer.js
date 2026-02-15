@@ -474,8 +474,12 @@ async function showAlertDialog(title, message) {
         ? ` • Streams: ${activeFilesCount}/${workers}`
         : '';
 
+      const etaText = (download && typeof download.eta === 'string' && download.eta.trim())
+        ? ` • ETA: ${download.eta.trim()}`
+        : '';
+
       if (leftInfo) {
-        leftInfo.textContent = `${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}`;
+        leftInfo.textContent = `${download.progress || 0}%${etaText} ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}`;
       }
       if (rightInfo) {
         if (download.status === 'extracting' || download.status === 'completed') {
@@ -713,7 +717,7 @@ async function showAlertDialog(title, message) {
         <div class="progress-fill" style="width: ${download.progress || 0}%"></div>
       </div>
       <div class="download-info">
-        <span>${download.progress || 0}% ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}</span>
+        <span>${download.progress || 0}%${etaText} ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}</span>
         <span class="total-speed">${(download.status === 'extracting' || download.status === 'completed') ? (download.totalSpeed ? `Peak: ${download.totalSpeed}` : '') : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
       </div>
       <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives, please wait..</div>
