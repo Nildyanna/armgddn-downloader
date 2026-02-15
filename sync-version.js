@@ -6,11 +6,53 @@ const companionPkgPath = path.join(__dirname, 'package.json');
 const browserPkgPath = path.join(__dirname, '..', 'ArmgddnBrowser', 'package.json');
 const browserDefaultPhpPath = path.join(__dirname, '..', 'ArmgddnBrowser', 'default.php');
 
+function runGit(cmd) {
+    return execSync(cmd, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+}
+
+function normalizeVersionFromTag(tag) {
+    const t = String(tag || '').trim();
+    if (!t) return '';
+    const m = t.match(/^v?(\d+\.\d+\.\d+)$/);
+    return m ? m[1] : '';
+}
+
+function resolveVersion() {
+    try {
+        const forced = process.env.ARMGDDN_SYNC_VERSION ? String(process.env.ARMGDDN_SYNC_VERSION).trim() : '';
+        if (forced) {
+            const n = normalizeVersionFromTag(forced);
+            if (n) return n;
+        }
+    } catch (e) {
+    }
+
+    // Prefer the tag exactly at HEAD (this is what we are typically pushing).
+    try {
+        const exactTag = runGit('git tag --points-at HEAD');
+        const first = exactTag.split(/\r?\n/).map(s => s.trim()).filter(Boolean)[0] || '';
+        const n = normalizeVersionFromTag(first);
+        if (n) return n;
+    } catch (e) {
+    }
+
+    // Fall back to most recent tag.
+    try {
+        const lastTag = runGit('git describe --tags --abbrev=0');
+        const n = normalizeVersionFromTag(lastTag);
+        if (n) return n;
+    } catch (e) {
+    }
+
+    // Final fallback: Companion package.json
+    const companionPkg = JSON.parse(fs.readFileSync(companionPkgPath, 'utf8'));
+    return String(companionPkg.version || '').trim();
+}
+
 function sync() {
     try {
-        // 1. Read current version from Companion package.json
-        const companionPkg = JSON.parse(fs.readFileSync(companionPkgPath, 'utf8'));
-        const version = companionPkg.version;
+        // 1. Resolve version (prefer tag at HEAD)
+        const version = resolveVersion();
         console.log(`Syncing version: ${version}`);
 
         // 2. Update Browser package.json
