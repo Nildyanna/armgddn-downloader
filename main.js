@@ -3358,7 +3358,38 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       logToFile(`[rclone-copyurl] url=${shown}`);
     } catch (e) { }
 
-    const proc = spawn(rclonePath, args);
+    let proc;
+    try {
+      proc = spawn(rclonePath, args);
+    } catch (e) {
+      // spawn() can throw synchronously (e.g. ENOENT, EACCES). In that case we would
+      // otherwise leak the global concurrency slot and leave the download stuck.
+      download.status = 'error';
+      const msg = (e && e.message) ? String(e.message) : String(e);
+      download.error = withSupportFooter(
+        `Failed to start downloader engine (rclone). (${msg})`,
+        'Try reinstalling/updating the Companion, or temporarily disable antivirus/quarantine and retry.'
+      );
+      try {
+        if (!Array.isArray(download.failedFiles)) download.failedFiles = [];
+        download.failedFiles.push(file.name);
+      } catch (e2) { }
+      try {
+        if (download.activeFiles && download.activeFiles[fileKey]) {
+          download.activeFiles[fileKey].status = 'error';
+          delete download.activeFiles[fileKey];
+        }
+      } catch (e2) { }
+      try {
+        logToFile(`[rclone] spawn threw: ${msg} rclonePath=${String(rclonePath || '')}`);
+      } catch (e2) { }
+      try { updateProgress(downloadId); } catch (e2) { }
+      try { mainWindow.webContents.send('download-error', { id: downloadId, error: download.error }); } catch (e2) { }
+      try { showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`); } catch (e2) { }
+      done(new Error(download.error));
+      return;
+    }
+
     download.activeProcesses.push(proc);  // Track for cancellation
 
     let errorOutput = '';
