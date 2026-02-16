@@ -2774,8 +2774,29 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   if (!downloadDir) {
     throw new Error('Security error: Invalid download folder path');
   }
-  if (!fs.existsSync(downloadDir)) {
-    fs.mkdirSync(downloadDir, { recursive: true });
+  try {
+    if (!fs.existsSync(downloadDir)) {
+      fs.mkdirSync(downloadDir, { recursive: true });
+    }
+  } catch (e) {
+    // Common on Windows when the target folder/drive is blocked by permissions or
+    // Controlled Folder Access. If this throws, we must surface a clear error and
+    // avoid leaving a stuck "in_progress" download that never spawns workers.
+    const msg = (e && e.message) ? String(e.message) : String(e);
+    try {
+      download.status = 'error';
+      download.error = withSupportFooter(
+        `Can't create the download folder. (${msg})`,
+        'Change the download folder in settings to a writable location (e.g. inside your user folder) and retry. On Windows, check Defender Controlled Folder Access / antivirus blocks.'
+      );
+      download.statusMessage = download.error;
+      updateProgress(downloadId);
+    } catch (e2) { }
+    try { logToFile(`[start-download] mkdir failed path=${String(downloadDir)} err=${msg}`); } catch (e2) { }
+    try { mainWindow.webContents.send('download-error', { id: downloadId, error: download.error || msg }); } catch (e2) { }
+    try { showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error || msg}`); } catch (e2) { }
+    try { activeDownloads.delete(downloadId); } catch (e2) { }
+    throw new Error(download.error || msg);
   }
 
   download.statusMessage = 'Checking existing files...';
