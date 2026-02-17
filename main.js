@@ -336,6 +336,14 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
       if (Number.isFinite(eff) && eff > 0) {
         effective = Math.min(requestedWorkers, eff);
       }
+      try {
+        if (Number.isFinite(eff) && eff > 0) {
+          globalConcurrencyPool.serverLimit = Math.floor(eff);
+        } else {
+          globalConcurrencyPool.serverLimit = null;
+        }
+        refreshGlobalPoolLimit();
+      } catch (e2) { }
       notice = (loadInfo.concurrency.notice ? String(loadInfo.concurrency.notice) : '') || '';
       download.serverOverhead = loadInfo;
       try {
@@ -344,6 +352,10 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
     } else if (loadInfo && loadInfo.success === false) {
       const errMsg = loadInfo && loadInfo.error ? String(loadInfo.error) : 'Failed to fetch server load';
       logToFile(`[Concurrency] app-load failed: ${errMsg}`);
+      try {
+        globalConcurrencyPool.serverLimit = null;
+        refreshGlobalPoolLimit();
+      } catch (e2) { }
       // Provide a user-friendly message for quota exhaustion
       if (errMsg && /quota|limit|exhausted|too many/i.test(errMsg)) {
         notice = 'You are allowed 2 complete downloads per title per 24‑hour period and you have exhausted that for this title.';
@@ -355,6 +367,10 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
     try {
       logToFile(`[Concurrency] get-app-load threw: ${e && e.message ? e.message : String(e)}`);
     } catch (e2) { }
+    try {
+      globalConcurrencyPool.serverLimit = null;
+      refreshGlobalPoolLimit();
+    } catch (e3) { }
   }
 
   download.effectiveConcurrency = effective;
@@ -678,6 +694,7 @@ const POOL_ID = crypto.randomUUID();
 const globalConcurrencyPool = {
   limit: 2,
   inUse: 0,
+  serverLimit: null,
   waiters: []
 };
 
@@ -740,8 +757,9 @@ function pickNextAdaptiveTask() {
   const now = Date.now();
   let best = null;
   let bestScore = Infinity;
+
   for (const t of adaptiveScheduler.pending) {
-    if (!t || !t.downloadId) continue;
+    if (!t) continue;
     const download = activeDownloads.get(String(t.downloadId));
     if (!download || download.cancelled || download.paused) continue;
 
@@ -749,9 +767,18 @@ function pickNextAdaptiveTask() {
     const ageMs = Math.max(0, now - (Number(t.enqueuedAt) || now));
     const running = getDownloadRunningCount(t.downloadId);
 
+    // Enforce per-download concurrency limit (server effective limit when available).
+    try {
+      const requested = Number(settings && settings.maxConcurrentDownloads);
+      const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requested) ? requested : 3));
+      const eff = Number(download && download.effectiveConcurrency);
+      const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkers, eff) : requestedWorkers;
+      if (running >= limit) continue;
+    } catch (e) { }
+
     const emaSpeedTotal = Number(download && download.__emaSpeedBytesPerSec) || 0;
     const perTaskSpeed = (Number.isFinite(emaSpeedTotal) && emaSpeedTotal > 0)
-      ? (emaSpeedTotal / Math.max(1, running || 1))
+      ? (emaSpeedTotal / Math.max(1, Math.max(1, running)))
       : 0;
     const secondsToFinish = (Number.isFinite(perTaskSpeed) && perTaskSpeed > 0)
       ? (remaining / Math.max(1, perTaskSpeed))
@@ -840,7 +867,10 @@ function getGlobalPoolLimit() {
   try {
     const raw = Number(settings && settings.maxConcurrentDownloads);
     const n = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 2;
-    return Math.min(20, Math.max(1, n));
+    const userLimit = Math.min(20, Math.max(1, n));
+    const serverRaw = Number(globalConcurrencyPool && globalConcurrencyPool.serverLimit);
+    const serverLimit = Number.isFinite(serverRaw) && serverRaw > 0 ? Math.floor(serverRaw) : null;
+    return serverLimit ? Math.max(1, Math.min(userLimit, serverLimit)) : userLimit;
   } catch (e) {
     return 2;
   }
@@ -2868,28 +2898,13 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   };
 
   const requestedWorkers = getRequestedWorkersNow();
-  let shouldApplyServerConcurrency = true;
   try {
-    const filesToCheck = Array.isArray(files) ? files : [];
-    shouldApplyServerConcurrency = filesToCheck.some(f => isProxyDownloadUrl(f && f.url ? String(f.url) : ''));
+    await refreshDownloadConcurrency(download, token, manifestUrl);
   } catch (e) {
-    shouldApplyServerConcurrency = true;
-  }
-
-  if (shouldApplyServerConcurrency) {
-    try {
-      await refreshDownloadConcurrency(download, token, manifestUrl);
-    } catch (e) {
-      logToFile(`[Concurrency] Initial refresh failed, proceeding with default: ${e && e.message ? e.message : e}`);
-      if (!Number.isFinite(download.effectiveConcurrency) || download.effectiveConcurrency <= 0) {
-        download.effectiveConcurrency = requestedWorkers;
-      }
+    logToFile(`[Concurrency] Initial refresh failed, proceeding with default: ${e && e.message ? e.message : e}`);
+    if (!Number.isFinite(download.effectiveConcurrency) || download.effectiveConcurrency <= 0) {
+      download.effectiveConcurrency = requestedWorkers;
     }
-  } else {
-    download.effectiveConcurrency = requestedWorkers;
-    try {
-      logToFile(`[Concurrency] Skipping server throttle (direct routes). appliedEffective=${requestedWorkers}`);
-    } catch (e) { }
   }
   download.statusMessage = download.statusMessage || 'Starting downloads...';
   try { updateProgress(downloadId); } catch (e2) { }
@@ -4427,16 +4442,13 @@ async function resumeDownloadFiles(downloadId) {
     shouldApplyServerConcurrency = true;
   }
 
-  if (shouldApplyServerConcurrency) {
-    try {
-      const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
-      await refreshDownloadConcurrency(download, download.token, manifestUrl);
-    } catch (e) { }
-  } else {
-    download.effectiveConcurrency = requestedWorkers;
-    try {
-      logToFile(`[Concurrency] (resume) Skipping server throttle (direct routes). appliedEffective=${requestedWorkers}`);
-    } catch (e) { }
+  try {
+    const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
+    await refreshDownloadConcurrency(download, download.token, manifestUrl);
+  } catch (e) {
+    if (!Number.isFinite(download.effectiveConcurrency) || download.effectiveConcurrency <= 0) {
+      download.effectiveConcurrency = requestedWorkers;
+    }
   }
 
   const PARALLEL_DOWNLOADS = requestedWorkers;
@@ -4444,16 +4456,14 @@ async function resumeDownloadFiles(downloadId) {
   const activePromises = [];
 
   let concurrencyPoll = null;
-  if (shouldApplyServerConcurrency) {
-    try {
-      const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
-      concurrencyPoll = setInterval(() => {
-        if (!download || download.cancelled || download.paused) return;
-        if (!fileQueue || fileQueue.length === 0) return;
-        refreshDownloadConcurrency(download, download.token, manifestUrl);
-      }, 30000);
-    } catch (e) { }
-  }
+  try {
+    const manifestUrl = download && download.manifestUrl ? String(download.manifestUrl) : '';
+    concurrencyPoll = setInterval(() => {
+      if (!download || download.cancelled || download.paused) return;
+      if (!fileQueue || fileQueue.length === 0) return;
+      refreshDownloadConcurrency(download, download.token, manifestUrl);
+    }, 30000);
+  } catch (e) { }
 
   const processNext = async () => {
     while (fileQueue.length > 0 && !download.cancelled && !download.paused) {
