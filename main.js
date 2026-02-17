@@ -2677,6 +2677,33 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
     // Store full path for trending (e.g., "PC1/Game Name")
     remotePath = manifest.path || manifest.name || '';
+    try {
+      const actualRemote = (manifest && manifest.actualRemote) ? String(manifest.actualRemote) : '';
+      if (actualRemote && remotePath) {
+        const actualLower = actualRemote.toLowerCase();
+        const rootForActual = (() => {
+          const mPcvr = actualLower.match(/^pcvr-(\d)$/);
+          if (mPcvr) return 'PCVR' + mPcvr[1];
+          const mPc = actualLower.match(/^pc-(\d)$/);
+          if (mPc) return 'PC' + mPc[1];
+          return null;
+        })();
+        if (rootForActual) {
+          const segments = String(remotePath).split('/').filter(Boolean);
+          if (segments.length > 0) {
+            const head = String(segments[0] || '');
+            if (/^PCVR\d$/i.test(head) || /^PC\d$/i.test(head)) {
+              segments[0] = rootForActual;
+              remotePath = segments.join('/');
+            } else {
+              remotePath = rootForActual + '/' + segments.join('/');
+            }
+          } else {
+            remotePath = rootForActual;
+          }
+        }
+      }
+    } catch (e) { }
     // Extract folder name from path (e.g., "PC1/Game Name" -> "Game Name")
     name = remotePath.split('/').pop() || 'Download';
     totalSize = manifest.totalSize || files.reduce((sum, f) => sum + (f.size || 0), 0);
