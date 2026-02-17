@@ -444,8 +444,28 @@ async function getAppLoadInfo(token, manifestUrl) {
     const fetchOnce = async (baseUrl) => {
       const url = `${baseUrl}/api/app-load`;
       logToFile(`[app-load] GET ${url}`);
-      const { statusCode, json, text } = await fetchJsonWithBearer(url, 'GET', sessionToken);
-      logToFile(`[app-load] Response status=${statusCode} json=${JSON.stringify(json)} text=${text ? text.slice(0, 200) : ''}`);
+      const { statusCode, json, text, headers } = await fetchJsonWithBearer(url, 'GET', sessionToken);
+      const location = headers && (headers.location || headers.Location) ? String(headers.location || headers.Location) : '';
+      logToFile(`[app-load] Response status=${statusCode} location=${location ? redactUrlQueryStrings(location) : ''} json=${JSON.stringify(json)} text=${text ? text.slice(0, 200) : ''}`);
+
+      if (statusCode >= 300 && statusCode < 400 && location) {
+        try {
+          const u = new URL(location);
+          if (u.protocol === 'https:' && isAllowedServiceHost(u.hostname)) {
+            logToFile(`[app-load] Following redirect to ${u.hostname}`);
+            const redirected = await fetchJsonWithBearer(String(u), 'GET', sessionToken);
+            const sc = redirected && typeof redirected.statusCode === 'number' ? redirected.statusCode : 0;
+            if (sc === 200 && redirected.json && redirected.json.success === true) {
+              return { ok: true, json: redirected.json };
+            }
+            const msg2 = (redirected.json && (redirected.json.error || redirected.json.message)) ? (redirected.json.error || redirected.json.message) : 'Failed to fetch server load';
+            const snippet2 = (redirected.text && typeof redirected.text === 'string') ? redirected.text.slice(0, 200) : '';
+            return { ok: false, error: `${msg2} (HTTP ${sc})${snippet2 ? `: ${snippet2}` : ''}` };
+          }
+        } catch (e) {
+        }
+      }
+
       if (statusCode === 200 && json && json.success === true) {
         return { ok: true, json };
       }
@@ -455,16 +475,27 @@ async function getAppLoadInfo(token, manifestUrl) {
     };
 
     try {
-      const primary = await fetchOnce(base);
-      if (primary.ok) return primary.json;
+      const candidates = [];
+      try { if (base) candidates.push(String(base)); } catch (e) { }
+      candidates.push('https://www.armgddnbrowser.com');
+      candidates.push('https://armgddnbrowser.com');
+      candidates.push('https://api.armgddnbrowser.com');
 
-      if (base !== 'https://www.armgddnbrowser.com') {
-        logToFile(`[app-load] Fallback to www.armgddnbrowser.com`);
-        const fallback = await fetchOnce('https://www.armgddnbrowser.com');
-        if (fallback.ok) return fallback.json;
+      const seen = new Set();
+      let lastError = '';
+      for (const b of candidates) {
+        const bb = String(b || '').trim();
+        if (!bb || seen.has(bb)) continue;
+        seen.add(bb);
+        const res = await fetchOnce(bb);
+        if (res && res.ok) return res.json;
+        lastError = res && res.error ? String(res.error) : lastError;
+        if (bb !== 'https://www.armgddnbrowser.com') {
+          logToFile(`[app-load] Attempt failed, next fallback`);
+        }
       }
 
-      return { success: false, error: primary.error || 'Failed to fetch server load' };
+      return { success: false, error: lastError || 'Failed to fetch server load' };
     } catch (e) {
       const msg = e && e.message ? String(e.message) : String(e);
       const code = e && e.code ? String(e.code) : '';
@@ -517,7 +548,7 @@ function fetchJsonWithBearer(urlString, method, bearerToken) {
         } catch (e) {
           // ignore parse failure
         }
-        resolve({ statusCode: res.statusCode, json, text: data });
+        resolve({ statusCode: res.statusCode, json, text: data, headers: res.headers || {} });
       });
     });
 
