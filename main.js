@@ -4161,8 +4161,10 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     // it typically begins with a carriage return. In that case, treat it as
     // replacing the current line instead of appending, otherwise the buffer
     // becomes a concatenated mess and parsing fails.
-    const isOverwrite = outStr.startsWith('\r');
-    const next = isOverwrite ? outStr : (prev + outStr);
+    const lastCrIdx = outStr.lastIndexOf('\r');
+    const isOverwrite = lastCrIdx !== -1;
+    const overwriteStr = isOverwrite ? outStr.slice(lastCrIdx + 1) : '';
+    const next = isOverwrite ? overwriteStr : (prev + outStr);
     download.__rcloneProgressBuf[fileKey] = next;
   } catch (e) { }
 
