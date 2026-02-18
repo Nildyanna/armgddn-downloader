@@ -3310,6 +3310,22 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       status: 'downloading'
     };
 
+    // Reset rclone parse state for this fileKey (important across retries/session restores).
+    try {
+      if (download.__rcloneLastLoggedPct && Object.prototype.hasOwnProperty.call(download.__rcloneLastLoggedPct, fileKey)) {
+        delete download.__rcloneLastLoggedPct[fileKey];
+      }
+      if (download.__rcloneProgressBuf && Object.prototype.hasOwnProperty.call(download.__rcloneProgressBuf, fileKey)) {
+        delete download.__rcloneProgressBuf[fileKey];
+      }
+      if (download.__rcloneParseDiagOnce && Object.prototype.hasOwnProperty.call(download.__rcloneParseDiagOnce, fileKey)) {
+        delete download.__rcloneParseDiagOnce[fileKey];
+      }
+      if (download.__rcloneFirstParsedOnce && Object.prototype.hasOwnProperty.call(download.__rcloneFirstParsedOnce, fileKey)) {
+        delete download.__rcloneFirstParsedOnce[fileKey];
+      }
+    } catch (e) { }
+
     if (isProxyDownloadUrl(file.url)) {
       // Some remotes cannot be direct-routed (e.g. Coming Attractions / Testing).
       // For these, allow proxy routed downloads.
@@ -4257,6 +4273,15 @@ function parseRcloneProgress(downloadId, fileKey, output) {
 
   try {
     if (typeof parsedAggregatePercent === 'number' && Number.isFinite(parsedAggregatePercent)) {
+      // One-time confirmation that we actually parsed a percent for this file.
+      try {
+        if (!download.__rcloneFirstParsedOnce) download.__rcloneFirstParsedOnce = {};
+        if (!download.__rcloneFirstParsedOnce[fileKey]) {
+          download.__rcloneFirstParsedOnce[fileKey] = true;
+          logToFile(`[rclone-parse-first] file=${fileInfo && fileInfo.name ? String(fileInfo.name) : ''} pct=${Math.max(0, Math.min(100, Math.floor(parsedAggregatePercent)))}`);
+        }
+      } catch (e) { }
+
       if (!download.__rcloneLastLoggedPct) download.__rcloneLastLoggedPct = {};
       const prevLogged = Number(download.__rcloneLastLoggedPct[fileKey]);
       const nextLogged = Math.max(0, Math.min(100, Math.floor(parsedAggregatePercent)));
