@@ -3311,25 +3311,42 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
     };
 
     if (isProxyDownloadUrl(file.url)) {
-      const err = new Error(withSupportFooter(
-        `Proxy routed downloads are disabled (blocked: ${file && file.name ? String(file.name) : 'unknown file'}).`,
-        'Retry the download. If it keeps failing, start the download again from the website to get a fresh direct link.'
-      ));
+      // Some remotes cannot be direct-routed (e.g. Coming Attractions / Testing).
+      // For these, allow proxy routed downloads.
+      let proxyRemote = '';
       try {
-        download.status = 'error';
-        if (!Array.isArray(download.failedFiles)) {
-          download.failedFiles = [];
-        }
-        download.failedFiles.push(file.name);
-        if (download.activeFiles[fileKey]) {
-          download.activeFiles[fileKey].status = 'error';
-          delete download.activeFiles[fileKey];
-        }
-        download.statusMessage = err.message;
-        updateProgress(downloadId);
+        const u = new URL(String(file.url));
+        proxyRemote = String(u.searchParams.get('remote') || '');
       } catch (e) { }
-      done(err);
-      return;
+
+      const PROXY_ALLOWED_REMOTES = new Set([
+        'Testing',
+        '3D Printer Models',
+        'Pirated PC Apps',
+        'Testers'
+      ]);
+
+      if (!PROXY_ALLOWED_REMOTES.has(proxyRemote)) {
+        const err = new Error(withSupportFooter(
+          `Proxy routed downloads are disabled (blocked: ${file && file.name ? String(file.name) : 'unknown file'}).`,
+          'Retry the download. If it keeps failing, start the download again from the website to get a fresh direct link.'
+        ));
+        try {
+          download.status = 'error';
+          if (!Array.isArray(download.failedFiles)) {
+            download.failedFiles = [];
+          }
+          download.failedFiles.push(file.name);
+          if (download.activeFiles[fileKey]) {
+            download.activeFiles[fileKey].status = 'error';
+            delete download.activeFiles[fileKey];
+          }
+          download.statusMessage = err.message;
+          updateProgress(downloadId);
+        } catch (e) { }
+        done(err);
+        return;
+      }
     }
 
     try {
@@ -3404,7 +3421,10 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       file.url,
       outputPath,
       '--progress',
+      '--stats', '1s',
+      '--stats-one-line',
       '-v',
+      '--log-level', 'INFO',
       '--buffer-size', bufferSize,
       '--contimeout', '30s',           // Connection timeout
       '--timeout', '300s',             // Overall timeout
@@ -3488,18 +3508,70 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 
     let errorOutput = '';
 
+    // Some environments will appear to "hang" if rclone emits no progress/stderr.
+    // Track output activity and fail fast with an actionable error instead of spinning forever.
+    let sawAnyOutput = false;
+    let lastOutputAt = Date.now();
+    let watchdogTimer = null;
+    const WATCHDOG_SILENCE_MS = 60 * 1000;
+    const kickWatchdog = () => {
+      try { lastOutputAt = Date.now(); } catch (e) { }
+      if (watchdogTimer) return;
+      watchdogTimer = setInterval(() => {
+        try {
+          if (!proc || proc.killed || proc.exitCode !== null) return;
+          const now = Date.now();
+          const silence = Math.max(0, now - (Number(lastOutputAt) || now));
+          if (silence < WATCHDOG_SILENCE_MS) return;
+
+          // Kill and surface a clear message. This ensures the slot is freed and user can retry.
+          // @ts-ignore
+          proc.__armgddnStopReason = 'watchdog';
+          try {
+            logToFile(`[rclone] watchdog: no output for ${Math.round(silence / 1000)}s file=${file && file.name ? String(file.name) : ''} urlHost=${(() => { try { return new URL(String(file && file.url ? file.url : '')).hostname; } catch (e) { return ''; } })()}`);
+          } catch (e) { }
+          try { proc.kill('SIGKILL'); } catch (e) { }
+        } catch (e) {
+          // ignore
+        }
+      }, 5000);
+      try { watchdogTimer.unref(); } catch (e) { }
+    };
+    kickWatchdog();
+
+    const logFirstOutput = (streamName, output) => {
+      try {
+        if (sawAnyOutput) return;
+        const trimmed = String(output || '').trim();
+        if (!trimmed) return;
+        sawAnyOutput = true;
+        const head = trimmed.length > 600 ? trimmed.slice(0, 600) + '…' : trimmed;
+        logToFile(`[rclone] first-${streamName}: ${redactUrlQueryStrings(head)}`);
+      } catch (e) { }
+    };
+
     proc.stdout.on('data', (data) => {
       const output = data.toString();
+      try { kickWatchdog(); } catch (e) { }
+      try { logFirstOutput('stdout', output); } catch (e) { }
       parseRcloneProgress(downloadId, fileKey, output);
     });
 
     proc.stderr.on('data', (data) => {
       const output = data.toString();
       errorOutput += output;
+      try { kickWatchdog(); } catch (e) { }
+      try { logFirstOutput('stderr', output); } catch (e) { }
       parseRcloneProgress(downloadId, fileKey, output);
     });
 
     proc.on('close', async (code) => {
+      try {
+        if (watchdogTimer) {
+          clearInterval(watchdogTimer);
+          watchdogTimer = null;
+        }
+      } catch (e) { }
       const idx = download.activeProcesses.indexOf(proc);
       if (idx !== -1) {
         download.activeProcesses.splice(idx, 1);
@@ -3563,6 +3635,22 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         const dnsError = errorOutput.includes('lookup') || errorOutput.includes('name resolution') || errorOutput.includes('no such host');
         const networkStream = isNetworkStreamError(errorOutput);
         const tokenExpired = isTokenExpiredError(errorOutput, (file && file.url) ? String(file.url) : '');
+
+        if (stopReason === 'watchdog' && !errorOutput) {
+          download.error = withSupportFooter(
+            'Download engine stalled (no progress output).',
+            `This is usually caused by a network/DNS/TLS issue, a blocked connection, or security software interfering with rclone. Try:
+1) Retry once
+2) Disable VPN/Proxy temporarily
+3) Ensure your firewall/AV allows the Companion
+4) If on Linux, install/update ca-certificates`
+          );
+          updateProgress(downloadId);
+          mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
+          showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
+          done(new Error(download.error));
+          return;
+        }
 
         // Attempt mirror failover once for network/stream failures.
         // This only works when the manifest URL points at a mirror group remote.
