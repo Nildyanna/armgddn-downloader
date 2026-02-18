@@ -4243,6 +4243,30 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     }
   }
 
+  try {
+    if (typeof parsedAggregatePercent === 'number' && Number.isFinite(parsedAggregatePercent)) {
+      if (!download.__rcloneLastLoggedPct) download.__rcloneLastLoggedPct = {};
+      const prevLogged = Number(download.__rcloneLastLoggedPct[fileKey]);
+      const nextLogged = Math.max(0, Math.min(100, Math.floor(parsedAggregatePercent)));
+      if (!Number.isFinite(prevLogged) || prevLogged !== nextLogged) {
+        download.__rcloneLastLoggedPct[fileKey] = nextLogged;
+        const snippet = (() => {
+          try {
+            for (let i = lines.length - 1; i >= 0; i--) {
+              const t = String(lines[i] || '').trim();
+              if (!t) continue;
+              if (t.includes('%')) {
+                return t.length > 220 ? (t.slice(0, 220) + '…') : t;
+              }
+            }
+          } catch (e) { }
+          return '';
+        })();
+        logToFile(`[rclone-parse] file=${fileInfo && fileInfo.name ? String(fileInfo.name) : ''} pct=${nextLogged}${snippet ? ` line=${snippet}` : ''}`);
+      }
+    }
+  } catch (e) { }
+
   if (typeof parsedAggregatePercent === 'number' && Number.isFinite(parsedAggregatePercent)) {
     try {
       download.__lastAggregatePercent = parsedAggregatePercent;
