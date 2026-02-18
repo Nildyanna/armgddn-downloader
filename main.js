@@ -4243,7 +4243,9 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     // "18.165 MiB / 1.423 GiB, 1%, 0 B/s, ETA -"
     // Detect it by finding a % token followed shortly by a speed token.
     if (trimmed && parsedAggregatePercent == null) {
-      const mOneLine = trimmed.match(/\b(\d{1,3})%\b/);
+      // NOTE: rclone prints percentages like "1%," (comma immediately after %).
+      // A word-boundary after '%' would fail here (non-word to non-word), so keep it simple.
+      const mOneLine = trimmed.match(/(\d{1,3})%/);
       if (mOneLine) {
         parsedAggregatePercent = parseInt(mOneLine[1], 10);
         parsedPercent = parsedAggregatePercent;
