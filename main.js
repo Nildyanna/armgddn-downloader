@@ -4247,8 +4247,9 @@ function parseRcloneProgress(downloadId, fileKey, output) {
       // A word-boundary after '%' would fail here (non-word to non-word), so keep it simple.
       const mOneLine = trimmed.match(/(\d{1,3})%/);
       if (mOneLine) {
-        parsedAggregatePercent = parseInt(mOneLine[1], 10);
-        parsedPercent = parsedAggregatePercent;
+        // This format is per-process / per-file (copyurl per file). Do NOT treat it as
+        // a global aggregate percent for the whole download.
+        parsedPercent = parseInt(mOneLine[1], 10);
         continue;
       }
     }
@@ -4306,25 +4307,40 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     }
   } catch (e) { }
 
-  if (typeof parsedAggregatePercent === 'number' && Number.isFinite(parsedAggregatePercent)) {
-    try {
-      download.__lastAggregatePercent = parsedAggregatePercent;
-      download.__lastAggregatePercentAt = Date.now();
-    } catch (e) { }
-
-    try {
-      const pct = Math.max(0, Math.min(100, parsedAggregatePercent));
-      const activeFilesObj = download.activeFiles || {};
-      for (const k of Object.keys(activeFilesObj)) {
-        const f = activeFilesObj[k];
-        if (!f || typeof f !== 'object') continue;
-        const cur = Number(f.progress);
-        if (!Number.isFinite(cur) || cur < pct) {
-          f.progress = pct;
+  // When we only have a per-file percent (common for copyurl), still emit diagnostics.
+  // Do NOT apply this percent to all active files.
+  try {
+    if ((parsedAggregatePercent == null) && (typeof parsedPercent === 'number' && Number.isFinite(parsedPercent))) {
+      try {
+        if (!download.__rcloneFirstParsedOnce) download.__rcloneFirstParsedOnce = {};
+        if (!download.__rcloneFirstParsedOnce[fileKey]) {
+          download.__rcloneFirstParsedOnce[fileKey] = true;
+          logToFile(`[rclone-parse-first] file=${fileInfo && fileInfo.name ? String(fileInfo.name) : ''} pct=${Math.max(0, Math.min(100, Math.floor(parsedPercent)))}`);
         }
+      } catch (e) { }
+
+      if (!download.__rcloneLastLoggedPct) download.__rcloneLastLoggedPct = {};
+      const prevLogged = Number(download.__rcloneLastLoggedPct[fileKey]);
+      const nextLogged = Math.max(0, Math.min(100, Math.floor(parsedPercent)));
+      if (!Number.isFinite(prevLogged) || prevLogged !== nextLogged) {
+        download.__rcloneLastLoggedPct[fileKey] = nextLogged;
+        const snippet = (() => {
+          try {
+            for (let i = lines.length - 1; i >= 0; i--) {
+              const t = String(lines[i] || '').trim();
+              if (!t) continue;
+              if (t.includes('%')) {
+                return t.length > 220 ? (t.slice(0, 220) + '…') : t;
+              }
+            }
+          } catch (e) { }
+          return '';
+        })();
+        logToFile(`[rclone-parse] file=${fileInfo && fileInfo.name ? String(fileInfo.name) : ''} pct=${nextLogged}${snippet ? ` line=${snippet}` : ''}`);
       }
-    } catch (e) { }
-  }
+    }
+  } catch (e) { }
+
   if (typeof parsedPercent === 'number' && Number.isFinite(parsedPercent)) {
     if (parsedPercent < 0) parsedPercent = 0;
     if (parsedPercent > 100) parsedPercent = 100;
