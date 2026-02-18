@@ -4164,11 +4164,6 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   if (!endedWithDelimiter && segments.length > 0) {
     remainder = segments[segments.length - 1];
     complete = segments.slice(0, -1);
-    // If rclone is emitting a single constantly-updating line with no delimiter yet,
-    // we still want to parse that line for progress while keeping it buffered.
-    if (complete.length === 0 && remainder) {
-      complete = [remainder];
-    }
   }
   try {
     if (download.__rcloneProgressBuf) download.__rcloneProgressBuf[fileKey] = remainder;
@@ -4180,7 +4175,9 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   // - The aggregate "Transferred:" stats line, or
   // - A line that includes this file's name.
   // Otherwise we can jump 0->100 instantly from unrelated output.
-  const lines = complete;
+  // Always parse the current remainder segment too: rclone often emits a single
+  // continually-updating progress line without a trailing delimiter.
+  const lines = remainder ? complete.concat([remainder]) : complete;
   let parsedPercent = null;
   let parsedAggregatePercent = null;
   const fileName = (fileInfo && fileInfo.name) ? String(fileInfo.name) : '';
