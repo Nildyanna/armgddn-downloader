@@ -1972,6 +1972,9 @@ function createAppMenu() {
 
 // App ready
 app.whenReady().then(() => {
+  try {
+    logToFile(`[Startup] version: ${app.getVersion()}`);
+  } catch (e) { }
   logToFile(`[Startup] debug.log path: ${getDebugLogPath()}`);
   logToFile(`[Protocol] setAsDefaultProtocolClient ok=${protocolClientRegistered}${protocolClientRegisterError ? ` err=${protocolClientRegisterError}` : ''}`);
   loadSettings();
@@ -4157,6 +4160,16 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     if (!download.__rcloneProgressBuf) download.__rcloneProgressBuf = {};
     const outStr = String(output == null ? '' : output);
     const prev = download.__rcloneProgressBuf[fileKey] ? String(download.__rcloneProgressBuf[fileKey]) : '';
+    const isStatsLike = (s) => {
+      try {
+        const t = String(s == null ? '' : s);
+        if (!t) return false;
+        // Matches rclone one-line stats like: "X / Y, 1%, 0 B/s, ETA -" or "0 B / 0 B, -, 0 B/s, ETA -"
+        return /(\bETA\b|\/s\b)/i.test(t) && /\s\/\s|\bETA\b|\bB\/s\b/i.test(t);
+      } catch (e) {
+        return false;
+      }
+    };
     // If rclone is emitting an overwrite update (common with --stats-one-line),
     // it typically begins with a carriage return. In that case, treat it as
     // replacing the current line instead of appending, otherwise the buffer
@@ -4164,7 +4177,10 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     const lastCrIdx = outStr.lastIndexOf('\r');
     const isOverwrite = lastCrIdx !== -1;
     const overwriteStr = isOverwrite ? outStr.slice(lastCrIdx + 1) : '';
-    const next = isOverwrite ? overwriteStr : (prev + outStr);
+    // If the '\r' got split across chunks, we may receive consecutive stats-like fragments
+    // without any '\r' present in the latter chunk. In that case, treat it as overwrite.
+    const isImplicitOverwrite = !isOverwrite && isStatsLike(prev) && isStatsLike(outStr);
+    const next = isOverwrite ? overwriteStr : (isImplicitOverwrite ? outStr : (prev + outStr));
     download.__rcloneProgressBuf[fileKey] = next;
   } catch (e) { }
 
