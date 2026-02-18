@@ -4156,9 +4156,15 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   }
 
   // Split into complete lines; keep the last partial segment in the buffer.
-  const segments = stripAnsiAndControl(buffered).split(/[\r\n]+/);
-  const complete = segments.length > 1 ? segments.slice(0, -1) : segments;
-  const remainder = segments.length > 1 ? segments[segments.length - 1] : '';
+  const sanitizedBuffered = stripAnsiAndControl(buffered);
+  const endedWithDelimiter = /[\r\n]$/.test(sanitizedBuffered);
+  const segments = sanitizedBuffered.split(/[\r\n]+/);
+  let complete = segments;
+  let remainder = '';
+  if (!endedWithDelimiter && segments.length > 0) {
+    remainder = segments[segments.length - 1];
+    complete = segments.slice(0, -1);
+  }
   try {
     if (download.__rcloneProgressBuf) download.__rcloneProgressBuf[fileKey] = remainder;
   } catch (e) { }
