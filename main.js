@@ -4123,6 +4123,18 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   const fileInfo = download.activeFiles[fileKey];
   if (!fileInfo) return;
 
+  // One-time diagnostic to prove the parser is running and seeing data for this file.
+  try {
+    if (!download.__rcloneParseDiagOnce) download.__rcloneParseDiagOnce = {};
+    if (!download.__rcloneParseDiagOnce[fileKey]) {
+      download.__rcloneParseDiagOnce[fileKey] = true;
+      const s = String(output == null ? '' : output);
+      const t = s.trim();
+      const head = t.length > 220 ? (t.slice(0, 220) + '…') : t;
+      logToFile(`[rclone-parse-diag] file=${fileInfo && fileInfo.name ? String(fileInfo.name) : ''} chunk=${head}`);
+    }
+  } catch (e) { }
+
   // Buffer partial progress output across stdout/stderr chunks.
   // rclone frequently emits carriage-return based updates and may split tokens across chunks.
   try {
