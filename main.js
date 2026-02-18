@@ -4127,8 +4127,14 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   // rclone frequently emits carriage-return based updates and may split tokens across chunks.
   try {
     if (!download.__rcloneProgressBuf) download.__rcloneProgressBuf = {};
+    const outStr = String(output == null ? '' : output);
     const prev = download.__rcloneProgressBuf[fileKey] ? String(download.__rcloneProgressBuf[fileKey]) : '';
-    const next = prev + String(output == null ? '' : output);
+    // If rclone is emitting an overwrite update (common with --stats-one-line),
+    // it typically begins with a carriage return. In that case, treat it as
+    // replacing the current line instead of appending, otherwise the buffer
+    // becomes a concatenated mess and parsing fails.
+    const isOverwrite = outStr.startsWith('\r');
+    const next = isOverwrite ? outStr : (prev + outStr);
     download.__rcloneProgressBuf[fileKey] = next;
   } catch (e) { }
 
@@ -4211,12 +4217,9 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     if (trimmed && parsedAggregatePercent == null) {
       const mOneLine = trimmed.match(/\b(\d{1,3})%\b/);
       if (mOneLine) {
-        const looksLikeStats = /\s\/\s|\bETA\b|\/(?:s|sec)\b/i.test(trimmed);
-        if (looksLikeStats) {
-          parsedAggregatePercent = parseInt(mOneLine[1], 10);
-          parsedPercent = parsedAggregatePercent;
-          continue;
-        }
+        parsedAggregatePercent = parseInt(mOneLine[1], 10);
+        parsedPercent = parsedAggregatePercent;
+        continue;
       }
     }
 
