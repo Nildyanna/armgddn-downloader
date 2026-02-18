@@ -4123,13 +4123,53 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   const fileInfo = download.activeFiles[fileKey];
   if (!fileInfo) return;
 
+  // Buffer partial progress output across stdout/stderr chunks.
+  // rclone frequently emits carriage-return based updates and may split tokens across chunks.
+  try {
+    if (!download.__rcloneProgressBuf) download.__rcloneProgressBuf = {};
+    const prev = download.__rcloneProgressBuf[fileKey] ? String(download.__rcloneProgressBuf[fileKey]) : '';
+    const next = prev + String(output == null ? '' : output);
+    download.__rcloneProgressBuf[fileKey] = next;
+  } catch (e) { }
+
+  const stripAnsiAndControl = (s) => {
+    try {
+      const str = String(s == null ? '' : s);
+      // Strip ANSI escape sequences (including CSI, OSC) and other control chars.
+      const noAnsi = str
+        .replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '')
+        .replace(/\x1b\][^\x07]*(?:\x07|\x1b\\)/g, '')
+        .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/g, '');
+      return noAnsi;
+    } catch (e) {
+      return String(s == null ? '' : s);
+    }
+  };
+
+  let buffered = '';
+  try {
+    buffered = download.__rcloneProgressBuf && download.__rcloneProgressBuf[fileKey]
+      ? String(download.__rcloneProgressBuf[fileKey])
+      : String(output == null ? '' : output);
+  } catch (e) {
+    buffered = String(output == null ? '' : output);
+  }
+
+  // Split into complete lines; keep the last partial segment in the buffer.
+  const segments = stripAnsiAndControl(buffered).split(/[\r\n]+/);
+  const complete = segments.length > 1 ? segments.slice(0, -1) : segments;
+  const remainder = segments.length > 1 ? segments[segments.length - 1] : '';
+  try {
+    if (download.__rcloneProgressBuf) download.__rcloneProgressBuf[fileKey] = remainder;
+  } catch (e) { }
+
   // Parse progress percentage.
   // NOTE: rclone emits many lines that can contain a percentage-like token.
   // We only trust percentages from either:
   // - The aggregate "Transferred:" stats line, or
   // - A line that includes this file's name.
   // Otherwise we can jump 0->100 instantly from unrelated output.
-  const lines = String(output).split(/[\r\n]+/);
+  const lines = complete;
   let parsedPercent = null;
   let parsedAggregatePercent = null;
   const fileName = (fileInfo && fileInfo.name) ? String(fileInfo.name) : '';
@@ -4161,11 +4201,14 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     // "18.165 MiB / 1.423 GiB, 1%, 0 B/s, ETA -"
     // Detect it by finding a % token followed shortly by a speed token.
     if (trimmed && parsedAggregatePercent == null) {
-      const mOneLine = trimmed.match(/\b(\d{1,3})%\b\s*,\s*[^,]*\/(?:s|sec)\b/i);
+      const mOneLine = trimmed.match(/\b(\d{1,3})%\b/);
       if (mOneLine) {
-        parsedAggregatePercent = parseInt(mOneLine[1], 10);
-        parsedPercent = parsedAggregatePercent;
-        continue;
+        const looksLikeStats = /\s\/\s|\bETA\b|\/(?:s|sec)\b/i.test(trimmed);
+        if (looksLikeStats) {
+          parsedAggregatePercent = parseInt(mOneLine[1], 10);
+          parsedPercent = parsedAggregatePercent;
+          continue;
+        }
       }
     }
 
@@ -4215,7 +4258,8 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   }
 
   // Parse speed (e.g., "123.4 MiB/s" or "45 KiB/s")
-  const speedMatch = output.match(/(\d+(?:\.\d+)?)\s*(B|[KMGT]i?B)\/s/i);
+  const cleanedForMatch = stripAnsiAndControl(String(output == null ? '' : output));
+  const speedMatch = cleanedForMatch.match(/(\d+(?:\.\d+)?)\s*(B|[KMGT]i?B)\/s/i);
   if (speedMatch) {
     const speedBytes = parseSpeedToBytes(speedMatch[1], speedMatch[2]);
     if (Number.isFinite(speedBytes)) {
@@ -4228,7 +4272,7 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   }
 
   // Parse ETA
-  const etaMatch = output.match(/ETA\s+(\S+)/);
+  const etaMatch = cleanedForMatch.match(/ETA\s+(\S+)/);
   if (etaMatch) {
     fileInfo.eta = etaMatch[1];
   }
