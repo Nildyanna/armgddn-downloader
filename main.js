@@ -4129,7 +4129,7 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   // - The aggregate "Transferred:" stats line, or
   // - A line that includes this file's name.
   // Otherwise we can jump 0->100 instantly from unrelated output.
-  const lines = String(output).split(/\r?\n/);
+  const lines = String(output).split(/[\r\n]+/);
   let parsedPercent = null;
   let parsedAggregatePercent = null;
   const fileName = (fileInfo && fileInfo.name) ? String(fileInfo.name) : '';
