@@ -4157,6 +4157,18 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     if (!line) continue;
     const trimmed = line.trim();
 
+    // copyurl sometimes emits one-line progress without the "Transferred:" prefix, e.g.
+    // "18.165 MiB / 1.423 GiB, 1%, 0 B/s, ETA -"
+    // Detect it by finding a % token followed shortly by a speed token.
+    if (trimmed && parsedAggregatePercent == null) {
+      const mOneLine = trimmed.match(/\b(\d{1,3})%\b\s*,\s*[^,]*\/(?:s|sec)\b/i);
+      if (mOneLine) {
+        parsedAggregatePercent = parseInt(mOneLine[1], 10);
+        parsedPercent = parsedAggregatePercent;
+        continue;
+      }
+    }
+
     // Prefer aggregate stats line (works reliably even for copyurl)
     if (trimmed.startsWith('Transferred:')) {
       const m = trimmed.match(/,\s*(\d{1,3})%/);
