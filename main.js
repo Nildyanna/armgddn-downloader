@@ -4131,6 +4131,28 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   // Otherwise we can jump 0->100 instantly from unrelated output.
   const lines = String(output).split(/\r?\n/);
   let parsedPercent = null;
+  let parsedAggregatePercent = null;
+  const fileName = (fileInfo && fileInfo.name) ? String(fileInfo.name) : '';
+  const fileBase = (() => {
+    try {
+      if (!fileName) return '';
+      const parts = fileName.split('/').filter(Boolean);
+      return parts.length ? String(parts[parts.length - 1]) : '';
+    } catch (e) {
+      return '';
+    }
+  })();
+
+  const lineMentionsThisFile = (line) => {
+    try {
+      if (!line) return false;
+      if (fileName && line.includes(fileName)) return true;
+      if (fileBase && line.includes(fileBase)) return true;
+      return false;
+    } catch (e) {
+      return false;
+    }
+  };
   for (const line of lines) {
     if (!line) continue;
     const trimmed = line.trim();
@@ -4139,19 +4161,40 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     if (trimmed.startsWith('Transferred:')) {
       const m = trimmed.match(/,\s*(\d{1,3})%/);
       if (m) {
-        parsedPercent = parseInt(m[1], 10);
-        break;
+        parsedAggregatePercent = parseInt(m[1], 10);
+        parsedPercent = parsedAggregatePercent;
+        continue;
       }
     }
 
     // Fall back to file-specific line if present
-    if (fileInfo && fileInfo.name && line.includes(fileInfo.name)) {
+    if (lineMentionsThisFile(line)) {
       const m = line.match(/(\d{1,3})%/);
       if (m) {
         parsedPercent = parseInt(m[1], 10);
         break;
       }
     }
+  }
+
+  if (typeof parsedAggregatePercent === 'number' && Number.isFinite(parsedAggregatePercent)) {
+    try {
+      download.__lastAggregatePercent = parsedAggregatePercent;
+      download.__lastAggregatePercentAt = Date.now();
+    } catch (e) { }
+
+    try {
+      const pct = Math.max(0, Math.min(100, parsedAggregatePercent));
+      const activeFilesObj = download.activeFiles || {};
+      for (const k of Object.keys(activeFilesObj)) {
+        const f = activeFilesObj[k];
+        if (!f || typeof f !== 'object') continue;
+        const cur = Number(f.progress);
+        if (!Number.isFinite(cur) || cur < pct) {
+          f.progress = pct;
+        }
+      }
+    } catch (e) { }
   }
   if (typeof parsedPercent === 'number' && Number.isFinite(parsedPercent)) {
     if (parsedPercent < 0) parsedPercent = 0;
