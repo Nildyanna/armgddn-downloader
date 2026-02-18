@@ -3423,7 +3423,6 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       '--progress',
       '--stats', '1s',
       '--stats-one-line',
-      '-v',
       '--log-level', 'INFO',
       '--buffer-size', bufferSize,
       '--contimeout', '30s',           // Connection timeout
