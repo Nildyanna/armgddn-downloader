@@ -3184,49 +3184,80 @@ function transformProxyUrlToDirectIfPossible(urlString) {
       return `https://dl.neatbarb.box.ca/${rpath}`;
     }
 
-    // Signed /api/download-file URLs (JD2/app manifests) should never be used as
-    // a proxy route by the Companion. When possible, transform them into the
-    // same direct Whatbox URL that the server would 302 to.
-    // Example: /api/download-file?remote=PC-2&file=PC2/Game/Foo.7z&jd2=...
-    const pathname = (u && u.pathname) ? String(u.pathname) : '';
-    if (pathname === '/api/download-file') {
-      const remote = (u.searchParams.get('remote') || '').trim();
-      const file = (u.searchParams.get('file') || '').trim();
-      if (!remote || !file) return s;
-
-      const REDIRECT_BASE_URL = 'https://dl.neatbarb.box.ca';
-
-      let boxCategory = '';
-      let relPath = file;
-
-      if (remote.startsWith('PC-') || remote === 'PC-FTP') {
-        boxCategory = 'Games/PC';
-        if (remote.startsWith('PC-') && remote !== 'PC-FTP') {
-          const parts = relPath.split('/');
-          if (parts.length > 0) parts.shift();
-          relPath = parts.join('/');
-        }
-      } else if (remote.startsWith('PCVR-') || remote === 'PCVR-FTP') {
-        boxCategory = 'Games/PCVR';
-        if (remote.startsWith('PCVR-') && remote !== 'PCVR-FTP') {
-          const parts = relPath.split('/');
-          if (parts.length > 0) parts.shift();
-          relPath = parts.join('/');
-        }
-      } else {
-        return s;
-      }
-
-      if (!boxCategory || !relPath) return s;
-
-      const safePath = relPath.split('/').map(c => encodeURIComponent(c)).join('/');
-      return `${REDIRECT_BASE_URL}/${boxCategory}/${safePath}`;
-    }
-
     return s;
   } catch (e) {
     return String(urlString || '');
   }
+}
+
+async function resolveDownloadRedirectUrl(urlString, maxHops = 5) {
+  const startUrl = String(urlString || '').trim();
+  if (!startUrl) return startUrl;
+  let current = startUrl;
+
+  for (let hop = 0; hop < maxHops; hop++) {
+    let u;
+    try {
+      u = new URL(current);
+    } catch (e) {
+      return current;
+    }
+
+    if (u.protocol !== 'https:') {
+      return current;
+    }
+
+    const isArmgddnHost = u.hostname === 'www.armgddnbrowser.com' || u.hostname === 'armgddnbrowser.com' || u.hostname.endsWith('.armgddnbrowser.com');
+    if (!isArmgddnHost) {
+      return current;
+    }
+
+    if (u.pathname !== '/api/download-file') {
+      return current;
+    }
+
+    const next = await new Promise((resolve) => {
+      const options = {
+        protocol: 'https:',
+        hostname: u.hostname,
+        port: u.port ? Number(u.port) : 443,
+        method: 'HEAD',
+        path: u.pathname + u.search,
+        headers: { 'User-Agent': 'ARMGDDN-Companion/redirect-resolver' }
+      };
+
+      const req = https.request(options, (res) => {
+        try {
+          const status = Number(res.statusCode) || 0;
+          const loc = res.headers && res.headers.location ? String(res.headers.location) : '';
+          res.resume();
+          if (status >= 300 && status < 400 && loc) {
+            try {
+              const resolved = new URL(loc, current).toString();
+              resolve(resolved);
+              return;
+            } catch (e) {
+              resolve(current);
+              return;
+            }
+          }
+          resolve(current);
+        } catch (e) {
+          resolve(current);
+        }
+      });
+
+      req.on('error', () => resolve(current));
+      req.end();
+    });
+
+    if (!next || next === current) {
+      return current;
+    }
+    current = next;
+  }
+
+  return current;
 }
 
 // Download a single file using rclone
@@ -3265,6 +3296,24 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         file.url = transformed;
       }
     } catch (e) { }
+
+    try {
+      const u0 = new URL(String(file.url || ''));
+      const isArmgddnHost0 = u0.hostname === 'www.armgddnbrowser.com' || u0.hostname === 'armgddnbrowser.com' || u0.hostname.endsWith('.armgddnbrowser.com');
+      if (isArmgddnHost0 && u0.pathname === '/api/download-file') {
+        const resolved = await resolveDownloadRedirectUrl(String(file.url), 5);
+        if (resolved && resolved !== file.url) {
+          try {
+            const uh = new URL(resolved);
+            logToFile(`[Route] Resolved /api/download-file redirect host=${String(uh.hostname)} path=${String(uh.pathname)}`);
+          } catch (e) {
+            logToFile('[Route] Resolved /api/download-file redirect');
+          }
+          file.url = resolved;
+        }
+      }
+    } catch (e) {
+    }
 
       const safeRel = sanitizeRelativePath(file.name);
       if (!safeRel) {
@@ -3653,6 +3702,22 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         const dnsError = errorOutput.includes('lookup') || errorOutput.includes('name resolution') || errorOutput.includes('no such host');
         const networkStream = isNetworkStreamError(errorOutput);
         const tokenExpired = isTokenExpiredError(errorOutput, (file && file.url) ? String(file.url) : '');
+        const httpStatus = parseRcloneHttpStatus(errorOutput);
+        const is502 = !!(httpStatus && httpStatus.code === 502);
+
+        let fileUrlHost = '';
+        try {
+          const uu = new URL(String(file && file.url ? file.url : ''));
+          fileUrlHost = uu && uu.hostname ? String(uu.hostname) : '';
+        } catch (e) {
+          fileUrlHost = '';
+        }
+
+        if (is502) {
+          try {
+            logToFile(`[rclone] http-502 host=${fileUrlHost || 'unknown'} file=${file && file.name ? String(file.name) : ''}`);
+          } catch (e) { }
+        }
 
         if (stopReason === 'watchdog' && !errorOutput) {
           download.error = withSupportFooter(
@@ -3767,6 +3832,12 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           download.error = withSupportFooter(
             'Server is busy due to high demand.',
             'Wait a minute and retry. If it keeps happening, lower concurrency.'
+          );
+        } else if (is502) {
+          const hostPart = fileUrlHost ? ` (host: ${fileUrlHost})` : '';
+          download.error = withSupportFooter(
+            `Download gateway error (HTTP 502 Bad Gateway)${hostPart}.`,
+            'Retry. If it keeps failing, this is likely a backend/upstream issue.'
           );
         } else if (quota) {
           download.error = withSupportFooter(
@@ -3927,6 +3998,23 @@ function shouldFinalizeDownload(download) {
   logToFile(`[shouldFinalizeDownload] downloadedSize=${downloadedSize}, totalSize=${totalSize}, completedFiles=${completed}, fileCount=${fileCount}`);
 
   return result;
+}
+
+function parseRcloneHttpStatus(errorOutput) {
+  try {
+    const s = String(errorOutput || '');
+    if (!s) return null;
+
+    const m = s.match(/\b(\d{3})\b\s+([A-Za-z][A-Za-z\s-]{1,50})/);
+    if (!m) return null;
+    const code = Number(m[1]);
+    if (!Number.isFinite(code)) return null;
+    if (code < 100 || code > 599) return null;
+    const text = String(m[2] || '').trim();
+    return { code, text };
+  } catch (e) {
+    return null;
+  }
 }
 
 function clampProgressUnlessFinal(download) {
