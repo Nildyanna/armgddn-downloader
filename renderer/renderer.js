@@ -42,6 +42,7 @@ async function showAlertDialog(title, message) {
 
   let lastOverheadNotice = '';
   let lastEffectiveConcurrency = null;
+  let lastServerNotice = '';
 
   function setOverheadNotice(text) {
     const banner = document.getElementById('overhead-notice');
@@ -49,16 +50,21 @@ async function showAlertDialog(title, message) {
     if (!banner || !textEl) return;
 
     const msg = (text && typeof text === 'string') ? text.trim() : '';
-    if (!msg) {
+    lastOverheadNotice = msg;
+    const display = (lastServerNotice || lastOverheadNotice).trim();
+    if (!display) {
       banner.style.display = 'none';
       textEl.textContent = '';
-      lastOverheadNotice = '';
       return;
     }
-
-    lastOverheadNotice = msg;
-    textEl.textContent = msg;
+    textEl.textContent = display;
     banner.style.display = '';
+  }
+
+  function setServerNotice(text) {
+    const msg = (text && typeof text === 'string') ? text.trim() : '';
+    lastServerNotice = msg;
+    setOverheadNotice(lastOverheadNotice);
   }
 
   async function refreshServerLoad(manifestUrl) {
@@ -293,6 +299,18 @@ async function showAlertDialog(title, message) {
     api.onDownloadCancelled((data) => {
       downloads.delete(data.id);
       renderDownloads();
+    });
+
+    api.onServerNotice((payload) => {
+      try {
+        if (payload && typeof payload === 'object' && 'message' in payload) {
+          setServerNotice(String(payload.message || ''));
+        } else {
+          setServerNotice(String(payload || ''));
+        }
+      } catch (e) {
+        setServerNotice('');
+      }
     });
   }
 

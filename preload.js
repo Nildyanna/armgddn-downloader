@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDownloadCompleted: (callback) => ipcRenderer.on('download-completed', (event, data) => callback(data)),
   onDownloadError: (callback) => ipcRenderer.on('download-error', (event, data) => callback(data)),
   onDownloadCancelled: (callback) => ipcRenderer.on('download-cancelled', (event, data) => callback(data)),
+  onServerNotice: (callback) => ipcRenderer.on('server-notice', (event, message) => callback(message)),
 
   // Remove listeners
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)

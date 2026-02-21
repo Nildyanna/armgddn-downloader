@@ -2465,7 +2465,6 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
     req.write(postData);
     req.end();
   } catch (e) {
-    // ignore
   }
 }
 
@@ -2580,6 +2579,12 @@ async function reportProgressToServer(download, token) {
       res.on('end', () => {
         logToFile(`[Progress] Server response: ${res.statusCode} - ${responseData}`);
         debugLog(`Progress response: ${res.statusCode} ${responseData}`);
+        try {
+          const json = responseData ? JSON.parse(responseData) : null;
+          updateProgressBackoffFromResponse(res, json);
+        } catch (e) {
+          updateProgressBackoffFromResponse(res, null);
+        }
       });
     });
 
@@ -3910,12 +3915,86 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 const lastUIUpdate = new Map();
 const UI_UPDATE_INTERVAL = 500; // Update UI every 500ms max
 let lastProgressReport = 0; // Throttle server progress reports
+let progressReportMinIntervalMs = 2000;
+let progressReportBackoffUntilMs = 0;
+let lastServerNoticeText = '';
+let lastServerNoticeUntilMs = 0;
+
+function sendServerNotice(message, ttlMs) {
+  try {
+    if (!mainWindow || !mainWindow.webContents) return;
+    const msg = (message && typeof message === 'string') ? message.trim() : '';
+    const until = Date.now() + clampInt(ttlMs, 1000, 60000);
+    if (msg) {
+      lastServerNoticeText = msg;
+      lastServerNoticeUntilMs = until;
+      mainWindow.webContents.send('server-notice', { message: msg, untilMs: until });
+    } else {
+      lastServerNoticeText = '';
+      lastServerNoticeUntilMs = 0;
+      mainWindow.webContents.send('server-notice', { message: '', untilMs: 0 });
+    }
+  } catch (e) {
+  }
+}
+
+function maybeClearServerNotice() {
+  try {
+    const now = Date.now();
+    if (lastServerNoticeText && lastServerNoticeUntilMs > 0 && now >= lastServerNoticeUntilMs) {
+      sendServerNotice('', 0);
+    }
+  } catch (e) {
+  }
+}
+
+function clampInt(n, min, max) {
+  const v = Math.floor(Number(n));
+  if (!Number.isFinite(v)) return min;
+  return Math.max(min, Math.min(max, v));
+}
+
+function updateProgressBackoffFromResponse(res, responseData) {
+  try {
+    const now = Date.now();
+
+    let recommended = null;
+    if (responseData && typeof responseData === 'object') {
+      const r = Number(responseData.recommendedIntervalMs);
+      if (Number.isFinite(r) && r > 0) recommended = r;
+    }
+
+    if (recommended != null) {
+      progressReportMinIntervalMs = clampInt(recommended, 2000, 15000);
+    }
+
+    let retryAfterMs = 0;
+    if (responseData && typeof responseData === 'object') {
+      const r = Number(responseData.retryAfterMs);
+      if (Number.isFinite(r) && r > 0) retryAfterMs = r;
+    }
+    if (!(retryAfterMs > 0) && res && typeof res.headers === 'object') {
+      const ra = res.headers['retry-after'];
+      const sec = ra != null ? Number(ra) : NaN;
+      if (Number.isFinite(sec) && sec > 0) retryAfterMs = sec * 1000;
+    }
+
+    if (retryAfterMs > 0) {
+      const until = now + clampInt(retryAfterMs, 1000, 60000);
+      progressReportBackoffUntilMs = Math.max(progressReportBackoffUntilMs, until);
+      progressReportMinIntervalMs = Math.max(progressReportMinIntervalMs, 4000);
+
+      const seconds = Math.max(1, Math.ceil(clampInt(retryAfterMs, 1000, 60000) / 1000));
+      sendServerNotice(`Server is busy — reducing status update frequency (${seconds}s). Downloads are unaffected.`, retryAfterMs);
+    }
+  } catch (e) {
+  }
+}
 
 function pruneActiveProcesses(download) {
   if (!download || !Array.isArray(download.activeProcesses)) return;
   download.activeProcesses = download.activeProcesses.filter((p) => {
     if (!p) return false;
-    // ChildProcess.exitCode is null while running.
     if (p.exitCode === null) return true;
     return false;
   });
@@ -4595,12 +4674,15 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     fileCount: download.fileCount
   });
 
-  // Report to server (throttled separately from UI updates)
+  // Report to server (throttled, server can recommend/backoff)
   const now2 = Date.now();
-  if (now2 - lastProgressReport > 2000) {
+  if (progressReportBackoffUntilMs > now2) {
+  } else if (now2 - lastProgressReport > progressReportMinIntervalMs) {
     lastProgressReport = now2;
     reportProgressToServer(download, download.token);
   }
+
+  maybeClearServerNotice();
 
   if (shouldFinalizeDownload(download)) {
     completeDownload(downloadId);
@@ -4700,12 +4782,15 @@ function updateProgress(downloadId) {
     fileCount: download.fileCount
   });
 
-  // Report to server every 2 seconds (throttled)
+  // Report to server (throttled, server can recommend/backoff)
   const now = Date.now();
-  if (now - lastProgressReport > 2000) {
+  if (progressReportBackoffUntilMs > now) {
+  } else if (now - lastProgressReport > progressReportMinIntervalMs) {
     lastProgressReport = now;
     reportProgressToServer(download, download.token);
   }
+
+  maybeClearServerNotice();
 
   if (shouldFinalizeDownload(download)) {
     completeDownload(downloadId);
