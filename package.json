@@ -121,6 +121,11 @@
   },
   "devDependencies": {
     "electron": "^39.2.6",
-    "electron-builder": "^26.0.12"
+    "electron-builder": "^26.8.1"
+  },
+  "overrides": {
+    "minimatch": "^10.2.2",
+    "tar": "^7.5.9",
+    "ajv": "^8.18.0"
   }
 }
