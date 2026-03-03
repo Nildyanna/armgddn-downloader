@@ -202,6 +202,7 @@ async function fetchManifestWithAvoidMirror(manifestUrl, token, avoidMirror, red
       port: parsedUrl.port || 443,
       path: parsedUrl.pathname,
       method: 'POST',
+      family: 4,
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData),
@@ -2288,6 +2289,7 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
       port: parsedUrl.port || 443,
       path: parsedUrl.pathname,
       method: 'POST',
+      family: 4,
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData),
@@ -3228,6 +3230,7 @@ async function resolveDownloadRedirectUrl(urlString, maxHops = 5) {
         port: u.port ? Number(u.port) : 443,
         method: 'HEAD',
         path: u.pathname + u.search,
+        family: 4,
         headers: { 'User-Agent': 'ARMGDDN-Companion/redirect-resolver' }
       };
 
@@ -3503,6 +3506,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       '--low-level-retries', '3',      // Retry on low-level errors
       '--retries', '10',
       '--retries-sleep', '2s',
+      '--bind', '0.0.0.0',
       '--drive-acknowledge-abuse'      // Bypass Google Drive virus scan warnings
     ];
 
