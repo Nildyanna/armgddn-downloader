@@ -3507,7 +3507,11 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       '--retries', '10',
       '--retries-sleep', '2s',
       '--bind', '0.0.0.0',
-      '--drive-acknowledge-abuse'      // Bypass Google Drive virus scan warnings
+      '--drive-acknowledge-abuse',
+      '--user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      '--header', 'Referer: https://www.armgddnbrowser.com/',
+      '--header', 'Origin: https://www.armgddnbrowser.com',
+      '--header', 'Accept: */*'
     ];
 
     if (multiThreadStreams > 0) {
