@@ -3592,8 +3592,12 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
     // Track output activity and fail fast with an actionable error instead of spinning forever.
     let sawAnyOutput = false;
     let lastOutputAt = Date.now();
+    let lastNonZeroProgressAt = Date.now();
+    let startedAt = Date.now();
     let watchdogTimer = null;
     const WATCHDOG_SILENCE_MS = 60 * 1000;
+    const WATCHDOG_ZERO_PROGRESS_GRACE_MS = 25 * 1000;
+    const WATCHDOG_ZERO_PROGRESS_MS = 90 * 1000;
     const kickWatchdog = () => {
       try { lastOutputAt = Date.now(); } catch (e) { }
       if (watchdogTimer) return;
@@ -3619,6 +3623,34 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
     };
     kickWatchdog();
 
+    // Some failures never go fully silent: rclone continues emitting stats like
+    // "0 B / 0 B, -, 0 B/s, ETA -" while making no actual progress.
+    // Detect a sustained zero-progress state and restart the worker so the scheduler can
+    // retry (including mirror failover).
+    let progressWatchdogTimer = null;
+    try {
+      progressWatchdogTimer = setInterval(() => {
+        try {
+          if (!proc || proc.killed || proc.exitCode !== null) return;
+          const now = Date.now();
+          if ((now - (Number(startedAt) || now)) < WATCHDOG_ZERO_PROGRESS_GRACE_MS) return;
+          const stuckFor = Math.max(0, now - (Number(lastNonZeroProgressAt) || now));
+          if (stuckFor < WATCHDOG_ZERO_PROGRESS_MS) return;
+          // @ts-ignore
+          proc.__armgddnStopReason = 'stall0';
+          try {
+            logToFile(`[rclone] watchdog: zero-progress for ${Math.round(stuckFor / 1000)}s file=${file && file.name ? String(file.name) : ''} urlHost=${(() => { try { return new URL(String(file && file.url ? file.url : '')).hostname; } catch (e) { return ''; } })()}`);
+          } catch (e) { }
+          try { proc.kill('SIGKILL'); } catch (e) { }
+        } catch (e) {
+          // ignore
+        }
+      }, 5000);
+      try { progressWatchdogTimer.unref(); } catch (e) { }
+    } catch (e) {
+      progressWatchdogTimer = null;
+    }
+
     const logFirstOutput = (streamName, output) => {
       try {
         if (sawAnyOutput) return;
@@ -3634,6 +3666,18 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       const output = data.toString();
       try { kickWatchdog(); } catch (e) { }
       try { logFirstOutput('stdout', output); } catch (e) { }
+      try {
+        const s = String(output || '');
+        const now = Date.now();
+        // Update lastNonZeroProgressAt when we see any non-zero speed token.
+        // Keep it conservative: if we see *anything* other than 0 B/s, treat it as progress.
+        if (!/\b0\s*B\/s\b/i.test(s)) {
+          lastNonZeroProgressAt = now;
+        } else if (/Transferred:\s*[^,]*,\s*\d+%/i.test(s)) {
+          // Aggregate stats indicate some progress.
+          lastNonZeroProgressAt = now;
+        }
+      } catch (e) { }
       parseRcloneProgress(downloadId, fileKey, output);
     });
 
@@ -3642,6 +3686,15 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       errorOutput += output;
       try { kickWatchdog(); } catch (e) { }
       try { logFirstOutput('stderr', output); } catch (e) { }
+      try {
+        const s = String(output || '');
+        const now = Date.now();
+        if (!/\b0\s*B\/s\b/i.test(s)) {
+          lastNonZeroProgressAt = now;
+        } else if (/Transferred:\s*[^,]*,\s*\d+%/i.test(s)) {
+          lastNonZeroProgressAt = now;
+        }
+      } catch (e) { }
       parseRcloneProgress(downloadId, fileKey, output);
     });
 
@@ -3650,6 +3703,12 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         if (watchdogTimer) {
           clearInterval(watchdogTimer);
           watchdogTimer = null;
+        }
+      } catch (e) { }
+      try {
+        if (progressWatchdogTimer) {
+          clearInterval(progressWatchdogTimer);
+          progressWatchdogTimer = null;
         }
       } catch (e) { }
       const idx = download.activeProcesses.indexOf(proc);
@@ -3740,6 +3799,74 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 2) Disable VPN/Proxy temporarily
 3) Ensure your firewall/AV allows the Companion
 4) If on Linux, install/update ca-certificates`
+          );
+          updateProgress(downloadId);
+          mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
+          showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
+          done(new Error(download.error));
+          return;
+        }
+
+        if (stopReason === 'stall0' && !errorOutput) {
+          // Treat as a recoverable upstream stall. Try mirror failover by refetching the manifest
+          // and retrying the file once before surfacing an error.
+          try {
+            const tried = Array.isArray(download.triedMirrors) ? download.triedMirrors.map(String) : [];
+            const avoid = tried.filter(Boolean).join(',');
+            if (download && download.manifestUrl && download.token && (Number(download.mirrorSwitches) || 0) < 5) {
+              logToFile(`[MirrorFailover] stall0: attempting manifest refetch avoidMirror=${avoid} file=${file && file.name ? String(file.name) : ''}`);
+              const newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, avoid);
+              const newActual = newManifest && newManifest.actualRemote ? String(newManifest.actualRemote) : '';
+
+              if (newActual && !tried.includes(newActual) && Array.isArray(newManifest.files)) {
+                const wantPath = file && file.path ? String(file.path) : '';
+                const wantName = file && file.name ? String(file.name) : '';
+                const match = newManifest.files.find(f => {
+                  if (!f) return false;
+                  if (wantPath && f.path && String(f.path) === wantPath) return true;
+                  if (wantName && f.name && String(f.name) === wantName) return true;
+                  return false;
+                });
+
+                if (match && match.url) {
+                  download.actualRemote = newActual;
+                  download.mirrorSwitches = (Number(download.mirrorSwitches) || 0) + 1;
+                  try {
+                    if (!Array.isArray(download.triedMirrors)) download.triedMirrors = [];
+                    download.triedMirrors.push(newActual);
+                  } catch (e) { }
+
+                  const retryFile = { ...file, url: String(match.url) };
+                  try {
+                    const transformed = transformProxyUrlToDirectIfPossible(retryFile.url);
+                    if (transformed && transformed !== retryFile.url) retryFile.url = transformed;
+                  } catch (e) { }
+
+                  logToFile(`[MirrorFailover] stall0: retrying on new mirror actualRemote=${newActual} file=${wantName}`);
+                  // Remove from failedFiles if it was marked earlier.
+                  try {
+                    if (Array.isArray(download.failedFiles)) {
+                      download.failedFiles = download.failedFiles.filter(n => String(n) !== String(file.name));
+                    }
+                  } catch (e) { }
+                  // Reset state.
+                  download.status = 'downloading';
+                  download.error = '';
+                  updateProgress(downloadId);
+
+                  await downloadFile(downloadId, retryFile, downloadDir);
+                  resolve();
+                  return;
+                }
+              }
+            }
+          } catch (e) {
+            try { logToFile(`[MirrorFailover] stall0: manifest refetch/retry failed: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
+          }
+
+          download.error = withSupportFooter(
+            'Download stalled at 0 B/s.',
+            'Retry the download. If it keeps happening, change mirrors by starting the download again from the website, or lower concurrency to 1-2.'
           );
           updateProgress(downloadId);
           mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
