@@ -5329,7 +5329,22 @@ function completeDownload(downloadId) {
       (async () => {
         try {
           for (const a of archives) {
-            await run7zExtract(a, downloadDir);
+            const archiveBase = (() => {
+              try {
+                const name = path.basename(String(a || ''));
+                if (!name) return 'Extracted';
+                if (/\.7z\.\d{3}$/i.test(name)) return name.replace(/\.7z\.\d{3}$/i, '');
+                if (/\.7z$/i.test(name)) return name.replace(/\.7z$/i, '');
+                return name;
+              } catch (e) {
+                return 'Extracted';
+              }
+            })();
+            const extractDir = path.join(downloadDir, archiveBase);
+            try {
+              fs.mkdirSync(extractDir, { recursive: true });
+            } catch (e) { }
+            await run7zExtract(a, extractDir);
           }
         } catch (e) {
           download.extractionError = e && e.message ? e.message : String(e);
