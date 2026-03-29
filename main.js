@@ -250,6 +250,67 @@ async function fetchManifestWithAvoidMirror(manifestUrl, token, avoidMirror, red
   });
 }
 
+const MIRROR_COOLDOWN_MS = 20 * 60 * 1000;
+const MIRROR_EARLY_STALL_MS = 45 * 1000;
+const mirrorCooldowns = new Map();
+
+function normalizeMirrorKey(mirror) {
+  try {
+    const key = String(mirror == null ? '' : mirror).trim();
+    return key;
+  } catch (e) {
+    return '';
+  }
+}
+
+function pruneMirrorCooldowns(now = Date.now()) {
+  try {
+    for (const [mirror, until] of mirrorCooldowns.entries()) {
+      if (!Number.isFinite(Number(until)) || Number(until) <= now) {
+        mirrorCooldowns.delete(mirror);
+      }
+    }
+  } catch (e) { }
+}
+
+function markMirrorCooldown(mirror, reason, ttlMs = MIRROR_COOLDOWN_MS) {
+  const key = normalizeMirrorKey(mirror);
+  if (!key) return false;
+  const until = Date.now() + Math.max(60 * 1000, Number(ttlMs) || MIRROR_COOLDOWN_MS);
+  mirrorCooldowns.set(key, until);
+  try {
+    logToFile(`[MirrorCooldown] ${key} cooldown=${Math.round((until - Date.now()) / 1000)}s reason=${reason || 'unknown'}`);
+  } catch (e) { }
+  return true;
+}
+
+function clearMirrorCooldown(mirror) {
+  const key = normalizeMirrorKey(mirror);
+  if (!key) return false;
+  return mirrorCooldowns.delete(key);
+}
+
+function getActiveMirrorAvoidList(additionalAvoid = []) {
+  const avoid = new Set();
+  try {
+    const now = Date.now();
+    pruneMirrorCooldowns(now);
+    for (const [mirror, until] of mirrorCooldowns.entries()) {
+      if (Number(until) > now) avoid.add(normalizeMirrorKey(mirror));
+    }
+  } catch (e) { }
+
+  try {
+    const extras = Array.isArray(additionalAvoid) ? additionalAvoid : [additionalAvoid];
+    for (const entry of extras) {
+      const key = normalizeMirrorKey(entry);
+      if (key) avoid.add(key);
+    }
+  } catch (e) { }
+
+  return Array.from(avoid).filter(Boolean);
+}
+
 function isNetworkStreamError(output) {
   const lower = String(output || '').toLowerCase();
   return lower.includes('stream error') ||
@@ -3635,11 +3696,20 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           const now = Date.now();
           if ((now - (Number(startedAt) || now)) < WATCHDOG_ZERO_PROGRESS_GRACE_MS) return;
           const stuckFor = Math.max(0, now - (Number(lastNonZeroProgressAt) || now));
-          if (stuckFor < WATCHDOG_ZERO_PROGRESS_MS) return;
+          if (stuckFor < MIRROR_EARLY_STALL_MS && stuckFor < WATCHDOG_ZERO_PROGRESS_MS) return;
+
+          if (stuckFor >= MIRROR_EARLY_STALL_MS) {
+            try {
+              const currentMirror = download && download.actualRemote ? String(download.actualRemote) : '';
+              if (currentMirror) {
+                markMirrorCooldown(currentMirror, 'zero-progress stall');
+              }
+            } catch (e) { }
+          }
           // @ts-ignore
           proc.__armgddnStopReason = 'stall0';
           try {
-            logToFile(`[rclone] watchdog: zero-progress for ${Math.round(stuckFor / 1000)}s file=${file && file.name ? String(file.name) : ''} urlHost=${(() => { try { return new URL(String(file && file.url ? file.url : '')).hostname; } catch (e) { return ''; } })()}`);
+            logToFile(`[rclone] watchdog: zero-progress for ${Math.round(stuckFor / 1000)}s file=${file && file.name ? String(file.name) : ''} urlHost=${(() => { try { return new URL(String(file && file.url ? file.url : '')).hostname; } catch (e) { return ''; } })()}${stuckFor >= MIRROR_EARLY_STALL_MS ? ' (early mirror failover)' : ''}`);
           } catch (e) { }
           try { proc.kill('SIGKILL'); } catch (e) { }
         } catch (e) {
@@ -3812,7 +3882,14 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           // and retrying the file once before surfacing an error.
           try {
             const tried = Array.isArray(download.triedMirrors) ? download.triedMirrors.map(String) : [];
-            const avoid = tried.filter(Boolean).join(',');
+            const avoidList = getActiveMirrorAvoidList(tried);
+            const avoid = avoidList.join(',');
+            try {
+              const currentMirror = download && download.actualRemote ? String(download.actualRemote) : '';
+              if (currentMirror) {
+                markMirrorCooldown(currentMirror, 'stall0 retry');
+              }
+            } catch (e) { }
             if (download && download.manifestUrl && download.token && (Number(download.mirrorSwitches) || 0) < 5) {
               logToFile(`[MirrorFailover] stall0: attempting manifest refetch avoidMirror=${avoid} file=${file && file.name ? String(file.name) : ''}`);
               const newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, avoid);
@@ -3893,7 +3970,14 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 
           if (canTryMirrorFailover) {
             const tried = Array.isArray(download.triedMirrors) ? download.triedMirrors.map(String) : [];
-            const avoid = tried.filter(Boolean).join(',');
+            const avoidList = getActiveMirrorAvoidList(tried);
+            const avoid = avoidList.join(',');
+            try {
+              const currentMirror = download && download.actualRemote ? String(download.actualRemote) : '';
+              if (currentMirror) {
+                markMirrorCooldown(currentMirror, 'network stream error');
+              }
+            } catch (e) { }
             logToFile(`[MirrorFailover] attempting manifest refetch avoidMirror=${avoid} file=${file && file.name ? String(file.name) : ''}`);
             const newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, avoid);
             const newActual = newManifest && newManifest.actualRemote ? String(newManifest.actualRemote) : '';
