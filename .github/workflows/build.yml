@@ -138,6 +138,9 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-22.04
+    env:
+      CI: true
+      NODE_ENV: production
 
     steps:
       - name: Checkout repository
@@ -171,6 +174,16 @@ jobs:
       - name: Prebuild Android project
         working-directory: mobile
         run: npx expo prebuild --platform android --non-interactive --clean
+
+      - name: Increase Gradle memory
+        shell: bash
+        working-directory: mobile/android
+        run: |
+          {
+            echo ""
+            echo "org.gradle.jvmargs=-Xmx4096m -XX:MaxMetaspaceSize=1024m -Dfile.encoding=UTF-8"
+            echo "kotlin.daemon.jvm.options=-Xmx2048m"
+          } >> gradle.properties
 
       - name: Build Android debug APK
         working-directory: mobile/android
