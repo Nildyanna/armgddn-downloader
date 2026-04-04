@@ -2,7 +2,7 @@
   "expo": {
     "name": "ARMGDDN Companion",
     "slug": "armgddn-companion-mobile",
-    "version": "4.2.58",
+    "version": "4.2.59",
     "orientation": "portrait",
     "scheme": "armgddn",
     "userInterfaceStyle": "dark",
