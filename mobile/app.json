@@ -6,6 +6,9 @@
     "orientation": "portrait",
     "scheme": "armgddn",
     "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#111827"
+    },
     "assetBundlePatterns": [
       "**/*"
     ],
@@ -13,7 +16,10 @@
       "bundleIdentifier": "com.armgddn.companion.mobile"
     },
     "android": {
-      "package": "com.armgddn.companion.mobile"
+      "package": "com.armgddn.companion.mobile",
+      "splash": {
+        "backgroundColor": "#111827"
+      }
     },
     "extra": {
       "apiBaseUrl": "https://www.armgddnbrowser.com"
