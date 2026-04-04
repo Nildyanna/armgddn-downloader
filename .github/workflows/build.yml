@@ -185,16 +185,16 @@ jobs:
             echo "kotlin.daemon.jvm.options=-Xmx2048m"
           } >> gradle.properties
 
-      - name: Build Android debug APK
+      - name: Build Android release APK
         working-directory: mobile/android
-        run: ./gradlew assembleDebug
+        run: ./gradlew assembleRelease
 
       - name: Stage mobile APK artifact
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p mobile-artifacts
-          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "mobile-artifacts/ARMGDDN-Companion-Mobile-${GITHUB_REF_NAME:-local}.apk"
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk "mobile-artifacts/ARMGDDN-Companion-Mobile-${GITHUB_REF_NAME:-local}.apk"
 
       - name: Upload mobile artifact
         uses: actions/upload-artifact@v4
