@@ -1,6 +1,6 @@
 {
   "name": "armgddn-companion-mobile",
-  "version": "4.2.59",
+  "version": "4.2.60",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
   "scripts": {
