@@ -134,8 +134,66 @@ jobs:
           path: |
             dist/*.pkg
 
+  mobile-android:
+    permissions:
+      contents: read
+    runs-on: ubuntu-22.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm install --no-audit --no-fund
+
+      - name: Set mobile app version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        working-directory: mobile
+        run: |
+          node -e "const fs=require('fs'); const tag=process.env.GITHUB_REF_NAME||''; const v=tag.replace(/^v/,''); if(!/^\d+\.\d+\.\d+/.test(v)) { console.error('Invalid tag version:', tag); process.exit(1);} const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.version=v; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2)+'\n','utf8'); const app=JSON.parse(fs.readFileSync('app.json','utf8')); if(app.expo && typeof app.expo==='object'){ app.expo.version=v; } fs.writeFileSync('app.json', JSON.stringify(app, null, 2)+'\n','utf8'); console.log('Set mobile version to', v);"
+
+      - name: Prebuild Android project
+        working-directory: mobile
+        run: npx expo prebuild --platform android --non-interactive --clean
+
+      - name: Build Android debug APK
+        working-directory: mobile/android
+        run: ./gradlew assembleDebug
+
+      - name: Stage mobile APK artifact
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p mobile-artifacts
+          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "mobile-artifacts/ARMGDDN-Companion-Mobile-${GITHUB_REF_NAME:-local}.apk"
+
+      - name: Upload mobile artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mobile-android-build
+          path: |
+            mobile-artifacts/*.apk
+
   release:
-    needs: build
+    needs:
+      - build
+      - mobile-android
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
@@ -163,8 +221,17 @@ jobs:
           name: mac-build
           path: ./artifacts
 
+      - name: Download mobile Android artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: mobile-android-build
+          path: ./mobile-artifacts
+
       - name: List artifacts
         run: find ./artifacts -type f -ls
+
+      - name: List mobile artifacts
+        run: find ./mobile-artifacts -type f -ls
 
       - name: Sign release artifacts (Ed25519)
         shell: bash
@@ -220,6 +287,11 @@ jobs:
           - Download .AppImage file
           - Make executable: chmod +x ARMGDDN*.AppImage
           - Run: ./ARMGDDN*.AppImage
+
+          Mobile (Android):
+          - Download the APK from the mobile artifacts
+          - Allow installs from unknown sources on your device
+          - Install the APK directly
           EOF
 
       - name: Stage Fix.command for release
@@ -257,6 +329,11 @@ jobs:
             - Download `.AppImage` file
             - Make executable: `chmod +x ARMGDDN*.AppImage`
             - Run: `./ARMGDDN*.AppImage`
+
+            **Mobile (Android):**
+            - Download the APK from the mobile release assets
+            - Allow installs from unknown sources on your device
+            - Install the APK directly
           files: |
             artifacts/README.txt
             artifacts/Fix.command
@@ -265,5 +342,6 @@ jobs:
             artifacts/*.exe
             artifacts/*.pkg
             artifacts/*.sig
+            mobile-artifacts/*.apk
           draft: false
           prerelease: false

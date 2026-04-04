@@ -1,0 +1,20 @@
+{
+  "expo": {
+    "name": "ARMGDDN Companion",
+    "slug": "armgddn-companion-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "armgddn",
+    "userInterfaceStyle": "dark",
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "bundleIdentifier": "com.armgddn.companion.mobile"
+    },
+    "android": {
+      "package": "com.armgddn.companion.mobile"
+    },
+    "extra": {
+      "apiBaseUrl": "https://www.armgddnbrowser.com"
+    }
+  }
+}

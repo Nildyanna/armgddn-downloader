@@ -3,6 +3,8 @@ const path = require('path');
 const { execSync } = require('child_process');
 
 const companionPkgPath = path.join(__dirname, 'package.json');
+const mobilePkgPath = path.join(__dirname, 'mobile', 'package.json');
+const mobileAppJsonPath = path.join(__dirname, 'mobile', 'app.json');
 const browserPkgPath = path.join(__dirname, '..', 'ArmgddnBrowser', 'package.json');
 const browserDefaultPhpPath = path.join(__dirname, '..', 'ArmgddnBrowser', 'default.php');
 
@@ -67,6 +69,34 @@ function sync() {
             }
         } else {
             console.error(`Browser package.json not found at ${browserPkgPath}`);
+        }
+
+        // 2b. Update mobile Companion package.json/app.json
+        if (fs.existsSync(mobilePkgPath)) {
+            const mobilePkg = JSON.parse(fs.readFileSync(mobilePkgPath, 'utf8'));
+            if (mobilePkg.version !== version) {
+                mobilePkg.version = version;
+                fs.writeFileSync(mobilePkgPath, JSON.stringify(mobilePkg, null, 2) + '\n');
+                console.log(`Updated mobile package.json to ${version}`);
+            } else {
+                console.log(`mobile package.json is already at ${version}`);
+            }
+        } else {
+            console.warn(`Mobile package.json not found at ${mobilePkgPath}`);
+        }
+
+        if (fs.existsSync(mobileAppJsonPath)) {
+            const mobileAppJson = JSON.parse(fs.readFileSync(mobileAppJsonPath, 'utf8'));
+            const expo = mobileAppJson && mobileAppJson.expo && typeof mobileAppJson.expo === 'object' ? mobileAppJson.expo : null;
+            if (expo && expo.version !== version) {
+                expo.version = version;
+                fs.writeFileSync(mobileAppJsonPath, JSON.stringify(mobileAppJson, null, 2) + '\n');
+                console.log(`Updated mobile app.json to ${version}`);
+            } else if (expo) {
+                console.log(`mobile app.json is already at ${version}`);
+            }
+        } else {
+            console.warn(`Mobile app.json not found at ${mobileAppJsonPath}`);
         }
 
         // 3. Update Browser default.php hardcoded fallback
