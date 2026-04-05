@@ -138,6 +138,8 @@ jobs:
     permissions:
       contents: read
     runs-on: ubuntu-22.04
+    env:
+      GRADLE_USER_HOME: ${{ runner.temp }}/gradle-home
 
     steps:
       - name: Checkout repository
@@ -159,7 +161,7 @@ jobs:
 
       - name: Install mobile dependencies
         working-directory: mobile
-        run: npm install --no-audit --no-fund
+        run: npm ci --no-audit --no-fund
 
       - name: Set mobile app version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -174,7 +176,7 @@ jobs:
 
       - name: Build Android debug APK
         working-directory: mobile/android
-        run: ./gradlew assembleDebug
+        run: ./gradlew clean assembleDebug --refresh-dependencies --stacktrace
 
       - name: Stage mobile APK artifact
         shell: bash
