@@ -210,16 +210,16 @@ jobs:
             printf 'org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8\n' > gradle.properties
           fi
 
-      - name: Build Android debug APK
+      - name: Build Android release APK
         working-directory: mobile/android
-        run: ./gradlew clean assembleDebug --refresh-dependencies --stacktrace
+        run: ./gradlew clean assembleRelease --refresh-dependencies --stacktrace
 
       - name: Stage mobile APK artifact
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p mobile-artifacts
-          cp mobile/android/app/build/outputs/apk/debug/app-debug.apk "mobile-artifacts/ARMGDDN-Companion-Mobile-${GITHUB_REF_NAME:-local}.apk"
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk "mobile-artifacts/ARMGDDN-Companion-Mobile-${GITHUB_REF_NAME:-local}.apk"
 
       - name: Upload mobile artifact
         uses: actions/upload-artifact@v4
