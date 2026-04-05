@@ -2,7 +2,7 @@
   "expo": {
     "name": "ARMGDDN Companion",
     "slug": "armgddn-companion-mobile",
-    "version": "4.2.60",
+    "version": "4.2.61",
     "orientation": "portrait",
     "scheme": "armgddn",
     "userInterfaceStyle": "dark",
@@ -17,7 +17,7 @@
     },
     "android": {
       "package": "com.armgddn.companion.mobile",
-      "versionCode": 4002060,
+      "versionCode": 4002061,
       "splash": {
         "backgroundColor": "#111827"
       }
