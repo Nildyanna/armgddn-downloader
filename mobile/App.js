@@ -287,8 +287,14 @@ export default function App() {
   }
 
   function looksLikeArmgddnDownloadsFolder(uri) {
-    const decoded = decodeURIComponent(String(uri || '')).toLowerCase();
-    return decoded.includes('armgddn downloads');
+    const rawUri = String(uri || '');
+    let decoded = rawUri;
+    try {
+      decoded = decodeURIComponent(rawUri);
+    } catch (e) {
+      // Fall back to the raw URI if percent-encoding is malformed.
+    }
+    return decoded.toLowerCase().includes('armgddn downloads');
   }
 
   async function canReadSafUri(uri) {
