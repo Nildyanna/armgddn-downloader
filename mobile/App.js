@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Linking, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Alert, Linking, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import * as FileSystem from 'expo-file-system';
+import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { ProgressBar } from './src/components/ProgressBar';
@@ -11,6 +13,28 @@ import {
 } from './src/lib/armgddn';
 
 const APP_TOKEN_KEY = 'armgddn.mobile.appToken';
+const GITHUB_RELEASES_LATEST_URL = 'https://api.github.com/repos/Nildyanna/armgddn-downloader/releases/latest';
+const GITHUB_RELEASES_PAGE_URL = 'https://github.com/Nildyanna/armgddn-downloader/releases/latest';
+
+function compareVersions(a, b) {
+  const partsA = String(a || '').split('.').map((n) => parseInt(n, 10) || 0);
+  const partsB = String(b || '').split('.').map((n) => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(partsA.length, partsB.length); i += 1) {
+    const numA = partsA[i] || 0;
+    const numB = partsB[i] || 0;
+    if (numA > numB) return 1;
+    if (numA < numB) return -1;
+  }
+  return 0;
+}
+
+function getAppVersion() {
+  return (
+    Constants.expoConfig?.version ||
+    Constants.manifest?.version ||
+    '0.0.0'
+  );
+}
 
 function Section({ title, children }) {
   return (
@@ -24,25 +48,32 @@ function Section({ title, children }) {
 export default function App() {
   const [status, setStatus] = useState('Waiting for a download link');
   const [statusDetail, setStatusDetail] = useState('Open a download on the website and let it hand off to this app.');
-  const [manifestUrl, setManifestUrl] = useState('');
-  const [handoffUrl, setHandoffUrl] = useState('');
   const [downloadProgress, setDownloadProgress] = useState(0);
   const [downloadedBytes, setDownloadedBytes] = useState(0);
   const [totalBytes, setTotalBytes] = useState(0);
   const [currentFile, setCurrentFile] = useState('');
   const [downloadTarget, setDownloadTarget] = useState('');
+  const [downloadRootUri, setDownloadRootUri] = useState('');
+  const [downloadFolderUri, setDownloadFolderUri] = useState('');
+  const [downloadFolderEntries, setDownloadFolderEntries] = useState([]);
+  const [downloadFolderLoading, setDownloadFolderLoading] = useState(false);
+  const [downloadFolderError, setDownloadFolderError] = useState('');
   const [connectionState, setConnectionState] = useState('idle');
-  const [appToken, setAppToken] = useState('');
   const [lastError, setLastError] = useState('');
   const [isBusy, setIsBusy] = useState(false);
-  const [testUrl, setTestUrl] = useState('');
   const [downloadHistory, setDownloadHistory] = useState([]);
+  const [updateState, setUpdateState] = useState({
+    checking: true,
+    available: false,
+    currentVersion: getAppVersion(),
+    latestVersion: '',
+    releaseUrl: GITHUB_RELEASES_PAGE_URL,
+    error: '',
+  });
   const mountedRef = useRef(true);
   const downloadHistoryRef = useRef([]);
   const appTokenRef = useRef('');
   const isBusyRef = useRef(false);
-
-  const canStart = useMemo(() => !!handoffUrl.trim() || !!testUrl.trim(), [handoffUrl, testUrl]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -59,7 +90,6 @@ export default function App() {
       const storedToken = await SecureStore.getItemAsync(APP_TOKEN_KEY);
       if (storedToken) {
         appTokenRef.current = storedToken;
-        setAppToken(storedToken);
       }
     } catch (e) {
       // ignore secure-store failures
@@ -79,6 +109,8 @@ export default function App() {
       // ignore history load failures
     }
 
+    void checkForAppUpdate();
+
     try {
       const initialUrl = await Linking.getInitialURL();
       if (initialUrl) {
@@ -92,10 +124,66 @@ export default function App() {
     setConnectionState('ready');
   }
 
+  async function checkForAppUpdate() {
+    const currentVersion = getAppVersion();
+    if (!mountedRef.current) return;
+    setUpdateState((prev) => ({
+      ...prev,
+      checking: true,
+      currentVersion,
+      error: '',
+    }));
+
+    try {
+      const response = await fetch(GITHUB_RELEASES_LATEST_URL, {
+        headers: {
+          'User-Agent': 'ARMGDDN-Companion-Mobile',
+          Accept: 'application/vnd.github+json',
+        },
+      });
+      const release = await response.json();
+      if (!response.ok || !release || typeof release !== 'object') {
+        throw new Error(`Update check failed (HTTP ${response.status})`);
+      }
+
+      const latestVersion = String(release.tag_name || '').replace(/^v/i, '');
+      const hasUpdate = latestVersion ? compareVersions(latestVersion, currentVersion) > 0 : false;
+
+      if (!mountedRef.current) return;
+      setUpdateState({
+        checking: false,
+        available: hasUpdate,
+        currentVersion,
+        latestVersion,
+        releaseUrl: release.html_url || GITHUB_RELEASES_PAGE_URL,
+        error: '',
+      });
+    } catch (error) {
+      if (!mountedRef.current) return;
+      setUpdateState({
+        checking: false,
+        available: false,
+        currentVersion,
+        latestVersion: '',
+        releaseUrl: GITHUB_RELEASES_PAGE_URL,
+        error: error?.message ? String(error.message) : 'Unable to check for updates',
+      });
+    }
+  }
+
+  async function openUpdatePage() {
+    const targetUrl = updateState.releaseUrl || GITHUB_RELEASES_PAGE_URL;
+    try {
+      await Linking.openURL(targetUrl);
+    } catch (error) {
+      const message = error?.message ? String(error.message) : 'Unable to open update page';
+      Alert.alert('Update unavailable', message);
+    }
+  }
+
   async function onUrl(event) {
     const incomingUrl = typeof event === 'string' ? event : event?.url;
     if (!incomingUrl) return;
-    setHandoffUrl(incomingUrl);
     await handleHandoffUrl(incomingUrl);
   }
 
@@ -113,9 +201,7 @@ export default function App() {
       const parsed = await parseHandoffUrl(url, currentToken || null, API_BASE_URL);
       const nextToken = parsed.token || currentToken || '';
       appTokenRef.current = nextToken;
-      setAppToken(nextToken);
       await maybeStoreAppToken(nextToken);
-      setManifestUrl(parsed.manifestUrl);
       setDownloadTarget(parsed.label || 'download');
       setConnectionState('manifest-ready');
       setStatus('Fetching manifest');
@@ -150,12 +236,17 @@ export default function App() {
       setStatus('Completed');
       setStatusDetail(result?.message || 'All files were downloaded successfully.');
       setConnectionState('completed');
+      setDownloadRootUri(result?.rootUri || '');
+      setDownloadFolderUri(result?.rootUri || '');
+      setDownloadFolderEntries([]);
+      setDownloadFolderError('');
       const historyEntry = {
         name: parsed.label || manifest.name || manifest.path || 'download',
         manifestUrl: parsed.manifestUrl,
         completedAt: new Date().toISOString(),
         totalBytes: total,
         fileCount: result?.fileCount || (manifest.files ? manifest.files.length : 0),
+        rootUri: result?.rootUri || '',
       };
       const nextHistory = [historyEntry, ...downloadHistoryRef.current].slice(0, 5);
       downloadHistoryRef.current = nextHistory;
@@ -189,16 +280,6 @@ export default function App() {
       // ignore storage failures
     }
   }
-
-  async function onStartPressed() {
-    const url = handoffUrl.trim() || testUrl.trim();
-    if (!url) {
-      Alert.alert('Missing link', 'Paste a download handoff URL first.');
-      return;
-    }
-    await handleHandoffUrl(url);
-  }
-
   function renderBytes(value) {
     const n = Number(value) || 0;
     if (!n) return '0 B';
@@ -206,6 +287,78 @@ export default function App() {
     const i = Math.min(units.length - 1, Math.floor(Math.log(n) / Math.log(1024)));
     const amount = n / Math.pow(1024, i);
     return `${amount.toFixed(i >= 2 ? 1 : 0)} ${units[i]}`;
+  }
+
+  function joinLocalUri(baseUri, name) {
+    const base = String(baseUri || '').replace(/\/+$/, '');
+    const segment = encodeURIComponent(String(name || '').replace(/^\/+|\/+$/g, ''));
+    return `${base}/${segment}`;
+  }
+
+  async function loadFolderEntries(folderUri) {
+    const targetUri = String(folderUri || '').trim();
+    if (!targetUri) return;
+    setDownloadFolderLoading(true);
+    setDownloadFolderError('');
+    try {
+      const names = await FileSystem.readDirectoryAsync(targetUri);
+      const entries = await Promise.all((Array.isArray(names) ? names : []).map(async (name) => {
+        const uri = joinLocalUri(targetUri, name);
+        let isDirectory = false;
+        try {
+          const info = await FileSystem.getInfoAsync(uri);
+          isDirectory = !!info?.isDirectory;
+        } catch (e) {
+          // ignore info failures and treat as a file
+        }
+        return { name, uri, isDirectory };
+      }));
+      entries.sort((a, b) => {
+        if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+        return String(a.name || '').localeCompare(String(b.name || ''));
+      });
+      setDownloadFolderEntries(entries);
+    } catch (error) {
+      const message = error?.message ? String(error.message) : 'Unable to read download folder';
+      setDownloadFolderEntries([]);
+      setDownloadFolderError(message);
+    } finally {
+      setDownloadFolderLoading(false);
+    }
+  }
+
+  async function openDownloadedFolder(folderUri = downloadRootUri) {
+    const targetUri = String(folderUri || '').trim();
+    if (!targetUri) {
+      Alert.alert('No downloads yet', 'Complete a download first, then open the downloaded folder from here.');
+      return;
+    }
+    setDownloadFolderUri(targetUri);
+    await loadFolderEntries(targetUri);
+  }
+
+  async function openFolderItem(item) {
+    if (!item?.uri) return;
+    if (item.isDirectory) {
+      await openDownloadedFolder(item.uri);
+      return;
+    }
+
+    try {
+      const targetUri = Platform.OS === 'android' ? await FileSystem.getContentUriAsync(item.uri) : item.uri;
+      await Linking.openURL(targetUri);
+    } catch (error) {
+      const message = error?.message ? String(error.message) : 'Unable to open file';
+      Alert.alert('Open failed', message);
+    }
+  }
+
+  async function refreshDownloadedFolder() {
+    if (!downloadFolderUri) {
+      await openDownloadedFolder(downloadRootUri);
+      return;
+    }
+    await loadFolderEntries(downloadFolderUri);
   }
 
   return (
@@ -226,44 +379,29 @@ export default function App() {
           {!!lastError && <Text style={[styles.metaText, styles.errorText]}>Error: {lastError}</Text>}
         </Section>
 
+        <Section title="App update">
+          {updateState.checking ? (
+            <Text style={styles.metaText}>Checking for updates...</Text>
+          ) : updateState.available ? (
+            <>
+              <Text style={styles.detailText}>
+                Update available: v{updateState.latestVersion} is newer than your installed v{updateState.currentVersion}.
+              </Text>
+              <TouchableOpacity style={styles.updateButton} onPress={openUpdatePage}>
+                <Text style={styles.updateButtonText}>Update App</Text>
+              </TouchableOpacity>
+            </>
+          ) : updateState.error ? (
+            <Text style={[styles.metaText, styles.errorText]}>Update check failed: {updateState.error}</Text>
+          ) : (
+            <Text style={styles.metaText}>You&apos;re on the latest version (v{updateState.currentVersion}).</Text>
+          )}
+        </Section>
+
         <Section title="Download progress">
           <ProgressBar value={downloadProgress} />
           <Text style={styles.metaText}>{Math.round(downloadProgress)}%</Text>
           <Text style={styles.metaText}>{renderBytes(downloadedBytes)} / {renderBytes(totalBytes)}</Text>
-        </Section>
-
-        <Section title="Open a handoff URL">
-          <TextInput
-            value={handoffUrl}
-            onChangeText={setHandoffUrl}
-            placeholder="armgddn://download?..."
-            placeholderTextColor="#94a3b8"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.input}
-          />
-          <TextInput
-            value={testUrl}
-            onChangeText={setTestUrl}
-            placeholder="Paste a test link here"
-            placeholderTextColor="#94a3b8"
-            autoCapitalize="none"
-            autoCorrect={false}
-            style={styles.input}
-          />
-          <TouchableOpacity style={[styles.button, (!canStart || isBusy) && styles.buttonDisabled]} onPress={onStartPressed} disabled={!canStart || isBusy}>
-            <Text style={styles.buttonText}>{isBusy ? 'Working...' : 'Start download'}</Text>
-          </TouchableOpacity>
-        </Section>
-
-        <Section title="Connection">
-          <Text style={styles.metaText}>API base: {API_BASE_URL}</Text>
-          <Text style={styles.metaText}>Token cached: {appToken ? 'yes' : 'no'}</Text>
-          {!!manifestUrl && <Text style={styles.metaText}>Manifest: {manifestUrl}</Text>}
-          <Text style={styles.metaText}>Last link: {handoffUrl || 'none yet'}</Text>
-          <TouchableOpacity style={styles.linkButton} onPress={() => Linking.openURL(API_BASE_URL)}>
-            <Text style={styles.linkText}>Open ARMGDDN Browser</Text>
-          </TouchableOpacity>
         </Section>
 
         <Section title="Recent downloads">
@@ -277,6 +415,40 @@ export default function App() {
                 <Text style={styles.metaText}>{new Date(item.completedAt).toLocaleString()}</Text>
               </View>
             ))
+          )}
+        </Section>
+
+        <Section title="Downloaded files">
+          {downloadRootUri ? (
+            <>
+              <Text style={styles.metaText}>Stored in app space on this device.</Text>
+              <Text style={styles.metaText} numberOfLines={2}>Folder: {downloadFolderUri || downloadRootUri}</Text>
+              <View style={styles.folderActionsRow}>
+                <TouchableOpacity style={styles.secondaryButton} onPress={() => openDownloadedFolder(downloadRootUri)}>
+                  <Text style={styles.secondaryButtonText}>Open Downloaded Folder</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.secondaryButton} onPress={refreshDownloadedFolder}>
+                  <Text style={styles.secondaryButtonText}>Refresh</Text>
+                </TouchableOpacity>
+              </View>
+              {downloadFolderLoading ? <Text style={styles.metaText}>Loading folder...</Text> : null}
+              {!!downloadFolderError && <Text style={[styles.metaText, styles.errorText]}>Folder error: {downloadFolderError}</Text>}
+              {!downloadFolderLoading && !downloadFolderError && downloadFolderEntries.length === 0 ? (
+                <Text style={styles.metaText}>Open the folder to see files here.</Text>
+              ) : null}
+              {downloadFolderEntries.map((item) => (
+                <TouchableOpacity key={item.uri} style={styles.folderItem} onPress={() => openFolderItem(item)}>
+                  <Text style={styles.folderItemIcon}>{item.isDirectory ? '📁' : '📄'}</Text>
+                  <View style={styles.folderItemBody}>
+                    <Text style={styles.folderItemName} numberOfLines={1}>{item.name}</Text>
+                    <Text style={styles.metaText}>{item.isDirectory ? 'Folder' : 'File'}</Text>
+                  </View>
+                  <Text style={styles.folderItemChevron}>›</Text>
+                </TouchableOpacity>
+              ))}
+            </>
+          ) : (
+            <Text style={styles.metaText}>No completed download folder yet.</Text>
           )}
         </Section>
       </ScrollView>
@@ -380,6 +552,17 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontSize: 15,
   },
+  updateButton: {
+    backgroundColor: '#16a34a',
+    borderRadius: 14,
+    paddingVertical: 13,
+    alignItems: 'center',
+  },
+  updateButtonText: {
+    color: '#f8fafc',
+    fontWeight: '800',
+    fontSize: 15,
+  },
   linkButton: {
     marginTop: 8,
     alignSelf: 'flex-start',
@@ -403,5 +586,51 @@ const styles = StyleSheet.create({
     color: '#f8fafc',
     fontWeight: '700',
     fontSize: 14,
+  },
+  folderActionsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  secondaryButton: {
+    backgroundColor: '#111827',
+    borderColor: '#334155',
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    alignItems: 'center',
+  },
+  secondaryButtonText: {
+    color: '#e2e8f0',
+    fontWeight: '700',
+  },
+  folderItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: '#020617',
+    borderColor: '#1e293b',
+    borderWidth: 1,
+    borderRadius: 14,
+    padding: 12,
+  },
+  folderItemIcon: {
+    fontSize: 20,
+  },
+  folderItemBody: {
+    flex: 1,
+    minWidth: 0,
+  },
+  folderItemName: {
+    color: '#f8fafc',
+    fontWeight: '700',
+    fontSize: 14,
+  },
+  folderItemChevron: {
+    color: '#64748b',
+    fontSize: 24,
+    lineHeight: 24,
+    fontWeight: '700',
   },
 });

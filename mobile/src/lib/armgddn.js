@@ -24,6 +24,32 @@ function decodeMaybeBase64Url(value) {
   return str;
 }
 
+function normalizeHandoffUrl(value) {
+  const raw = String(value || '').trim();
+  if (!raw) return '';
+
+  if (raw.startsWith('armgddn://')) {
+    return raw;
+  }
+
+  if (raw.startsWith('intent://')) {
+    const schemeMatch = raw.match(/;scheme=([^;]+);/i);
+    const scheme = schemeMatch ? schemeMatch[1] : '';
+    const intentMarkerIndex = raw.indexOf('#Intent');
+    const pathPart = intentMarkerIndex > -1 ? raw.slice('intent://'.length, intentMarkerIndex) : '';
+    if (scheme && pathPart) {
+      return `${scheme}://${pathPart}`;
+    }
+  }
+
+  const nestedIndex = raw.indexOf('armgddn://');
+  if (nestedIndex >= 0) {
+    return raw.slice(nestedIndex);
+  }
+
+  return raw;
+}
+
 function safeName(value) {
   return String(value || 'download')
     .replace(/[\\/:*?"<>|]+/g, '-')
@@ -101,8 +127,9 @@ export async function resolveManifestUrl(downloadToken, token, apiBaseUrl = API_
 
 export async function parseHandoffUrl(url, tokenHint, apiBaseUrl = API_BASE_URL) {
   let parsed;
+  const normalizedUrl = normalizeHandoffUrl(url);
   try {
-    parsed = new URL(url);
+    parsed = new URL(normalizedUrl);
   } catch (e) {
     throw new Error('Invalid download link');
   }
