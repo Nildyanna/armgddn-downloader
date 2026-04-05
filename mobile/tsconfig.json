@@ -1,0 +1,11 @@
+{
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "allowJs": true,
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "strict": false,
+    "baseUrl": "."
+  },
+  "include": ["**/*.js", "**/*.jsx", "**/*.ts", "**/*.tsx", "app.json"]
+}
