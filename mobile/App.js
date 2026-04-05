@@ -356,7 +356,13 @@ export default function App() {
   }
 
   function parseSafDisplayName(uri) {
-    const decoded = decodeURIComponent(String(uri || ''));
+    const raw = String(uri || '');
+    let decoded = raw;
+    try {
+      decoded = decodeURIComponent(raw);
+    } catch (e) {
+      decoded = raw;
+    }
     const tail = decoded.split('/').pop() || decoded;
     const colonIndex = tail.lastIndexOf(':');
     if (colonIndex > -1 && colonIndex + 1 < tail.length) {
