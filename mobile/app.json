@@ -17,6 +17,7 @@
     },
     "android": {
       "package": "com.armgddn.companion.mobile",
+      "versionCode": 4002060,
       "splash": {
         "backgroundColor": "#111827"
       }

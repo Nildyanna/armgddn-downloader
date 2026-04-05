@@ -19,6 +19,18 @@ function normalizeVersionFromTag(tag) {
     return m ? m[1] : '';
 }
 
+function versionToAndroidVersionCode(version) {
+    const parts = String(version || '')
+        .split('.')
+        .map(part => parseInt(part, 10));
+    if (parts.length !== 3 || parts.some(num => !Number.isInteger(num) || num < 0)) {
+        return null;
+    }
+
+    const [major, minor, patch] = parts;
+    return major * 1000000 + minor * 1000 + patch;
+}
+
 function resolveVersion() {
     try {
         const forced = process.env.ARMGDDN_SYNC_VERSION ? String(process.env.ARMGDDN_SYNC_VERSION).trim() : '';
@@ -94,6 +106,21 @@ function sync() {
                 console.log(`Updated mobile app.json to ${version}`);
             } else if (expo) {
                 console.log(`mobile app.json is already at ${version}`);
+            }
+
+            if (expo && typeof expo.android === 'object' && expo.android) {
+                const versionCode = versionToAndroidVersionCode(version);
+                if (versionCode) {
+                    if (expo.android.versionCode !== versionCode) {
+                        expo.android.versionCode = versionCode;
+                        fs.writeFileSync(mobileAppJsonPath, JSON.stringify(mobileAppJson, null, 2) + '\n');
+                        console.log(`Updated mobile android versionCode to ${versionCode}`);
+                    } else {
+                        console.log(`mobile android versionCode is already at ${versionCode}`);
+                    }
+                } else {
+                    console.warn(`Could not derive Android versionCode from version ${version}`);
+                }
             }
         } else {
             console.warn(`Mobile app.json not found at ${mobileAppJsonPath}`);
