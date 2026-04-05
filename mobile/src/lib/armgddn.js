@@ -250,8 +250,7 @@ function normalizeFiles(manifest) {
     }));
 }
 
-function buildDownloadRoot(manifest) {
-  const options = arguments.length > 1 && arguments[1] ? arguments[1] : {};
+function buildDownloadRoot(manifest, options = {}) {
   if (options.destinationRootUri) {
     return String(options.destinationRootUri).trim();
   }
