@@ -289,12 +289,22 @@ async function writeDownloadedTempFileToSaf(tempFileUri, folderUri, preferredNam
   try {
     await FileSystem.copyAsync({ from: tempFileUri, to: target.uri });
   } catch (copyError) {
-    const payload = await FileSystem.readAsStringAsync(tempFileUri, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    await FileSystem.writeAsStringAsync(target.uri, payload, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    try {
+      await FileSystem.deleteAsync(target.uri, { idempotent: true });
+    } catch (cleanupError) {
+      // Ignore cleanup failures for SAF targets.
+    }
+
+    const reason =
+      copyError && typeof copyError.message === 'string' && copyError.message
+        ? ` ${copyError.message}`
+        : '';
+
+    throw new Error(
+      `Unable to copy downloaded file into the selected Android Downloads location.${reason} ` +
+        'This device/runtime does not support copying directly to Storage Access Framework URIs, ' +
+        'and the previous Base64 fallback was disabled because it can exhaust memory for large downloads.'
+    );
   }
   return target;
 }
