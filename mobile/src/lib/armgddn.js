@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system';
 
 export const API_BASE_URL = 'https://www.armgddnbrowser.com';
 const DOWNLOAD_TOKEN_ENDPOINT = '/api/external-download-token/resolve';
+const DEFAULT_DOWNLOAD_ROOT_NAME = 'ARMGDDN Downloads';
 
 function isHttpsUrl(value) {
   try {
@@ -71,6 +72,43 @@ function joinFileUri(...parts) {
     .map((part) => String(part).replace(/^\/+|\/+$/g, ''))
     .join('/');
   return `${base}/${normalized}`;
+}
+
+function appendToFileUri(baseUri, ...parts) {
+  const base = String(baseUri || '').replace(/\/+$/, '');
+  const normalized = parts
+    .filter(Boolean)
+    .map((part) => String(part).replace(/^\/+|\/+$/g, ''))
+    .join('/');
+  return normalized ? `${base}/${normalized}` : base;
+}
+
+function isContentUri(value) {
+  return String(value || '').startsWith('content://');
+}
+
+function fileNameToMimeType(fileName) {
+  const lower = String(fileName || '').toLowerCase();
+  if (lower.endsWith('.7z')) return 'application/x-7z-compressed';
+  if (lower.endsWith('.zip')) return 'application/zip';
+  if (lower.endsWith('.rar')) return 'application/vnd.rar';
+  if (lower.endsWith('.iso')) return 'application/x-iso9660-image';
+  if (lower.endsWith('.txt')) return 'text/plain';
+  if (lower.endsWith('.json')) return 'application/json';
+  if (lower.endsWith('.apk')) return 'application/vnd.android.package-archive';
+  return 'application/octet-stream';
+}
+
+function flattenRelativePathName(value, fallback = 'download') {
+  const source = String(value || fallback)
+    .replace(/[\\/]+/g, ' - ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return safeName(source || fallback);
+}
+
+function shouldAttemptAutoExtract(fileName) {
+  return String(fileName || '').toLowerCase().endsWith('.7z');
 }
 
 async function ensureDirectory(dirUri) {
@@ -213,20 +251,99 @@ function normalizeFiles(manifest) {
 }
 
 function buildDownloadRoot(manifest) {
+  const options = arguments.length > 1 && arguments[1] ? arguments[1] : {};
+  if (options.destinationRootUri) {
+    return String(options.destinationRootUri).trim();
+  }
+
   const parts = [];
   if (manifest?.path) parts.push(...pathSegmentsFromName(manifest.path));
   else if (manifest?.name) parts.push(...pathSegmentsFromName(manifest.name));
   if (!parts.length) parts.push('download');
-  return joinFileUri('ARMGDDN', ...parts);
+  return joinFileUri(DEFAULT_DOWNLOAD_ROOT_NAME, ...parts);
+}
+
+async function createSafFileWithFallbackName(folderUri, preferredName) {
+  const baseName = safeName(preferredName || 'download');
+  const dotIndex = baseName.lastIndexOf('.');
+  const hasExt = dotIndex > 0;
+  const stem = hasExt ? baseName.slice(0, dotIndex) : baseName;
+  const ext = hasExt ? baseName.slice(dotIndex) : '';
+  const mimeType = fileNameToMimeType(baseName);
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const suffix = attempt === 0 ? '' : ` (${attempt + 1})`;
+    const candidate = `${stem}${suffix}${ext}`;
+    try {
+      const uri = await FileSystem.StorageAccessFramework.createFileAsync(folderUri, candidate, mimeType);
+      return { uri, fileName: candidate };
+    } catch (e) {
+      // Continue trying alternate names when files already exist.
+    }
+  }
+
+  throw new Error('Unable to create file in Android Downloads folder');
+}
+
+async function writeDownloadedTempFileToSaf(tempFileUri, folderUri, preferredName) {
+  const target = await createSafFileWithFallbackName(folderUri, preferredName);
+  try {
+    await FileSystem.copyAsync({ from: tempFileUri, to: target.uri });
+  } catch (copyError) {
+    const payload = await FileSystem.readAsStringAsync(tempFileUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    await FileSystem.writeAsStringAsync(target.uri, payload, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  }
+  return target;
 }
 
 async function downloadSingleFile(file, folderUri, callbacks) {
+  const contentUriDestination = isContentUri(folderUri);
+
+  if (contentUriDestination) {
+    const flatName = flattenRelativePathName(file.relativePath || file.name || file.url, file.name || 'download');
+    const tempDirectory = joinFileUri('_tmp');
+    await ensureDirectory(tempDirectory);
+    const tempFileUri = appendToFileUri(tempDirectory, `${Date.now()}-${flatName}`);
+    const download = FileSystem.createDownloadResumable(
+      file.url,
+      tempFileUri,
+      {},
+      (progress) => {
+        const totalBytes = Number(progress.totalBytesExpectedToWrite || 0);
+        const downloaded = Number(progress.totalBytesWritten || 0);
+        const percent = totalBytes > 0 ? Math.min(100, Math.round((downloaded / totalBytes) * 100)) : 0;
+        callbacks?.onProgress?.({
+          downloaded,
+          totalBytes,
+          percent,
+          fileName: file.name || flatName,
+        });
+      }
+    );
+
+    callbacks?.onFileStart?.(file.name || flatName);
+    const result = await download.downloadAsync();
+    const sourceUri = result?.uri || tempFileUri;
+    const target = await writeDownloadedTempFileToSaf(sourceUri, folderUri, flatName);
+    try {
+      await FileSystem.deleteAsync(sourceUri, { idempotent: true });
+    } catch (e) {
+      // Ignore cleanup failures for temp files.
+    }
+
+    return target.uri;
+  }
+
   const targetSegments = pathSegmentsFromName(file.relativePath || file.name || file.url);
   const fileName = targetSegments.pop() || safeName(file.name || 'download');
-  const subdirUri = targetSegments.length ? joinFileUri(folderUri.replace(String(FileSystem.documentDirectory || ''), ''), ...targetSegments) : folderUri;
+  const subdirUri = targetSegments.length ? appendToFileUri(folderUri, ...targetSegments) : folderUri;
   await ensureDirectory(subdirUri);
 
-  const fileUri = joinFileUri(subdirUri.replace(String(FileSystem.documentDirectory || ''), ''), fileName);
+  const fileUri = appendToFileUri(subdirUri, fileName);
   const download = FileSystem.createDownloadResumable(
     file.url,
     fileUri,
@@ -255,11 +372,21 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
     throw new Error('No files found in manifest');
   }
 
-  const rootUri = buildDownloadRoot(manifest);
-  await ensureDirectory(rootUri);
+  const options = callbacks?.options || {};
+  const rootUri = buildDownloadRoot(manifest, options);
+  if (!isContentUri(rootUri)) {
+    await ensureDirectory(rootUri);
+  }
 
   const totalBytes = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
   let downloadedBytes = 0;
+  const extraction = {
+    requested: false,
+    attempted: false,
+    extracted: 0,
+    skipped: 0,
+    reason: '',
+  };
 
   for (const file of files) {
     const fileUri = await downloadSingleFile(file, rootUri, {
@@ -287,13 +414,33 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
     if (fileUri) {
       // Keep the output reachable for future share/export support.
     }
+
+    const nameForExtraction = file.relativePath || file.name;
+    if (shouldAttemptAutoExtract(nameForExtraction)) {
+      extraction.requested = true;
+      extraction.attempted = true;
+      extraction.skipped += 1;
+      extraction.reason = 'Automatic .7z extraction is not supported in this mobile build yet.';
+      callbacks.onExtraction?.({
+        fileName: file.name,
+        fileUri,
+        extracted: false,
+        deletedOriginal: false,
+        reason: extraction.reason,
+      });
+    }
   }
+
+  const message = extraction.requested
+    ? `Download complete. ${extraction.reason}`
+    : 'Download complete';
 
   return {
     success: true,
-    message: 'Download complete',
+    message,
     rootUri,
     fileCount: files.length,
     totalBytes,
+    extraction,
   };
 }
