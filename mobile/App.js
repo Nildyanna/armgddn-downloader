@@ -9,6 +9,7 @@ import {
   API_BASE_URL,
   downloadFilesFromManifest,
   fetchManifestFromUrl,
+  openAndroidFile,
   parseHandoffUrl,
   readAndroidDirectory,
   supportsNativeAndroidDownloader,
@@ -217,6 +218,21 @@ export default function App() {
 
   async function handleHandoffUrl(url) {
     if (isBusyRef.current) return;
+
+    // On Android with the native downloader a folder must be chosen first —
+    // there is no default Downloads fallback.
+    if (Platform.OS === 'android' && supportsNativeAndroidDownloader() && !customAndroidDownloadDirRef.current) {
+      Alert.alert(
+        'Download folder required',
+        'Please choose a download folder before starting a download.',
+        [
+          { text: 'Choose Folder', onPress: pickDownloadFolder },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+
     isBusyRef.current = true;
     setIsBusy(true);
     setLastError('');
@@ -236,9 +252,8 @@ export default function App() {
       setStatusDetail(parsed.label ? `Preparing ${parsed.label}` : 'Preparing the download payload.');
 
       const manifest = await fetchManifestFromUrl(parsed.manifestUrl, parsed.token);
-      // On Android with the native downloader, pass the user-configured directory
-      // (or undefined to use the default public Downloads folder). SAF folder
-      // selection is only needed as a fallback when the native downloader is unavailable.
+      // For native Android, pass the user-chosen directory.  For SAF-only
+      // mode, getAndroidDownloadsFolderUri() prompts if no URI is stored yet.
       const androidDestDir = supportsNativeAndroidDownloader()
         ? customAndroidDownloadDirRef.current
         : undefined;
@@ -501,6 +516,14 @@ export default function App() {
     }
 
     try {
+      // Files downloaded via the native Android downloader live in public /
+      // external storage, outside the app sandbox.  FileSystem.getContentUriAsync
+      // only works for in-sandbox paths, so use RNBlobUtil's actionViewIntent
+      // which correctly wraps external-storage paths in a FileProvider URI.
+      if (Platform.OS === 'android' && supportsNativeAndroidDownloader() && !String(item.uri).startsWith('content://')) {
+        await openAndroidFile(item.uri, item.name);
+        return;
+      }
       const targetUri = Platform.OS === 'android' && !String(item.uri).startsWith('content://')
         ? await FileSystem.getContentUriAsync(item.uri)
         : item.uri;
@@ -645,21 +668,18 @@ export default function App() {
               <Text style={styles.metaText}>
                 Base download folder:{' '}
                 <Text style={styles.folderPathText}>
-                  {customAndroidDownloadDir || 'Downloads (default)'}
+                  {customAndroidDownloadDir || 'No folder selected'}
                 </Text>
               </Text>
               <View style={styles.folderActionsRow}>
                 <TouchableOpacity style={styles.secondaryButton} onPress={pickDownloadFolder} disabled={isBusy}>
                   <Text style={styles.secondaryButtonText}>Choose Folder</Text>
                 </TouchableOpacity>
-                {!!customAndroidDownloadDir && (
-                  <TouchableOpacity style={styles.secondaryButton} onPress={resetDownloadFolder} disabled={isBusy}>
-                    <Text style={styles.secondaryButtonText}>Reset to Default</Text>
-                  </TouchableOpacity>
-                )}
               </View>
               <Text style={styles.metaText}>
-                Tap "Choose Folder" to select where downloads are saved. The default is the public Android Downloads folder.
+                {customAndroidDownloadDir
+                  ? 'Downloads are saved to an "ARMGDDN Downloads" subfolder inside the chosen folder. Tap "Choose Folder" to change it.'
+                  : 'A folder must be selected before you can download files. Tap "Choose Folder" to get started.'}
               </Text>
             </>
           ) : (
