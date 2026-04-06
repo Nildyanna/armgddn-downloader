@@ -220,7 +220,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p mobile-artifacts
-          cp mobile/android/app/build/outputs/apk/release/app-release.apk "mobile-artifacts/ARMGDDN-Companion-Mobile-${GITHUB_REF_NAME:-local}.apk"
+          # Use GITHUB_HEAD_REF (PR branch name) when available; fall back to
+          # GITHUB_REF_NAME for push/tag events. Replace any '/' so the label
+          # is always a valid filename component.
+          RAW_LABEL="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-local}}"
+          SAFE_LABEL=$(echo "${RAW_LABEL}" | tr '/' '-')
+          cp mobile/android/app/build/outputs/apk/release/app-release.apk \
+            "mobile-artifacts/ARMGDDN-Companion-Mobile-${SAFE_LABEL}.apk"
 
       - name: Upload mobile artifact
         uses: actions/upload-artifact@v4
