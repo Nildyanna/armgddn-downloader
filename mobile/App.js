@@ -333,11 +333,8 @@ export default function App() {
           {
             text: 'Change Folder',
             onPress: async () => {
-              try {
-                await SecureStore.deleteItemAsync(ANDROID_DOWNLOADS_URI_KEY);
-              } catch (e) {
-                // ignore
-              }
+              await resetDownloadFolder();
+              await pickDownloadFolder();
             },
           },
         ]);
