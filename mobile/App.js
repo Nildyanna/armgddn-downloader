@@ -539,17 +539,38 @@ export default function App() {
     await loadFolderEntries(downloadFolderUri);
   }
 
-  // Converts a SAF tree URI (e.g. content://...externalstorage.../tree/primary%3ADownload)
-  // to an absolute file path (/storage/emulated/0/Download) for the native downloader.
-  // Returns null when the URI refers to a path that cannot be expressed as a simple file path.
+  // Converts a SAF tree URI (e.g. content://.../tree/primary%3ADownload or
+  // content://.../tree/0123-4567%3ADownload) to an absolute file path for the
+  // native downloader. Returns null when the URI cannot be mapped safely.
   function safTreeUriToFilePath(treeUri) {
     try {
       const decoded = decodeURIComponent(String(treeUri || ''));
-      const match = decoded.match(/\/tree\/primary:(.*)$/);
-      if (match) {
-        const rel = match[1];
-        return rel ? `/storage/emulated/0/${rel}` : '/storage/emulated/0';
+      if (!decoded.includes('com.android.externalstorage.documents')) {
+        return null;
       }
+
+      const match = decoded.match(/\/tree\/(.+)$/);
+      if (!match) return null;
+
+      const documentId = String(match[1] || '');
+      const colonIndex = documentId.indexOf(':');
+      const volumeId = (colonIndex >= 0 ? documentId.slice(0, colonIndex) : documentId).trim();
+      const relPath = (colonIndex >= 0 ? documentId.slice(colonIndex + 1) : '').trim();
+      if (!volumeId) return null;
+
+      // primary -> internal shared storage, otherwise Android exposes removable
+      // / secondary volumes as UUID-like IDs (e.g. 0123-4567).
+      const basePath = volumeId.toLowerCase() === 'primary'
+        ? '/storage/emulated/0'
+        : `/storage/${volumeId}`;
+
+      const cleanedRelPath = relPath
+        .replace(/^\/+/, '')
+        .split('/')
+        .filter((segment) => segment && segment !== '.' && segment !== '..')
+        .join('/');
+
+      return cleanedRelPath ? `${basePath}/${cleanedRelPath}` : basePath;
     } catch (e) {
       // ignore conversion failures
     }
@@ -582,7 +603,7 @@ export default function App() {
           Alert.alert(
             'Folder not supported',
             'The selected folder cannot be used with the native downloader. ' +
-            'Please choose a folder under "Internal storage" (e.g. Download).'
+            'Please choose a standard folder from Internal storage or an SD card.'
           );
           return;
         }
