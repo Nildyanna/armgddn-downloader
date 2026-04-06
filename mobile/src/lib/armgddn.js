@@ -486,15 +486,22 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
   const totalBytes = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
   let downloadedBytes = 0;
 
+  // Extract options early so they are available in both the native and SAF paths.
+  const options = callbacks?.options || {};
+
   // Android: stream directly to the public Downloads folder via the native
   // DownloadManager — no SAF copy, no memory cap, supports files of any size.
   if (supportsNativeAndroidDownloader()) {
     const dirs = RNBlobUtil.fs.dirs;
+    // Use a user-configured directory when provided; otherwise default directly
+    // to the public Downloads folder with no extra sub-folder nesting.
+    const trimmedDestDir = String(options.androidDestDir || '').trim();
+    const baseDir = trimmedDestDir || dirs.DownloadDir;
     const subParts = [];
     if (manifest?.path) subParts.push(...pathSegmentsFromName(manifest.path));
     else if (manifest?.name) subParts.push(...pathSegmentsFromName(manifest.name));
     if (!subParts.length) subParts.push('download');
-    const destDir = [dirs.DownloadDir, DEFAULT_DOWNLOAD_ROOT_NAME, ...subParts].join('/');
+    const destDir = [baseDir, ...subParts].join('/');
 
     for (const file of files) {
       await downloadSingleFileAndroid(file, destDir, {
@@ -516,9 +523,12 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
       });
     }
 
+    const displayDir = destDir.startsWith('/storage/emulated/0/')
+      ? destDir.slice('/storage/emulated/0/'.length)
+      : destDir;
     return {
       success: true,
-      message: 'Download complete. Files saved to Downloads/ARMGDDN Downloads.',
+      message: `Download complete. Files saved to ${displayDir}.`,
       rootUri: `file://${destDir}`,
       fileCount: files.length,
       totalBytes,
@@ -527,7 +537,6 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
   }
 
   // Non-Android / SAF fallback path.
-  const options = callbacks?.options || {};
   const rootUri = buildDownloadRoot(manifest, options);
   if (!isContentUri(rootUri)) {
     await ensureDirectory(rootUri);
