@@ -163,6 +163,8 @@ async function getOrCreateSafSubdirectory(parentUri, name) {
   } catch (e) { /* ignore listing failures */ }
 
   // Not found — try to create it.
+  // expo-file-system's createFileAsync doubles as a SAF "create document" call;
+  // passing the directory MIME type causes Android to create a subdirectory.
   try {
     if (saf.createFileAsync) {
       const newUri = await saf.createFileAsync(parentUri, name, 'vnd.android.document/directory');
@@ -548,7 +550,7 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
     // because Android restricts direct filesystem access to that area.
     const trimmedDestDir = String(options.androidDestDir || '').trim();
     if (!trimmedDestDir) {
-      throw new Error('A download folder must be chosen before downloading. Please tap "Choose Folder" in the app.');
+      throw new Error('No download folder has been configured. Please select a folder before downloading.');
     }
     const baseDir = trimmedDestDir;
     const subParts = [];
