@@ -286,27 +286,46 @@ async function createSafFileWithFallbackName(folderUri, preferredName) {
 
 async function writeDownloadedTempFileToSaf(tempFileUri, folderUri, preferredName) {
   const target = await createSafFileWithFallbackName(folderUri, preferredName);
+
+  // Try copyAsync first — works on newer Expo/Android combinations.
   try {
     await FileSystem.copyAsync({ from: tempFileUri, to: target.uri });
+    return target;
   } catch (copyError) {
+    // copyAsync does not support SAF destinations on all devices.
+    // Fall through to Base64 fallback.
+  }
+
+  // Base64 fallback: reads the whole file into memory, so only viable for smaller files.
+  try {
+    const info = await FileSystem.getInfoAsync(tempFileUri, { size: true });
+    const fileSize = Number(info.size) || 0;
+    const MAX_BASE64_BYTES = 150 * 1024 * 1024; // 150 MB
+    if (fileSize > MAX_BASE64_BYTES) {
+      throw new Error(
+        `This file is ${Math.round(fileSize / 1024 / 1024)} MB — too large to save to the ` +
+        `selected folder on this device. Please change the download folder and try again.`
+      );
+    }
+    const base64 = await FileSystem.readAsStringAsync(tempFileUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    await FileSystem.StorageAccessFramework.writeAsStringAsync(target.uri, base64, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return target;
+  } catch (fallbackError) {
     try {
       await FileSystem.deleteAsync(target.uri, { idempotent: true });
-    } catch (cleanupError) {
-      // Ignore cleanup failures for SAF targets.
+    } catch (e) {
+      // Ignore cleanup failures.
     }
-
     const reason =
-      copyError && typeof copyError.message === 'string' && copyError.message
-        ? ` ${copyError.message}`
-        : '';
-
-    throw new Error(
-      `Unable to copy downloaded file into the selected Android Downloads location.${reason} ` +
-        'This device/runtime does not support copying directly to Storage Access Framework URIs, ' +
-        'and the previous Base64 fallback was disabled because it can exhaust memory for large downloads.'
-    );
+      fallbackError && typeof fallbackError.message === 'string' && fallbackError.message
+        ? fallbackError.message
+        : 'Unknown error';
+    throw new Error(`Unable to save the file to the selected folder. ${reason}`);
   }
-  return target;
 }
 
 async function downloadSingleFile(file, folderUri, callbacks) {

@@ -268,7 +268,31 @@ export default function App() {
       setConnectionState('error');
       setStatus('Error');
       setStatusDetail(message);
-      Alert.alert('Download failed', message);
+
+      const isFolderError = Platform.OS === 'android' && (
+        message.includes('folder') ||
+        message.includes('Storage access') ||
+        message.includes('SAF') ||
+        message.includes('Downloads location')
+      );
+
+      if (isFolderError) {
+        Alert.alert('Download failed', message, [
+          { text: 'OK', style: 'cancel' },
+          {
+            text: 'Change Folder',
+            onPress: async () => {
+              try {
+                await SecureStore.deleteItemAsync(ANDROID_DOWNLOADS_URI_KEY);
+              } catch (e) {
+                // ignore
+              }
+            },
+          },
+        ]);
+      } else {
+        Alert.alert('Download failed', message);
+      }
     } finally {
       if (mountedRef.current) {
         isBusyRef.current = false;
