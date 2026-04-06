@@ -17,6 +17,7 @@ import {
 const APP_TOKEN_KEY = 'armgddn.mobile.appToken';
 const ANDROID_DOWNLOADS_URI_KEY = 'armgddn.mobile.androidDownloadsUri';
 const ANDROID_DOWNLOAD_DIR_KEY = 'armgddn.mobile.androidDownloadDir';
+const SAF_ONLY_FOLDER_LABEL = 'Selected folder (internal)';
 const GITHUB_RELEASES_LATEST_URL = 'https://api.github.com/repos/Nildyanna/armgddn-downloader/releases/latest';
 const GITHUB_RELEASES_PAGE_URL = 'https://github.com/Nildyanna/armgddn-downloader/releases/latest';
 
@@ -112,7 +113,7 @@ export default function App() {
           // the UI reflects the active destination after a restart.
           const storedSafUri = await SecureStore.getItemAsync(ANDROID_DOWNLOADS_URI_KEY);
           if (storedSafUri) {
-            const display = safTreeUriToFilePath(storedSafUri) || 'Selected folder (internal)';
+            const display = safTreeUriToFilePath(storedSafUri) || SAF_ONLY_FOLDER_LABEL;
             customAndroidDownloadDirRef.current = display;
             setCustomAndroidDownloadDir(display);
           }
@@ -575,7 +576,7 @@ export default function App() {
       } else {
         // SAF-only mode: show the decoded SAF path in the UI and persist the
         // display value so it remains durable across restarts.
-        const display = safTreeUriToFilePath(safUri) || 'Selected folder (internal)';
+        const display = safTreeUriToFilePath(safUri) || SAF_ONLY_FOLDER_LABEL;
         customAndroidDownloadDirRef.current = display;
         setCustomAndroidDownloadDir(display);
         try {
@@ -691,7 +692,7 @@ export default function App() {
             <>
               <Text style={styles.metaText}>
                 {Platform.OS === 'android'
-                  ? `Stored in: ${downloadRootUri}`
+                  ? `Stored in: ${downloadRootUri || 'Downloads'}`
                   : 'Stored in app space on this device.'}
               </Text>
               <Text style={styles.metaText} numberOfLines={2}>Folder: {downloadFolderUri || downloadRootUri}</Text>
