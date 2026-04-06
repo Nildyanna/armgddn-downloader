@@ -8,6 +8,8 @@ Expo React Native mobile Companion for Android and iOS.
 - Resolves browser-issued download tokens into manifest URLs.
 - Fetches the manifest from the same ARMGDDN server contract used by the desktop Companion.
 - Downloads the files locally on the device and shows progress.
+- On Android, writes downloads into a user-approved public folder (choose Downloads/ARMGDDN Downloads when prompted).
+- Detects `.7z` files after download; automatic extraction is currently skipped in this mobile build.
 
 ## Run locally
 

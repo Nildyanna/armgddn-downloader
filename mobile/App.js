@@ -13,6 +13,7 @@ import {
 } from './src/lib/armgddn';
 
 const APP_TOKEN_KEY = 'armgddn.mobile.appToken';
+const ANDROID_DOWNLOADS_URI_KEY = 'armgddn.mobile.androidDownloadsUri';
 const GITHUB_RELEASES_LATEST_URL = 'https://api.github.com/repos/Nildyanna/armgddn-downloader/releases/latest';
 const GITHUB_RELEASES_PAGE_URL = 'https://github.com/Nildyanna/armgddn-downloader/releases/latest';
 
@@ -208,6 +209,7 @@ export default function App() {
       setStatusDetail(parsed.label ? `Preparing ${parsed.label}` : 'Preparing the download payload.');
 
       const manifest = await fetchManifestFromUrl(parsed.manifestUrl, parsed.token);
+      const androidDownloadsUri = await getAndroidDownloadsFolderUri();
       const total = manifest.totalSize || manifest.files?.reduce((sum, item) => sum + Number(item?.size || 0), 0) || 0;
       setTotalBytes(total);
       setDownloadedBytes(0);
@@ -228,6 +230,9 @@ export default function App() {
           setDownloadedBytes(downloaded);
           setTotalBytes(total || totalForFile || 0);
           setDownloadProgress(percent);
+        },
+        options: {
+          destinationRootUri: androidDownloadsUri || undefined,
         },
       });
 
@@ -280,6 +285,64 @@ export default function App() {
       // ignore storage failures
     }
   }
+
+  function looksLikeArmgddnDownloadsFolder(uri) {
+    const rawUri = String(uri || '');
+    let decoded = rawUri;
+    try {
+      decoded = decodeURIComponent(rawUri);
+    } catch (e) {
+      // Fall back to the raw URI if percent-encoding is malformed.
+    }
+    return decoded.toLowerCase().includes('armgddn downloads');
+  }
+
+  async function canReadSafUri(uri) {
+    if (!uri || Platform.OS !== 'android') return false;
+    const saf = FileSystem.StorageAccessFramework;
+    if (!saf?.readDirectoryAsync) return false;
+    try {
+      await saf.readDirectoryAsync(uri);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  async function getAndroidDownloadsFolderUri() {
+    if (Platform.OS !== 'android') return '';
+    const saf = FileSystem.StorageAccessFramework;
+    if (!saf?.requestDirectoryPermissionsAsync) {
+      throw new Error('Android Downloads folder access is unavailable in this build.');
+    }
+
+    try {
+      const stored = await SecureStore.getItemAsync(ANDROID_DOWNLOADS_URI_KEY);
+      if (stored && looksLikeArmgddnDownloadsFolder(stored) && await canReadSafUri(stored)) {
+        return stored;
+      }
+    } catch (e) {
+      // ignore secure-store read failures
+    }
+
+    const permission = await saf.requestDirectoryPermissionsAsync();
+    if (!permission?.granted || !permission?.directoryUri) {
+      throw new Error('Storage access is required. Select the ARMGDDN Downloads folder inside Downloads.');
+    }
+
+    if (!looksLikeArmgddnDownloadsFolder(permission.directoryUri)) {
+      throw new Error('Please select the folder named ARMGDDN Downloads inside your main Downloads directory.');
+    }
+
+    try {
+      await SecureStore.setItemAsync(ANDROID_DOWNLOADS_URI_KEY, permission.directoryUri);
+    } catch (e) {
+      // ignore secure-store write failures
+    }
+
+    return permission.directoryUri;
+  }
+
   function renderBytes(value) {
     const n = Number(value) || 0;
     if (!n) return '0 B';
@@ -290,9 +353,28 @@ export default function App() {
   }
 
   function joinLocalUri(baseUri, name) {
+    if (String(baseUri || '').startsWith('content://')) {
+      return String(name || '');
+    }
     const base = String(baseUri || '').replace(/\/+$/, '');
     const segment = encodeURIComponent(String(name || '').replace(/^\/+|\/+$/g, ''));
     return `${base}/${segment}`;
+  }
+
+  function parseSafDisplayName(uri) {
+    const raw = String(uri || '');
+    let decoded = raw;
+    try {
+      decoded = decodeURIComponent(raw);
+    } catch (e) {
+      decoded = raw;
+    }
+    const tail = decoded.split('/').pop() || decoded;
+    const colonIndex = tail.lastIndexOf(':');
+    if (colonIndex > -1 && colonIndex + 1 < tail.length) {
+      return tail.slice(colonIndex + 1);
+    }
+    return tail || 'item';
   }
 
   async function loadFolderEntries(folderUri) {
@@ -301,6 +383,18 @@ export default function App() {
     setDownloadFolderLoading(true);
     setDownloadFolderError('');
     try {
+      if (Platform.OS === 'android' && targetUri.startsWith('content://') && FileSystem.StorageAccessFramework?.readDirectoryAsync) {
+        const uris = await FileSystem.StorageAccessFramework.readDirectoryAsync(targetUri);
+        const entries = (Array.isArray(uris) ? uris : []).map((uri) => ({
+          name: parseSafDisplayName(uri),
+          uri,
+          isDirectory: false,
+        }));
+        entries.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        setDownloadFolderEntries(entries);
+        return;
+      }
+
       const names = await FileSystem.readDirectoryAsync(targetUri);
       const entries = await Promise.all((Array.isArray(names) ? names : []).map(async (name) => {
         const uri = joinLocalUri(targetUri, name);
@@ -345,7 +439,9 @@ export default function App() {
     }
 
     try {
-      const targetUri = Platform.OS === 'android' ? await FileSystem.getContentUriAsync(item.uri) : item.uri;
+      const targetUri = Platform.OS === 'android' && !String(item.uri).startsWith('content://')
+        ? await FileSystem.getContentUriAsync(item.uri)
+        : item.uri;
       await Linking.openURL(targetUri);
     } catch (error) {
       const message = error?.message ? String(error.message) : 'Unable to open file';
@@ -421,7 +517,11 @@ export default function App() {
         <Section title="Downloaded files">
           {downloadRootUri ? (
             <>
-              <Text style={styles.metaText}>Stored in app space on this device.</Text>
+              <Text style={styles.metaText}>
+                {Platform.OS === 'android'
+                  ? 'Stored in your selected Downloads/ARMGDDN Downloads folder.'
+                  : 'Stored in app space on this device.'}
+              </Text>
               <Text style={styles.metaText} numberOfLines={2}>Folder: {downloadFolderUri || downloadRootUri}</Text>
               <View style={styles.folderActionsRow}>
                 <TouchableOpacity style={styles.secondaryButton} onPress={() => openDownloadedFolder(downloadRootUri)}>
