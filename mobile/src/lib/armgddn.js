@@ -452,6 +452,31 @@ async function downloadSingleFileAndroid(file, destDir, callbacks) {
   return `file://${destPath}`;
 }
 
+// Lists the contents of a directory given a file:// URI (Android external storage).
+// Returns an array of { name, uri, isDirectory } objects sorted directories-first.
+// Uses RNBlobUtil.fs which can read /storage/emulated/0/... paths that
+// expo-file-system's readDirectoryAsync cannot access on Android.
+export async function readAndroidDirectory(fileUri) {
+  if (!RNBlobUtil) throw new Error('react-native-blob-util not available');
+  const raw = String(fileUri || '').trim();
+  const absPath = raw.startsWith('file://') ? raw.slice(7) : raw;
+
+  const names = await RNBlobUtil.fs.ls(absPath);
+  const entries = await Promise.all(
+    (Array.isArray(names) ? names : []).map(async (name) => {
+      const childPath = `${absPath}/${name}`;
+      let isDirectory = false;
+      try { isDirectory = await RNBlobUtil.fs.isDir(childPath); } catch (e) { /* ignore */ }
+      return { name, uri: `file://${childPath}`, isDirectory };
+    })
+  );
+  entries.sort((a, b) => {
+    if (a.isDirectory !== b.isDirectory) return a.isDirectory ? -1 : 1;
+    return String(a.name || '').localeCompare(String(b.name || ''));
+  });
+  return entries;
+}
+
 export async function downloadFilesFromManifest(manifest, callbacks = {}) {
   const files = normalizeFiles(manifest);
   if (!files.length) {

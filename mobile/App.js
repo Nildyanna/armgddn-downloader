@@ -10,6 +10,7 @@ import {
   downloadFilesFromManifest,
   fetchManifestFromUrl,
   parseHandoffUrl,
+  readAndroidDirectory,
   supportsNativeAndroidDownloader,
 } from './src/lib/armgddn';
 
@@ -417,6 +418,12 @@ export default function App() {
           isDirectory: false,
         }));
         entries.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+        setDownloadFolderEntries(entries);
+        return;
+      }
+
+      if (supportsNativeAndroidDownloader() && targetUri.startsWith('file://')) {
+        const entries = await readAndroidDirectory(targetUri);
         setDownloadFolderEntries(entries);
         return;
       }
