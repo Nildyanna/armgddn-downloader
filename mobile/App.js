@@ -318,7 +318,7 @@ export default function App() {
 
     try {
       const stored = await SecureStore.getItemAsync(ANDROID_DOWNLOADS_URI_KEY);
-      if (stored && looksLikeArmgddnDownloadsFolder(stored) && await canReadSafUri(stored)) {
+      if (stored && await canReadSafUri(stored)) {
         return stored;
       }
     } catch (e) {
@@ -327,11 +327,7 @@ export default function App() {
 
     const permission = await saf.requestDirectoryPermissionsAsync();
     if (!permission?.granted || !permission?.directoryUri) {
-      throw new Error('Storage access is required. Select the ARMGDDN Downloads folder inside Downloads.');
-    }
-
-    if (!looksLikeArmgddnDownloadsFolder(permission.directoryUri)) {
-      throw new Error('Please select the folder named ARMGDDN Downloads inside your main Downloads directory.');
+      throw new Error('Storage access is required. Please select a folder to save downloads into.');
     }
 
     try {
