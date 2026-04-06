@@ -10,6 +10,7 @@ import {
   downloadFilesFromManifest,
   fetchManifestFromUrl,
   parseHandoffUrl,
+  supportsNativeAndroidDownloader,
 } from './src/lib/armgddn';
 
 const APP_TOKEN_KEY = 'armgddn.mobile.appToken';
@@ -209,7 +210,12 @@ export default function App() {
       setStatusDetail(parsed.label ? `Preparing ${parsed.label}` : 'Preparing the download payload.');
 
       const manifest = await fetchManifestFromUrl(parsed.manifestUrl, parsed.token);
-      const androidDownloadsUri = await getAndroidDownloadsFolderUri();
+      // On Android, the native blob-util downloader handles the destination
+      // internally (public Downloads folder). SAF folder selection is only
+      // needed as a fallback when the native downloader is unavailable.
+      const androidDownloadsUri = supportsNativeAndroidDownloader()
+        ? null
+        : await getAndroidDownloadsFolderUri();
       const total = manifest.totalSize || manifest.files?.reduce((sum, item) => sum + Number(item?.size || 0), 0) || 0;
       setTotalBytes(total);
       setDownloadedBytes(0);

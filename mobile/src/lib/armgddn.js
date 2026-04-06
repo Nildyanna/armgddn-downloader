@@ -1,4 +1,20 @@
 import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
+
+// react-native-blob-util is a native module — guard the require so that
+// any environment without the native bridge (tests, web) degrades gracefully.
+let RNBlobUtil = null;
+try {
+  RNBlobUtil = require('react-native-blob-util').default;
+} catch (e) {
+  // Native module unavailable; will fall back to expo-file-system SAF path.
+}
+
+// Returns true when the native Android downloader is available.
+// App.js uses this to skip the SAF folder prompt on Android.
+export function supportsNativeAndroidDownloader() {
+  return Platform.OS === 'android' && RNBlobUtil != null;
+}
 
 export const API_BASE_URL = 'https://www.armgddnbrowser.com';
 const DOWNLOAD_TOKEN_ENDPOINT = '/api/external-download-token/resolve';
@@ -394,20 +410,104 @@ async function downloadSingleFile(file, folderUri, callbacks) {
   return result?.uri || fileUri;
 }
 
+// Android-native download via react-native-blob-util.
+// Streams directly to the public Downloads folder — no SAF copy step,
+// no memory limit, works for files of any size.
+async function downloadSingleFileAndroid(file, destDir, callbacks) {
+  const flatName = flattenRelativePathName(file.relativePath || file.name || file.url, file.name || 'download');
+  const destPath = `${destDir}/${flatName}`;
+
+  try {
+    if (!(await RNBlobUtil.fs.isDir(destDir))) {
+      await RNBlobUtil.fs.mkdir(destDir);
+    }
+  } catch (e) {
+    // Directory may already exist or mkdir may fail — proceed anyway.
+  }
+
+  callbacks?.onFileStart?.(file.name || flatName);
+
+  const task = RNBlobUtil.config({
+    addAndroidDownloads: {
+      useDownloadManager: true,
+      notification: false,
+      path: destPath,
+      mediaScannable: true,
+      overwrite: true,
+    },
+  }).fetch('GET', file.url);
+
+  task.progress({ interval: 300 }, (received, total) => {
+    const downloaded = Number(received) || 0;
+    const totalBytes = Number(total) || 0;
+    callbacks?.onProgress?.({
+      downloaded,
+      totalBytes,
+      percent: totalBytes > 0 ? Math.min(100, Math.round((downloaded / totalBytes) * 100)) : 0,
+      fileName: file.name || flatName,
+    });
+  });
+
+  await task;
+  return `file://${destPath}`;
+}
+
 export async function downloadFilesFromManifest(manifest, callbacks = {}) {
   const files = normalizeFiles(manifest);
   if (!files.length) {
     throw new Error('No files found in manifest');
   }
 
+  const totalBytes = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
+  let downloadedBytes = 0;
+
+  // Android: stream directly to the public Downloads folder via the native
+  // DownloadManager — no SAF copy, no memory cap, supports files of any size.
+  if (supportsNativeAndroidDownloader()) {
+    const dirs = RNBlobUtil.fs.dirs;
+    const subParts = [];
+    if (manifest?.path) subParts.push(...pathSegmentsFromName(manifest.path));
+    else if (manifest?.name) subParts.push(...pathSegmentsFromName(manifest.name));
+    if (!subParts.length) subParts.push('download');
+    const destDir = [dirs.DownloadDir, DEFAULT_DOWNLOAD_ROOT_NAME, ...subParts].join('/');
+
+    for (const file of files) {
+      await downloadSingleFileAndroid(file, destDir, {
+        onFileStart: callbacks.onFileStart,
+        onProgress: (progress) => {
+          const currentDownloaded = downloadedBytes + Number(progress.downloaded || 0);
+          const percent = totalBytes > 0
+            ? Math.min(100, Math.round((currentDownloaded / totalBytes) * 100))
+            : progress.percent || 0;
+          callbacks.onProgress?.({ downloaded: currentDownloaded, totalBytes, percent, fileName: progress.fileName || file.name });
+        },
+      });
+      downloadedBytes += Number(file.size || 0);
+      callbacks.onProgress?.({
+        downloaded: downloadedBytes,
+        totalBytes,
+        percent: totalBytes > 0 ? Math.min(100, Math.round((downloadedBytes / totalBytes) * 100)) : 0,
+        fileName: file.name,
+      });
+    }
+
+    return {
+      success: true,
+      message: 'Download complete. Files saved to Downloads/ARMGDDN Downloads.',
+      rootUri: `file://${destDir}`,
+      fileCount: files.length,
+      totalBytes,
+      extraction: { requested: false, attempted: false, extracted: 0, skipped: 0, reason: '' },
+    };
+  }
+
+  // Non-Android / SAF fallback path.
   const options = callbacks?.options || {};
   const rootUri = buildDownloadRoot(manifest, options);
   if (!isContentUri(rootUri)) {
     await ensureDirectory(rootUri);
   }
 
-  const totalBytes = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
-  let downloadedBytes = 0;
   const extraction = {
     requested: false,
     attempted: false,

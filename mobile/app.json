@@ -11,7 +11,11 @@
       "bundleIdentifier": "com.armgddn.companion.mobile"
     },
     "android": {
-      "package": "com.armgddn.companion.mobile"
+      "package": "com.armgddn.companion.mobile",
+      "permissions": [
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION"
+      ]
     },
     "extra": {
       "apiBaseUrl": "https://www.armgddnbrowser.com"
