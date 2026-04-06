@@ -107,6 +107,15 @@ export default function App() {
         if (storedDir) {
           customAndroidDownloadDirRef.current = storedDir;
           setCustomAndroidDownloadDir(storedDir);
+        } else {
+          // SAF-only mode: derive a display value from the stored SAF URI so
+          // the UI reflects the active destination after a restart.
+          const storedSafUri = await SecureStore.getItemAsync(ANDROID_DOWNLOADS_URI_KEY);
+          if (storedSafUri) {
+            const display = safTreeUriToFilePath(storedSafUri) || 'Selected folder (internal)';
+            customAndroidDownloadDirRef.current = display;
+            setCustomAndroidDownloadDir(display);
+          }
         }
       } catch (e) {
         // ignore secure-store failures
@@ -564,10 +573,16 @@ export default function App() {
           // ignore
         }
       } else {
-        // SAF-only mode: show the decoded SAF path in the UI.
+        // SAF-only mode: show the decoded SAF path in the UI and persist the
+        // display value so it remains durable across restarts.
         const display = safTreeUriToFilePath(safUri) || 'Selected folder (internal)';
         customAndroidDownloadDirRef.current = display;
         setCustomAndroidDownloadDir(display);
+        try {
+          await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, display);
+        } catch (e) {
+          // ignore
+        }
       }
     } catch (error) {
       const message = error?.message ? String(error.message) : 'Unable to select folder';
@@ -627,7 +642,7 @@ export default function App() {
           {Platform.OS === 'android' ? (
             <>
               <Text style={styles.metaText}>
-                Files will be saved to:{' '}
+                Base download folder:{' '}
                 <Text style={styles.folderPathText}>
                   {customAndroidDownloadDir || 'Downloads (default)'}
                 </Text>
@@ -676,7 +691,7 @@ export default function App() {
             <>
               <Text style={styles.metaText}>
                 {Platform.OS === 'android'
-                  ? `Stored in: ${customAndroidDownloadDir || 'Downloads (default)'}`
+                  ? `Stored in: ${downloadRootUri}`
                   : 'Stored in app space on this device.'}
               </Text>
               <Text style={styles.metaText} numberOfLines={2}>Folder: {downloadFolderUri || downloadRootUri}</Text>
