@@ -546,6 +546,13 @@ export default function App() {
   function safTreeUriToFilePath(treeUri) {
     try {
       const decoded = decodeURIComponent(String(treeUri || ''));
+
+      // The system Downloads folder is served by a separate provider on many
+      // Android versions — map it directly to the known Downloads path.
+      if (decoded.includes('com.android.providers.downloads.documents')) {
+        return RNBlobUtil?.fs?.dirs?.DownloadDir || '/storage/emulated/0/Download';
+      }
+
       if (!decoded.includes('com.android.externalstorage.documents')) {
         return null;
       }
