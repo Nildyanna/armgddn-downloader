@@ -549,7 +549,7 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
     // A user-chosen folder is required; there is no public-Downloads fallback
     // because Android restricts direct filesystem access to that area.
     const trimmedDestDir = String(options.androidDestDir || '').trim();
-    if (!trimmedDestDir) {
+    if (!trimmedDestDir || !trimmedDestDir.startsWith('/')) {
       throw new Error('No download folder has been configured. Please select a folder before downloading.');
     }
     const baseDir = trimmedDestDir;
