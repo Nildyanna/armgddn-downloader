@@ -477,9 +477,16 @@ export function getNativeDownloadDir() {
 
 export function isDownloadManagerCompatiblePath(p) {
   const s = String(p || '');
-  return DOWNLOAD_MANAGER_ALLOWED_BASES.some(
-    (base) => s === base || s.startsWith(base + '/')
-  );
+  // Always allow whatever RNBlobUtil reports as the native download dir —
+  // Samsung and other OEMs can return paths outside the AOSP standard list.
+  const nativeDownloadDir = RNBlobUtil?.fs?.dirs?.DownloadDir;
+  const bases = nativeDownloadDir
+    ? [...DOWNLOAD_MANAGER_ALLOWED_BASES, nativeDownloadDir]
+    : DOWNLOAD_MANAGER_ALLOWED_BASES;
+  return bases.some((base) => {
+    const b = String(base).replace(/\/+$/, '');
+    return s === b || s.startsWith(b + '/');
+  });
 }
 
 async function downloadSingleFileAndroid(file, destDir, callbacks) {
