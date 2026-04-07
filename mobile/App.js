@@ -9,6 +9,7 @@ import {
   API_BASE_URL,
   downloadFilesFromManifest,
   fetchManifestFromUrl,
+  isDownloadManagerCompatiblePath,
   openAndroidFile,
   parseHandoffUrl,
   readAndroidDirectory,
@@ -599,11 +600,11 @@ export default function App() {
       // plain file path so it can be passed directly to react-native-blob-util.
       if (supportsNativeAndroidDownloader()) {
         const filePath = safTreeUriToFilePath(safUri);
-        if (!filePath) {
+        if (!filePath || !isDownloadManagerCompatiblePath(filePath)) {
           Alert.alert(
             'Folder not supported',
-            'The selected folder cannot be used with the native downloader. ' +
-            'Please choose a standard folder from Internal storage or an SD card.'
+            'The Android download manager only supports standard public folders. ' +
+            'Please choose a folder inside Downloads, Music, Pictures, or Movies.'
           );
           return;
         }
