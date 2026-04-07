@@ -9,6 +9,7 @@ import {
   API_BASE_URL,
   downloadFilesFromManifest,
   fetchManifestFromUrl,
+  getNativeDownloadDir,
   isDownloadManagerCompatiblePath,
   openAndroidFile,
   parseHandoffUrl,
@@ -651,6 +652,20 @@ export default function App() {
     }
   }
 
+  // Directly sets the download folder to the device's native Downloads dir
+  // without going through the SAF picker. Android 10+ blocks SAF access to
+  // the Downloads root, so this is the only reliable way to use it.
+  async function useDefaultDownloadFolder() {
+    const dir = getNativeDownloadDir();
+    customAndroidDownloadDirRef.current = dir;
+    setCustomAndroidDownloadDir(dir);
+    try {
+      await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, dir);
+    } catch (e) {
+      // ignore
+    }
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <ExpoStatusBar style="light" />
@@ -698,14 +713,17 @@ export default function App() {
                 </Text>
               </Text>
               <View style={styles.folderActionsRow}>
+                <TouchableOpacity style={styles.secondaryButton} onPress={useDefaultDownloadFolder} disabled={isBusy}>
+                  <Text style={styles.secondaryButtonText}>Use Downloads Folder</Text>
+                </TouchableOpacity>
                 <TouchableOpacity style={styles.secondaryButton} onPress={pickDownloadFolder} disabled={isBusy}>
-                  <Text style={styles.secondaryButtonText}>Choose Folder</Text>
+                  <Text style={styles.secondaryButtonText}>Choose Custom Folder</Text>
                 </TouchableOpacity>
               </View>
               <Text style={styles.metaText}>
                 {customAndroidDownloadDir
-                  ? 'Downloads are saved to an "ARMGDDN Downloads" subfolder inside the chosen folder. Tap "Choose Folder" to change it.'
-                  : 'A folder must be selected before you can download files. Tap "Choose Folder" to get started.'}
+                  ? 'Downloads are saved to an "ARMGDDN Downloads" subfolder inside the chosen folder. Tap a button above to change it.'
+                  : 'Tap "Use Downloads Folder" to save to your Downloads folder, or choose a custom folder (must be inside Downloads, Music, Pictures, or Movies).'}
               </Text>
             </>
           ) : (
