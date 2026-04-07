@@ -135,6 +135,46 @@ async function ensureDirectory(dirUri) {
   }
 }
 
+// Tries to navigate into (or create) a named subdirectory within a SAF tree
+// URI.  Returns the child URI on success, or parentUri as a fallback so that
+// downloads still land somewhere sensible even if subfolder creation fails.
+async function getOrCreateSafSubdirectory(parentUri, name) {
+  const saf = FileSystem.StorageAccessFramework;
+  if (!saf) return parentUri;
+
+  // First pass: look for an existing child with this display name so we don't
+  // create duplicates on repeated downloads.
+  try {
+    const childUris = await saf.readDirectoryAsync(parentUri);
+    for (const uri of (Array.isArray(childUris) ? childUris : [])) {
+      try {
+        let decoded = String(uri);
+        try { decoded = decodeURIComponent(decoded); } catch (e) { /* ignore */ }
+        // SAF document IDs look like "primary:Folder/SubFolder".
+        // The display name is the last '/'-separated segment after the last ':'.
+        const afterColon = decoded.split(':').pop() || decoded;
+        const lastName = afterColon.split('/').pop() || afterColon;
+        if (lastName.toLowerCase() === name.toLowerCase()) {
+          // Confirm it is a readable directory before using it.
+          try { await saf.readDirectoryAsync(uri); return uri; } catch (e) { /* not a directory */ }
+        }
+      } catch (e) { /* ignore individual URI errors */ }
+    }
+  } catch (e) { /* ignore listing failures */ }
+
+  // Not found — try to create it.
+  // expo-file-system's createFileAsync doubles as a SAF "create document" call;
+  // passing the directory MIME type causes Android to create a subdirectory.
+  try {
+    if (saf.createFileAsync) {
+      const newUri = await saf.createFileAsync(parentUri, name, 'vnd.android.document/directory');
+      if (newUri) return newUri;
+    }
+  } catch (e) { /* ignore creation failures */ }
+
+  return parentUri;
+}
+
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
   const text = await response.text();
@@ -477,6 +517,20 @@ export async function readAndroidDirectory(fileUri) {
   return entries;
 }
 
+// Opens a file stored in external / public Android storage using Android's
+// intent system.  Unlike FileSystem.getContentUriAsync, this works for files
+// outside the app sandbox (e.g. /storage/emulated/0/...).
+export async function openAndroidFile(fileUri, fileName) {
+  if (!RNBlobUtil?.android?.actionViewIntent) {
+    throw new Error('Cannot open file: native module not available');
+  }
+  const raw = String(fileUri || '');
+  const absPath = raw.startsWith('file://') ? raw.slice(7) : raw;
+  const name = fileName || absPath.split('/').pop() || '';
+  const mime = fileNameToMimeType(name);
+  await RNBlobUtil.android.actionViewIntent(absPath, mime);
+}
+
 export async function downloadFilesFromManifest(manifest, callbacks = {}) {
   const files = normalizeFiles(manifest);
   if (!files.length) {
@@ -486,15 +540,26 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
   const totalBytes = files.reduce((sum, file) => sum + Number(file.size || 0), 0);
   let downloadedBytes = 0;
 
-  // Android: stream directly to the public Downloads folder via the native
-  // DownloadManager — no SAF copy, no memory cap, supports files of any size.
+  // Extract options early so they are available in both the native and SAF paths.
+  const options = callbacks?.options || {};
+
+  // Android: stream to the user-chosen folder via the native DownloadManager —
+  // no SAF copy, no memory cap, supports files of any size.
   if (supportsNativeAndroidDownloader()) {
-    const dirs = RNBlobUtil.fs.dirs;
+    // A user-chosen folder is required; there is no public-Downloads fallback
+    // because Android restricts direct filesystem access to that area.
+    const trimmedDestDir = String(options.androidDestDir || '').trim();
+    if (!trimmedDestDir) {
+      throw new Error('No download folder has been configured. Please select a folder before downloading.');
+    }
+    const baseDir = trimmedDestDir;
     const subParts = [];
     if (manifest?.path) subParts.push(...pathSegmentsFromName(manifest.path));
     else if (manifest?.name) subParts.push(...pathSegmentsFromName(manifest.name));
     if (!subParts.length) subParts.push('download');
-    const destDir = [dirs.DownloadDir, DEFAULT_DOWNLOAD_ROOT_NAME, ...subParts].join('/');
+    // Organise downloads under an "ARMGDDN Downloads" subfolder, then the
+    // manifest name, mirroring the desktop behaviour.
+    const destDir = [baseDir, DEFAULT_DOWNLOAD_ROOT_NAME, ...subParts].join('/');
 
     for (const file of files) {
       await downloadSingleFileAndroid(file, destDir, {
@@ -516,9 +581,12 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
       });
     }
 
+    const displayDir = destDir.startsWith('/storage/emulated/0/')
+      ? destDir.slice('/storage/emulated/0/'.length)
+      : destDir;
     return {
       success: true,
-      message: 'Download complete. Files saved to Downloads/ARMGDDN Downloads.',
+      message: `Download complete. Files saved to ${displayDir}.`,
       rootUri: `file://${destDir}`,
       fileCount: files.length,
       totalBytes,
@@ -527,9 +595,13 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
   }
 
   // Non-Android / SAF fallback path.
-  const options = callbacks?.options || {};
-  const rootUri = buildDownloadRoot(manifest, options);
-  if (!isContentUri(rootUri)) {
+  let rootUri = buildDownloadRoot(manifest, options);
+  if (isContentUri(rootUri)) {
+    // Attempt to organise downloads under an "ARMGDDN Downloads" subfolder
+    // within the user-granted SAF directory.  Falls back to the root SAF
+    // folder if subfolder creation is not supported on the device.
+    rootUri = await getOrCreateSafSubdirectory(rootUri, DEFAULT_DOWNLOAD_ROOT_NAME);
+  } else {
     await ensureDirectory(rootUri);
   }
 

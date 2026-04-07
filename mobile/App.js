@@ -9,6 +9,7 @@ import {
   API_BASE_URL,
   downloadFilesFromManifest,
   fetchManifestFromUrl,
+  openAndroidFile,
   parseHandoffUrl,
   readAndroidDirectory,
   supportsNativeAndroidDownloader,
@@ -16,6 +17,8 @@ import {
 
 const APP_TOKEN_KEY = 'armgddn.mobile.appToken';
 const ANDROID_DOWNLOADS_URI_KEY = 'armgddn.mobile.androidDownloadsUri';
+const ANDROID_DOWNLOAD_DIR_KEY = 'armgddn.mobile.androidDownloadDir';
+const SAF_ONLY_FOLDER_LABEL = 'Selected folder (internal)';
 const GITHUB_RELEASES_LATEST_URL = 'https://api.github.com/repos/Nildyanna/armgddn-downloader/releases/latest';
 const GITHUB_RELEASES_PAGE_URL = 'https://github.com/Nildyanna/armgddn-downloader/releases/latest';
 
@@ -61,6 +64,7 @@ export default function App() {
   const [downloadFolderEntries, setDownloadFolderEntries] = useState([]);
   const [downloadFolderLoading, setDownloadFolderLoading] = useState(false);
   const [downloadFolderError, setDownloadFolderError] = useState('');
+  const [customAndroidDownloadDir, setCustomAndroidDownloadDir] = useState('');
   const [connectionState, setConnectionState] = useState('idle');
   const [lastError, setLastError] = useState('');
   const [isBusy, setIsBusy] = useState(false);
@@ -77,6 +81,7 @@ export default function App() {
   const downloadHistoryRef = useRef([]);
   const appTokenRef = useRef('');
   const isBusyRef = useRef(false);
+  const customAndroidDownloadDirRef = useRef('');
 
   useEffect(() => {
     mountedRef.current = true;
@@ -96,6 +101,27 @@ export default function App() {
       }
     } catch (e) {
       // ignore secure-store failures
+    }
+
+    if (Platform.OS === 'android') {
+      try {
+        const storedDir = await SecureStore.getItemAsync(ANDROID_DOWNLOAD_DIR_KEY);
+        if (storedDir) {
+          customAndroidDownloadDirRef.current = storedDir;
+          setCustomAndroidDownloadDir(storedDir);
+        } else {
+          // SAF-only mode: derive a display value from the stored SAF URI so
+          // the UI reflects the active destination after a restart.
+          const storedSafUri = await SecureStore.getItemAsync(ANDROID_DOWNLOADS_URI_KEY);
+          if (storedSafUri) {
+            const display = safTreeUriToFilePath(storedSafUri) || SAF_ONLY_FOLDER_LABEL;
+            customAndroidDownloadDirRef.current = display;
+            setCustomAndroidDownloadDir(display);
+          }
+        }
+      } catch (e) {
+        // ignore secure-store failures
+      }
     }
 
     try {
@@ -192,6 +218,21 @@ export default function App() {
 
   async function handleHandoffUrl(url) {
     if (isBusyRef.current) return;
+
+    // On Android with the native downloader a folder must be chosen first —
+    // there is no default Downloads fallback.
+    if (Platform.OS === 'android' && supportsNativeAndroidDownloader() && !customAndroidDownloadDirRef.current) {
+      Alert.alert(
+        'Download folder required',
+        'Please choose a download folder before starting a download.',
+        [
+          { text: 'Choose Folder', onPress: pickDownloadFolder },
+          { text: 'Cancel', style: 'cancel' },
+        ]
+      );
+      return;
+    }
+
     isBusyRef.current = true;
     setIsBusy(true);
     setLastError('');
@@ -211,9 +252,11 @@ export default function App() {
       setStatusDetail(parsed.label ? `Preparing ${parsed.label}` : 'Preparing the download payload.');
 
       const manifest = await fetchManifestFromUrl(parsed.manifestUrl, parsed.token);
-      // On Android, the native blob-util downloader handles the destination
-      // internally (public Downloads folder). SAF folder selection is only
-      // needed as a fallback when the native downloader is unavailable.
+      // For native Android, pass the user-chosen directory.  For SAF-only
+      // mode, getAndroidDownloadsFolderUri() prompts if no URI is stored yet.
+      const androidDestDir = supportsNativeAndroidDownloader()
+        ? customAndroidDownloadDirRef.current
+        : undefined;
       const androidDownloadsUri = supportsNativeAndroidDownloader()
         ? null
         : await getAndroidDownloadsFolderUri();
@@ -240,6 +283,7 @@ export default function App() {
         },
         options: {
           destinationRootUri: androidDownloadsUri || undefined,
+          androidDestDir: androidDestDir,
         },
       });
 
@@ -289,11 +333,8 @@ export default function App() {
           {
             text: 'Change Folder',
             onPress: async () => {
-              try {
-                await SecureStore.deleteItemAsync(ANDROID_DOWNLOADS_URI_KEY);
-              } catch (e) {
-                // ignore
-              }
+              await resetDownloadFolder();
+              await pickDownloadFolder();
             },
           },
         ]);
@@ -472,6 +513,14 @@ export default function App() {
     }
 
     try {
+      // Files downloaded via the native Android downloader live in public /
+      // external storage, outside the app sandbox.  FileSystem.getContentUriAsync
+      // only works for in-sandbox paths, so use RNBlobUtil's actionViewIntent
+      // which correctly wraps external-storage paths in a FileProvider URI.
+      if (Platform.OS === 'android' && supportsNativeAndroidDownloader() && !String(item.uri).startsWith('content://')) {
+        await openAndroidFile(item.uri, item.name);
+        return;
+      }
       const targetUri = Platform.OS === 'android' && !String(item.uri).startsWith('content://')
         ? await FileSystem.getContentUriAsync(item.uri)
         : item.uri;
@@ -488,6 +537,110 @@ export default function App() {
       return;
     }
     await loadFolderEntries(downloadFolderUri);
+  }
+
+  // Converts a SAF tree URI (e.g. content://.../tree/primary%3ADownload or
+  // content://.../tree/0123-4567%3ADownload) to an absolute file path for the
+  // native downloader. Returns null when the URI cannot be mapped safely.
+  function safTreeUriToFilePath(treeUri) {
+    try {
+      const decoded = decodeURIComponent(String(treeUri || ''));
+      if (!decoded.includes('com.android.externalstorage.documents')) {
+        return null;
+      }
+
+      const match = decoded.match(/\/tree\/(.+)$/);
+      if (!match) return null;
+
+      const documentId = String(match[1] || '');
+      const colonIndex = documentId.indexOf(':');
+      const volumeId = (colonIndex >= 0 ? documentId.slice(0, colonIndex) : documentId).trim();
+      const relPath = (colonIndex >= 0 ? documentId.slice(colonIndex + 1) : '').trim();
+      if (!volumeId) return null;
+
+      // primary -> internal shared storage, otherwise Android exposes removable
+      // / secondary volumes as UUID-like IDs (e.g. 0123-4567).
+      const basePath = volumeId.toLowerCase() === 'primary'
+        ? '/storage/emulated/0'
+        : `/storage/${volumeId}`;
+
+      const cleanedRelPath = relPath
+        .replace(/^\/+/, '')
+        .split('/')
+        .filter((segment) => segment && segment !== '.' && segment !== '..')
+        .join('/');
+
+      return cleanedRelPath ? `${basePath}/${cleanedRelPath}` : basePath;
+    } catch (e) {
+      // ignore conversion failures
+    }
+    return null;
+  }
+
+  async function pickDownloadFolder() {
+    const saf = FileSystem.StorageAccessFramework;
+    if (!saf?.requestDirectoryPermissionsAsync) {
+      Alert.alert('Not supported', 'Folder selection is not available on this device.');
+      return;
+    }
+    try {
+      const permission = await saf.requestDirectoryPermissionsAsync();
+      if (!permission?.granted || !permission?.directoryUri) {
+        return;
+      }
+      const safUri = permission.directoryUri;
+      // Always store the SAF URI so the SAF-mode fallback can use it.
+      try {
+        await SecureStore.setItemAsync(ANDROID_DOWNLOADS_URI_KEY, safUri);
+      } catch (e) {
+        // ignore
+      }
+      // When the native downloader is available, convert the SAF URI to a
+      // plain file path so it can be passed directly to react-native-blob-util.
+      if (supportsNativeAndroidDownloader()) {
+        const filePath = safTreeUriToFilePath(safUri);
+        if (!filePath) {
+          Alert.alert(
+            'Folder not supported',
+            'The selected folder cannot be used with the native downloader. ' +
+            'Please choose a standard folder from Internal storage or an SD card.'
+          );
+          return;
+        }
+        customAndroidDownloadDirRef.current = filePath;
+        setCustomAndroidDownloadDir(filePath);
+        try {
+          await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, filePath);
+        } catch (e) {
+          // ignore
+        }
+      } else {
+        // SAF-only mode: show the decoded SAF path in the UI and persist the
+        // display value so it remains durable across restarts.
+        const display = safTreeUriToFilePath(safUri) || SAF_ONLY_FOLDER_LABEL;
+        customAndroidDownloadDirRef.current = display;
+        setCustomAndroidDownloadDir(display);
+        try {
+          await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, display);
+        } catch (e) {
+          // ignore
+        }
+      }
+    } catch (error) {
+      const message = error?.message ? String(error.message) : 'Unable to select folder';
+      Alert.alert('Folder selection failed', message);
+    }
+  }
+
+  async function resetDownloadFolder() {
+    customAndroidDownloadDirRef.current = '';
+    setCustomAndroidDownloadDir('');
+    try {
+      await SecureStore.deleteItemAsync(ANDROID_DOWNLOAD_DIR_KEY);
+      await SecureStore.deleteItemAsync(ANDROID_DOWNLOADS_URI_KEY);
+    } catch (e) {
+      // ignore
+    }
   }
 
   return (
@@ -527,6 +680,31 @@ export default function App() {
           )}
         </Section>
 
+        <Section title="Download folder">
+          {Platform.OS === 'android' ? (
+            <>
+              <Text style={styles.metaText}>
+                Base download folder:{' '}
+                <Text style={styles.folderPathText}>
+                  {customAndroidDownloadDir || 'No folder selected'}
+                </Text>
+              </Text>
+              <View style={styles.folderActionsRow}>
+                <TouchableOpacity style={styles.secondaryButton} onPress={pickDownloadFolder} disabled={isBusy}>
+                  <Text style={styles.secondaryButtonText}>Choose Folder</Text>
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.metaText}>
+                {customAndroidDownloadDir
+                  ? 'Downloads are saved to an "ARMGDDN Downloads" subfolder inside the chosen folder. Tap "Choose Folder" to change it.'
+                  : 'A folder must be selected before you can download files. Tap "Choose Folder" to get started.'}
+              </Text>
+            </>
+          ) : (
+            <Text style={styles.metaText}>Download folder selection is available on Android only.</Text>
+          )}
+        </Section>
+
         <Section title="Download progress">
           <ProgressBar value={downloadProgress} />
           <Text style={styles.metaText}>{Math.round(downloadProgress)}%</Text>
@@ -552,7 +730,7 @@ export default function App() {
             <>
               <Text style={styles.metaText}>
                 {Platform.OS === 'android'
-                  ? 'Stored in your selected Downloads/ARMGDDN Downloads folder.'
+                  ? `Stored in: ${downloadRootUri || 'Downloads'}`
                   : 'Stored in app space on this device.'}
               </Text>
               <Text style={styles.metaText} numberOfLines={2}>Folder: {downloadFolderUri || downloadRootUri}</Text>
@@ -660,6 +838,10 @@ const styles = StyleSheet.create({
   },
   errorText: {
     color: '#fca5a5',
+  },
+  folderPathText: {
+    color: '#e2e8f0',
+    fontWeight: '600',
   },
   input: {
     backgroundColor: '#020617',
