@@ -453,9 +453,41 @@ async function downloadSingleFile(file, folderUri, callbacks) {
 // Android-native download via react-native-blob-util.
 // Streams directly to the public Downloads folder — no SAF copy step,
 // no memory limit, works for files of any size.
+// Android DownloadManager only accepts paths under these standard public dirs.
+// Any other path throws a native SecurityException that crashes the app.
+const DOWNLOAD_MANAGER_ALLOWED_BASES = [
+  '/storage/emulated/0/Download',
+  '/storage/emulated/0/Downloads',
+  '/storage/emulated/0/Music',
+  '/storage/emulated/0/Pictures',
+  '/storage/emulated/0/Movies',
+  '/storage/emulated/0/DCIM',
+  '/storage/emulated/0/Alarms',
+  '/storage/emulated/0/Notifications',
+  '/storage/emulated/0/Ringtones',
+  '/storage/emulated/0/Podcasts',
+  '/storage/emulated/0/Audiobooks',
+];
+
+export function isDownloadManagerCompatiblePath(p) {
+  const s = String(p || '');
+  return DOWNLOAD_MANAGER_ALLOWED_BASES.some(
+    (base) => s === base || s.startsWith(base + '/')
+  );
+}
+
 async function downloadSingleFileAndroid(file, destDir, callbacks) {
   const flatName = flattenRelativePathName(file.relativePath || file.name || file.url, file.name || 'download');
   const destPath = `${destDir}/${flatName}`;
+
+  // Validate before touching the native DownloadManager — an unsupported path
+  // throws a native SecurityException that cannot be caught in JS.
+  if (!isDownloadManagerCompatiblePath(destDir)) {
+    throw new Error(
+      'The selected folder is not supported by the Android download manager. ' +
+      'Please choose a folder inside Downloads, Music, Pictures, or Movies.'
+    );
+  }
 
   try {
     if (!(await RNBlobUtil.fs.isDir(destDir))) {
