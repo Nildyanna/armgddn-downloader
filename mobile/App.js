@@ -221,7 +221,7 @@ export default function App() {
 
     // On Android with the native downloader a folder must be chosen first —
     // there is no default Downloads fallback.
-    if (Platform.OS === 'android' && supportsNativeAndroidDownloader() && !customAndroidDownloadDirRef.current) {
+    if (Platform.OS === 'android' && supportsNativeAndroidDownloader() && !customAndroidDownloadDirRef.current?.startsWith('/')) {
       Alert.alert(
         'Download folder required',
         'Please choose a download folder before starting a download.',
