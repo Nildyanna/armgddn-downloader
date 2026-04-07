@@ -469,6 +469,12 @@ const DOWNLOAD_MANAGER_ALLOWED_BASES = [
   '/storage/emulated/0/Audiobooks',
 ];
 
+// Returns the device's native Downloads directory path via RNBlobUtil.
+// This bypasses SAF entirely — Android 10+ blocks SAF access to Downloads root.
+export function getNativeDownloadDir() {
+  return (RNBlobUtil?.fs?.dirs?.DownloadDir) || '/storage/emulated/0/Download';
+}
+
 export function isDownloadManagerCompatiblePath(p) {
   const s = String(p || '');
   return DOWNLOAD_MANAGER_ALLOWED_BASES.some(
