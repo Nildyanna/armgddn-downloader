@@ -326,20 +326,33 @@ export default function App() {
         message.includes('folder') ||
         message.includes('Storage access') ||
         message.includes('SAF') ||
-        message.includes('Downloads location')
+        message.includes('Downloads location') ||
+        message.includes('download manager') ||
+        message.includes('No download folder')
       );
 
       if (isFolderError) {
-        Alert.alert('Download failed', message, [
-          { text: 'OK', style: 'cancel' },
-          {
-            text: 'Change Folder',
-            onPress: async () => {
-              await resetDownloadFolder();
-              await pickDownloadFolder();
+        Alert.alert(
+          'Download folder issue',
+          'The current download folder isn\'t working. What would you like to do?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            {
+              text: 'Use Downloads Folder',
+              onPress: async () => {
+                await resetDownloadFolder();
+                await useDefaultDownloadFolder();
+              },
             },
-          },
-        ]);
+            {
+              text: 'Choose Folder',
+              onPress: async () => {
+                await resetDownloadFolder();
+                await pickDownloadFolder();
+              },
+            },
+          ]
+        );
       } else {
         Alert.alert('Download failed', message);
       }
