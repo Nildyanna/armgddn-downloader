@@ -453,37 +453,31 @@ async function downloadSingleFile(file, folderUri, callbacks) {
 // Android-native download via react-native-blob-util.
 // Streams directly to the public Downloads folder — no SAF copy step,
 // no memory limit, works for files of any size.
-// Android DownloadManager only accepts paths under these standard public dirs.
-// Any other path throws a native SecurityException that crashes the app.
-const DOWNLOAD_MANAGER_ALLOWED_BASES = [
-  '/storage/emulated/0/Download',
-  '/storage/emulated/0/Downloads',
-  '/storage/emulated/0/Music',
-  '/storage/emulated/0/Pictures',
-  '/storage/emulated/0/Movies',
-  '/storage/emulated/0/DCIM',
-  '/storage/emulated/0/Alarms',
-  '/storage/emulated/0/Notifications',
-  '/storage/emulated/0/Ringtones',
-  '/storage/emulated/0/Podcasts',
-  '/storage/emulated/0/Audiobooks',
-];
-
 // Returns the device's native Downloads directory path via RNBlobUtil.
-// This bypasses SAF entirely — Android 10+ blocks SAF access to Downloads root.
+// Uses Environment.getExternalStoragePublicDirectory(DIRECTORY_DOWNLOADS)
+// under the hood — standard Android API, works correctly on all OEMs.
 export function getNativeDownloadDir() {
   return (RNBlobUtil?.fs?.dirs?.DownloadDir) || '/storage/emulated/0/Download';
 }
 
+// Checks whether a path is safe to pass to the Android DownloadManager.
+// Anchored to the paths RNBlobUtil itself reports for standard public dirs
+// so this works on Samsung, Xiaomi, OnePlus, and any other OEM correctly.
 export function isDownloadManagerCompatiblePath(p) {
   const s = String(p || '');
-  // Always allow whatever RNBlobUtil reports as the native download dir —
-  // Samsung and other OEMs can return paths outside the AOSP standard list.
-  const nativeDownloadDir = RNBlobUtil?.fs?.dirs?.DownloadDir;
-  const bases = nativeDownloadDir
-    ? [...DOWNLOAD_MANAGER_ALLOWED_BASES, nativeDownloadDir]
-    : DOWNLOAD_MANAGER_ALLOWED_BASES;
-  return bases.some((base) => {
+  const knownBases = [
+    RNBlobUtil?.fs?.dirs?.DownloadDir,
+    RNBlobUtil?.fs?.dirs?.MusicDir,
+    RNBlobUtil?.fs?.dirs?.PictureDir,
+    RNBlobUtil?.fs?.dirs?.MovieDir,
+    RNBlobUtil?.fs?.dirs?.DCIMDir,
+    RNBlobUtil?.fs?.dirs?.AlarmDir,
+    RNBlobUtil?.fs?.dirs?.NotificationDir,
+    RNBlobUtil?.fs?.dirs?.RingtoneDir,
+  ].filter(Boolean);
+  // Fall back to the AOSP standard path if RNBlobUtil isn't available yet.
+  if (!knownBases.length) knownBases.push('/storage/emulated/0/Download');
+  return knownBases.some((base) => {
     const b = String(base).replace(/\/+$/, '');
     return s === b || s.startsWith(b + '/');
   });
