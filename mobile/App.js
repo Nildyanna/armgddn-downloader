@@ -714,6 +714,11 @@ export default function App() {
           ) : (
             <Text style={styles.metaText}>You&apos;re on the latest version (v{updateState.currentVersion}).</Text>
           )}
+          {!updateState.checking && (
+            <TouchableOpacity style={styles.secondaryButton} onPress={checkForAppUpdate}>
+              <Text style={styles.secondaryButtonText}>Check for Updates</Text>
+            </TouchableOpacity>
+          )}
         </Section>
 
         <Section title="Download folder">
