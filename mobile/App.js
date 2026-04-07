@@ -108,17 +108,22 @@ export default function App() {
     if (Platform.OS === 'android') {
       try {
         const storedDir = await SecureStore.getItemAsync(ANDROID_DOWNLOAD_DIR_KEY);
-        if (storedDir) {
+        if (storedDir && storedDir.startsWith('/')) {
+          // Previously saved valid path — use it.
           customAndroidDownloadDirRef.current = storedDir;
           setCustomAndroidDownloadDir(storedDir);
         } else {
-          // SAF-only mode: derive a display value from the stored SAF URI so
-          // the UI reflects the active destination after a restart.
-          const storedSafUri = await SecureStore.getItemAsync(ANDROID_DOWNLOADS_URI_KEY);
-          if (storedSafUri) {
-            const display = safTreeUriToFilePath(storedSafUri) || SAF_ONLY_FOLDER_LABEL;
-            customAndroidDownloadDirRef.current = display;
-            setCustomAndroidDownloadDir(display);
+          // No valid folder stored yet — default to the device's native
+          // Downloads directory. This works on all Android OEMs since
+          // RNBlobUtil uses Environment.getExternalStoragePublicDirectory()
+          // which every manufacturer must implement correctly.
+          const defaultDir = getNativeDownloadDir();
+          customAndroidDownloadDirRef.current = defaultDir;
+          setCustomAndroidDownloadDir(defaultDir);
+          try {
+            await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, defaultDir);
+          } catch (e) {
+            // ignore
           }
         }
       } catch (e) {
