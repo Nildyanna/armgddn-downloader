@@ -276,6 +276,7 @@ async function showAlertDialog(title, message) {
       if (download) {
         download.status = 'completed';
         download.progress = 100;
+        delete download.eta;
         renderDownloads();
       } else {
         // If completion arrives before started/progress, create it so the UI reflects completion.
