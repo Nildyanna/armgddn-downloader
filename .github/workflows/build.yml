@@ -48,7 +48,16 @@ jobs:
         shell: bash
         run: |
           mkdir -p assets
-          curl -L --fail -o assets/newmultipartzip.mp4 https://github.com/Nildyanna/armgddn-downloader/releases/download/assets-v1/newmultipartzip.mp4
+          curl \
+            --fail \
+            --location \
+            --http1.1 \
+            --retry 5 \
+            --retry-all-errors \
+            --retry-delay 5 \
+            --connect-timeout 20 \
+            --output assets/newmultipartzip.mp4 \
+            https://github.com/Nildyanna/armgddn-downloader/releases/download/assets-v1/newmultipartzip.mp4
 
       - name: Download rclone (Linux)
         if: matrix.platform == 'linux'
