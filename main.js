@@ -447,16 +447,7 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
 
   if (notice) {
     download.statusMessage = notice;
-  } else if (effective) {
-    let remainingFiles = null;
-    try {
-      const fileCount = typeof download.fileCount === 'number' ? download.fileCount : 0;
-      const completed = typeof download.completedFiles === 'number' ? download.completedFiles : 0;
-      if (fileCount > 0) remainingFiles = Math.max(0, fileCount - completed);
-    } catch (e) {
-      remainingFiles = null;
-    }
-
+  } else if (effective && !isPinnedDownloadStatusMessage(download.statusMessage)) {
     download.statusMessage = `Starting downloads...`;
   }
 
@@ -1501,6 +1492,83 @@ const getHistoryPath = () => {
 const getSessionPath = () => {
   return path.join(app.getPath('userData'), 'session.json');
 };
+
+const COMPLETION_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+function normalizeDownloadItemKey(value) {
+  return String(value || '')
+    .replace(/\\/g, '/')
+    .replace(/\/+/g, '/')
+    .trim()
+    .toLowerCase();
+}
+
+function getDownloadItemKey(manifest, remotePath, name) {
+  try {
+    const candidates = [
+      remotePath,
+      manifest && manifest.path,
+      manifest && manifest.name,
+      manifest && manifest.actualRemote,
+      name
+    ];
+    for (const candidate of candidates) {
+      const key = normalizeDownloadItemKey(candidate);
+      if (key) return key;
+    }
+  } catch (e) { }
+  return '';
+}
+
+function getHistoryItemKey(entry) {
+  try {
+    const candidates = [
+      entry && entry.itemKey,
+      entry && entry.remotePath,
+      entry && entry.name
+    ];
+    for (const candidate of candidates) {
+      const key = normalizeDownloadItemKey(candidate);
+      if (key) return key;
+    }
+  } catch (e) { }
+  return '';
+}
+
+function countRecentCompletedDownloads(itemKey, windowMs = COMPLETION_WINDOW_MS) {
+  const key = normalizeDownloadItemKey(itemKey);
+  if (!key) return 0;
+
+  const cutoff = Date.now() - Math.max(0, Number(windowMs) || 0);
+  let count = 0;
+  for (const entry of Array.isArray(downloadHistory) ? downloadHistory : []) {
+    if (!entry || entry.status !== 'completed') continue;
+    const entryKey = getHistoryItemKey(entry);
+    if (!entryKey || entryKey !== key) continue;
+    const endTime = entry.endTime ? new Date(entry.endTime).getTime() : NaN;
+    if (!Number.isFinite(endTime) || endTime < cutoff) continue;
+    count++;
+  }
+  return count;
+}
+
+function isPinnedDownloadStatusMessage(message) {
+  const text = String(message || '').trim();
+  return !!text && (
+    /^starfield detected:/i.test(text) ||
+    /^skipped \d+\/\d+ files already on disk\./i.test(text) ||
+    /^all files already on disk\./i.test(text) ||
+    /^no existing files found\./i.test(text)
+  );
+}
+
+function buildDownloadBlockedMessage(itemName, count) {
+  const safeName = String(itemName || 'this item').trim() || 'this item';
+  return withSupportFooter(
+    `You have already completed ${safeName} ${count} times in the last 24 hours. Additional downloads are temporarily blocked.`,
+    'Wait until one of those completions falls outside the 24-hour window, then try again.'
+  );
+}
 
 // Load session cookie from file (encrypted)
 function loadSession() {
@@ -2830,6 +2898,12 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     } catch (e) { }
   }
 
+  const downloadItemKey = getDownloadItemKey(manifest, remotePath, name);
+  const recentCompletedCount = countRecentCompletedDownloads(downloadItemKey);
+  if (recentCompletedCount >= 2) {
+    throw new Error(buildDownloadBlockedMessage(name || remotePath || 'this item', recentCompletedCount));
+  }
+
   try {
     const canonical = String(remotePath || '').trim();
     if (canonical) {
@@ -2907,6 +2981,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   const download = {
     id: downloadId,
     name: name,
+    itemKey: downloadItemKey,
     manifestUrl: (typeof manifestUrl === 'string' ? manifestUrl : ''),
     remotePath: remotePath,  // Store for trending reporting
     progressHost,
@@ -2947,10 +3022,17 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     }
   } catch (e) { }
 
+  if (forceDisableAutoExtract) {
+    download.statusMessage = 'Starfield detected: auto-extract disabled for this download.';
+  }
+
   activeDownloads.set(downloadId, download);
   mainWindow.webContents.send('download-started', downloadToRenderer(download));
 
   download.statusMessage = 'Preparing download...';
+  if (forceDisableAutoExtract) {
+    download.statusMessage = `${download.statusMessage} Starfield detected: auto-extract disabled for this download.`;
+  }
   try {
     if (mainWindow && mainWindow.webContents) {
       mainWindow.webContents.send('download-progress', {
@@ -3031,11 +3113,16 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     } catch (e) { }
     download.files = allFiles;
     if (allFiles.length > 0) {
-      download.statusMessage = completedFiles > 0
+      const skippedMessage = completedFiles > 0
         ? `Skipped ${completedFiles}/${allFiles.length} files already on disk.`
         : 'No existing files found. Starting download...';
+      download.statusMessage = forceDisableAutoExtract
+        ? `${download.statusMessage || ''} ${skippedMessage}`.trim()
+        : skippedMessage;
     } else {
-      download.statusMessage = 'Starting download...';
+      download.statusMessage = forceDisableAutoExtract
+        ? (download.statusMessage || 'Starfield detected: auto-extract disabled for this download.')
+        : 'Starting download...';
     }
     try { updateProgress(downloadId); } catch (e) { }
   } catch (e) {
@@ -3054,7 +3141,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   // Report initial progress to server
   reportProgressToServer(download, token);
 
-  download.statusMessage = 'Checking server load...';
+  if (!isPinnedDownloadStatusMessage(download.statusMessage)) {
+    download.statusMessage = 'Checking server load...';
+  }
   try { updateProgress(downloadId); } catch (e) { }
 
   // Download files in parallel (controlled by user setting)
@@ -3072,7 +3161,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       download.effectiveConcurrency = requestedWorkers;
     }
   }
-  download.statusMessage = download.statusMessage || 'Starting downloads...';
+  if (!isPinnedDownloadStatusMessage(download.statusMessage)) {
+    download.statusMessage = download.statusMessage || 'Starting downloads...';
+  }
   try { updateProgress(downloadId); } catch (e2) { }
 
   let concurrencyPoll = null;
@@ -5402,6 +5493,10 @@ function finalizeCompletedDownload(downloadId) {
   downloadHistory.unshift({
     id: download.id,
     name: download.name,
+    itemKey: download.itemKey || getDownloadItemKey(null, download.remotePath, download.name),
+    remotePath: download.remotePath || '',
+    actualRemote: download.actualRemote || '',
+    manifestUrl: download.manifestUrl || '',
     totalSize: download.totalSize,
     startTime: download.startTime,
     endTime: download.endTime,
