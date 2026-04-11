@@ -1460,6 +1460,36 @@ const get7zPath = () => {
   return null;
 };
 
+function isStarfieldAutoExtractTargetValue(value) {
+  const raw = String(value || '').replace(/\\/g, '/').replace(/\/+/g, '/').trim();
+  if (!raw) return false;
+  const parts = raw.split('/').filter(Boolean);
+  return parts.some(part => /^starfield(?:[\s._-]|$)/i.test(part));
+}
+
+function isStarfieldAutoExtractTargetManifest(manifest) {
+  if (!manifest || typeof manifest !== 'object') return false;
+  if (manifest.autoExtractDisabled) return true;
+
+  const candidates = [
+    manifest.path,
+    manifest.name,
+    manifest.actualRemote,
+    manifest.remote,
+    manifest.manifestPath,
+    manifest.manifestUrl
+  ];
+
+  if (Array.isArray(manifest.files)) {
+    for (const file of manifest.files) {
+      if (!file || typeof file !== 'object') continue;
+      candidates.push(file.path, file.name, file.url);
+    }
+  }
+
+  return candidates.some(isStarfieldAutoExtractTargetValue);
+}
+
 const getConfigPath = () => {
   return path.join(app.getPath('userData'), 'config.json');
 };
@@ -2792,10 +2822,12 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     throw new Error('Unknown manifest format. Expected files array or url property.');
   }
 
-  let forceDisableAutoExtract = !!(manifest && manifest.autoExtractDisabled);
+  let forceDisableAutoExtract = isStarfieldAutoExtractTargetManifest(manifest);
 
-  if (manifest && manifest.autoExtractDisabled) {
-    forceDisableAutoExtract = true;
+  if (forceDisableAutoExtract) {
+    try {
+      logToFile(`[start-download] auto-extract disabled for manifest=${remotePath || name || 'unknown'}`);
+    } catch (e) { }
   }
 
   try {
@@ -5390,7 +5422,10 @@ function completeDownload(downloadId) {
     return;
   }
 
-  const shouldExtract = !!(settings && settings.autoExtract7z) && !download.forceDisableAutoExtract;
+  const shouldExtract = !!(settings && settings.autoExtract7z) &&
+    !download.forceDisableAutoExtract &&
+    !isStarfieldAutoExtractTargetValue(download.remotePath) &&
+    !isStarfieldAutoExtractTargetValue(download.name);
   const downloadDir = path.join(settings.downloadPath, download.name || 'Download');
 
   if (shouldExtract) {
