@@ -3075,22 +3075,41 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   download.statusMessage = download.statusMessage || 'Starting downloads...';
   try { updateProgress(downloadId); } catch (e2) { }
 
+  let concurrencyPoll = null;
+  try {
+    concurrencyPoll = setInterval(() => {
+      try {
+        if (!download || download.cancelled || download.paused || download.status === 'completed') return;
+        refreshDownloadConcurrency(download, token, manifestUrl);
+      } catch (e) { }
+    }, 30000);
+    if (concurrencyPoll && typeof concurrencyPoll.unref === 'function') {
+      concurrencyPoll.unref();
+    }
+  } catch (e) { }
+
   // Spawn at most the requested workers; concurrency is enforced dynamically by waiting
   // when active files exceed the server's effective limit.
   const activePromises = [];
-  for (const f of files) {
-    if (!f) continue;
-    activePromises.push(enqueueAdaptiveTask(downloadId, f, downloadDir).catch((err) => {
-      if (!download.cancelled) {
-        try {
-          logToFile(`[Scheduler] file task failed: ${err && err.message ? err.message : String(err)} file=${f && f.name ? String(f.name) : ''}`);
-        } catch (e) { }
-      }
-      // Continue with other files.
-    }));
-  }
+  try {
+    for (const f of files) {
+      if (!f) continue;
+      activePromises.push(enqueueAdaptiveTask(downloadId, f, downloadDir).catch((err) => {
+        if (!download.cancelled) {
+          try {
+            logToFile(`[Scheduler] file task failed: ${err && err.message ? err.message : String(err)} file=${f && f.name ? String(f.name) : ''}`);
+          } catch (e) { }
+        }
+        // Continue with other files.
+      }));
+    }
 
-  await Promise.all(activePromises);
+    await Promise.all(activePromises);
+  } finally {
+    try {
+      if (concurrencyPoll) clearInterval(concurrencyPoll);
+    } catch (e) { }
+  }
 
   const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
   // Only mark as completed if not cancelled, not paused, and with no failed files
