@@ -2792,6 +2792,12 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     throw new Error('Unknown manifest format. Expected files array or url property.');
   }
 
+  let forceDisableAutoExtract = !!(manifest && manifest.autoExtractDisabled);
+
+  if (manifest && manifest.autoExtractDisabled) {
+    forceDisableAutoExtract = true;
+  }
+
   try {
     const canonical = String(remotePath || '').trim();
     if (canonical) {
@@ -2816,7 +2822,6 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   }
 
   // DISK SPACE CHECK
-  let forceDisableAutoExtract = false;
   try {
     const targetPath = path.resolve(settings.downloadPath);
     const freeBytes = getFreeDiskSpace(targetPath);
