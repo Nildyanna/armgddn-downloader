@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system';
-import { Platform } from 'react-native';
+import { Platform, PermissionsAndroid } from 'react-native';
 
 // react-native-blob-util is a native module — guard the require so that
 // any environment without the native bridge (tests, web) degrades gracefully.
@@ -496,12 +496,16 @@ async function downloadSingleFileAndroid(file, destDir, callbacks) {
     );
   }
 
-  try {
-    if (!(await RNBlobUtil.fs.isDir(destDir))) {
-      await RNBlobUtil.fs.mkdir(destDir);
+  // On Android 11+ (API 30+), WRITE_EXTERNAL_STORAGE is never granted and
+  // DownloadManager creates the directory itself — skip mkdir entirely.
+  if (Platform.OS === 'android' && Platform.Version < 30) {
+    try {
+      if (!(await RNBlobUtil.fs.isDir(destDir))) {
+        await RNBlobUtil.fs.mkdir(destDir);
+      }
+    } catch (e) {
+      // Directory may already exist or mkdir may fail — proceed anyway.
     }
-  } catch (e) {
-    // Directory may already exist or mkdir may fail — proceed anyway.
   }
 
   callbacks?.onFileStart?.(file.name || flatName);
@@ -539,6 +543,18 @@ export async function readAndroidDirectory(fileUri) {
   if (!RNBlobUtil) throw new Error('react-native-blob-util not available');
   const raw = String(fileUri || '').trim();
   const absPath = raw.startsWith('file://') ? raw.slice(7) : raw;
+
+  // On Android 11–12 (API 30–32), READ_EXTERNAL_STORAGE must be requested at
+  // runtime. On API 33+, the permission is deprecated and not needed for files
+  // created by our own DownloadManager. On API < 30, it is auto-granted.
+  if (Platform.OS === 'android' && Platform.Version >= 30 && Platform.Version <= 32) {
+    const granted = await PermissionsAndroid.request(
+      PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+    );
+    if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+      throw new Error('READ_EXTERNAL_STORAGE permission denied');
+    }
+  }
 
   const names = await RNBlobUtil.fs.ls(absPath);
   const entries = await Promise.all(

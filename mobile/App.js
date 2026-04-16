@@ -108,21 +108,17 @@ export default function App() {
     if (Platform.OS === 'android') {
       try {
         const storedDir = await SecureStore.getItemAsync(ANDROID_DOWNLOAD_DIR_KEY);
-        const validStored = storedDir && isDownloadManagerCompatiblePath(storedDir);
-        const resolvedDir = validStored ? storedDir : getNativeDownloadDir();
-
-        if (!validStored) {
-          // Stored path is missing, stale, or incompatible — reset to the
-          // device's native Downloads dir so downloads work immediately.
-          try {
-            await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, resolvedDir);
-          } catch (e) {
-            // ignore
-          }
+        // Accept any stored absolute path as-is. Validating against
+        // isDownloadManagerCompatiblePath() here is unsafe because RNBlobUtil's
+        // native bridge (and therefore fs.dirs) may not be initialised yet on
+        // cold boot (repros on Pixel devices). Validation happens later, at
+        // download time, when the bridge is guaranteed to be ready.
+        if (storedDir && storedDir.startsWith('/')) {
+          customAndroidDownloadDirRef.current = storedDir;
+          setCustomAndroidDownloadDir(storedDir);
         }
-
-        customAndroidDownloadDirRef.current = resolvedDir;
-        setCustomAndroidDownloadDir(resolvedDir);
+        // If there is no stored path we leave the ref empty; handleHandoffUrl
+        // will prompt the user to pick a folder before the first download.
       } catch (e) {
         // ignore secure-store failures
       }
@@ -564,9 +560,30 @@ export default function App() {
       const decoded = decodeURIComponent(String(treeUri || ''));
 
       // The system Downloads folder is served by a separate provider on many
-      // Android versions — map it directly to the known Downloads path.
+      // Android versions. Parse the document ID from the URI so that subfolders
+      // (e.g. Downloads/Games) are preserved rather than always returning the
+      // root Downloads directory.
       if (decoded.includes('com.android.providers.downloads.documents')) {
-        return RNBlobUtil?.fs?.dirs?.DownloadDir || '/storage/emulated/0/Download';
+        const downloadsBase = RNBlobUtil?.fs?.dirs?.DownloadDir || '/storage/emulated/0/Download';
+        const dlMatch = decoded.match(/\/tree\/(.+)$/);
+        if (dlMatch) {
+          const docId = String(dlMatch[1] || '');
+          // Document IDs from this provider look like "downloads", "raw:/storage/…",
+          // or "msf:<id>" for the root, and "<root>/<subfolder>" style strings for
+          // subfolders selected via the picker. Extract the relative part after a
+          // colon (e.g. "downloads:SubFolder") if present.
+          const colonIndex = docId.indexOf(':');
+          const relPart = colonIndex >= 0 ? docId.slice(colonIndex + 1).trim() : '';
+          const cleanedRelPath = relPart
+            .replace(/^\/+/, '')
+            .split('/')
+            .filter((segment) => segment && segment !== '.' && segment !== '..')
+            .join('/');
+          if (cleanedRelPath) {
+            return `${downloadsBase}/${cleanedRelPath}`;
+          }
+        }
+        return downloadsBase;
       }
 
       if (!decoded.includes('com.android.externalstorage.documents')) {
@@ -639,15 +656,22 @@ export default function App() {
           // ignore
         }
       } else {
-        // SAF-only mode: show the decoded SAF path in the UI and persist the
-        // display value so it remains durable across restarts.
-        const display = safTreeUriToFilePath(safUri) || SAF_ONLY_FOLDER_LABEL;
-        customAndroidDownloadDirRef.current = display;
+        // SAF-only mode: the actual file path is only used for display; the
+        // real destination is tracked via the SAF URI stored above. Keep the
+        // ref as an absolute path (or empty) so downstream path checks that
+        // test startsWith('/') don't treat a display label as a real path.
+        const filePath = safTreeUriToFilePath(safUri) || '';
+        const display = filePath || SAF_ONLY_FOLDER_LABEL;
+        customAndroidDownloadDirRef.current = filePath;
         setCustomAndroidDownloadDir(display);
-        try {
-          await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, display);
-        } catch (e) {
-          // ignore
+        // Only persist a real path; if we have none, leave the key absent so
+        // bootstrap doesn't restore a non-path string on the next cold start.
+        if (filePath) {
+          try {
+            await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, filePath);
+          } catch (e) {
+            // ignore
+          }
         }
       }
     } catch (error) {
