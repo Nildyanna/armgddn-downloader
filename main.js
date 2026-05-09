@@ -5460,6 +5460,9 @@ function finalizeCompletedDownload(downloadId) {
   download.progress = 100;
   download.downloadedSize = download.totalSize;
   download.endTime = new Date().toISOString();
+  // Clear any stale in-progress status message so the UI doesn't show
+  // "No existing files found. Starting download..." after completion.
+  download.statusMessage = '';
 
   // Ensure no stale running state leaks into the final server report.
   try { download.activeFiles = {}; } catch (e) { }
@@ -5473,6 +5476,7 @@ function finalizeCompletedDownload(downloadId) {
         id: downloadId,
         status: 'completed',
         progress: 100,
+        statusMessage: '',
         downloadedSize: download.downloadedSize,
         totalSpeed: formatSpeed(download.peakSpeedBytes || 0),
         activeFiles: [],
