@@ -3463,6 +3463,13 @@ async function resolveDownloadRedirectUrl(urlString, maxHops = 5) {
         }
       });
 
+      req.setTimeout(8000, () => {
+        try {
+          logToFile(`[resolveRedirect] HEAD request timed out after 8s — falling back to proxy URL host=${u.hostname}`);
+        } catch (e) { }
+        try { req.destroy(); } catch (e) { }
+        resolve(current);
+      });
       req.on('error', () => resolve(current));
       req.end();
     });
