@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "4.2.97",
+  "version": "4.2.98",
   "description": "ARMGDDN Companion - Fast rclone-powered download manager",
   "main": "main.js",
   "author": {
@@ -58,6 +58,7 @@
     },
     "nsis": {
       "oneClick": false,
+      "perMachine": false,
       "allowToChangeInstallationDirectory": true,
       "warningsAsErrors": false,
       "installerIcon": "assets/icon.ico",
