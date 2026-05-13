@@ -5792,11 +5792,22 @@ ipcMain.handle('check-updates', async () => {
   });
 });
 
+// Guard against concurrent install-update calls (e.g. the double-runner loop caused by
+// a relaunch-on-failure bug in older runners).  Once an install is in flight, any
+// subsequent call is silently rejected until the process exits or the install fails.
+let _installUpdateInProgress = false;
+
 // Download and install update
 ipcMain.handle('install-update', async (event, installerUrl, options) => {
   if (!installerUrl) {
     return { success: false, error: 'No installer URL provided' };
   }
+
+  if (_installUpdateInProgress) {
+    logToFile('install-update: another install is already in progress — ignoring duplicate call');
+    return { success: false, error: 'Another update install is already in progress' };
+  }
+  _installUpdateInProgress = true;
 
   const opts = (options && typeof options === 'object') ? options : {};
   const silent = !!opts.silent;
@@ -5914,6 +5925,21 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
   })();
 
   return new Promise((resolve) => {
+    // Wrap resolve so _installUpdateInProgress is always cleared on failure paths.
+    // On the Windows success path the process is about to quit, so we leave the
+    // flag set to prevent any race-window duplicate while the quit is pending.
+    const _resolve = (val) => {
+      if (!val || val.success === false) {
+        _installUpdateInProgress = false;
+      }
+      resolve(val);
+    };
+    // Alias: all raw resolve() calls below use the wrapper automatically because
+    // they are closures over this scope. We shadow `resolve` with `_resolve` so
+    // existing code doesn't need to be renamed.
+    // eslint-disable-next-line no-param-reassign
+    resolve = _resolve;
+
     const downloadSignature = (url, redirectCount = 0) => {
       return new Promise((resolveSig) => {
         let settled = false;
@@ -6104,6 +6130,11 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
               try {
                 if (verifyTimeout) clearTimeout(verifyTimeout);
               } catch (e) { }
+              // On failure paths, clear the in-progress flag so the user can retry.
+              // On the Windows success path the process is about to quit anyway.
+              if (!val || val.success === false) {
+                _installUpdateInProgress = false;
+              }
               resolve(val);
             };
 
