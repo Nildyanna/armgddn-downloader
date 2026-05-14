@@ -54,11 +54,22 @@ https://github.com/Nildyanna/armgddn-downloader/releases/latest/download/latest.
 
 - Ensure GitHub repository is public or user has access
 - Check that `latest.json` exists in the latest release
+
 **Update doesn't appear**:
 
-- Ensure the GitHub Release tag (e.g. `v4.1.28`) is higher than the installed app version
+- Ensure the GitHub Release tag (e.g. `v4.2.99`) is higher than the installed app version
 - Check that the release is not marked as draft or prerelease
 - Wait a few minutes for GitHub CDN to propagate the release
+
+**Windows: installer fails silently / auto-update loops (rc=2)**:
+
+This was a known issue in versions prior to 4.2.98.
+
+- *Root cause*: The NSIS installer requested UAC elevation by default. Silent installs (`/S`) cannot accept a UAC prompt, so Windows returned exit code 2 (cancelled). A secondary bug (`%ERRORLEVEL%` being reset by an `echo` before it was read) made the runner think the install had succeeded, causing the app to relaunch and immediately trigger another install attempt.
+- *Fix*: The installer is now built with `perMachine: false` (per-user install, no UAC required). The runner also captures the exit code into `%RC%` immediately after the installer exits.
+- *If you are stuck in the loop*: The broken auto-updater cannot fix itself. Manually download the latest installer from the [GitHub Releases page](https://github.com/Nildyanna/armgddn-downloader/releases) and run it once. Future auto-updates will work correctly after that.
+
+Diagnostic log is written to `%APPDATA%\ARMGDDN Companion\update-wrapper.log`. Check `rc=` on the "installer finished" line to confirm the exit code.
 
 ## Testing
 

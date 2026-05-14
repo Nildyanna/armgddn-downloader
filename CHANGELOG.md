@@ -5,6 +5,36 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.2.99] - 2026-05-14
+
+### Fixed
+- **Auto-update double-runner loop** — Added an `_installUpdateInProgress` mutex to the `install-update` IPC handler. Previously the `%ERRORLEVEL%` clobbering bug (fixed in 4.2.98) could trigger a false app relaunch after a failed install, causing a second auto-update cycle to start immediately. The mutex blocks any duplicate `install-update` call while one is already in flight. The flag is cleared on all failure paths so the user can retry without restarting the app.
+
+## [4.2.98] - 2026-05-13
+
+### Fixed
+- **Windows auto-update rc=2 (UAC denial)** — Added `"perMachine": false` to the NSIS config so the installer runs per-user and no longer requests UAC elevation. Silent installs (`/S`) now complete without a UAC prompt.
+- **`%ERRORLEVEL%` clobbering in update runner** — The `echo` command immediately after the installer call was resetting `%ERRORLEVEL%` to 0, making every install appear successful regardless of the actual exit code. The runner now captures `set RC=%ERRORLEVEL%` immediately after the installer exits and uses `%RC%` for all subsequent checks. This also prevented the false relaunch that caused the double-runner loop.
+- **Node.js version in CI** — Updated GitHub Actions `node-version` from 20 → 22 (required by Electron 42).
+
+## [4.2.97] - 2026-05-12
+
+### Fixed
+- **Mac build failure** — `@xmldom/xmldom` override pinned to `~0.8.13` (was `^0.9.0`). The 0.9.x release broke the `plist@3` dependency used by electron-builder for macOS `.pkg` builds: `parseFromString` now requires a mimeType argument that `plist@3` never passes.
+
+## [4.2.96] - 2026-05-12
+
+### Changed
+- **Electron 39 → 42** — Upgraded to Electron 42. Requires Node.js 22+ in CI.
+
+### Fixed
+- **npm audit vulnerabilities** — Corrected all `overrides` floor versions to clear 8 audit advisories (moderate + high). Added `@electron/get@5` override to drop the deprecated `global-agent`/`boolean` transitive dependency. Pinned `@xmldom/xmldom`, `tar`, `ip-address`, `lodash`, `picomatch`, `minimatch`, `brace-expansion`, `glob`, `rimraf`.
+
+## [4.2.95] - 2026-05-11
+
+### Fixed
+- **Downloads stuck at 0% indefinitely** — `resolveDownloadRedirectUrl` made a HEAD request to `/api/download-file` with no timeout. If the server accepted the TCP connection but was slow to respond, the download would hang forever with `downloadedSize=0, hasActive=false`. Added an 8-second timeout with `req.destroy()` and a fallback to the original proxy URL.
+
 ## [1.0.24] - 2025-12-06
 
 ### Added
