@@ -5928,15 +5928,16 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
     // Wrap resolve so _installUpdateInProgress is always cleared on failure paths.
     // On the Windows success path the process is about to quit, so we leave the
     // flag set to prevent any race-window duplicate while the quit is pending.
+    // IMPORTANT: capture the original Promise resolve before shadowing it —
+    // otherwise _resolve calls itself and blows the stack.
+    const _originalResolve = resolve;
     const _resolve = (val) => {
       if (!val || val.success === false) {
         _installUpdateInProgress = false;
       }
-      resolve(val);
+      _originalResolve(val);
     };
-    // Alias: all raw resolve() calls below use the wrapper automatically because
-    // they are closures over this scope. We shadow `resolve` with `_resolve` so
-    // existing code doesn't need to be renamed.
+    // Shadow `resolve` so all existing raw resolve() calls below use the wrapper.
     // eslint-disable-next-line no-param-reassign
     resolve = _resolve;
 
