@@ -1187,7 +1187,7 @@ async function showAlertDialog(title, message) {
   }
 
   function formatSupportText(text) {
-    const TELEGRAM_URL = 'https://t.me/ARMGDDNGames';
+    const TELEGRAM_URL = 'https://t.me/+xuCOd3HqpGdmZjFh';
     const safe = escapeHtml(String(text || ''));
     const withBreaks = safe.replace(/\r?\n/g, '<br>');
     const link = `<a href="${TELEGRAM_URL}" target="_blank" rel="noreferrer">${escapeHtml(TELEGRAM_URL)}</a>`;

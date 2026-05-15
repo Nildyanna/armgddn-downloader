@@ -112,7 +112,7 @@ function decodeBase64Signature(raw) {
   }
 }
 
-const SUPPORT_TELEGRAM_URL = 'https://t.me/ARMGDDNGames';
+const SUPPORT_TELEGRAM_URL = 'https://t.me/+xuCOd3HqpGdmZjFh';
 
 function withSupportFooter(message, fix) {
   try {
@@ -2119,7 +2119,7 @@ function createAppMenu() {
         {
           label: 'Telegram',
           click: async () => {
-            await shell.openExternal('https://t.me/ARMGDDNGames');
+            await shell.openExternal('https://t.me/+xuCOd3HqpGdmZjFh');
           }
         }
       ]
