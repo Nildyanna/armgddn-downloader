@@ -15,6 +15,13 @@ function getDialogParentWindow() {
 }
 
 async function withDialogFocus(fn) {
+  // On Linux/KDE, system dialogs appear above all windows natively on X11/Wayland
+  // without needing to manipulate alwaysOnTop. Skipping the setAlwaysOnTop dance
+  // also avoids KDE raising the main window as a side-effect of moveTop().
+  if (process.platform === 'linux') {
+    return await fn();
+  }
+
   let restoreOnTop = null;
   try {
     if (progressWin && !progressWin.isDestroyed()) {
@@ -42,6 +49,12 @@ async function withDialogFocus(fn) {
 }
 
 function withDialogFocusSync(fn) {
+  // On Linux/KDE, system dialogs appear above all windows natively — no alwaysOnTop
+  // manipulation needed (and doing so can cause the main window to be raised on KDE).
+  if (process.platform === 'linux') {
+    return fn();
+  }
+
   let restoreOnTop = null;
   try {
     if (progressWin && !progressWin.isDestroyed()) {
@@ -464,7 +477,14 @@ if (!gotTheLock) {
     // Someone tried to run a second instance, focus our window
     if (mainWindow) {
       if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.focus();
+      mainWindow.show();
+      // KDE Plasma enforces focus-stealing prevention; focus() is unreliable there.
+      // moveTop() raises the window to the front without triggering the block.
+      if (process.platform === 'linux') {
+        try { mainWindow.moveTop(); } catch (e) { }
+      } else {
+        mainWindow.focus();
+      }
     }
     // Handle deep link from second instance
     const url = commandLine.find(arg => arg.startsWith('armgddn://'));
@@ -644,7 +664,13 @@ function flushPendingDeepLinks() {
     }
 
     mainWindow.show();
-    mainWindow.focus();
+    // KDE Plasma's focus-stealing prevention silently drops focus() calls from
+    // background processes. Use moveTop() instead to raise the window reliably.
+    if (process.platform === 'linux') {
+      try { mainWindow.moveTop(); } catch (e) { }
+    } else {
+      mainWindow.focus();
+    }
   } catch (e) {
     // Keep it safe; we'll try again later.
   }
@@ -1808,8 +1834,11 @@ function openAuthWindow() {
     authWindow = new BrowserWindow({
       width: 500,
       height: 700,
-      parent: mainWindow,
-      modal: true,
+      // On Linux/KDE, parent + modal sets WM_TRANSIENT_FOR which causes KDE's compositor
+      // to raise the parent window whenever the modal receives focus — the root cause of
+      // the "background window jumps to front" bug. Remove the relationship on Linux; the
+      // window still behaves functionally as a login step via app-level logic.
+      ...(process.platform !== 'linux' ? { parent: mainWindow, modal: true } : {}),
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true
@@ -1994,6 +2023,11 @@ function createWindow() {
             mainWindow.setSkipTaskbar(false);
           }
         }, 100);
+      } else if (process.platform === 'linux') {
+        mainWindow.show();
+        // On KDE Plasma, moveTop() ensures the window lands on top of the stack
+        // even when the WM applies focus-stealing prevention at startup.
+        try { mainWindow.moveTop(); } catch (e) { }
       } else {
         mainWindow.show();
       }
@@ -2052,8 +2086,18 @@ function createTray() {
   const icon = nativeImage.createFromPath(iconPath);
   tray = new Tray(icon.resize({ width: 16, height: 16 }));
 
+  const showMainWindow = () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    mainWindow.show();
+    // On KDE Plasma, moveTop() is needed to raise the window above other open apps.
+    // focus() is blocked by KDE's focus-stealing prevention for tray-icon activations.
+    if (process.platform === 'linux') {
+      try { mainWindow.moveTop(); } catch (e) { }
+    }
+  };
+
   const contextMenu = Menu.buildFromTemplate([
-    { label: 'Show', click: () => mainWindow.show() },
+    { label: 'Show', click: showMainWindow },
     {
       label: 'Open Log Folder', click: () => {
         try {
@@ -2069,9 +2113,9 @@ function createTray() {
   tray.setToolTip('ARMGDDN Companion');
   tray.setContextMenu(contextMenu);
 
-  tray.on('click', () => {
-    mainWindow.show();
-  });
+  tray.on('click', showMainWindow);
+  // KDE Plasma may route tray activation as double-click depending on system settings
+  tray.on('double-click', showMainWindow);
 }
 
 function createAppMenu() {
@@ -5850,13 +5894,17 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
       width: 400,
       height: 380,
       title: 'Updating ARMGDDN Companion',
-      parent: mainWindow, // Set parent so dialogs appear on top
-      modal: false, // Keep non-modal to allow interaction
+      // On Linux/KDE, setting parent creates a WM_TRANSIENT_FOR hint that causes KDE's
+      // compositor to raise the parent (main) window whenever this window is shown or
+      // receives focus. Remove the parent relationship on Linux — alwaysOnTop + skipTaskbar
+      // are sufficient to keep the update overlay correctly positioned.
+      ...(process.platform !== 'linux' ? { parent: mainWindow, modal: false } : {}),
       frame: false, // Remove title bar
       autoHideMenuBar: true,
       resizable: false,
       minimizable: false,
       maximizable: false,
+      skipTaskbar: true, // Don't clutter the taskbar with the update overlay
       alwaysOnTop: true, // Ensure it stays on top during update
       icon: getAppIcon(),
       webPreferences: {

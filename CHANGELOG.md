@@ -5,6 +5,16 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.2] - 2026-05-16
+
+### Fixed
+- **KDE Plasma compatibility** — Resolved multiple window-management issues on Linux desktops running KDE Plasma:
+  - `progressWin` (update overlay) no longer has `parent: mainWindow` on Linux. The `WM_TRANSIENT_FOR` hint caused KDE's compositor to raise the main window to the front whenever the overlay was shown or received focus. The overlay now uses `alwaysOnTop` + `skipTaskbar` without a parent relationship, which correctly positions it without disturbing the window stack.
+  - `authWindow` (login dialog) no longer sets `parent` or `modal: true` on Linux. The `_NET_WM_STATE_MODAL` + transient-for combination caused KDE to pop the main window to the front on every focus change inside the modal. The window still functions as a login step via app-level logic.
+  - `focus()` calls replaced with `moveTop()` on Linux in the second-instance handler, deep-link flush, and tray restore. KDE's focus-stealing prevention silently drops `focus()` from background processes; `moveTop()` raises the window reliably without triggering the block.
+  - `withDialogFocus` / `withDialogFocusSync` skip the `setAlwaysOnTop(false)` + `moveTop()` dance on Linux. X11/Wayland system dialogs appear above all windows natively, so the manipulation is unnecessary — and calling `moveTop()` on a window that previously had a parent could raise the wrong window on KDE.
+  - Tray icon now raises the window with `moveTop()` on Linux (both `click` and `double-click` events). KDE Plasma may route tray activation as either event depending on system settings.
+
 ## [4.2.99] - 2026-05-14
 
 ### Fixed
