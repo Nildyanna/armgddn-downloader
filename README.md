@@ -91,7 +91,7 @@ Automatic updates verify installer authenticity before execution:
 
 ## Support
 
-- Telegram: [https://t.me/ARMGDDNGames](https://t.me/ARMGDDNGames)
+- Telegram: [https://t.me/+xuCOd3HqpGdmZjFh](https://t.me/+xuCOd3HqpGdmZjFh)
 
 ## Development
 
