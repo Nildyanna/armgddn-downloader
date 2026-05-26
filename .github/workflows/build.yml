@@ -165,9 +165,24 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+          cache: gradle
 
       - name: Install Android SDK
         uses: android-actions/setup-android@v3
+
+      - name: Cache Gradle home
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.gradle-home
+          key: gradle-home-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/android/**/gradle-wrapper.properties') }}
+          restore-keys: gradle-home-${{ runner.os }}-
+
+      - name: Cache node_modules (mobile)
+        uses: actions/cache@v4
+        with:
+          path: mobile/node_modules
+          key: mobile-node-modules-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json') }}
+          restore-keys: mobile-node-modules-${{ runner.os }}-
 
       - name: Install mobile dependencies
         working-directory: mobile
@@ -222,7 +237,7 @@ jobs:
 
       - name: Build Android release APK
         working-directory: mobile/android
-        run: ./gradlew clean assembleRelease --refresh-dependencies --stacktrace
+        run: ./gradlew assembleRelease --stacktrace
 
       - name: Stage mobile APK artifact
         shell: bash
