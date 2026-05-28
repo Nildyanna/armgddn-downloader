@@ -636,30 +636,29 @@ export default function App() {
       } catch (e) {
         // ignore
       }
-      // When the native downloader is available, convert the SAF URI to a
-      // plain file path so it can be passed directly to react-native-blob-util.
+      // When the native downloader is available, try to convert the SAF URI to
+      // a plain file path. If the path isn't DownloadManager-compatible (e.g. a
+      // custom folder on Android 15), fall through to SAF-only mode rather than
+      // rejecting the folder entirely — SAF can write anywhere.
       if (supportsNativeAndroidDownloader()) {
         const filePath = safTreeUriToFilePath(safUri);
-        if (!filePath || !isDownloadManagerCompatiblePath(filePath)) {
-          Alert.alert(
-            'Folder not supported',
-            'The Android download manager only supports standard public folders. ' +
-            'Please choose a folder inside Downloads, Music, Pictures, or Movies.'
-          );
+        if (filePath && isDownloadManagerCompatiblePath(filePath)) {
+          customAndroidDownloadDirRef.current = filePath;
+          setCustomAndroidDownloadDir(filePath);
+          try {
+            await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, filePath);
+          } catch (e) {
+            // ignore
+          }
           return;
         }
-        customAndroidDownloadDirRef.current = filePath;
-        setCustomAndroidDownloadDir(filePath);
-        try {
-          await SecureStore.setItemAsync(ANDROID_DOWNLOAD_DIR_KEY, filePath);
-        } catch (e) {
-          // ignore
-        }
-      } else {
-        // SAF-only mode: the actual file path is only used for display; the
-        // real destination is tracked via the SAF URI stored above. Keep the
-        // ref as an absolute path (or empty) so downstream path checks that
-        // test startsWith('/') don't treat a display label as a real path.
+        // Path not compatible with DownloadManager — fall through to SAF-only below.
+      }
+      // SAF-only mode: the actual file path is only used for display; the
+      // real destination is tracked via the SAF URI stored above. Keep the
+      // ref as an absolute path (or empty) so downstream path checks that
+      // test startsWith('/') don't treat a display label as a real path.
+      {
         const filePath = safTreeUriToFilePath(safUri) || '';
         const display = filePath || SAF_ONLY_FOLDER_LABEL;
         customAndroidDownloadDirRef.current = filePath;
