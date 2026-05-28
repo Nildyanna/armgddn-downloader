@@ -174,7 +174,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ github.workspace }}/.gradle-home
-          key: gradle-home-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/android/**/gradle-wrapper.properties') }}
+          key: gradle-home-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
           restore-keys: gradle-home-${{ runner.os }}-
 
       - name: Cache node_modules (mobile)
