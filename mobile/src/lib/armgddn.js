@@ -600,13 +600,11 @@ export async function downloadFilesFromManifest(manifest, callbacks = {}) {
 
   // Android: stream to the user-chosen folder via the native DownloadManager —
   // no SAF copy, no memory cap, supports files of any size.
-  if (supportsNativeAndroidDownloader()) {
-    // A user-chosen folder is required; there is no public-Downloads fallback
-    // because Android restricts direct filesystem access to that area.
-    const trimmedDestDir = String(options.androidDestDir || '').trim();
-    if (!trimmedDestDir || !trimmedDestDir.startsWith('/')) {
-      throw new Error('No download folder has been configured. Please select a folder before downloading.');
-    }
+  // Only take this path when androidDestDir was explicitly provided — App.js
+  // sets it to undefined when the chosen folder isn't DownloadManager-compatible,
+  // in which case we must fall through to the SAF path below.
+  const trimmedDestDir = String(options.androidDestDir || '').trim();
+  if (supportsNativeAndroidDownloader() && trimmedDestDir && trimmedDestDir.startsWith('/')) {
     const baseDir = trimmedDestDir;
     const subParts = [];
     if (manifest?.path) subParts.push(...pathSegmentsFromName(manifest.path));
