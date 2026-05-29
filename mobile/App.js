@@ -116,9 +116,17 @@ export default function App() {
         if (storedDir && storedDir.startsWith('/')) {
           customAndroidDownloadDirRef.current = storedDir;
           setCustomAndroidDownloadDir(storedDir);
+        } else {
+          // No native path — check for a stored SAF URI (SAF-only mode).
+          // Store the content:// URI in the ref so the download guard doesn't
+          // incorrectly block. The display label is derived separately.
+          const storedSafUri = await SecureStore.getItemAsync(ANDROID_DOWNLOADS_URI_KEY);
+          if (storedSafUri && storedSafUri.startsWith('content://')) {
+            customAndroidDownloadDirRef.current = storedSafUri;
+            const displayPath = safTreeUriToFilePath(storedSafUri);
+            setCustomAndroidDownloadDir(displayPath || SAF_ONLY_FOLDER_LABEL);
+          }
         }
-        // If there is no stored path we leave the ref empty; handleHandoffUrl
-        // will prompt the user to pick a folder before the first download.
       } catch (e) {
         // ignore secure-store failures
       }
@@ -219,9 +227,10 @@ export default function App() {
   async function handleHandoffUrl(url) {
     if (isBusyRef.current) return;
 
-    // On Android with the native downloader a folder must be chosen first —
-    // there is no default Downloads fallback.
-    if (Platform.OS === 'android' && supportsNativeAndroidDownloader() && !customAndroidDownloadDirRef.current?.startsWith('/')) {
+    // On Android a folder must be chosen first. The ref holds either an absolute
+    // path (native mode) or a content:// SAF URI (SAF-only mode) — either is
+    // sufficient. Block only if nothing at all has been configured.
+    if (Platform.OS === 'android' && !customAndroidDownloadDirRef.current) {
       Alert.alert(
         'Download folder required',
         'Please choose a download folder before starting a download.',
@@ -660,13 +669,15 @@ export default function App() {
         // Path not compatible with DownloadManager — fall through to SAF-only below.
       }
       // SAF-only mode: the actual file path is only used for display; the
-      // real destination is tracked via the SAF URI stored above. Keep the
-      // ref as an absolute path (or empty) so downstream path checks that
-      // test startsWith('/') don't treat a display label as a real path.
+      // real destination is tracked via the SAF URI stored above. The ref
+      // stores the absolute path when available, or falls back to the content://
+      // URI itself so the download guard (which checks !ref) doesn't block.
       {
         const filePath = safTreeUriToFilePath(safUri) || '';
         const display = filePath || SAF_ONLY_FOLDER_LABEL;
-        customAndroidDownloadDirRef.current = filePath;
+        // Use the file path if we have one, otherwise store the content:// URI
+        // so the download guard knows a folder is configured.
+        customAndroidDownloadDirRef.current = filePath || safUri;
         setCustomAndroidDownloadDir(display);
         // Only persist a real path; if we have none, leave the key absent so
         // bootstrap doesn't restore a non-path string on the next cold start.
