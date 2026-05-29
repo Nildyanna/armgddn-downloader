@@ -2202,7 +2202,10 @@ app.whenReady().then(() => {
       const logPath = parsed.logPath ? String(parsed.logPath) : '';
 
       // Clean up successful results silently.
-      if (state === 'success' || exitCode === 0) {
+      // Exit code 2 from NSIS means the installer self-elevated via UAC — the
+      // initial low-privilege process exits with 2 while the elevated copy
+      // continues and completes the install successfully. Treat it as success.
+      if (state === 'success' || exitCode === 0 || exitCode === 2) {
         try { fs.unlinkSync(resultPath); } catch (e) { }
         return;
       }
@@ -6323,9 +6326,13 @@ ipcMain.handle('install-update', async (event, installerUrl, options) => {
                       // Capture exit code immediately before any other command can clobber %ERRORLEVEL%
                       'set RC=%ERRORLEVEL%',
                       `echo [%DATE% %TIME%] installer finished rc=%RC%>>${logQuoted}`,
-                      `if "%RC%"=="0" (echo {^"ts^":${Date.now()},^"state^":^"success^",^"exitCode^":0,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}) else (echo {^"ts^":${Date.now()},^"state^":^"failed^",^"exitCode^":%RC%,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted})`,
-                      // Only relaunch if installer succeeded (exit code 0)
+                      // RC=0: clean success. RC=2: NSIS self-elevated via UAC — the elevated
+                      // copy will complete the install; treat as success so no false-alarm dialog.
+                      `if "%RC%"=="0" (echo {^"ts^":${Date.now()},^"state^":^"success^",^"exitCode^":0,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}) else if "%RC%"=="2" (echo {^"ts^":${Date.now()},^"state^":^"success^",^"exitCode^":0,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted}) else (echo {^"ts^":${Date.now()},^"state^":^"failed^",^"exitCode^":%RC%,^"logPath^":^"${wrapperLogPath.replace(/\\/g, '\\\\')}^"} > ${resultQuoted})`,
+                      // Only relaunch if installer succeeded (exit code 0 or 2/UAC-elevated)
                       `if "%RC%"=="0" (`,
+                      shouldRelaunch ? `  start "" ${appQuoted}` : '  rem',
+                      `) else if "%RC%"=="2" (`,
                       shouldRelaunch ? `  start "" ${appQuoted}` : '  rem',
                       `) else (`,
                       `  echo [%DATE% %TIME%] installer failed with rc=%RC%, cancelling relaunch>>${logQuoted}`,
