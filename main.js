@@ -3754,10 +3754,17 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       }
     }
 
+    // Point rclone at the platform null device so it never loads (or prompts for
+    // the password of) the user's system rclone.conf. copyurl only needs HTTP —
+    // no remote config required.
+    const nullConfig = process.platform === 'win32' ? 'nul' : '/dev/null';
+
     const args = [
       'copyurl',
       file.url,
       outputPath,
+      '--config', nullConfig,
+      '--ask-password', 'false',
       '--progress',
       '--stats', '1s',
       '--stats-one-line',
