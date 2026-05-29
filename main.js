@@ -3784,7 +3784,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       file.url,
       outputPath,
       ...(emptyConfigPath ? ['--config', emptyConfigPath] : []),
-      '--ask-password', 'false',
+      '--ask-password=false',
       '--progress',
       '--stats', '1s',
       '--stats-one-line',
