@@ -1449,6 +1449,25 @@ const getRclonePath = () => {
   return path.join(resourcePath, 'rclone', 'rclone');
 };
 
+// Returns the path to an empty rclone config file in userData.
+// We always pass this via --config so rclone never loads (or prompts for
+// the password of) the user's system rclone.conf. copyurl only needs HTTP.
+// NUL/null device names are reserved on Windows so we use a real file.
+let _emptyRcloneConfigPath = null;
+const getEmptyRcloneConfigPath = () => {
+  if (!_emptyRcloneConfigPath) {
+    try {
+      const p = path.join(app.getPath('userData'), 'rclone-empty.conf');
+      if (!fs.existsSync(p)) fs.writeFileSync(p, '', 'utf8');
+      _emptyRcloneConfigPath = p;
+    } catch (e) {
+      // If we can't write, fall back to --ask-password false alone
+      _emptyRcloneConfigPath = '';
+    }
+  }
+  return _emptyRcloneConfigPath;
+};
+
 const get7zPath = () => {
   const platform = process.platform;
   const arch = process.arch;
@@ -3754,16 +3773,17 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       }
     }
 
-    // Point rclone at the platform null device so it never loads (or prompts for
-    // the password of) the user's system rclone.conf. copyurl only needs HTTP —
-    // no remote config required.
-    const nullConfig = process.platform === 'win32' ? 'nul' : '/dev/null';
+    // Point rclone at an empty config so it never loads (or prompts for the
+    // password of) the user's system rclone.conf. copyurl only needs HTTP —
+    // no remote config is required. NUL/null device names are reserved on
+    // Windows so we use a real empty file written to userData.
+    const emptyConfigPath = getEmptyRcloneConfigPath();
 
     const args = [
       'copyurl',
       file.url,
       outputPath,
-      '--config', nullConfig,
+      ...(emptyConfigPath ? ['--config', emptyConfigPath] : []),
       '--ask-password', 'false',
       '--progress',
       '--stats', '1s',
