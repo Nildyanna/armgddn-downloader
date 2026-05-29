@@ -252,12 +252,17 @@ export default function App() {
       setStatusDetail(parsed.label ? `Preparing ${parsed.label}` : 'Preparing the download payload.');
 
       const manifest = await fetchManifestFromUrl(parsed.manifestUrl, parsed.token);
-      // For native Android, pass the user-chosen directory.  For SAF-only
-      // mode, getAndroidDownloadsFolderUri() prompts if no URI is stored yet.
-      const androidDestDir = supportsNativeAndroidDownloader()
+      // Use native DownloadManager only when the device supports it AND the
+      // user-chosen folder is in a DownloadManager-compatible location.  If the
+      // user picked a non-standard directory (e.g. Documents/Games on Android 15)
+      // via the SAF picker, fall through to SAF mode even on capable devices —
+      // otherwise downloadSingleFileAndroid will throw on the same path check.
+      const useNativeDownloader = supportsNativeAndroidDownloader() &&
+        isDownloadManagerCompatiblePath(customAndroidDownloadDirRef.current);
+      const androidDestDir = useNativeDownloader
         ? customAndroidDownloadDirRef.current
         : undefined;
-      const androidDownloadsUri = supportsNativeAndroidDownloader()
+      const androidDownloadsUri = useNativeDownloader
         ? null
         : await getAndroidDownloadsFolderUri();
       const total = manifest.totalSize || manifest.files?.reduce((sum, item) => sum + Number(item?.size || 0), 0) || 0;
