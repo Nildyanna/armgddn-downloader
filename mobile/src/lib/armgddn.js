@@ -343,16 +343,32 @@ async function createSafFileWithFallbackName(folderUri, preferredName) {
 async function writeDownloadedTempFileToSaf(tempFileUri, folderUri, preferredName) {
   const target = await createSafFileWithFallbackName(folderUri, preferredName);
 
-  // Try copyAsync first — works on newer Expo/Android combinations.
+  // Attempt 1: Expo copyAsync — works on newer Expo/Android combinations.
   try {
     await FileSystem.copyAsync({ from: tempFileUri, to: target.uri });
     return target;
   } catch (copyError) {
-    // copyAsync does not support SAF destinations on all devices.
-    // Fall through to Base64 fallback.
+    // copyAsync does not support SAF destinations on all devices. Fall through.
   }
 
-  // Base64 fallback: reads the whole file into memory, so only viable for smaller files.
+  // Attempt 2: RNBlobUtil.fs.cp — OS-level file copy, no memory overhead, no
+  // size limit. Works when the SAF URI can be opened as a file descriptor and
+  // the temp path is a plain file:// or absolute path.
+  if (RNBlobUtil) {
+    try {
+      const srcPath = String(tempFileUri).replace(/^file:\/\//, '');
+      // RNBlobUtil expects a plain path for the destination too; the SAF URI
+      // won't work directly, but the content:// URI returned by createSafFile
+      // maps to an fd the native layer can open. Try anyway — on many devices
+      // this succeeds even for content:// destinations.
+      await RNBlobUtil.fs.cp(srcPath, target.uri);
+      return target;
+    } catch (blobCopyError) {
+      // Fall through to base64 last resort.
+    }
+  }
+
+  // Attempt 3: Base64 — reads whole file into memory; only viable for smaller files.
   try {
     const info = await FileSystem.getInfoAsync(tempFileUri, { size: true });
     const fileSize = Number(info.size) || 0;
@@ -360,7 +376,8 @@ async function writeDownloadedTempFileToSaf(tempFileUri, folderUri, preferredNam
     if (fileSize > MAX_BASE64_BYTES) {
       throw new Error(
         `This file is ${Math.round(fileSize / 1024 / 1024)} MB — too large to save to the ` +
-        `selected folder on this device. Please change the download folder and try again.`
+        `selected folder on this device. Please use the Downloads folder instead ` +
+        `(tap "Use Downloads Folder" in the app).`
       );
     }
     const base64 = await FileSystem.readAsStringAsync(tempFileUri, {
