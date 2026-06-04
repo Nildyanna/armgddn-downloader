@@ -484,6 +484,8 @@ export function getNativeDownloadDir() {
 // Checks whether a path is safe to pass to the Android DownloadManager.
 // Anchored to the paths RNBlobUtil itself reports for standard public dirs
 // so this works on Samsung, Xiaomi, OnePlus, and any other OEM correctly.
+// WARNING: any path outside these dirs causes an uncatchable native
+// SecurityException that crashes the app — do not relax this check.
 export function isDownloadManagerCompatiblePath(p) {
   const s = String(p || '');
   const knownBases = [
@@ -502,6 +504,18 @@ export function isDownloadManagerCompatiblePath(p) {
     const b = String(base).replace(/\/+$/, '');
     return s === b || s.startsWith(b + '/');
   });
+}
+
+// Checks whether a path is the app's own private external files directory
+// (i.e. /storage/emulated/0/Android/data/<package>/files/...).
+// The app always has direct read/write access here — no DownloadManager or
+// SAF required, and no Android 11+ scoped storage restrictions apply.
+export function isAppPrivateExternalPath(p) {
+  const appPrivateBase = RNBlobUtil?.fs?.dirs?.SDCardDir;
+  if (!appPrivateBase) return false;
+  const base = String(appPrivateBase).replace(/\/+$/, '');
+  const s = String(p || '');
+  return s === base || s.startsWith(base + '/');
 }
 
 async function downloadSingleFileAndroid(file, destDir, callbacks) {
