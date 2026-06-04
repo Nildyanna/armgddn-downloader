@@ -372,8 +372,12 @@ async function writeDownloadedTempFileToSaf(tempFileUri, folderUri, preferredNam
   try {
     const info = await FileSystem.getInfoAsync(tempFileUri, { size: true });
     const fileSize = Number(info.size) || 0;
-    const MAX_BASE64_BYTES = 150 * 1024 * 1024; // 150 MB
-    if (fileSize > MAX_BASE64_BYTES) {
+    // readAsStringAsync with base64 encoding requires ~2.67× the file size in memory:
+    // base64 inflates by 4/3, and Java/JS stores the resulting string as UTF-16 (2 bytes/char).
+    // Guard against the *memory footprint*, not the raw file size.
+    const estimatedMemoryBytes = Math.ceil(fileSize * 4 / 3) * 2;
+    const MAX_BASE64_MEMORY = 100 * 1024 * 1024; // 100 MB heap budget
+    if (estimatedMemoryBytes > MAX_BASE64_MEMORY) {
       throw new Error(
         `This file is ${Math.round(fileSize / 1024 / 1024)} MB — too large to save to the ` +
         `selected folder on this device. Please use the Downloads folder instead ` +
