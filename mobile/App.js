@@ -10,6 +10,7 @@ import {
   downloadFilesFromManifest,
   fetchManifestFromUrl,
   getNativeDownloadDir,
+  isAppPrivateExternalPath,
   isDownloadManagerCompatiblePath,
   openAndroidFile,
   parseHandoffUrl,
@@ -261,16 +262,18 @@ export default function App() {
       setStatusDetail(parsed.label ? `Preparing ${parsed.label}` : 'Preparing the download payload.');
 
       const manifest = await fetchManifestFromUrl(parsed.manifestUrl, parsed.token);
-      // Use the native RNBlobUtil download path whenever we have a plain absolute
-      // file path — either via DownloadManager (for public media dirs) or via
-      // direct RNBlobUtil write (for app-private dirs like Android/data/<pkg>/).
-      // Only fall through to SAF when the stored value is a content:// URI or
-      // there is no path at all.
+      // Use the native download path only when we know the OS can write there:
+      //   1. DownloadManager-compatible public media dirs (Downloads, Music, etc.)
+      //   2. The app's own private external dir (Android/data/<pkg>/files/...)
+      // For any other path (e.g. /storage/emulated/0/SomeCustomFolder), the app
+      // lacks direct write access on Android 11+ — fall through to SAF instead.
       const storedDir = customAndroidDownloadDirRef.current;
-      const hasPlainPath = supportsNativeAndroidDownloader() &&
-        typeof storedDir === 'string' && storedDir.startsWith('/');
-      const androidDestDir = hasPlainPath ? storedDir : undefined;
-      const androidDownloadsUri = hasPlainPath
+      const canUseNative = supportsNativeAndroidDownloader() && (
+        isDownloadManagerCompatiblePath(storedDir) ||
+        isAppPrivateExternalPath(storedDir)
+      );
+      const androidDestDir = canUseNative ? storedDir : undefined;
+      const androidDownloadsUri = canUseNative
         ? null
         : await getAndroidDownloadsFolderUri();
       const total = manifest.totalSize || manifest.files?.reduce((sum, item) => sum + Number(item?.size || 0), 0) || 0;
