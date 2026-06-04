@@ -508,15 +508,42 @@ async function downloadSingleFileAndroid(file, destDir, callbacks) {
   const flatName = flattenRelativePathName(file.relativePath || file.name || file.url, file.name || 'download');
   const destPath = `${destDir}/${flatName}`;
 
-  // Validate before touching the native DownloadManager — an unsupported path
-  // throws a native SecurityException that cannot be caught in JS.
+  // For paths outside DownloadManager-compatible public media dirs (e.g. the
+  // app's own Android/data/<pkg>/ directory), use direct RNBlobUtil streaming
+  // write instead. This bypasses DownloadManager and the SAF copy step entirely,
+  // so there is no memory limit and no file-size cap.
   if (!isDownloadManagerCompatiblePath(destDir)) {
-    throw new Error(
-      'The selected folder is not supported by the Android download manager. ' +
-      'Please choose a folder inside Downloads, Music, Pictures, or Movies.'
-    );
+    try {
+      if (!(await RNBlobUtil.fs.isDir(destDir))) {
+        await RNBlobUtil.fs.mkdir(destDir);
+      }
+    } catch (e) {
+      // Directory may already exist — proceed anyway.
+    }
+
+    callbacks?.onFileStart?.(file.name || flatName);
+
+    const task = RNBlobUtil.config({
+      path: destPath,
+      overwrite: true,
+    }).fetch('GET', file.url);
+
+    task.progress({ interval: 300 }, (received, total) => {
+      const downloaded = Number(received) || 0;
+      const totalBytes = Number(total) || 0;
+      callbacks?.onProgress?.({
+        downloaded,
+        totalBytes,
+        percent: totalBytes > 0 ? Math.min(100, Math.round((downloaded / totalBytes) * 100)) : 0,
+        fileName: file.name || flatName,
+      });
+    });
+
+    await task;
+    return `file://${destPath}`;
   }
 
+  // DownloadManager path — for public media directories only.
   // On Android 11+ (API 30+), WRITE_EXTERNAL_STORAGE is never granted and
   // DownloadManager creates the directory itself — skip mkdir entirely.
   if (Platform.OS === 'android' && Platform.Version < 30) {

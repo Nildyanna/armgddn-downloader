@@ -261,17 +261,16 @@ export default function App() {
       setStatusDetail(parsed.label ? `Preparing ${parsed.label}` : 'Preparing the download payload.');
 
       const manifest = await fetchManifestFromUrl(parsed.manifestUrl, parsed.token);
-      // Use native DownloadManager only when the device supports it AND the
-      // user-chosen folder is in a DownloadManager-compatible location.  If the
-      // user picked a non-standard directory (e.g. Documents/Games on Android 15)
-      // via the SAF picker, fall through to SAF mode even on capable devices —
-      // otherwise downloadSingleFileAndroid will throw on the same path check.
-      const useNativeDownloader = supportsNativeAndroidDownloader() &&
-        isDownloadManagerCompatiblePath(customAndroidDownloadDirRef.current);
-      const androidDestDir = useNativeDownloader
-        ? customAndroidDownloadDirRef.current
-        : undefined;
-      const androidDownloadsUri = useNativeDownloader
+      // Use the native RNBlobUtil download path whenever we have a plain absolute
+      // file path — either via DownloadManager (for public media dirs) or via
+      // direct RNBlobUtil write (for app-private dirs like Android/data/<pkg>/).
+      // Only fall through to SAF when the stored value is a content:// URI or
+      // there is no path at all.
+      const storedDir = customAndroidDownloadDirRef.current;
+      const hasPlainPath = supportsNativeAndroidDownloader() &&
+        typeof storedDir === 'string' && storedDir.startsWith('/');
+      const androidDestDir = hasPlainPath ? storedDir : undefined;
+      const androidDownloadsUri = hasPlainPath
         ? null
         : await getAndroidDownloadsFolderUri();
       const total = manifest.totalSize || manifest.files?.reduce((sum, item) => sum + Number(item?.size || 0), 0) || 0;
