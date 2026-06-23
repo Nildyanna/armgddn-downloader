@@ -174,7 +174,7 @@ jobs:
       - name: Cache Android SDK
         uses: actions/cache@v4
         with:
-          path: ${{ env.ANDROID_SDK_ROOT }}
+          path: /usr/local/lib/android/sdk
           key: android-sdk-${{ runner.os }}-11076708
 
       - name: Cache Gradle wrapper
