@@ -1622,11 +1622,14 @@ function loadSession() {
     if (fs.existsSync(sessionPath)) {
       const data = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
       if (data.token && data.expiresAt && new Date(data.expiresAt) > new Date()) {
-        // Decrypt if encrypted, otherwise use plain (migration)
+        // Decrypt if encrypted, otherwise use plain (migration path for older sessions)
         if (data.encrypted && safeStorage.isEncryptionAvailable()) {
           const encryptedBuffer = Buffer.from(data.token, 'base64');
           sessionToken = safeStorage.decryptString(encryptedBuffer);
         } else {
+          if (!safeStorage.isEncryptionAvailable()) {
+            logToFile('WARNING: safeStorage unavailable — session token stored in plaintext. Upgrade OS keychain support to enable encryption.');
+          }
           sessionToken = data.token;
         }
         logToFile('Session loaded from file');
@@ -1868,6 +1871,17 @@ function openAuthWindow() {
 
     authWindow.loadURL('https://armgddnbrowser.com/');
 
+    // Block navigations to non-armgddnbrowser.com origins
+    authWindow.webContents.on('will-navigate', (event, url) => {
+      try {
+        const u = new URL(url);
+        const host = u.hostname.toLowerCase();
+        if (host !== 'armgddnbrowser.com' && host !== 'www.armgddnbrowser.com') {
+          event.preventDefault();
+        }
+      } catch (e) { event.preventDefault(); }
+    });
+
     // Check for successful login by monitoring cookies and minting an app session token
     const checkAuth = async () => {
       try {
@@ -2014,6 +2028,14 @@ function createWindow() {
   mainWindowDidFinishLoad = false;
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
+
+  // Block any navigation away from the local renderer files
+  mainWindow.webContents.on('will-navigate', (event, url) => {
+    try {
+      const u = new URL(url);
+      if (u.protocol !== 'file:') event.preventDefault();
+    } catch (e) { event.preventDefault(); }
+  });
 
   mainWindow.webContents.on('did-finish-load', () => {
     mainWindowDidFinishLoad = true;
@@ -2377,7 +2399,16 @@ ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
 ipcMain.handle('show-message-box', async (event, options) => {
   let parent = getDialogParentWindow();
   if (!parent || parent.isDestroyed()) return 0;
-  const result = withDialogFocusSync(() => dialog.showMessageBoxSync(parent, options));
+  // Allowlist options to prevent a compromised renderer from spoofing arbitrary dialogs
+  const safeOptions = {
+    type: ['none','info','error','question','warning'].includes(options && options.type) ? options.type : 'question',
+    message: String((options && options.message) || ''),
+    detail: options && options.detail != null ? String(options.detail) : undefined,
+    buttons: Array.isArray(options && options.buttons) ? options.buttons.map(String) : undefined,
+    defaultId: options && options.defaultId != null ? Number(options.defaultId) : undefined,
+    cancelId: options && options.cancelId != null ? Number(options.cancelId) : undefined,
+  };
+  const result = withDialogFocusSync(() => dialog.showMessageBoxSync(parent, safeOptions));
   return result;
 });
 
@@ -4603,6 +4634,8 @@ function run7zExtract(archivePath, outputDir) {
       logToFile(`[7z] Extract start: ${archivePath} -> ${outputDir}`);
     } catch (e) { }
 
+    // Packaging-convenience password only — not a security control. Electron apps are
+    // trivially unpackable via asar; this merely keeps archives from opening without the app.
     const password = 'ARMGDDNGames';
     const isPasswordErrorText = (text) => {
       const t = String(text || '').toLowerCase();
