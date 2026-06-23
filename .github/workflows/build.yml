@@ -180,7 +180,7 @@ jobs:
       - name: Cache Gradle wrapper
         uses: actions/cache@v4
         with:
-          path: ~/.gradle/wrapper
+          path: ${{ github.workspace }}/.gradle-home/wrapper
           key: gradle-wrapper-${{ runner.os }}-${{ hashFiles('mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-wrapper-${{ runner.os }}-
 
