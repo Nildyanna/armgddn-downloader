@@ -166,10 +166,30 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      - name: Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.ANDROID_SDK_ROOT }}
+          key: android-sdk-${{ runner.os }}-11076708
+
       - name: Install Android SDK
         uses: android-actions/setup-android@v3
         with:
           cmdline-tools-version: 11076708
+
+      - name: Cache Gradle wrapper
+        uses: actions/cache@v4
+        with:
+          path: ~/.gradle/wrapper
+          key: gradle-wrapper-${{ runner.os }}-${{ hashFiles('mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: gradle-wrapper-${{ runner.os }}-
+
+      - name: Cache Gradle caches
+        uses: actions/cache@v4
+        with:
+          path: ${{ github.workspace }}/.gradle-home/caches
+          key: gradle-caches-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/android/gradle.properties') }}
+          restore-keys: gradle-caches-${{ runner.os }}-
 
       - name: Cache Gradle home
         uses: actions/cache@v4
@@ -235,6 +255,10 @@ jobs:
           else
             printf 'org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8\n' > gradle.properties
           fi
+          # Enable build cache and parallel execution
+          grep -q '^org\.gradle\.caching=' gradle.properties || printf 'org.gradle.caching=true\n' >> gradle.properties
+          grep -q '^org\.gradle\.parallel=' gradle.properties || printf 'org.gradle.parallel=true\n' >> gradle.properties
+          grep -q '^org\.gradle\.configureondemand=' gradle.properties || printf 'org.gradle.configureondemand=true\n' >> gradle.properties
 
       - name: Build Android release APK
         working-directory: mobile/android
