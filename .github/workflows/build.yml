@@ -166,16 +166,16 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          cmdline-tools-version: 11076708
+
       - name: Cache Android SDK
         uses: actions/cache@v4
         with:
           path: ${{ env.ANDROID_SDK_ROOT }}
           key: android-sdk-${{ runner.os }}-11076708
-
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 11076708
 
       - name: Cache Gradle wrapper
         uses: actions/cache@v4
