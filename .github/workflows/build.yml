@@ -147,67 +147,15 @@ jobs:
   mobile-android:
     permissions:
       contents: read
-    runs-on: ubuntu-22.04
+    runs-on: [self-hosted, linux, android-builder]
     env:
-      GRADLE_USER_HOME: ${{ github.workspace }}/.gradle-home
+      # On self-hosted runner the Gradle home is persistent across builds.
+      # Keep it outside the workspace so it survives git clean.
+      GRADLE_USER_HOME: ${{ runner.temp }}/gradle-home
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Install Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
-
-      - name: Install Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          cmdline-tools-version: 11076708
-
-      - name: Cache Android SDK
-        uses: actions/cache@v4
-        with:
-          path: /usr/local/lib/android/sdk
-          key: android-sdk-${{ runner.os }}-11076708
-
-      - name: Cache Gradle wrapper
-        uses: actions/cache@v4
-        with:
-          path: ${{ github.workspace }}/.gradle-home/wrapper
-          key: gradle-wrapper-${{ runner.os }}-${{ hashFiles('mobile/android/gradle/wrapper/gradle-wrapper.properties') }}
-          restore-keys: gradle-wrapper-${{ runner.os }}-
-
-      - name: Cache Gradle caches
-        uses: actions/cache@v4
-        with:
-          path: ${{ github.workspace }}/.gradle-home/caches
-          key: gradle-caches-${{ runner.os }}-${{ hashFiles('mobile/android/**/*.gradle*', 'mobile/android/gradle.properties') }}
-          restore-keys: gradle-caches-${{ runner.os }}-
-
-      - name: Cache Gradle home
-        uses: actions/cache@v4
-        with:
-          path: ${{ github.workspace }}/.gradle-home
-          key: gradle-home-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json', 'mobile/app.json') }}
-          restore-keys: gradle-home-${{ runner.os }}-
-
-      - name: Cache node_modules (mobile)
-        uses: actions/cache@v4
-        with:
-          path: mobile/node_modules
-          key: mobile-node-modules-${{ runner.os }}-${{ hashFiles('mobile/package-lock.json') }}
-          restore-keys: mobile-node-modules-${{ runner.os }}-
-
-      - name: Install mobile dependencies
-        working-directory: mobile
-        run: npm ci --no-audit --no-fund
 
       - name: Set mobile app version from tag
         if: startsWith(github.ref, 'refs/tags/v')
@@ -215,6 +163,10 @@ jobs:
         working-directory: mobile
         run: |
           node -e "const fs=require('fs'); const tag=process.env.GITHUB_REF_NAME||''; const v=tag.replace(/^v/,''); if(!/^\d+\.\d+\.\d+/.test(v)) { console.error('Invalid tag version:', tag); process.exit(1);} const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.version=v; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2)+'\n','utf8'); const app=JSON.parse(fs.readFileSync('app.json','utf8')); if(app.expo && typeof app.expo==='object'){ app.expo.version=v; } fs.writeFileSync('app.json', JSON.stringify(app, null, 2)+'\n','utf8'); console.log('Set mobile version to', v);"
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
 
       - name: Prebuild Android project
         working-directory: mobile
@@ -225,7 +177,7 @@ jobs:
         working-directory: mobile/android/app/src/main/res/values
         run: |
           set -euo pipefail
-          python - <<'PY'
+          python3 - <<'PY'
           from pathlib import Path
 
           path = Path('colors.xml')
@@ -255,14 +207,13 @@ jobs:
           else
             printf 'org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8\n' > gradle.properties
           fi
-          # Enable build cache and parallel execution
           grep -q '^org\.gradle\.caching=' gradle.properties || printf 'org.gradle.caching=true\n' >> gradle.properties
           grep -q '^org\.gradle\.parallel=' gradle.properties || printf 'org.gradle.parallel=true\n' >> gradle.properties
           grep -q '^org\.gradle\.configureondemand=' gradle.properties || printf 'org.gradle.configureondemand=true\n' >> gradle.properties
 
       - name: Build Android release APK
         working-directory: mobile/android
-        run: ./gradlew assembleRelease --stacktrace
+        run: ./gradlew assembleRelease --stacktrace --build-cache
 
       - name: Stage mobile APK artifact
         shell: bash
