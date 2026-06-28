@@ -1914,7 +1914,7 @@ function openAuthWindow() {
     // Check for successful login by monitoring cookies and minting an app session token
     const checkAuth = async () => {
       try {
-        const cookies = await authWindow.webContents.session.cookies.get({ name: 'ag_auth' });
+        const cookies = await authWindow.webContents.session.cookies.get({ name: '__Secure-ag_auth' });
 
         const agAuthCookie = cookies.find((c) => {
           const domain = String(c && c.domain ? c.domain : '').toLowerCase();
