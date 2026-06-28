@@ -214,7 +214,8 @@ jobs:
 
       - name: Build Android release APK
         working-directory: mobile/android
-        run: ./gradlew assembleRelease --stacktrace --build-cache 2>&1 | grep -v "warning: the variable"
+        run: |
+          ./gradlew assembleRelease --stacktrace --build-cache 2>&1 | grep -v 'warning: the variable'
 
       - name: Stage mobile APK artifact
         shell: bash
