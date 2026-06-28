@@ -6525,12 +6525,20 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                     }
 
                     logToFile(`Update - launching PowerShell runner (silent=${silent} relaunch=${relaunchAfterInstall})`);
-                    // Launch PowerShell hidden and detached; -NonInteractive prevents prompts
-                    const psChild = spawn('powershell.exe', [
-                      '-NonInteractive', '-WindowStyle', 'Hidden',
+                    // Launch PowerShell hidden and detached.
+                    // Use the absolute System32 path — NEVER bare 'powershell.exe' — so a
+                    // powershell.exe shim earlier in the user's PATH cannot shadow the real
+                    // host (that exact case caused the updater to silently no-op).
+                    // Launch via `cmd /c start` so the runner (a) gets a console — Windows
+                    // PowerShell's host fails to initialize under DETACHED_PROCESS with no
+                    // console — and (b) outlives this app when it quits a moment later.
+                    const psExe = path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+                    const psChild = spawn(process.env.COMSPEC || 'cmd.exe', [
+                      '/c', 'start', '/min', '""', psExe,
+                      '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden',
                       '-ExecutionPolicy', 'Bypass',
                       '-File', runnerPath
-                    ], { detached: true, stdio: 'ignore' });
+                    ], { detached: true, stdio: 'ignore', windowsHide: true });
                     psChild.unref();
                     setTimeout(() => {
                       app.isQuitting = true;
