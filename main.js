@@ -2719,11 +2719,21 @@ ipcMain.handle('resolve-download-token', async (event, downloadToken) => {
     const req = https.request(options, (res) => {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
+      res.on('end', async () => {
         try {
           const json = JSON.parse(data || '{}');
           if (!json || json.success !== true || !json.manifestUrl) {
-            reject(new Error((json && json.error) ? String(json.error) : 'Failed to resolve download token'));
+            const errMsg = (json && json.error) ? String(json.error) : 'Failed to resolve download token';
+            // Session expired on the server — clear it, open auth window, and reject so the
+            // renderer can prompt the user to retry after logging in.
+            if (res.statusCode === 401 || /auth/i.test(errMsg)) {
+              logToFile('resolve-download-token: server rejected token, clearing session and opening auth window');
+              sessionToken = null;
+              openAuthWindow().catch(() => {});
+              reject(new Error('Your session expired. Please log in again and retry the download.'));
+            } else {
+              reject(new Error(errMsg));
+            }
             return;
           }
           resolve(json);
