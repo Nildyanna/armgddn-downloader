@@ -33,3 +33,20 @@
 
   done:
 !macroend
+
+!macro customInstall
+  ; After silent bootstrapped install, relaunch the app
+  IfSilent 0 done_install
+  ${GetParameters} $0
+  ClearErrors
+  ${GetOptions} $0 "/armgddnbootstrapped=" $6
+  ${IfNot} ${Errors}
+    StrCmp $6 "1" relaunch done_install
+  ${EndIf}
+  Goto done_install
+
+  relaunch:
+    Exec '"$INSTDIR\ARMGDDN Companion.exe"'
+
+  done_install:
+!macroend
