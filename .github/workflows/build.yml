@@ -390,3 +390,4 @@ jobs:
             mobile-artifacts/*.apk
           draft: false
           prerelease: false
+          overwrite: true
