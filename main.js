@@ -2082,7 +2082,11 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
-    const shouldStartMinimized = !!(settings && settings.startWithOsMinimized) && isAutostartLaunch();
+    // After an in-app update the runner relaunches us with --updated. Always bring the
+    // window to the foreground in that case (ignore start-minimized), since the user
+    // just initiated the update and expects the app back in front.
+    const launchedFromUpdate = process.argv.includes('--updated');
+    const shouldStartMinimized = !launchedFromUpdate && !!(settings && settings.startWithOsMinimized) && isAutostartLaunch();
     if (shouldStartMinimized) {
       // If user prefers tray-minimize behavior, do not show the window at all.
       if (settings && settings.minimizeToTrayOnMinimize) {
@@ -2110,6 +2114,23 @@ function createWindow() {
       } else {
         mainWindow.show();
       }
+    }
+    // After an update relaunch, force the window to the foreground. A process launched
+    // from the background (the detached update runner) can't normally steal focus on
+    // Windows; toggling alwaysOnTop briefly bypasses the foreground lock reliably.
+    if (launchedFromUpdate) {
+      try {
+        if (mainWindow.isMinimized()) mainWindow.restore();
+        mainWindow.show();
+        mainWindow.setAlwaysOnTop(true);
+        mainWindow.focus();
+        try { mainWindow.moveTop(); } catch (e) { }
+        setTimeout(() => {
+          if (mainWindow && !mainWindow.isDestroyed()) {
+            try { mainWindow.setAlwaysOnTop(false); } catch (e) { }
+          }
+        }, 400);
+      } catch (e) { }
     }
     // Force icon again to ensure taskbar update
     if (windowIcon && !windowIcon.isEmpty()) {
@@ -6505,7 +6526,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                       '# RC=0: success. RC=2: NSIS UAC elevation — treat as success.',
                       'if ($rc -eq 0 -or $rc -eq 2) {',
                       '  Set-Content -Path $resultPath -Value (\'{"state":"success","exitCode":0}\')',
-                      '  if ($shouldRelaunch) { Start-Process -FilePath $appExe }',
+                      '  if ($shouldRelaunch) { Start-Process -FilePath $appExe -ArgumentList \'--updated\' }',
                       '} else {',
                       '  Set-Content -Path $resultPath -Value (\'{"state":"failed","exitCode":\' + $rc + \'}\')',
                       '  Add-Content -Path $logPath -Value ("[{0}] installer failed rc=$rc, skipping relaunch" -f (Get-Date -Format o))',
