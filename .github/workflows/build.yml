@@ -150,7 +150,7 @@ jobs:
     runs-on: [self-hosted, Windows, android-builder]
     defaults:
       run:
-        shell: 'C:\Program Files\Git\bin\bash.exe' --noprofile --norc -e -o pipefail {0}
+        shell: bash
     env:
       # On self-hosted runner the Gradle home is persistent across builds.
       # Keep it outside the workspace so it survives git clean.
