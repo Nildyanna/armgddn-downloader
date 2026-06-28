@@ -187,13 +187,14 @@ async function showAlertDialog(title, message) {
         return;
       }
       if (!result.hasUpdate) return;
-      if (!result.installerUrl) {
-        console.warn('Auto-update available but no installer URL; skipping auto-install');
+      if (!result.canAutoInstall) {
+        console.warn('Auto-update available but no installer available; skipping auto-install');
         return;
       }
 
       // Fully automatic: do not prompt. Install silently and relaunch after install.
-      await api.installUpdate(result.installerUrl, { silent: true, relaunchAfterInstall: true, source: 'auto-update' });
+      // Security (C1/H1): URL no longer passed — main process derives it internally.
+      await api.installUpdate({ silent: true, relaunchAfterInstall: true, source: 'auto-update' });
     } catch (e) {
       console.error('Auto-update failed:', e && e.message ? e.message : e);
     }
@@ -1126,7 +1127,7 @@ async function showAlertDialog(title, message) {
 
   // Show update notification
   async function showUpdateNotification(result) {
-    const hasAutoInstall = !!result.installerUrl;
+    const hasAutoInstall = !!result.canAutoInstall;
 
     const message = hasAutoInstall
       ? `Update available!\n\n` +
@@ -1143,7 +1144,8 @@ async function showAlertDialog(title, message) {
     if (shouldUpdate) {
       if (hasAutoInstall) {
         try {
-          const installResult = await api.installUpdate(result.installerUrl, {
+          // Security (C1/H1): URL no longer passed — main process derives it internally.
+          const installResult = await api.installUpdate({
             silent: true,
             relaunchAfterInstall: true,
             source: 'manual-confirm'
