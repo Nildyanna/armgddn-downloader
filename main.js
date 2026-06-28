@@ -6486,6 +6486,13 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                     const resultPath = path.join(app.getPath('userData'), 'update-result.json');
                     // Write runner to userData (user-owned, not world-writable) — fixes M5
                     const runnerPath = path.join(app.getPath('userData'), `armgddn-update-runner-${Date.now()}.ps1`);
+                    // Prefer relaunching via the Start Menu shortcut: a shell-activated launch
+                    // (same as the user double-clicking it) gives Windows the correct taskbar
+                    // icon (via the shortcut's AppUserModelID) and foreground rights. Launching
+                    // the bare exe from the detached runner loses both. Fall back to the exe.
+                    const startMenuShortcut = (process.platform === 'win32' && process.env.APPDATA)
+                      ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', `${app.name}.lnk`)
+                      : '';
 
                     // Escape single quotes for PowerShell single-quoted strings by doubling them
                     function escapePsPath(p) {
@@ -6506,6 +6513,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                       `$resultPath = ${escapePsPath(resultPath)}`,
                       `$silentArg = '${silentArg}'`,
                       `$shouldRelaunch = $${shouldRelaunch ? 'true' : 'false'}`,
+                      `$shortcut = ${escapePsPath(startMenuShortcut)}`,
                       '',
                       'Add-Content -Path $logPath -Value ("[{0}] runner start pid=$pid_to_wait" -f (Get-Date -Format o))',
                       '',
@@ -6526,7 +6534,10 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                       '# RC=0: success. RC=2: NSIS UAC elevation — treat as success.',
                       'if ($rc -eq 0 -or $rc -eq 2) {',
                       '  Set-Content -Path $resultPath -Value (\'{"state":"success","exitCode":0}\')',
-                      '  if ($shouldRelaunch) { Start-Process -FilePath $appExe -ArgumentList \'--updated\' }',
+                      '  if ($shouldRelaunch) {',
+                      '    if ($shortcut -and (Test-Path $shortcut)) { Start-Process -FilePath $shortcut }',
+                      '    else { Start-Process -FilePath $appExe -ArgumentList \'--updated\' }',
+                      '  }',
                       '} else {',
                       '  Set-Content -Path $resultPath -Value (\'{"state":"failed","exitCode":\' + $rc + \'}\')',
                       '  Add-Content -Path $logPath -Value ("[{0}] installer failed rc=$rc, skipping relaunch" -f (Get-Date -Format o))',
