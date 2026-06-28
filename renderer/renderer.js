@@ -325,10 +325,10 @@ async function showAlertDialog(title, message) {
       const urlObj = new URL(url);
       let manifestUrl = urlObj.searchParams.get('manifest');
       const downloadToken = urlObj.searchParams.get('downloadToken');
-      const token = urlObj.searchParams.get('token');
+      // Do NOT read 'token' from the URL — the Companion uses its own stored session token.
 
       if (!manifestUrl && downloadToken) {
-        const resolved = await api.resolveDownloadToken(downloadToken, token);
+        const resolved = await api.resolveDownloadToken(downloadToken);
         if (!resolved || !resolved.manifestUrl) {
           console.error('Failed to resolve download token');
           alert('Invalid download link: failed to resolve token');
@@ -352,12 +352,9 @@ async function showAlertDialog(title, message) {
         }
       } catch (e) { }
 
-      // Fetch the manifest via main process (bypasses CORS)
-      const manifest = await api.fetchManifest(manifestUrlStr, token);
-
-      // Start download with token for progress reporting
-      // Pass manifestUrl so main process can report to the same server.
-      await api.startDownload(manifest, token, manifestUrlStr);
+      // Fetch the manifest and start download — main process uses its own session token.
+      const manifest = await api.fetchManifest(manifestUrlStr, null);
+      await api.startDownload(manifest, null, manifestUrlStr);
 
     } catch (error) {
       console.error('Failed to handle deep link:', error);

@@ -2649,18 +2649,21 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
 
 // Fetch manifest from URL (handles CORS)
 ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
-  // Security: Validate token
-  if (!isValidToken(token)) {
+  // Use the Companion's own session token; renderer may pass null for deep-link flows.
+  const effectiveToken = token || sessionToken;
+  if (!isValidToken(effectiveToken)) {
     throw new Error('Invalid or missing authentication token');
   }
 
-  return fetchManifestInternal(manifestUrl, token);
+  return fetchManifestInternal(manifestUrl, effectiveToken);
 });
 
 // Resolve short-lived browser download token into a manifest URL
-ipcMain.handle('resolve-download-token', async (event, downloadToken, token) => {
+ipcMain.handle('resolve-download-token', async (event, downloadToken) => {
+  // Use the Companion's own persisted session token — never accept one from the renderer/URL.
+  const token = sessionToken;
   if (!isValidToken(token)) {
-    throw new Error('Invalid or missing authentication token');
+    throw new Error('Companion is not authenticated — please open the app and log in');
   }
 
   if (!downloadToken || typeof downloadToken !== 'string') {
@@ -2943,8 +2946,9 @@ function getFreeDiskSpace(targetPath) {
 
 // Start download
 ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => {
-  // Security: Validate token (required)
-  if (!isValidToken(token)) {
+  // Use the Companion's own session token; renderer may pass null for deep-link flows.
+  const effectiveToken = token || sessionToken;
+  if (!isValidToken(effectiveToken)) {
     throw new Error('Invalid or missing authentication token');
   }
 
@@ -2952,7 +2956,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
   // Save/update the token as session for connection status
   // Always update on new download to refresh token if server restarted
-  saveSession(token);
+  saveSession(effectiveToken);
   logToFile('Session token saved/updated from download');
 
   const downloadId = crypto.randomUUID();
@@ -3238,7 +3242,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
         completedFiles++;
         downloadedSize += normalizeFileSize(f.size);
         try {
-          reportFileProgressToServer(download, token, f, 'completed', normalizeFileSize(f.size));
+          reportFileProgressToServer(download, effectiveToken, f, 'completed', normalizeFileSize(f.size));
         } catch (e) { }
       } else {
         remainingFiles.push(f);
@@ -3285,7 +3289,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   });
 
   // Report initial progress to server
-  reportProgressToServer(download, token);
+  reportProgressToServer(download, effectiveToken);
 
   if (!isPinnedDownloadStatusMessage(download.statusMessage)) {
     download.statusMessage = 'Checking server load...';
@@ -3300,7 +3304,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
   const requestedWorkers = getRequestedWorkersNow();
   try {
-    await refreshDownloadConcurrency(download, token, manifestUrl);
+    await refreshDownloadConcurrency(download, effectiveToken, manifestUrl);
   } catch (e) {
     logToFile(`[Concurrency] Initial refresh failed, proceeding with default: ${e && e.message ? e.message : e}`);
     if (!Number.isFinite(download.effectiveConcurrency) || download.effectiveConcurrency <= 0) {
@@ -3317,7 +3321,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     concurrencyPoll = setInterval(() => {
       try {
         if (!download || download.cancelled || download.paused || download.status === 'completed') return;
-        refreshDownloadConcurrency(download, token, manifestUrl);
+        refreshDownloadConcurrency(download, effectiveToken, manifestUrl);
       } catch (e) { }
     }, 30000);
     if (concurrencyPoll && typeof concurrencyPoll.unref === 'function') {
