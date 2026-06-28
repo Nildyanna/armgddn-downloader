@@ -215,6 +215,7 @@ jobs:
       - name: Build Android release APK
         working-directory: mobile/android
         run: |
+          set -o pipefail
           ./gradlew assembleRelease --stacktrace --build-cache -x mergeReleaseNativeDebugMetadata 2>&1 | grep -v 'warning: the variable'
 
       - name: Stage mobile APK artifact
