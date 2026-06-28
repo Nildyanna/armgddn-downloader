@@ -2682,9 +2682,15 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
 // Resolve short-lived browser download token into a manifest URL
 ipcMain.handle('resolve-download-token', async (event, downloadToken) => {
   // Use the Companion's own persisted session token — never accept one from the renderer/URL.
-  const token = sessionToken;
+  let token = sessionToken;
   if (!isValidToken(token)) {
-    throw new Error('Companion is not authenticated — please open the app and log in');
+    // No session — open auth window so user can log in, then retry once.
+    logToFile('resolve-download-token: no session, opening auth window');
+    await openAuthWindow();
+    token = sessionToken;
+    if (!isValidToken(token)) {
+      throw new Error('Companion is not authenticated — please log in and try again');
+    }
   }
 
   if (!downloadToken || typeof downloadToken !== 'string') {
