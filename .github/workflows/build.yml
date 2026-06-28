@@ -177,7 +177,7 @@ jobs:
         shell: bash
         working-directory: mobile/android/app
         run: |
-          sed -i '/defaultConfig {/a\        ndk { abiFilters "arm64-v8a" }' build.gradle
+          sed -i "/defaultConfig {/a\        ndk { abiFilters 'arm64-v8a' }" build.gradle
       - name: Ensure Android splash color resource exists
         shell: bash
         working-directory: mobile/android/app/src/main/res/values
