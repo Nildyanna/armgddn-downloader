@@ -151,7 +151,7 @@ jobs:
     env:
       # On self-hosted runner the Gradle home is persistent across builds.
       # Keep it outside the workspace so it survives git clean.
-      GRADLE_USER_HOME: ${{ runner.temp }}/gradle-home
+      GRADLE_USER_HOME: /tmp/gradle-home
 
     steps:
       - name: Checkout repository
