@@ -4596,6 +4596,15 @@ setInterval(() => {
         continue;
       }
 
+      // If there are errors and nothing is active, the download is stuck — finalize it as failed.
+      if (hasErrors && !hasActive) {
+        logToFile(`[Poll] Download ${id} has errors and no active processes — finalizing as failed`);
+        updateProgress(id);
+        download.status = 'failed';
+        activeDownloads.delete(id);
+        continue;
+      }
+
       if (shouldFinalizeDownload(download)) {
         completeDownload(id);
       } else {
