@@ -3191,7 +3191,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     totalSpeed: 0,
     peakSpeedBytes: 0,
     startTime: new Date().toISOString(),
-    token: token,  // Store token for progress reporting
+    token: effectiveToken,  // Store token for progress reporting (fall back to session token for deep-link flows)
     cancelled: false,  // Flag to stop new downloads when cancelled
     paused: false,
     failedFiles: [],
