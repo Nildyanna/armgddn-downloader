@@ -5112,6 +5112,23 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     if (parsedPercent < 0) parsedPercent = 0;
     if (parsedPercent > 100) parsedPercent = 100;
     fileInfo.progress = parsedPercent;
+
+    // Report live per-file progress to the server (throttled per file) so the
+    // website's downloads panel shows a row for every in-progress file, not
+    // just ones that have fully completed.
+    try {
+      if (download.token) {
+        if (!download.__lastFileProgressReport) download.__lastFileProgressReport = {};
+        const lastReport = Number(download.__lastFileProgressReport[fileKey]) || 0;
+        const nowMs = Date.now();
+        if (nowMs - lastReport > progressReportMinIntervalMs) {
+          download.__lastFileProgressReport[fileKey] = nowMs;
+          const size = typeof fileInfo.size === 'number' ? fileInfo.size : 0;
+          const bytesDownloadedEstimate = size > 0 ? Math.round((parsedPercent / 100) * size) : 0;
+          reportFileProgressToServer(download, download.token, fileInfo, 'downloading', bytesDownloadedEstimate);
+        }
+      }
+    } catch (e) { }
   }
 
   // Parse speed (e.g., "123.4 MiB/s" or "45 KiB/s")
