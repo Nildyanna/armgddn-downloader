@@ -2784,7 +2784,8 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
       totalBytes,
       status,
       error: null,
-      isFileLevel: true // Flag to indicate this is file-level progress, not overall completion
+      isFileLevel: true, // Flag to indicate this is file-level progress, not overall completion
+      expectedTotalFiles: typeof download.fileCount === 'number' ? download.fileCount : null
     });
 
     const targetHost = download.progressHost || 'www.armgddnbrowser.com';
@@ -2896,7 +2897,9 @@ async function reportProgressToServer(download, token) {
       totalBytes: totalBytes,
       status: reportStatus,
       statusMessage: download.statusMessage || '',
-      error: download.error || null
+      error: download.error || null,
+      expectedTotalFiles: typeof download.fileCount === 'number' ? download.fileCount : null,
+      completedFiles: typeof download.completedFiles === 'number' ? download.completedFiles : null
     });
 
     logToFile(`[Progress] Sending: ${postData.substring(0, 150)}`);
