@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.41] - 2026-07-08
+
+### Fixed
+- **Re-auth popup no longer plays the site's login animation/audio** — The re-auth window (shown when the Companion's session token expires) loads the full site just to re-confirm Telegram login. Its Electron session is a separate storage silo from any regular browser, so the site's once-per-user login-lightning animation was firing as if it were a first-ever visit. The popup now passes `?companionAuth=1` so the site skips it there.
+
 ## [4.3.2] - 2026-05-16
 
 ### Fixed

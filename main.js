@@ -1898,7 +1898,11 @@ function openAuthWindow() {
       title: 'Login to ARMGDDN Browser'
     });
 
-    authWindow.loadURL('https://armgddnbrowser.com/');
+    // companionAuth=1 tells the site this is the re-auth popup, not a real visit —
+    // it skips the full-site login animation/audio, which would otherwise fire as if
+    // this were a first-ever visit (this popup uses its own separate Electron session,
+    // isolated from any browser the user normally logs in with).
+    authWindow.loadURL('https://armgddnbrowser.com/?companionAuth=1');
 
     // Block navigations to non-armgddnbrowser.com origins
     authWindow.webContents.on('will-navigate', (event, url) => {
