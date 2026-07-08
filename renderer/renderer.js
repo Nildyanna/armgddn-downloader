@@ -326,8 +326,11 @@ async function showAlertDialog(title, message) {
       let manifestUrl = urlObj.searchParams.get('manifest');
       const downloadToken = urlObj.searchParams.get('downloadToken');
       // 'token' here is a fresh app token the browser just minted (it was already
-      // authenticated when the user clicked download) — main.js tries it as a one-shot
-      // to avoid an unnecessary reauth popup, but never persists it as the saved session.
+      // authenticated when the user clicked download). resolveDownloadToken tries it
+      // as a one-shot only (never persisted) since the server independently verifies
+      // it matches the downloadToken's owner. Once we're past that point and actually
+      // starting a real download, startDownload persists it as the new session — that's
+      // fine here since we only reach it via our own validated armgddn:// deep links.
       const urlToken = urlObj.searchParams.get('token');
 
       if (!manifestUrl && downloadToken) {
@@ -355,9 +358,12 @@ async function showAlertDialog(title, message) {
         }
       } catch (e) { }
 
-      // Fetch the manifest and start download — main process uses its own session token.
-      const manifest = await api.fetchManifest(manifestUrlStr, null);
-      await api.startDownload(manifest, null, manifestUrlStr);
+      // Fetch the manifest and start download. Pass the fresh urlToken through (if we
+      // have one) so this doesn't fail on a stale persisted session right after
+      // resolveDownloadToken just succeeded using that same fresh token — fetch-manifest
+      // already falls back to the Companion's own stored session if this is absent.
+      const manifest = await api.fetchManifest(manifestUrlStr, urlToken);
+      await api.startDownload(manifest, urlToken, manifestUrlStr);
 
     } catch (error) {
       console.error('Failed to handle deep link:', error);
