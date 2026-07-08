@@ -5,6 +5,14 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.43] - 2026-07-08
+
+### Fixed
+- **"Authentication required" right after starting a download** — The previous fix stopped the unnecessary reauth popup by trying the browser's fresh token first, but the very next steps (fetching the manifest, then starting the download) were still hardcoded to ignore that token and fall back entirely to the Companion's own possibly-stale saved session. Now the fresh token carries through the whole flow, and successfully starting a download updates the saved session to match.
+
+### Changed
+- Removed an unrecognized `overwrite` input from the release workflow step (cosmetic — GitHub Actions was already silently ignoring it).
+
 ## [4.3.42] - 2026-07-08
 
 ### Fixed
