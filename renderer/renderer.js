@@ -325,10 +325,13 @@ async function showAlertDialog(title, message) {
       const urlObj = new URL(url);
       let manifestUrl = urlObj.searchParams.get('manifest');
       const downloadToken = urlObj.searchParams.get('downloadToken');
-      // Do NOT read 'token' from the URL — the Companion uses its own stored session token.
+      // 'token' here is a fresh app token the browser just minted (it was already
+      // authenticated when the user clicked download) — main.js tries it as a one-shot
+      // to avoid an unnecessary reauth popup, but never persists it as the saved session.
+      const urlToken = urlObj.searchParams.get('token');
 
       if (!manifestUrl && downloadToken) {
-        const resolved = await api.resolveDownloadToken(downloadToken);
+        const resolved = await api.resolveDownloadToken(downloadToken, urlToken);
         if (!resolved || !resolved.manifestUrl) {
           console.error('Failed to resolve download token');
           alert('Invalid download link: failed to resolve token');
