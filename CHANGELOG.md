@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [4.3.42] - 2026-07-08
+
+### Fixed
+- **No more unnecessary reauth popup when starting a download** — Clicking "Download with App" while already logged into the website in your browser would still sometimes open the Companion's reauth popup and demand a fresh Telegram login, even though the browser had already handed the app a valid, freshly-minted token via the deep link. That token was being silently ignored (`resolve-download-token` only ever used the Companion's own separately stored session). It's now tried first as a one-shot attempt — never persisted as the saved session, so a stale or crafted deep link still can't silently swap what account the app is logged in as — and only falls back to the stored session / reauth popup if that fails.
+
 ## [4.3.41] - 2026-07-08
 
 ### Fixed
