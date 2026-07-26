@@ -5,6 +5,24 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.0] - 2026-07-26
+
+### Changed
+- **Full visual revamp of the renderer UI** — the app's markup and interaction patterns were modernized while keeping the exact same neon color theme/palette. Emoji-as-icons throughout the header, panel headers, and history dates replaced with hand-authored inline SVG (Feather-style outline icons, recolor via `currentColor`). ~15 inline `style="..."` attributes in `index.html` extracted into real CSS classes. Self-hosted Inter now covers dense body/help copy; Orbitron (headers) and Share Tech Mono (stats/filenames) are unchanged.
+- **Settings form controls restyled** — the `#max-concurrent` select and all 7 settings checkboxes now match the app's glassmorphism/glow language (custom chevron dropdown, toggle switches). Underlying element IDs, `.value`/`.checked` semantics, and the `save-settings` IPC whitelist are unchanged — this is markup/CSS only. Settings grouped into "Download Behavior" and "Notifications & Startup" fieldsets.
+- **Download/history status indicators** — `.download-state` badges are now color-coded per status (cyan downloading/extracting, lime completed, red failed/cancelled/error, amber paused) with a small glowing status dot, reusing the same dot+pill language `.connection-status` already had. Extended to `.category-badge` too. Progress bars now shimmer while a download is actively running.
+- **Modal panels (Settings/History/7z Help)** now fade and scale open/closed via a `.is-open` class instead of snapping via inline `display:none/block`; the old `.settings-panel[style*="display: block"]` CSS selector hack is removed.
+- **Toast notifications** added for "Settings saved" and "History cleared" (previously silent).
+- **Empty states** for the downloads list and history list now show the ARMGDDN skull mark instead of plain placeholder text.
+- **`update.html` reconciled** with the shared stylesheet — its duplicated gradient-heading and `.progress-bar` rules now reuse `styles.css`'s versions instead of redeclaring them locally.
+- **Accessibility** — icon-only close buttons now have `aria-label="Close"`; opening a modal now traps focus inside it and marks the rest of the app `inert`, restoring focus to the trigger button on close.
+
+### Fixed
+- **Header gradient-text clip regression** (caught before release) — extracting the gradient-text-clip mechanic into a shared `.gradient-heading` utility class initially broke `.app-header h1`'s title rendering: that selector's higher specificity meant its `background:` shorthand silently reset `background-clip` back to `border-box`, making the gradient render as a solid block instead of clipping to the text. Re-declared the clip properties explicitly on `.app-header h1` as well.
+
+### CI
+- **`build-win32` and `mobile-android` jobs moved from a self-hosted Windows runner to GitHub-hosted `windows-latest`** — the self-hosted runner was decommissioned. `mobile-android` also drops the hardcoded self-hosted paths (`GRADLE_USER_HOME=C:\gradle-home`, `ANDROID_HOME=C:\Android`) in favor of the runner image's own preinstalled Android SDK, and adds an explicit JDK 17 setup step.
+
 ## [4.3.43] - 2026-07-08
 
 ### Fixed
