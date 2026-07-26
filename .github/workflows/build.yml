@@ -123,7 +123,7 @@ jobs:
   build-win32:
     permissions:
       contents: read
-    runs-on: [self-hosted, Windows, android-builder]
+    runs-on: windows-latest
     defaults:
       run:
         shell: bash
@@ -185,19 +185,20 @@ jobs:
   mobile-android:
     permissions:
       contents: read
-    runs-on: [self-hosted, Windows, android-builder]
+    runs-on: windows-latest
     defaults:
       run:
         shell: bash
-    env:
-      # On self-hosted runner the Gradle home is persistent across builds.
-      # Keep it outside the workspace so it survives git clean.
-      GRADLE_USER_HOME: C:\gradle-home
-      ANDROID_HOME: C:\Android
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
 
       - name: Set mobile app version from tag
         if: startsWith(github.ref, 'refs/tags/v')
