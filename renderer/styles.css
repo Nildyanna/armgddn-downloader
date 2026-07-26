@@ -16,7 +16,8 @@
   --glow-cyan: 0 0 18px rgba(46, 242, 255, 0.45);
   --glow-magenta: 0 0 18px rgba(255, 59, 212, 0.35);
   --glow-strong: 0 0 22px rgba(46, 242, 255, 0.5), 0 0 32px rgba(255, 59, 212, 0.35);
-  
+  --font-body-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+
   font-family: 'Share Tech Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
   font-size: 14px;
   line-height: 1.6;
@@ -41,6 +42,14 @@
   font-family: 'Share Tech Mono';
   src: url('assets/fonts/ShareTechMono-Regular.woff2') format('woff2');
   font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Inter';
+  src: url('assets/fonts/Inter-Variable.woff2') format('woff2-variations');
+  font-weight: 100 900;
   font-style: normal;
   font-display: swap;
 }
@@ -147,6 +156,16 @@ body::after {
 .overhead-notice-text {
   color: rgba(241, 245, 249, 0.92);
   font-size: 0.95rem;
+  font-family: var(--font-body-sans);
+}
+
+/* Shared gradient-text-clip mechanic — reused by update.html's title so that
+   window doesn't need to redeclare the (easy to get subtly wrong) clip/fill-color
+   trio itself. Each context still supplies its own `background:` gradient stops. */
+.gradient-heading {
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
 }
 
 .app-header h1 {
@@ -155,6 +174,11 @@ body::after {
   letter-spacing: 0.10em;
   text-transform: uppercase;
   background: linear-gradient(90deg, var(--neon-cyan), var(--neon-magenta), var(--neon-amber));
+  /* Note: the `background` shorthand above resets background-clip to its default
+     (border-box), which would silently override .gradient-heading's `background-clip:
+     text` here since this selector (.app-header h1) has higher specificity than that
+     single-class utility. Re-declared explicitly rather than relying on the utility
+     class alone — see .gradient-heading's comment for the context this bit us in. */
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -222,6 +246,9 @@ body::after {
 }
 
 .settings-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   background: linear-gradient(135deg, rgba(46, 242, 255, 0.10), rgba(255, 59, 212, 0.08));
   border: 1px solid rgba(46, 242, 255, 0.42);
   color: rgba(241, 245, 249, 0.96);
@@ -234,6 +261,21 @@ body::after {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   font-family: 'Orbitron', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+.btn-icon {
+  flex-shrink: 0;
+}
+
+.inline-icon {
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.settings-header h2 {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
 .settings-btn:hover {
@@ -263,6 +305,77 @@ body::after {
   color: rgba(241, 245, 249, 0.95);
   font-size: 0.95rem;
   transition: all 0.2s;
+}
+
+/* ── Extracted from formerly-inline styles (index.html) ─────────────────── */
+
+.app-logo-icon {
+  width: 24px;
+  height: 24px;
+  vertical-align: middle;
+  margin-right: 8px;
+}
+
+.beta-badge {
+  font-size: 0.6em;
+  color: var(--neon-amber);
+  font-weight: normal;
+}
+
+.connection-status--centered {
+  margin: 0 auto 1.5rem auto;
+}
+
+.landing-empty-state {
+  text-align: center;
+  padding: 2rem;
+  color: var(--text-secondary);
+  font-family: var(--font-body-sans);
+}
+
+.landing-title {
+  color: var(--text-primary);
+  margin-bottom: 1rem;
+}
+
+.landing-subtext {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.landing-subtext--tight {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+}
+
+.version-display {
+  margin-top: 1rem;
+  font-size: 0.8rem;
+  color: var(--accent-primary);
+}
+
+#help-7z-btn {
+  margin-top: 1.5rem;
+}
+
+.input-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.input-row input {
+  flex: 1;
+}
+
+.setting-help-text {
+  font-size: 0.8em;
+  color: var(--text-secondary);
+  margin-top: 0.25rem;
+  font-family: var(--font-body-sans);
+}
+
+.settings-content--history {
+  max-width: 600px;
 }
 
 .manifest-input:focus {
@@ -317,10 +430,22 @@ body::after {
 }
 
 .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   text-align: center;
   padding: 3rem;
   color: var(--text-secondary);
   font-size: 1rem;
+  font-family: var(--font-body-sans);
+}
+
+.empty-state-icon {
+  width: 64px;
+  height: 64px;
+  opacity: 0.28;
+  margin-bottom: 1rem;
+  filter: grayscale(1);
 }
 
 .download-item {
@@ -372,8 +497,14 @@ body::after {
   box-shadow: 0 18px 44px rgba(0, 0, 0, 0.85), 0 0 22px rgba(51, 255, 122, 0.22);
 }
 
+.download-item.paused {
+  border-color: rgba(255, 176, 32, 0.42);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.85), 0 0 22px rgba(255, 176, 32, 0.22);
+}
+
 .download-item.failed,
-.download-item.cancelled {
+.download-item.cancelled,
+.download-item.error {
   border-color: rgba(255, 100, 100, 0.5);
   opacity: 0.7;
 }
@@ -399,14 +530,77 @@ body::after {
 }
 
 .download-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 0.25rem 0.75rem;
   background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 12px;
   font-size: 0.8rem;
   text-transform: capitalize;
   color: rgba(255, 255, 255, 0.8);
   flex: 0 0 auto;
   white-space: nowrap;
+}
+
+.download-state::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+
+/* Color-coded status pills, keyed off the parent .download-item.{status} class
+   that updateItemsInPlace() already sets on every render — no JS changes needed. */
+.download-item.downloading .download-state,
+.download-item.in_progress .download-state,
+.download-item.extracting .download-state {
+  background: rgba(46, 242, 255, 0.15);
+  color: rgba(46, 242, 255, 0.95);
+  border-color: rgba(46, 242, 255, 0.4);
+}
+
+.download-item.downloading .download-state::before,
+.download-item.in_progress .download-state::before,
+.download-item.extracting .download-state::before {
+  box-shadow: 0 0 8px rgba(46, 242, 255, 0.7);
+}
+
+.download-item.completed .download-state {
+  background: rgba(51, 255, 122, 0.15);
+  color: rgba(51, 255, 122, 0.95);
+  border-color: rgba(51, 255, 122, 0.4);
+}
+
+.download-item.completed .download-state::before {
+  box-shadow: 0 0 8px rgba(51, 255, 122, 0.7);
+}
+
+.download-item.failed .download-state,
+.download-item.cancelled .download-state,
+.download-item.error .download-state {
+  background: rgba(255, 100, 100, 0.15);
+  color: rgba(255, 130, 130, 0.95);
+  border-color: rgba(255, 100, 100, 0.4);
+}
+
+.download-item.failed .download-state::before,
+.download-item.cancelled .download-state::before,
+.download-item.error .download-state::before {
+  box-shadow: 0 0 8px rgba(255, 100, 100, 0.7);
+}
+
+.download-item.paused .download-state {
+  background: rgba(255, 176, 32, 0.15);
+  color: rgba(255, 176, 32, 0.95);
+  border-color: rgba(255, 176, 32, 0.4);
+}
+
+.download-item.paused .download-state::before {
+  box-shadow: 0 0 8px rgba(255, 176, 32, 0.7);
 }
 
 .progress-bar {
@@ -422,6 +616,23 @@ body::after {
   background: linear-gradient(90deg, rgba(46, 242, 255, 0.95), rgba(255, 59, 212, 0.92));
   transition: width 0.3s ease;
   box-shadow: 0 0 14px rgba(46, 242, 255, 0.38), 0 0 18px rgba(255, 59, 212, 0.22);
+}
+
+/* Moving shimmer while a download is actively in progress, gated behind the
+   same parent status classes updateItemsInPlace() already sets — no JS changes. */
+.download-item.downloading .progress-fill,
+.download-item.in_progress .progress-fill {
+  background: linear-gradient(90deg,
+    rgba(46, 242, 255, 0.95),
+    rgba(255, 59, 212, 0.92),
+    rgba(46, 242, 255, 0.95));
+  background-size: 200% 100%;
+  animation: progress-shimmer 1.8s linear infinite;
+}
+
+@keyframes progress-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
 }
 
 .download-info {
@@ -491,6 +702,7 @@ body::after {
   font-style: italic;
   padding: 0.5rem 0;
   opacity: 0.8;
+  font-family: var(--font-body-sans);
 }
 
 .download-actions {
@@ -546,14 +758,21 @@ body::after {
   height: 100% !important;
   background: rgba(0, 0, 0, 0.78);
   backdrop-filter: blur(8px);
-  display: none;
+  display: flex;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
   align-items: center !important;
   justify-content: center !important;
   z-index: 1000;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s;
 }
 
-.settings-panel[style*="display: block"] {
-  display: flex !important;
+.settings-panel.is-open {
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  transition: opacity 0.2s ease, visibility 0s linear 0s;
 }
 
 .settings-content {
@@ -567,6 +786,12 @@ body::after {
   max-width: 500px;
   box-shadow: var(--shadow);
   backdrop-filter: blur(20px);
+  transform: translateY(12px) scale(0.98);
+  transition: transform 0.2s ease;
+}
+
+.settings-panel.is-open .settings-content {
+  transform: none;
 }
 
 #help-7z-panel .settings-content {
@@ -624,6 +849,7 @@ body::after {
   color: rgba(255, 255, 255, 0.8);
   font-size: 0.9rem;
   font-weight: 500;
+  font-family: var(--font-body-sans);
 }
 
 .form-group input {
@@ -643,13 +869,19 @@ body::after {
 }
 
 .form-group select {
-  padding: 0.75rem;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  color: #fff;
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 0.75rem 2.25rem 0.75rem 0.75rem;
+  background:
+    url('assets/icons/chevron-down.svg') no-repeat right 0.75rem center,
+    rgba(8, 10, 24, 0.72);
+  background-size: 16px 16px;
+  border: 1px solid rgba(46, 242, 255, 0.30);
+  border-radius: 999px;
+  color: rgba(241, 245, 249, 0.95);
   font-size: 0.95rem;
   cursor: pointer;
+  transition: all 0.2s;
 }
 
 .form-group select:focus {
@@ -662,6 +894,84 @@ body::after {
 .form-group select option {
   background: #1a1a1a;
   color: #fff;
+}
+
+/* ── Toggle switches (replace bare checkboxes in Settings) ───────────────── */
+
+.toggle-switch {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  cursor: pointer;
+  font-family: var(--font-body-sans);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 0.9rem;
+}
+
+.toggle-input {
+  position: absolute;
+  opacity: 0;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+}
+
+.toggle-track {
+  flex-shrink: 0;
+  width: 40px;
+  height: 22px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(46, 242, 255, 0.30);
+  position: relative;
+  transition: all 0.2s;
+}
+
+.toggle-thumb {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: rgba(241, 245, 249, 0.9);
+  transition: transform 0.2s, background 0.2s;
+}
+
+.toggle-input:checked + .toggle-track {
+  background: rgba(46, 242, 255, 0.22);
+  border-color: var(--neon-cyan);
+  box-shadow: var(--glow-cyan);
+}
+
+.toggle-input:checked + .toggle-track .toggle-thumb {
+  transform: translateX(18px);
+  background: var(--neon-cyan);
+}
+
+.toggle-input:focus-visible + .toggle-track {
+  outline: 2px solid var(--neon-cyan);
+  outline-offset: 2px;
+}
+
+/* ── Settings grouping (fieldset/legend) ──────────────────────────────────── */
+
+.settings-group {
+  border: 1px solid rgba(46, 242, 255, 0.15);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.settings-group legend {
+  font-family: 'Orbitron', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  color: var(--neon-cyan);
+  padding: 0 0.5rem;
 }
 
 .secondary-btn {
@@ -744,6 +1054,7 @@ body::after {
   gap: 0.25rem;
   font-size: 0.8rem;
   color: rgba(255, 255, 255, 0.6);
+  font-family: var(--font-body-sans);
 }
 
 .history-date,
@@ -754,7 +1065,9 @@ body::after {
 }
 
 .category-badge {
-  display: inline-block;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
   padding: 0.2rem 0.6rem;
   background: rgba(46, 242, 255, 0.12);
   border: 1px solid rgba(46, 242, 255, 0.35);
@@ -762,6 +1075,16 @@ body::after {
   font-size: 0.75rem;
   color: rgba(46, 242, 255, 0.92);
   margin-left: 0.5rem;
+}
+
+.category-badge::before {
+  content: '';
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px rgba(46, 242, 255, 0.7);
+  flex-shrink: 0;
 }
 
 .scheduled-time {
@@ -779,6 +1102,7 @@ body::after {
 .help-7z-text {
   color: var(--text-secondary);
   font-size: 0.9rem;
+  font-family: var(--font-body-sans);
 }
 
 .help-7z-video {
@@ -797,3 +1121,43 @@ body::after {
    color: rgba(255, 255, 255, 0.85);
    font-weight: 600;
  }
+
+/* ── Toast notifications ──────────────────────────────────────────────────── */
+
+.toast-container {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  z-index: 2000;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.toast {
+  background:
+    linear-gradient(135deg, rgba(8, 10, 24, 0.92), rgba(8, 10, 24, 0.78)),
+    radial-gradient(circle at top, rgba(46, 242, 255, 0.10), transparent 70%);
+  border: 1px solid var(--border-color);
+  border-left: 3px solid var(--neon-lime);
+  border-radius: 10px;
+  padding: 0.75rem 1.25rem;
+  color: var(--text-primary);
+  font-family: var(--font-body-sans);
+  font-size: 0.9rem;
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(16px);
+  opacity: 0;
+  transform: translateX(24px);
+  transition: opacity 0.25s ease, transform 0.25s ease;
+}
+
+.toast.is-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.toast--error {
+  border-left-color: var(--neon-magenta);
+}

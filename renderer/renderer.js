@@ -1,3 +1,9 @@
+// Inline SVG icon constants (Feather-style outline icons, recolor via CSS `currentColor`).
+// Kept as strings here (rather than a sprite/icon font) since this app has no bundler and
+// a strict CSP — inline SVG needs zero external resources and drops straight into the
+// existing innerHTML template-literal pattern used throughout this file.
+const ICON_CALENDAR = '<svg class="inline-icon" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>';
+
 // Helper: show native confirmation dialog with customizable buttons
 async function showConfirmDialog(title, message, yesText = 'Yes', noText = 'No') {
   const result = await window.electronAPI.showMessageBox({
@@ -560,7 +566,7 @@ async function showAlertDialog(title, message) {
     const container = document.getElementById('downloads-list');
 
     if (downloads.size === 0) {
-      container.innerHTML = '<div class="empty-state">No downloads yet. Click "Download with App" on the website to get started.</div>';
+      container.innerHTML = '<div class="empty-state"><img src="../assets/skull-logo.png" alt="" class="empty-state-icon">No downloads yet. Click "Download with App" on the website to get started.</div>';
       lastRenderTime = now;
       return;
     }
@@ -867,18 +873,54 @@ async function showAlertDialog(title, message) {
   }
 
   // Settings
+  // Accessibility helpers for the three modal-style panels: keep the
+  // background inert while any panel is open (so screen readers/keyboard
+  // Tab can't reach it), and move focus into/out of the panel on open/close.
+  let lastFocusedBeforeModal = null;
+
+  function updateBackgroundInertState() {
+    const appContainer = document.querySelector('.app-container');
+    if (!appContainer) return;
+    const anyOpen = !!document.querySelector('.settings-panel.is-open');
+    appContainer.inert = anyOpen;
+  }
+
+  function focusFirstIn(panel) {
+    if (!panel) return;
+    const focusable = panel.querySelector(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    if (focusable) focusable.focus();
+  }
+
+  function restoreFocusAfterModal() {
+    if (lastFocusedBeforeModal && typeof lastFocusedBeforeModal.focus === 'function') {
+      lastFocusedBeforeModal.focus();
+    }
+    lastFocusedBeforeModal = null;
+  }
+
   function openSettings() {
-    document.getElementById('settings-panel').style.display = 'block';
+    lastFocusedBeforeModal = document.activeElement;
+    const panel = document.getElementById('settings-panel');
+    panel.classList.add('is-open');
+    updateBackgroundInertState();
+    focusFirstIn(panel);
   }
 
   function closeSettings() {
-    document.getElementById('settings-panel').style.display = 'none';
+    document.getElementById('settings-panel').classList.remove('is-open');
+    updateBackgroundInertState();
+    restoreFocusAfterModal();
   }
 
   async function openHelp7z() {
     const panel = document.getElementById('help-7z-panel');
     if (!panel) return;
-    panel.style.display = 'block';
+    lastFocusedBeforeModal = document.activeElement;
+    panel.classList.add('is-open');
+    updateBackgroundInertState();
+    focusFirstIn(panel);
     const video = document.getElementById('help-7z-video');
     if (video) {
       try {
@@ -900,7 +942,9 @@ async function showAlertDialog(title, message) {
   function closeHelp7z() {
     const panel = document.getElementById('help-7z-panel');
     if (!panel) return;
-    panel.style.display = 'none';
+    panel.classList.remove('is-open');
+    updateBackgroundInertState();
+    restoreFocusAfterModal();
     const video = document.getElementById('help-7z-video');
     if (video && typeof video.pause === 'function') {
       try {
@@ -940,6 +984,21 @@ async function showAlertDialog(title, message) {
     }
   }
 
+  function showToast(message, variant = 'success') {
+    const container = document.getElementById('toast-container');
+    if (!container) return;
+    const toast = document.createElement('div');
+    toast.className = `toast toast--${variant}`;
+    toast.textContent = message;
+    container.appendChild(toast);
+    // Force layout so the entrance transition actually plays.
+    requestAnimationFrame(() => toast.classList.add('is-visible'));
+    setTimeout(() => {
+      toast.classList.remove('is-visible');
+      setTimeout(() => toast.remove(), 250);
+    }, 2500);
+  }
+
   async function saveSettings() {
     settings.downloadPath = document.getElementById('download-path').value;
     settings.maxConcurrentDownloads = parseInt(document.getElementById('max-concurrent').value);
@@ -973,6 +1032,7 @@ async function showAlertDialog(title, message) {
 
     await api.saveSettings(settings);
     closeSettings();
+    showToast('Settings saved');
   }
 
   async function browseDownloadPath() {
@@ -989,12 +1049,18 @@ async function showAlertDialog(title, message) {
 
   // History
   function openHistory() {
-    document.getElementById('history-panel').style.display = 'block';
+    lastFocusedBeforeModal = document.activeElement;
+    const panel = document.getElementById('history-panel');
+    panel.classList.add('is-open');
+    updateBackgroundInertState();
+    focusFirstIn(panel);
     loadHistory();
   }
 
   function closeHistory() {
-    document.getElementById('history-panel').style.display = 'none';
+    document.getElementById('history-panel').classList.remove('is-open');
+    updateBackgroundInertState();
+    restoreFocusAfterModal();
   }
 
   async function loadHistory() {
@@ -1006,7 +1072,7 @@ async function showAlertDialog(title, message) {
     const container = document.getElementById('history-list');
 
     if (!history || history.length === 0) {
-      container.innerHTML = '<div class="empty-state">No download history yet.</div>';
+      container.innerHTML = '<div class="empty-state"><img src="../assets/skull-logo.png" alt="" class="empty-state-icon">No download history yet.</div>';
       return;
     }
 
@@ -1025,7 +1091,7 @@ async function showAlertDialog(title, message) {
         <span class="history-size">${formatBytes(item.totalSize)}</span>
       </div>
       <div class="history-item-details">
-        <span class="history-date">📅 ${dateStr}</span>
+        <span class="history-date">${ICON_CALENDAR} ${dateStr}</span>
       </div>
     `;
 
@@ -1037,6 +1103,7 @@ async function showAlertDialog(title, message) {
     if (await showConfirmDialog('Clear History', 'Are you sure you want to clear download history?', 'Clear', 'Cancel')) {
       await api.clearHistory();
       await loadHistory();
+      showToast('History cleared');
     }
   }
 
