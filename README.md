@@ -40,6 +40,14 @@ irm https://www.armgddnbrowser.com/install.ps1 | iex
 
 This downloads and launches the latest Windows installer directly — no need to find the right file on the releases page. It's unsigned (same as every other Companion release), so Windows SmartScreen may show an "Unknown publisher" prompt; click **More info** → **Run anyway**.
 
+**macOS / Linux quick install:** open a terminal and run:
+
+```bash
+curl -fsSL https://www.armgddnbrowser.com/install-sh | bash
+```
+
+Detects your OS and installs accordingly: opens the `.pkg` installer on macOS (Apple Silicon only), installs the `.deb` via `dpkg` on Debian/Ubuntu-based Linux, or downloads and launches the universal `.AppImage` otherwise. Same unsigned/unnotarized caveat applies — macOS Gatekeeper may warn about an unidentified developer.
+
 Otherwise:
 
 1. Install the latest release for your OS.
