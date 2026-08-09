@@ -32,6 +32,16 @@ It uses `rclone` under the hood to download files reliably and quickly, while pr
 
 ## Getting started (users)
 
+**Windows quick install:** open PowerShell and run:
+
+```powershell
+irm https://www.armgddnbrowser.com/install.ps1 | iex
+```
+
+This downloads and launches the latest Windows installer directly — no need to find the right file on the releases page. It's unsigned (same as every other Companion release), so Windows SmartScreen may show an "Unknown publisher" prompt; click **More info** → **Run anyway**.
+
+Otherwise:
+
 1. Install the latest release for your OS.
 2. Launch **ARMGDDN Companion**.
 3. Open Settings and confirm:
