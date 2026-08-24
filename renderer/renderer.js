@@ -147,6 +147,16 @@ async function showAlertDialog(title, message) {
     refreshServerLoad();
     setInterval(refreshServerLoad, 30000);
 
+    // Refresh the global free-space readout periodically, but only while at
+    // least one download is actually active — a plain statfs call is cheap,
+    // but there's no reason to poll it on a fixed timer when idle.
+    refreshGlobalFreeSpaceIndicator();
+    setInterval(() => {
+      const anyActive = Array.from(downloads.values()).some(d =>
+        d && (d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting' || d.status === 'extracting'));
+      if (anyActive) refreshGlobalFreeSpaceIndicator();
+    }, 60000);
+
     // Setup event listeners
     setupEventListeners();
 
@@ -246,6 +256,17 @@ async function showAlertDialog(title, message) {
 
     // Updates
     document.getElementById('check-updates-btn').addEventListener('click', checkForUpdates);
+
+    // What's New
+    const closeWhatsNewBtn = document.getElementById('close-whats-new-btn');
+    if (closeWhatsNewBtn) {
+      closeWhatsNewBtn.addEventListener('click', closeWhatsNew);
+    }
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape') return;
+      const panel = document.getElementById('whats-new-panel');
+      if (panel && panel.classList.contains('is-open')) closeWhatsNew();
+    });
   }
 
   // Setup IPC listeners from main process
@@ -320,6 +341,12 @@ async function showAlertDialog(title, message) {
         setServerNotice('');
       }
     });
+
+    if (api.onShowWhatsNew) {
+      api.onShowWhatsNew((entry) => {
+        openWhatsNew(entry);
+      });
+    }
   }
 
   // Handle deep link
@@ -474,6 +501,18 @@ async function showAlertDialog(title, message) {
         }
       }
 
+      const lowSpaceEl = item.querySelector('.download-lowspace-badge');
+      if (lowSpaceEl) {
+        lowSpaceEl.style.display = download.lowDiskSpaceWarning ? '' : 'none';
+      }
+
+      const mirrorBadgeEl = item.querySelector('.download-mirror-badge');
+      if (mirrorBadgeEl) {
+        mirrorBadgeEl.style.display = download.mirrorSwitches ? '' : 'none';
+        mirrorBadgeEl.textContent = `Switched mirrors ×${download.mirrorSwitches || 0}`;
+        mirrorBadgeEl.title = Array.isArray(download.triedMirrors) ? download.triedMirrors.join(', ') : '';
+      }
+
       const extractionErr = download && typeof download.extractionError === 'string' ? download.extractionError : '';
       const transferErr = download && typeof download.error === 'string' ? download.error : '';
       const showErr = (download.status === 'error' && transferErr) || extractionErr;
@@ -561,6 +600,69 @@ async function showAlertDialog(title, message) {
     }
   }
 
+  // Drag-to-reprioritize: HTML5 drag-and-drop on active .download-item rows.
+  // Dropping computes the new visual order of active items from the DOM and
+  // sends it to main; main assigns bounded priority ranks and biases the
+  // scheduler (see pickNextAdaptiveTask() in main.js). Only active items are
+  // draggable (wired at item-creation time above) — dragging a completed or
+  // historical entry wouldn't affect anything.
+  let draggedDownloadId = null;
+
+  function handleDownloadDragStart(e) {
+    draggedDownloadId = this.dataset.id;
+    this.classList.add('is-dragging');
+    try {
+      e.dataTransfer.effectAllowed = 'move';
+      e.dataTransfer.setData('text/plain', draggedDownloadId);
+    } catch (err) { }
+  }
+
+  function handleDownloadDragOver(e) {
+    if (!draggedDownloadId || this.dataset.id === draggedDownloadId) return;
+    e.preventDefault();
+    try { e.dataTransfer.dropEffect = 'move'; } catch (err) { }
+    this.classList.add('drag-over');
+  }
+
+  function handleDownloadDragLeave() {
+    this.classList.remove('drag-over');
+  }
+
+  async function handleDownloadDrop(e) {
+    e.preventDefault();
+    this.classList.remove('drag-over');
+    const targetId = this.dataset.id;
+    if (!draggedDownloadId || targetId === draggedDownloadId) return;
+
+    const container = document.getElementById('downloads-list');
+    const draggedEl = container.querySelector(`.download-item[data-id="${CSS.escape(draggedDownloadId)}"]`);
+    if (!draggedEl) return;
+
+    // Move the dragged element to just before the drop target in the DOM,
+    // then read the resulting order back out — simplest way to get a
+    // consistent "what the user visually arranged" order without maintaining
+    // a parallel index.
+    container.insertBefore(draggedEl, this);
+    const orderedActiveIds = Array.from(container.querySelectorAll('.download-item'))
+      .map(el => el.dataset.id)
+      .filter(id => {
+        const d = downloads.get(id);
+        return d && (d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting' || d.status === 'extracting');
+      });
+
+    try {
+      await api.reorderDownloads(orderedActiveIds);
+    } catch (err) {
+      console.error('[reorder] failed', err);
+    }
+  }
+
+  function handleDownloadDragEnd() {
+    this.classList.remove('is-dragging');
+    draggedDownloadId = null;
+    document.querySelectorAll('.download-item.drag-over').forEach(el => el.classList.remove('drag-over'));
+  }
+
   function renderDownloadsNow() {
     const now = Date.now();
     const container = document.getElementById('downloads-list');
@@ -603,9 +705,31 @@ async function showAlertDialog(title, message) {
       }
     }
 
+    // Drag-to-reprioritize: only kicks in once the user has actually dragged
+    // something (some active item has non-zero userPriority) — until then,
+    // behavior is unchanged from the existing group/time-based sort below.
+    // Priority is checked ahead of grouping, since the whole point of
+    // dragging a download to the top is "run this one next," regardless of
+    // which batch it came from.
+    const anyActivePriority = items.some(([, d]) => isActive(d) && Number(d && d.userPriority) > 0);
+
     items.sort((a, b) => {
       const da = a[1];
       const db = b[1];
+
+      if (anyActivePriority) {
+        const aActive = isActive(da);
+        const bActive = isActive(db);
+        if (aActive && bActive) {
+          const pa = Number(da && da.userPriority) || 0;
+          const pb = Number(db && db.userPriority) || 0;
+          if (pa !== pb) return pb - pa; // higher priority first
+        }
+        if (aActive !== bActive) {
+          return aActive ? -1 : 1; // active first, same as the default behavior
+        }
+      }
+
       const ga = getGroupKey(da) || '__ungrouped__';
       const gb = getGroupKey(db) || '__ungrouped__';
 
@@ -669,6 +793,14 @@ async function showAlertDialog(title, message) {
       const item = document.createElement('div');
       item.className = `download-item ${download.status}`;
       item.dataset.id = id;
+      if (isActive(download)) {
+        item.draggable = true;
+        item.addEventListener('dragstart', handleDownloadDragStart);
+        item.addEventListener('dragover', handleDownloadDragOver);
+        item.addEventListener('dragleave', handleDownloadDragLeave);
+        item.addEventListener('drop', handleDownloadDrop);
+        item.addEventListener('dragend', handleDownloadDragEnd);
+      }
       container.appendChild(item);
 
       const hasMultipleFiles = download.fileCount > 1;
@@ -749,6 +881,8 @@ async function showAlertDialog(title, message) {
       </div>
       <div class="download-status-message" style="display: ${download.statusMessage ? 'block' : 'none'};">${formatSupportText(download.statusMessage || '')}</div>
       <div class="download-failed-message" style="display: ${Array.isArray(download.failedFiles) && download.failedFiles.length ? 'block' : 'none'};">${escapeHtml((() => { try { const failed = Array.isArray(download.failedFiles) ? download.failedFiles : []; const uniq = Array.from(new Set(failed.map(f => String(f || '').trim()).filter(Boolean))); if (!uniq.length) return ''; const shown = uniq.slice(0, 3); const suffix = uniq.length > 3 ? ` (+${uniq.length - 3} more)` : ''; return `Failed: ${shown.join(', ')}${suffix}`; } catch (e) { return ''; } })())}</div>
+      <div class="download-lowspace-badge" style="display: ${download.lowDiskSpaceWarning ? 'block' : 'none'};">Low disk space — this download may not finish</div>
+      <div class="download-mirror-badge" style="display: ${download.mirrorSwitches ? 'block' : 'none'};" title="${escapeHtml(Array.isArray(download.triedMirrors) ? download.triedMirrors.join(', ') : '')}">Switched mirrors ×${download.mirrorSwitches || 0}</div>
       <div class="progress-bar">
         <div class="progress-fill" style="width: ${download.progress || 0}%"></div>
       </div>
@@ -953,8 +1087,57 @@ async function showAlertDialog(title, message) {
     }
   }
 
+  function openWhatsNew(entry) {
+    const panel = document.getElementById('whats-new-panel');
+    if (!panel || !entry) return;
+    const titleEl = document.getElementById('whats-new-title');
+    if (titleEl) {
+      titleEl.textContent = entry.title ? `What's New — ${entry.title}` : "What's New";
+    }
+    const listEl = document.getElementById('whats-new-highlights');
+    if (listEl) {
+      const highlights = Array.isArray(entry.highlights) ? entry.highlights : [];
+      listEl.innerHTML = highlights.map(h => `<li>${escapeHtml(String(h))}</li>`).join('');
+    }
+    lastFocusedBeforeModal = document.activeElement;
+    panel.classList.add('is-open');
+    updateBackgroundInertState();
+    focusFirstIn(panel);
+  }
+
+  function closeWhatsNew() {
+    const panel = document.getElementById('whats-new-panel');
+    if (!panel) return;
+    panel.classList.remove('is-open');
+    updateBackgroundInertState();
+    restoreFocusAfterModal();
+  }
+
+  async function refreshFreeSpaceIndicator(targetPath) {
+    const el = document.getElementById('download-path-free-space');
+    if (!el) return;
+    try {
+      const { freeFormatted } = await api.checkDiskSpace(targetPath || settings.downloadPath);
+      el.textContent = freeFormatted ? `${freeFormatted} free` : '';
+    } catch (e) {
+      el.textContent = '';
+    }
+  }
+
+  async function refreshGlobalFreeSpaceIndicator() {
+    const el = document.getElementById('global-free-space');
+    if (!el) return;
+    try {
+      const { freeFormatted } = await api.checkDiskSpace(settings.downloadPath);
+      el.textContent = freeFormatted ? `${freeFormatted} free` : '';
+    } catch (e) {
+      el.textContent = '';
+    }
+  }
+
   function updateSettingsUI() {
     document.getElementById('download-path').value = settings.downloadPath || '';
+    refreshFreeSpaceIndicator(settings.downloadPath);
     document.getElementById('max-concurrent').value = settings.maxConcurrentDownloads || 2;
     const maxSpeedEl = document.getElementById('max-speed-mbps');
     if (maxSpeedEl) {
@@ -1040,10 +1223,12 @@ async function showAlertDialog(title, message) {
     if (path) {
       // Update UI field
       document.getElementById('download-path').value = path;
+      refreshFreeSpaceIndicator(path);
 
       // Persist immediately so this location sticks until changed again
       settings.downloadPath = path;
       await api.saveSettings(settings);
+      refreshGlobalFreeSpaceIndicator();
     }
   }
 

@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getSettings: () => ipcRenderer.invoke('get-settings'),
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   browseFolder: () => ipcRenderer.invoke('browse-folder'),
+  checkDiskSpace: (targetPath) => ipcRenderer.invoke('check-disk-space', targetPath),
 
   // Downloads
   fetchManifest: (url, token) => ipcRenderer.invoke('fetch-manifest', url, token),
@@ -16,6 +17,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   resumeDownload: (id) => ipcRenderer.invoke('resume-download', id),
   retryDownload: (id) => ipcRenderer.invoke('retry-download', id),
   getDownloads: () => ipcRenderer.invoke('get-downloads'),
+  reorderDownloads: (orderedIds) => ipcRenderer.invoke('reorder-downloads', orderedIds),
 
   // History
   getHistory: () => ipcRenderer.invoke('get-history'),
@@ -34,6 +36,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getHelp7zVideoSrc: () => ipcRenderer.invoke('get-help-7z-video-src'),
   getAppLoad: (token, manifestUrl) => ipcRenderer.invoke('get-app-load', token, manifestUrl),
   showMessageBox: (options) => ipcRenderer.invoke('show-message-box', options),
+  getWhatsNew: () => ipcRenderer.invoke('get-whats-new'),
 
   // Events
   onDeepLink: (callback) => ipcRenderer.on('deep-link', (event, url) => callback(url)),
@@ -43,6 +46,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDownloadError: (callback) => ipcRenderer.on('download-error', (event, data) => callback(data)),
   onDownloadCancelled: (callback) => ipcRenderer.on('download-cancelled', (event, data) => callback(data)),
   onServerNotice: (callback) => ipcRenderer.on('server-notice', (event, message) => callback(message)),
+  onShowWhatsNew: (callback) => ipcRenderer.on('show-whats-new', (event, data) => callback(data)),
 
   // Remove listeners
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)

@@ -1,0 +1,11 @@
+{
+  "5.0.0": {
+    "title": "A Fresh Coat of Neon",
+    "highlights": [
+      "The whole app got a visual revamp — same neon look, cleaner everywhere.",
+      "Status badges are now color-coded so you can tell downloading/completed/failed/paused apart at a glance.",
+      "Settings panel got restyled toggle switches and a proper dropdown.",
+      "Toast notifications for things like \"Settings saved\" and \"History cleared\"."
+    ]
+  }
+}
