@@ -60,7 +60,10 @@
     </div>
 
     <div class="downloads-section">
-      <h2>Downloads</h2>
+      <div class="downloads-section-header">
+        <h2>Downloads</h2>
+        <span id="global-free-space" class="free-space-readout"></span>
+      </div>
       <div id="downloads-list" class="downloads-list">
         <div class="empty-state">
           <img src="../assets/skull-logo.png" alt="" class="empty-state-icon">
@@ -91,6 +94,7 @@
               <input type="text" id="download-path" readonly>
               <button id="browse-path-btn" class="secondary-btn">Browse</button>
             </div>
+            <div id="download-path-free-space" class="setting-help-text"></div>
           </div>
           <div class="form-group">
             <label for="max-concurrent">Max Concurrent Downloads</label>
@@ -215,6 +219,19 @@
           Your system does not support embedded video playback.
         </video>
       </div>
+    </div>
+  </div>
+
+  <!-- What's New Panel -->
+  <div id="whats-new-panel" class="settings-panel">
+    <div class="settings-content">
+      <div class="settings-header">
+        <h2 id="whats-new-title">What's New</h2>
+        <button id="close-whats-new-btn" class="close-btn" aria-label="Close">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <ul id="whats-new-highlights" class="whats-new-highlights"></ul>
     </div>
   </div>
 

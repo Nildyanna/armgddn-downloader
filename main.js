@@ -628,6 +628,7 @@ function fetchJsonWithBearer(urlString, method, bearerToken) {
 let mainWindow;
 let authWindow;
 let progressWin = null; // Update progress window
+let pendingWhatsNewEntry = null; // Set once at startup if this launch is a version bump with curated content; pushed to renderer on did-finish-load
 let tray;
 let activeDownloads = new Map();
 let downloadHistory = [];
@@ -893,6 +894,18 @@ function pickNextAdaptiveTask() {
     if (running === 0) score *= 0.5;
     score -= Math.min(5, (ageMs / 1000) * 0.05);
 
+    // User priority (drag-to-reprioritize): a PROPORTIONAL discount, not a
+    // flat offset — secondsToFinish scales with file size (seconds for a
+    // small file, hours for a large one), so a fixed constant would be
+    // meaningless next to a multi-GB download's estimate. Each priority rank
+    // halves the effective score, keeping the bias consistent regardless of
+    // file size while still letting the existing fairness/aging act as a
+    // tiebreaker between downloads of similar priority.
+    const priorityRank = Number(download && download.userPriority) || 0;
+    if (priorityRank > 0) {
+      score *= Math.pow(0.5, priorityRank);
+    }
+
     if (score < bestScore) {
       bestScore = score;
       best = t;
@@ -1029,7 +1042,8 @@ let settings = {
   minimizeToTrayOnClose: false,
   autoUpdate: false,
   startWithOsStartup: false,
-  startWithOsMinimized: false
+  startWithOsMinimized: false,
+  lastSeenVersion: ''
 };
 
 function escapePowerShellSingleQuoted(value) {
@@ -2084,6 +2098,13 @@ function createWindow() {
     mainWindowDidFinishLoad = true;
     // Give the renderer a moment to register IPC listeners.
     setTimeout(() => flushPendingDeepLinks(), 50);
+    if (pendingWhatsNewEntry) {
+      const entry = pendingWhatsNewEntry;
+      pendingWhatsNewEntry = null; // Show once per version bump, never again this run
+      setTimeout(() => {
+        try { mainWindow.webContents.send('show-whats-new', entry); } catch (e) { }
+      }, 50);
+    }
   });
 
   mainWindow.once('ready-to-show', () => {
@@ -2287,6 +2308,24 @@ app.whenReady().then(() => {
   logToFile(`[Startup] debug.log path: ${getDebugLogPath()}`);
   logToFile(`[Protocol] setAsDefaultProtocolClient ok=${protocolClientRegistered}${protocolClientRegisterError ? ` err=${protocolClientRegisterError}` : ''}`);
   loadSettings();
+
+  // "What's New" popup detection — version-diffing rather than the platform
+  // update-relaunch flag (that flag is Windows-only and inconsistent even
+  // there; Linux AppImage relaunch and manual Linux .deb/macOS installs never
+  // set it at all, but they DO always launch under the new app.getVersion()).
+  try {
+    const currentVersion = app.getVersion();
+    if (settings.lastSeenVersion && settings.lastSeenVersion !== currentVersion) {
+      pendingWhatsNewEntry = getWhatsNewForVersion(currentVersion);
+    }
+    if (settings.lastSeenVersion !== currentVersion) {
+      settings.lastSeenVersion = currentVersion;
+      saveSettings();
+    }
+  } catch (e) {
+    try { logToFile(`[WhatsNew] version-diff check failed: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
+  }
+
   applyStartupRegistration();
   loadHistory();
   loadOrphanedDownloads();
@@ -2428,7 +2467,8 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'minimizeToTrayOnClose',
     'autoUpdate',
     'startWithOsStartup',
-    'startWithOsMinimized'
+    'startWithOsMinimized',
+    'lastSeenVersion'
   ]);
 
   const merged = { ...settings };
@@ -2457,6 +2497,22 @@ ipcMain.handle('browse-folder', async () => {
 
 ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
   return getAppLoadInfo(token, manifestUrl);
+});
+
+// Manual trigger for the What's New content (e.g. a future Help-menu entry) —
+// distinct from the automatic show-whats-new push, which only fires once per
+// version bump. Always returns the current version's entry (or null), regardless
+// of whether it was already shown this run.
+ipcMain.handle('get-whats-new', () => getWhatsNewForVersion(app.getVersion()));
+
+// Check free disk space at (or above) a given path, for Settings/list UI readouts.
+ipcMain.handle('check-disk-space', async (event, targetPath) => {
+  const p = (typeof targetPath === 'string' && targetPath.trim()) ? targetPath : settings.downloadPath;
+  const freeBytes = getFreeDiskSpace(p);
+  return {
+    freeBytes,
+    freeFormatted: freeBytes >= 0 ? formatBytes(freeBytes) : null
+  };
 });
 
 // Show native message box (Yes/No)
@@ -2542,7 +2598,9 @@ function downloadToRenderer(download) {
     actualRemote: download.actualRemote,
     mirrorSwitches: download.mirrorSwitches,
     triedMirrors: download.triedMirrors,
-    extractionError: download.extractionError
+    extractionError: download.extractionError,
+    lowDiskSpaceWarning: !!download.lowDiskSpaceWarning,
+    userPriority: download.userPriority || 0
   };
 }
 
@@ -3233,7 +3291,8 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     statusMessage: '',
     actualRemote: (manifest && manifest.actualRemote) ? String(manifest.actualRemote) : '',
     mirrorSwitches: 0,
-    triedMirrors: []
+    triedMirrors: [],
+    userPriority: 0
   };
 
   try {
@@ -3273,6 +3332,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   if (!downloadDir) {
     throw new Error('Security error: Invalid download folder path');
   }
+  download.downloadDir = downloadDir; // Stored for the periodic mid-download disk-space check in updateProgress()
   try {
     if (!fs.existsSync(downloadDir)) {
       fs.mkdirSync(downloadDir, { recursive: true });
@@ -4229,6 +4289,14 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         const tokenExpired = isTokenExpiredError(errorOutput, (file && file.url) ? String(file.url) : '');
         const httpStatus = parseRcloneHttpStatus(errorOutput);
         const is502 = !!(httpStatus && httpStatus.code === 502);
+        // Genuine per-mirror host faults (that specific mirror's server is
+        // erroring or refusing connections) — distinct from quota/busy (real
+        // account/server states that would just fail again on any mirror) and
+        // from isNetworkStreamError's TLS/stream-transport patterns. These
+        // were previously only logged (is502, above) but never fed into the
+        // failover decision below.
+        const mirrorHostFault = !!(httpStatus && httpStatus.code >= 500 && httpStatus.code < 600) ||
+          errorOutput.toLowerCase().includes('econnrefused');
 
         let fileUrlHost = '';
         try {
@@ -4339,7 +4407,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         // This only works when the manifest URL points at a mirror group remote.
         try {
           const canTryMirrorFailover = !!(
-            networkStream &&
+            (networkStream || mirrorHostFault) &&
             !quota &&
             !busy &&
             !sslError &&
@@ -5400,6 +5468,23 @@ function updateProgress(downloadId) {
     download.peakSpeedBytes = totalSpeedBytes;
   }
 
+  // Periodic mid-download disk-space re-check, throttled to ~every 2 minutes
+  // per download (the pre-flight check in start-download only runs once, at
+  // the very beginning — this catches space that disappears mid-download
+  // from other activity on the machine). Warn only, never auto-pause/cancel.
+  const DISK_RECHECK_INTERVAL_MS = 2 * 60 * 1000;
+  const nowForDiskCheck = Date.now();
+  if (download.downloadDir && download.status !== 'paused' && download.status !== 'cancelled' &&
+      (!download.__lastDiskCheckAt || (nowForDiskCheck - download.__lastDiskCheckAt) >= DISK_RECHECK_INTERVAL_MS)) {
+    download.__lastDiskCheckAt = nowForDiskCheck;
+    try {
+      const freeBytes = getFreeDiskSpace(download.downloadDir);
+      const remaining = Math.max(0, (download.totalSize || 0) - (download.downloadedSize || 0));
+      const LOW_SPACE_BUFFER_BYTES = 200 * 1024 * 1024; // 200MB — smaller than the pre-flight buffer since most has already landed
+      download.lowDiskSpaceWarning = freeBytes >= 0 && remaining > 0 && freeBytes < (remaining + LOW_SPACE_BUFFER_BYTES);
+    } catch (e) { }
+  }
+
   mainWindow.webContents.send('download-progress', {
     id: downloadId,
     status: download.status,
@@ -5409,7 +5494,11 @@ function updateProgress(downloadId) {
     totalSpeed: download.totalSpeed,
     activeFiles: activeFilesList,
     completedFiles: download.completedFiles,
-    fileCount: download.fileCount
+    fileCount: download.fileCount,
+    lowDiskSpaceWarning: !!download.lowDiskSpaceWarning,
+    actualRemote: download.actualRemote,
+    mirrorSwitches: download.mirrorSwitches,
+    triedMirrors: download.triedMirrors
   });
 
   // Report to server (throttled, server can recommend/backoff)
@@ -5449,6 +5538,28 @@ ipcMain.handle('cancel-download', (event, downloadId) => {
     mainWindow.webContents.send('download-cancelled', { id: downloadId });
     activeDownloads.delete(downloadId);
   }
+  return true;
+});
+
+// Reorder active downloads by drag-and-drop priority. orderedIds is the full
+// list of active download ids in the user's desired order (highest priority
+// first). Assigns bounded, position-based priority ranks (not a monotonically
+// growing counter) so re-dragging repeatedly in a long session never produces
+// runaway values — pickNextAdaptiveTask() folds this in as a proportional
+// scoring discount, see there for why it's multiplicative rather than additive.
+// This only affects the adaptive-scheduler path for fresh/actively-scheduled
+// downloads; it does not affect resumeDownloadFiles()'s separate queue used
+// by pause->resume and retry-download (documented limitation, see plan).
+ipcMain.handle('reorder-downloads', (event, orderedIds) => {
+  if (!Array.isArray(orderedIds)) return false;
+  const n = orderedIds.length;
+  orderedIds.forEach((id, index) => {
+    const download = activeDownloads.get(String(id));
+    if (download) {
+      download.userPriority = n - index;
+    }
+  });
+  schedulerPump();
   return true;
 });
 
@@ -5935,6 +6046,29 @@ ipcMain.handle('get-session-status', async () => {
     isValid: await verifySession()
   };
 });
+
+// Reads the bundled curated "What's New" content for a given (unpadded semver)
+// version string, e.g. "5.1.0" — must match app.getVersion()/package.json's
+// version field exactly, NOT the zero-padded tag format used for git tags.
+// Returns null if the file is missing/unparseable or has no entry for that version.
+let whatsNewContentCache = null;
+function getWhatsNewForVersion(version) {
+  try {
+    if (whatsNewContentCache === null) {
+      const whatsNewPath = path.join(__dirname, 'renderer', 'whats-new.json');
+      whatsNewContentCache = fs.existsSync(whatsNewPath)
+        ? JSON.parse(fs.readFileSync(whatsNewPath, 'utf8'))
+        : {};
+    }
+    const entry = whatsNewContentCache && typeof whatsNewContentCache === 'object'
+      ? whatsNewContentCache[version]
+      : null;
+    return entry ? { version, ...entry } : null;
+  } catch (e) {
+    try { logToFile(`[WhatsNew] failed to read/parse whats-new.json: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
+    return null;
+  }
+}
 
 // Shared update-check logic — returns full result including installerUrl (for internal use only).
 // The check-updates IPC handler strips installerUrl before returning to renderer (C1/H1).
