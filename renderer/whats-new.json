@@ -1,4 +1,13 @@
 {
+  "5.0.2": {
+    "title": "Space, Mirrors, Priority",
+    "highlights": [
+      "Free space is now shown in Settings and while downloads are running — you'll get a warning if space gets tight mid-download instead of finding out the hard way.",
+      "Mirror auto-switching now catches a few more failure types, and you'll actually see it happen (\"Switched mirrors ×2\") instead of it being invisible.",
+      "Drag a queued download to the top of the list to have it start first.",
+      "This popup! You'll see what changed right after every update from now on."
+    ]
+  },
   "5.0.0": {
     "title": "A Fresh Coat of Neon",
     "highlights": [
