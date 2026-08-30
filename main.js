@@ -3588,6 +3588,11 @@ function isTokenExpiredError(output, fileUrl) {
 }
 
 async function refetchManifestAndRetryExpiredLink(downloadId, download, file, downloadDir) {
+  // Prevents the poll loop's hasErrors-and-no-active-processes check from
+  // finalizing this download as failed while a retry is in flight — activeProcesses
+  // is empty for the whole duration of the manifest refetch below, not just the
+  // moment between the old process closing and the new one spawning.
+  if (download) download.recovering = true;
   try {
     if (!download || !download.manifestUrl || !download.token) return false;
     download.tokenRefreshes = (Number(download.tokenRefreshes) || 0) + 1;
@@ -3621,6 +3626,14 @@ async function refetchManifestAndRetryExpiredLink(downloadId, download, file, do
       download.status = 'downloading';
       download.error = '';
       download.statusMessage = '';
+      // Remove this file from failedFiles since we're retrying it — otherwise the
+      // poll loop's hasErrors-and-no-active-processes check can race this retry
+      // (activeProcesses is briefly empty between the old process closing and the
+      // new one being spawned below) and permanently finalize the download as
+      // failed while the retry is still in flight.
+      if (Array.isArray(download.failedFiles)) {
+        download.failedFiles = download.failedFiles.filter(n => String(n) !== String(wantName));
+      }
       updateProgress(downloadId);
     } catch (e) { }
 
@@ -3632,6 +3645,8 @@ async function refetchManifestAndRetryExpiredLink(downloadId, download, file, do
       logToFile(`[TokenRefresh] manifest refetch/retry failed: ${e && e.message ? e.message : String(e)}`);
     } catch (e2) { }
     return false;
+  } finally {
+    if (download) download.recovering = false;
   }
 }
 
@@ -4405,6 +4420,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 
         // Attempt mirror failover once for network/stream failures.
         // This only works when the manifest URL points at a mirror group remote.
+        let canTryMirrorFailoverRetryStarted = false;
         try {
           const canTryMirrorFailover = !!(
             (networkStream || mirrorHostFault) &&
@@ -4430,6 +4446,10 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
               }
             } catch (e) { }
             logToFile(`[MirrorFailover] attempting manifest refetch avoidMirror=${avoid} file=${file && file.name ? String(file.name) : ''}`);
+            // Same recovering guard as the token-refresh retry path — activeProcesses
+            // is empty for the whole manifest refetch, so without this the poll loop
+            // can finalize the download as failed while this retry is still in flight.
+            download.recovering = true;
             const newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, avoid);
             const newActual = newManifest && newManifest.actualRemote ? String(newManifest.actualRemote) : '';
 
@@ -4466,9 +4486,11 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
                 updateProgress(downloadId);
 
                 // Retry once with the new URL.
-                downloadFile(downloadId, retryFile, downloadDir).then(resolve).catch((e) => {
-                  reject(e);
-                });
+                canTryMirrorFailoverRetryStarted = true;
+                downloadFile(downloadId, retryFile, downloadDir)
+                  .then(resolve)
+                  .catch((e) => { reject(e); })
+                  .finally(() => { try { download.recovering = false; } catch (e) { } });
                 return;
               }
             }
@@ -4477,6 +4499,12 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           try {
             logToFile(`[MirrorFailover] failed to refetch manifest/retry: ${e && e.message ? e.message : String(e)}`);
           } catch (e2) { }
+        } finally {
+          // Only clear here if we didn't kick off the async retry above (that path
+          // clears it itself once downloadFile settles).
+          if (!canTryMirrorFailoverRetryStarted) {
+            try { download.recovering = false; } catch (e) { }
+          }
         }
 
         // If this is a signed link expiry, attempt a manifest refetch + retry before surfacing an error.
@@ -4699,7 +4727,10 @@ setInterval(() => {
       }
 
       // If there are errors and nothing is active, the download is stuck — finalize it as failed.
-      if (hasErrors && !hasActive) {
+      // Skip while a recovery retry (token refresh / mirror failover) is in flight —
+      // activeProcesses is legitimately empty during that window (manifest refetch,
+      // between the old rclone process closing and the new one spawning).
+      if (hasErrors && !hasActive && !download.recovering) {
         logToFile(`[Poll] Download ${id} has errors and no active processes — finalizing as failed`);
         updateProgress(id);
         download.status = 'failed';
