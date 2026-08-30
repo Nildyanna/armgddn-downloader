@@ -1,4 +1,11 @@
 {
+  "5.0.3": {
+    "title": "Fixed a Download That Wouldn't Stay Finished",
+    "highlights": [
+      "Fixed a bug where a download recovering from an expired link could get wrongly marked as failed while it was actually still finishing — the app would then look like it \"restarted\" a completed download. Thanks to Kaizo for reporting this one with logs, which made it possible to track down.",
+      "Downloads should now recover cleanly from expired links and mirror switches without any UI weirdness."
+    ]
+  },
   "5.0.2": {
     "title": "Space, Mirrors, Priority",
     "highlights": [
