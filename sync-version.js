@@ -89,34 +89,24 @@ function sync() {
             console.error(`Browser default.php not found at ${browserDefaultPhpPath}`);
         }
 
-        // 4. Browser Git Operations
-        // We only handle the Browser repo here. The Companion push is handled by the user/git hook.
+        // 4. Browser Git status check only — this script must NEVER commit or push
+        // the Browser repo automatically. It previously did `git add package.json
+        // default.php` unconditionally and pushed, which silently swept up and
+        // published whatever unrelated working-tree state default.php happened to
+        // be in (once reverting live features when the file was mid-edit from
+        // other work). Committing default.php belongs to whoever is editing it,
+        // reviewed like any other change — never a side effect of a version bump.
         try {
             const browserDir = path.join(__dirname, '..', 'ArmgddnBrowser');
-            console.log('Checking Browser sync status...');
-
-            // Only commit if there are changes
-            const status = execSync(`git -C "${browserDir}" status --porcelain`, { encoding: 'utf8' });
-            if (status.includes('package.json') || status.includes('default.php')) {
-                console.log('Committing and pushing Browser sync changes...');
-                execSync(`git -C "${browserDir}" add package.json default.php`, { stdio: 'inherit' });
-                // Also update package-lock if it exists
-                if (fs.existsSync(path.join(browserDir, 'package-lock.json'))) {
-                    try {
-                        execSync(`npm --prefix "${browserDir}" install --package-lock-only`, { stdio: 'inherit' });
-                        execSync(`git -C "${browserDir}" add package-lock.json`, { stdio: 'inherit' });
-                    } catch (e) {
-                        console.warn('Failed to update Browser package-lock.json');
-                    }
-                }
-                execSync(`git -C "${browserDir}" commit -m "chore: sync version to ${version}"`, { stdio: 'inherit' });
-
-                execSync(`git -C "${browserDir}" push origin main`, { stdio: 'inherit' });
+            const status = execSync(`git -C "${browserDir}" status --porcelain -- package.json default.php`, { encoding: 'utf8' });
+            if (status.trim()) {
+                console.log('Browser package.json/default.php have version-sync changes — review and commit manually:');
+                console.log(status);
             } else {
                 console.log('Browser repo is already in sync.');
             }
         } catch (err) {
-            console.error('Failed to sync Browser repository. Check if it is clean and you have remote access.');
+            console.error('Failed to check Browser repository sync status.');
         }
 
     } catch (err) {
