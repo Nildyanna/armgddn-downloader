@@ -5,7 +5,7 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.0.3] - 2026-08-30
+## [5.0.4] - 2026-08-30
 
 ### Fixed
 - **Download appearing to "restart" after completing** — A download recovering from an expired signed link (token refresh or mirror failover) could be wrongly finalized as failed by the background poll loop while the retry was still in flight, because `activeProcesses` is legitimately empty for the whole duration of the manifest refetch, not just the brief gap between the old process closing and the new one spawning. The finalize-as-failed check now respects a `recovering` flag set for the full duration of both retry paths. Reported by Kaizo, whose debug log made the race condition traceable.
