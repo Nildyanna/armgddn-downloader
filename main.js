@@ -805,7 +805,8 @@ const adaptiveScheduler = {
   pending: [],
   pumping: false,
   runningByDownloadId: new Map(),
-  lastDecisionLogAt: 0
+  lastDecisionLogAt: 0,
+  lastStallLogAt: 0
 };
 
 function getTaskRemainingBytes(task) {
@@ -860,11 +861,18 @@ function pickNextAdaptiveTask() {
   const now = Date.now();
   let best = null;
   let bestScore = Infinity;
+  // Diagnostic only: records why each pending task was passed over this
+  // pass, so a stall (pending.length > 0 but nothing ever gets picked) is
+  // diagnosable from the log instead of looking identical to a healthy,
+  // empty-queue idle state. See the stall-summary log in schedulerPump().
+  const skipReasons = [];
 
   for (const t of adaptiveScheduler.pending) {
     if (!t) continue;
     const download = activeDownloads.get(String(t.downloadId));
-    if (!download || download.cancelled || download.paused) continue;
+    if (!download) { skipReasons.push(`${t.downloadId}/${t.file && t.file.name}: no download object`); continue; }
+    if (download.cancelled) { skipReasons.push(`${t.downloadId}/${t.file && t.file.name}: cancelled`); continue; }
+    if (download.paused) { skipReasons.push(`${t.downloadId}/${t.file && t.file.name}: paused`); continue; }
 
     const remaining = getTaskRemainingBytes(t);
     const ageMs = Math.max(0, now - (Number(t.enqueuedAt) || now));
@@ -876,7 +884,10 @@ function pickNextAdaptiveTask() {
       const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requested) ? requested : 3));
       const eff = Number(download && download.effectiveConcurrency);
       const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkers, eff) : requestedWorkers;
-      if (running >= limit) continue;
+      if (running >= limit) {
+        skipReasons.push(`${t.downloadId}/${t.file && t.file.name}: running=${running} >= limit=${limit} (requested=${requestedWorkers}, effective=${eff})`);
+        continue;
+      }
     } catch (e) { }
 
     const emaSpeedTotal = Number(download && download.__emaSpeedBytesPerSec) || 0;
@@ -911,6 +922,24 @@ function pickNextAdaptiveTask() {
       best = t;
     }
   }
+  // Nothing pickable despite a non-empty queue -- exactly the signature of a
+  // stalled scheduler (a real one from the field: 4 files finished, then 22
+  // remaining files sat untouched for 2.5+ minutes with no visibility into
+  // why). Always-on but throttled to once per 5s so a genuine stall doesn't
+  // flood the log.
+  if (!best && adaptiveScheduler.pending.length > 0) {
+    const nowThrottle = Date.now();
+    if (nowThrottle - (Number(adaptiveScheduler.lastStallLogAt) || 0) > 5000) {
+      adaptiveScheduler.lastStallLogAt = nowThrottle;
+      try {
+        logToFile(`[Scheduler] STALL: ${adaptiveScheduler.pending.length} pending task(s), none pickable this pass:`);
+        for (const reason of skipReasons) {
+          logToFile(`[Scheduler] STALL reason: ${reason}`);
+        }
+      } catch (e) { }
+    }
+  }
+
   return best;
 }
 
@@ -941,7 +970,11 @@ async function schedulerPump() {
 
       try {
         const now = Date.now();
-        if (DEBUG_LOGGING && (now - (Number(adaptiveScheduler.lastDecisionLogAt) || 0)) > 3000) {
+        // Was DEBUG_LOGGING-gated -- that flag is off in production, so this
+        // was invisible in every real-world log, including the one that
+        // originally surfaced the scheduler stall this diagnostic exists to
+        // catch. Always-on now, still throttled to avoid flooding the log.
+        if ((now - (Number(adaptiveScheduler.lastDecisionLogAt) || 0)) > 3000) {
           adaptiveScheduler.lastDecisionLogAt = now;
           logToFile(`[Scheduler] start downloadId=${String(task.downloadId)} file=${task && task.file && task.file.name ? String(task.file.name) : ''} pending=${adaptiveScheduler.pending.length} inUse=${Number(globalConcurrencyPool.inUse) || 0} limit=${Number(globalConcurrencyPool.limit) || 0}`);
         }
@@ -950,11 +983,17 @@ async function schedulerPump() {
       downloadFile(task.downloadId, task.file, task.downloadDir, releaseGlobal)
         .then(() => {
           try { decDownloadRunning(task.downloadId); } catch (e) { }
+          try {
+            logToFile(`[Scheduler] task done (ok) downloadId=${String(task.downloadId)} file=${task && task.file && task.file.name ? String(task.file.name) : ''} pending=${adaptiveScheduler.pending.length} -- re-pumping`);
+          } catch (e) { }
           try { if (task && typeof task.resolve === 'function') task.resolve(); } catch (e) { }
           try { schedulerPump(); } catch (e) { }
         })
         .catch((err) => {
           try { decDownloadRunning(task.downloadId); } catch (e) { }
+          try {
+            logToFile(`[Scheduler] task done (err) downloadId=${String(task.downloadId)} file=${task && task.file && task.file.name ? String(task.file.name) : ''} pending=${adaptiveScheduler.pending.length} err=${err && err.message ? err.message : String(err)} -- re-pumping`);
+          } catch (e) { }
           try { if (task && typeof task.reject === 'function') task.reject(err); } catch (e) { }
           try { schedulerPump(); } catch (e) { }
         });
@@ -4264,7 +4303,13 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           download.activeFiles[fileKey].status = 'paused';
         }
         updateProgress(downloadId);
-        resolve();
+        // Route through done() (not a bare resolve()) so the global
+        // concurrency-pool slot acquired for this task actually gets
+        // released. Calling resolve() directly bypassed releaseOnce(),
+        // permanently leaking one global slot every time a file was paused
+        // mid-transfer -- over enough pause/resume cycles this starves the
+        // whole app's download capacity.
+        done();
         return;
       }
 
@@ -4397,8 +4442,13 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
                   download.error = '';
                   updateProgress(downloadId);
 
+                  // The nested downloadFile() call acquires and correctly
+                  // releases its OWN global concurrency slot for the retry.
+                  // done() (not a bare resolve()) releases THIS call's
+                  // already-held slot too -- a bare resolve() here leaked one
+                  // global slot per successful stall0 mirror-failover retry.
                   await downloadFile(downloadId, retryFile, downloadDir);
-                  resolve();
+                  done();
                   return;
                 }
               }
@@ -4487,9 +4537,14 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 
                 // Retry once with the new URL.
                 canTryMirrorFailoverRetryStarted = true;
+                // done() (not .then(resolve)/.catch(reject)) so THIS call's
+                // already-held global slot gets released -- the nested
+                // downloadFile() retry acquires and releases its own slot
+                // independently, so leaving this one unresolved-via-done()
+                // leaked one global slot per successful retry here too.
                 downloadFile(downloadId, retryFile, downloadDir)
-                  .then(resolve)
-                  .catch((e) => { reject(e); })
+                  .then(() => { done(); })
+                  .catch((e) => { done(e); })
                   .finally(() => { try { download.recovering = false; } catch (e) { } });
                 return;
               }
@@ -4512,7 +4567,10 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           try {
             const recovered = await refetchManifestAndRetryExpiredLink(downloadId, download, file, downloadDir);
             if (recovered) {
-              resolve();
+              // done() so THIS call's already-held global slot is released --
+              // refetchManifestAndRetryExpiredLink's own nested downloadFile()
+              // call acquires and releases its own slot independently.
+              done();
               return;
             }
           } catch (e) {
