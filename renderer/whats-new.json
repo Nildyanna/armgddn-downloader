@@ -1,4 +1,11 @@
 {
+  "5.0.5": {
+    "title": "Unstuck",
+    "highlights": [
+      "Found and fixed a real bug where downloads could quietly stop making progress partway through, especially after a retry or a pause — the app would still say it was downloading, but nothing was actually happening.",
+      "Added better internal diagnostics so if a download ever does stall again, we'll be able to see exactly why instead of guessing."
+    ]
+  },
   "5.0.4": {
     "title": "Fixed a Download That Wouldn't Stay Finished",
     "highlights": [
