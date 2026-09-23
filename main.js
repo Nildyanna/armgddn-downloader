@@ -257,6 +257,7 @@ async function fetchManifestWithAvoidMirror(manifestUrl, token, avoidMirror, red
 
 const MIRROR_COOLDOWN_MS = 20 * 60 * 1000;
 const MIRROR_EARLY_STALL_MS = 45 * 1000;
+const STALL_SAME_MIRROR_RETRIES = 3;
 const mirrorCooldowns = new Map();
 
 function normalizeMirrorKey(mirror) {
@@ -4229,22 +4230,36 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       } catch (e) { }
     };
 
+    // Progress means the transferred byte count went up. rclone's one-line stats
+    // ("42.906 MiB / 4.291 GiB, 1%, 0 B/s, ETA -") keep printing a percentage
+    // after a connection dies mid-file, so counting the percentage as progress
+    // (as this used to) meant a stall after the first bytes was never caught.
+    let lastTransferredBytes = -1;
+    const noteRcloneProgress = (output) => {
+      const s = String(output || '').replace(/\x1b\[[0-?]*[ -/]*[@-~]/g, '');
+      const now = Date.now();
+      const re = /(\d+(?:\.\d+)?)\s*(B|[KMGT]i?B)\s*\/\s*\d+(?:\.\d+)?\s*(?:B|[KMGT]i?B)\s*,/gi;
+      let m;
+      let latest = null;
+      while ((m = re.exec(s)) !== null) latest = m;
+      if (latest) {
+        const bytes = parseSpeedToBytes(latest[1], latest[2]);
+        if (Number.isFinite(bytes) && bytes > lastTransferredBytes) {
+          if (lastTransferredBytes >= 0) lastNonZeroProgressAt = now;
+          lastTransferredBytes = bytes;
+        }
+        return;
+      }
+      // No byte counter in this chunk: fall back to a non-zero speed token.
+      const speed = s.match(/(\d+(?:\.\d+)?)\s*(B|[KMGT]i?B)\/s/i);
+      if (speed && parseSpeedToBytes(speed[1], speed[2]) > 0) lastNonZeroProgressAt = now;
+    };
+
     proc.stdout.on('data', (data) => {
       const output = data.toString();
       try { kickWatchdog(); } catch (e) { }
       try { logFirstOutput('stdout', output); } catch (e) { }
-      try {
-        const s = String(output || '');
-        const now = Date.now();
-        // Update lastNonZeroProgressAt when we see any non-zero speed token.
-        // Keep it conservative: if we see *anything* other than 0 B/s, treat it as progress.
-        if (!/\b0\s*B\/s\b/i.test(s)) {
-          lastNonZeroProgressAt = now;
-        } else if (/Transferred:\s*[^,]*,\s*\d+%/i.test(s)) {
-          // Aggregate stats indicate some progress.
-          lastNonZeroProgressAt = now;
-        }
-      } catch (e) { }
+      try { noteRcloneProgress(output); } catch (e) { }
       parseRcloneProgress(downloadId, fileKey, output);
     });
 
@@ -4253,15 +4268,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       errorOutput += output;
       try { kickWatchdog(); } catch (e) { }
       try { logFirstOutput('stderr', output); } catch (e) { }
-      try {
-        const s = String(output || '');
-        const now = Date.now();
-        if (!/\b0\s*B\/s\b/i.test(s)) {
-          lastNonZeroProgressAt = now;
-        } else if (/Transferred:\s*[^,]*,\s*\d+%/i.test(s)) {
-          lastNonZeroProgressAt = now;
-        }
-      } catch (e) { }
+      try { noteRcloneProgress(output); } catch (e) { }
       parseRcloneProgress(downloadId, fileKey, output);
     });
 
@@ -4457,8 +4464,54 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
             try { logToFile(`[MirrorFailover] stall0: manifest refetch/retry failed: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
           }
 
+          // No other mirror to switch to. A mid-file stall is usually just a dropped
+          // connection, so retry the same file with a freshly signed link (gateway
+          // links expire within about a minute) before failing it.
+          try {
+            if (!download.__stallRetries) download.__stallRetries = {};
+            const retryKey = String((file && (file.path || file.name)) || '');
+            const attempt = (Number(download.__stallRetries[retryKey]) || 0) + 1;
+            if (download.manifestUrl && download.token && attempt <= STALL_SAME_MIRROR_RETRIES) {
+              download.__stallRetries[retryKey] = attempt;
+              const freshManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, '');
+              const wantPath = file && file.path ? String(file.path) : '';
+              const wantName = file && file.name ? String(file.name) : '';
+              const match = freshManifest && Array.isArray(freshManifest.files) ? freshManifest.files.find(f => {
+                if (!f) return false;
+                if (wantPath && f.path && String(f.path) === wantPath) return true;
+                if (wantName && f.name && String(f.name) === wantName) return true;
+                return false;
+              }) : null;
+
+              if (match && match.url) {
+                if (freshManifest.actualRemote) download.actualRemote = String(freshManifest.actualRemote);
+                const retryFile = { ...file, url: String(match.url) };
+                try {
+                  const transformed = transformProxyUrlToDirectIfPossible(retryFile.url);
+                  if (transformed && transformed !== retryFile.url) retryFile.url = transformed;
+                } catch (e) { }
+                logToFile(`[StallRetry] attempt ${attempt}/${STALL_SAME_MIRROR_RETRIES}: retrying with a fresh link actualRemote=${download.actualRemote || ''} file=${wantName}`);
+                try {
+                  if (Array.isArray(download.failedFiles)) {
+                    download.failedFiles = download.failedFiles.filter(n => String(n) !== String(file.name));
+                  }
+                } catch (e) { }
+                download.status = 'downloading';
+                download.error = '';
+                updateProgress(downloadId);
+                // Same slot accounting as the mirror-failover retry above: the nested
+                // call holds its own slot, done() releases this one.
+                await downloadFile(downloadId, retryFile, downloadDir);
+                done();
+                return;
+              }
+            }
+          } catch (e) {
+            try { logToFile(`[StallRetry] fresh-link retry failed: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
+          }
+
           download.error = withSupportFooter(
-            'Download stalled at 0 B/s.',
+            'Download stalled and could not be resumed after several retries.',
             'Retry the download. If it keeps happening, change mirrors by starting the download again from the website, or lower concurrency to 1-2.'
           );
           updateProgress(downloadId);

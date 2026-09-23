@@ -1,4 +1,12 @@
 {
+  "5.0.6": {
+    "title": "Back on Its Feet",
+    "highlights": [
+      "Fixed downloads that could freeze partway through a file and sit there forever. If a connection dies mid-download, the app now notices within about a minute instead of never.",
+      "Stalled files now retry automatically with a fresh link, up to 3 times, before giving up. No more restarting a download by hand just because your connection hiccuped.",
+      "If a file still can't be resumed after those retries, the error now says so clearly instead of the misleading \"stalled at 0 B/s\"."
+    ]
+  },
   "5.0.5": {
     "title": "Unstuck",
     "highlights": [

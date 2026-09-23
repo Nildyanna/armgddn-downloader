@@ -5,6 +5,15 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.6] - 2026-09-23
+
+### Fixed
+- **Mid-download stalls never detected** — the zero-progress watchdog treated any rclone stats line containing a percentage as progress. Once a file had received any bytes, rclone's one-line stats ("42.906 MiB / 4.291 GiB, 1%, 0 B/s") always contain a percentage, so a connection that died partway through a file was never caught and the download sat at the same byte count indefinitely. Progress is now measured by the transferred-byte counter increasing; a 45s window with no byte growth triggers the existing stall handling (falling back to a non-zero speed token only when a chunk has no byte counter).
+- **Stalled files failed instead of retrying when no other mirror was available** — stall recovery only retried on a different mirror; if none was available the file was failed outright. It now retries the same file with a freshly signed link (gateway links expire within about a minute), up to 3 times per file, before surfacing an error.
+
+### Changed
+- Stall error message updated from "Download stalled at 0 B/s." to reflect stalls that happen after a file has started.
+
 ## [5.0.4] - 2026-08-30
 
 ### Fixed
