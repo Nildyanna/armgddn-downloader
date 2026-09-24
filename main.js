@@ -9,7 +9,7 @@ const os = require('os');
 // reportDownloadFailure). Every event is scrubbed before sending: URL query
 // strings (signed download links and tokens) and the user's home folder path
 // are removed; no IP or other personal data is collected.
-const SENTRY_DSN = '';
+const SENTRY_DSN = 'https://44845354581cd37f9f7c13cef235aae4@o4511461480398848.ingest.us.sentry.io/4512139991187456';
 const Sentry = require('@sentry/electron/main');
 function scrubForSentry(value) {
   let s = JSON.stringify(value);
