@@ -1165,6 +1165,11 @@ async function showAlertDialog(title, message) {
     if (startupMinEl) {
       startupMinEl.checked = !!settings.startWithOsMinimized;
     }
+
+    const errorReportingEl = document.getElementById('error-reporting');
+    if (errorReportingEl) {
+      errorReportingEl.checked = settings.errorReporting !== false;
+    }
   }
 
   function showToast(message, variant = 'success') {
@@ -1211,6 +1216,11 @@ async function showAlertDialog(title, message) {
     const startupMinEl = document.getElementById('start-with-os-minimized');
     if (startupMinEl) {
       settings.startWithOsMinimized = !!startupMinEl.checked;
+    }
+
+    const errorReportingEl = document.getElementById('error-reporting');
+    if (errorReportingEl) {
+      settings.errorReporting = !!errorReportingEl.checked;
     }
 
     await api.saveSettings(settings);
