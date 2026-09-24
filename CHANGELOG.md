@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.7] - 2026-09-24
+
+### Added
+- **Error reporting (Sentry)** — uncaught main-process errors, native crashes, and failed downloads are reported to the armgddn-companion Sentry project. Failed downloads were previously only visible on the user's screen; they're now reported at warning level, grouped by the error's first line and tagged with the mirror. Every event and breadcrumb is scrubbed before sending (URL query strings with signed links/tokens removed, home folder path replaced with `~`, no IP, `sendDefaultPii` off); an event that fails scrubbing is dropped rather than sent. Tracing is off.
+- **"Send error reports" setting** (on by default) — turning it off stops all reports. It's checked right before sending, and an error before settings load reads the saved config directly, so an opted-out user's startup crash isn't sent either.
+
 ## [5.0.6] - 2026-09-23
 
 ### Fixed

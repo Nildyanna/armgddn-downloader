@@ -27,6 +27,21 @@ function scrubForSentry(value) {
   } catch (e) { }
   return JSON.parse(s);
 }
+// The user can turn reporting off in Settings (errorReporting). Checked right
+// before anything is sent; if settings haven't loaded yet (an error very early
+// in startup) the saved config is read directly, so an opted-out user's
+// startup crash is never sent either.
+function isErrorReportingEnabled() {
+  try {
+    if (typeof settings === 'object' && settings && settingsLoadedFromDisk) return settings.errorReporting !== false;
+  } catch (e) { /* settings not initialised yet */ }
+  try {
+    const saved = JSON.parse(fs.readFileSync(path.join(app.getPath('userData'), 'config.json'), 'utf8'));
+    return !saved || saved.errorReporting !== false;
+  } catch (e) {
+    return true; // no saved settings yet: default is on
+  }
+}
 if (SENTRY_DSN) {
   Sentry.init({
     dsn: SENTRY_DSN,
@@ -35,6 +50,7 @@ if (SENTRY_DSN) {
     sendDefaultPii: false,
     tracesSampleRate: 0,
     beforeSend(event) {
+      if (!isErrorReportingEnabled()) return null;
       try {
         if (event.user) delete event.user.ip_address;
         return scrubForSentry(event);
@@ -52,7 +68,7 @@ if (SENTRY_DSN) {
 // them otherwise. Grouped by the first line of the error so each distinct
 // failure type is one issue.
 function reportDownloadFailure(download, errorText) {
-  if (!SENTRY_DSN) return;
+  if (!SENTRY_DSN || !isErrorReportingEnabled()) return;
   try {
     const firstLine = String(errorText || 'Unknown download error').split('\n')[0].slice(0, 200);
     Sentry.withScope((scope) => {
@@ -1149,6 +1165,7 @@ let settings = {
   autoUpdate: false,
   startWithOsStartup: false,
   startWithOsMinimized: false,
+  errorReporting: true,
   lastSeenVersion: ''
 };
 
@@ -1234,6 +1251,7 @@ function normalizeSettings() {
     settings.autoUpdate = !!settings.autoUpdate;
     settings.startWithOsStartup = !!settings.startWithOsStartup;
     settings.startWithOsMinimized = !!settings.startWithOsMinimized;
+    settings.errorReporting = settings.errorReporting !== false;
 
     refreshGlobalPoolLimit();
   } catch (e) {
@@ -1814,6 +1832,7 @@ function clearSession() {
 }
 
 // Load settings
+let settingsLoadedFromDisk = false;
 function loadSettings() {
   try {
     const configPath = getConfigPath();
@@ -1822,6 +1841,7 @@ function loadSettings() {
       settings = { ...settings, ...JSON.parse(data) };
     }
     normalizeSettings();
+    settingsLoadedFromDisk = true;
   } catch (e) {
     console.error('Failed to load settings:', e);
   }
@@ -2574,6 +2594,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'autoUpdate',
     'startWithOsStartup',
     'startWithOsMinimized',
+    'errorReporting',
     'lastSeenVersion'
   ]);
 

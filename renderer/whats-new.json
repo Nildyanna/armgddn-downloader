@@ -1,4 +1,12 @@
 {
+  "5.0.7": {
+    "title": "Better Bug Hunting",
+    "highlights": [
+      "The app now sends an automatic error report when something goes wrong, like a crash or a download that fails, so problems get spotted and fixed without you having to report them.",
+      "Reports are stripped of personal info before they're sent: no download links or tokens, no IP address, and your user folder name is hidden.",
+      "Prefer not to send them? Turn off \"Send error reports\" in Settings."
+    ]
+  },
   "5.0.6": {
     "title": "Back on Its Feet",
     "highlights": [
