@@ -2,6 +2,72 @@ const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, saf
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+
+// ── Error reporting (Sentry) ────────────────────────────────────────────────
+// Must initialise before anything else so main-process crashes are caught.
+// Reports uncaught errors, native crashes, and failed downloads (see
+// reportDownloadFailure). Every event is scrubbed before sending: URL query
+// strings (signed download links and tokens) and the user's home folder path
+// are removed; no IP or other personal data is collected.
+const SENTRY_DSN = '';
+const Sentry = require('@sentry/electron/main');
+function scrubForSentry(value) {
+  let s = JSON.stringify(value);
+  s = s.replace(/https?:\/\/[^\s"'\\]+/gi, (u) => {
+    const i = u.indexOf('?');
+    return i === -1 ? u : u.slice(0, i) + '?…';
+  });
+  try {
+    const home = os.homedir();
+    if (home) {
+      for (const variant of [home, home.replace(/\\/g, '\\\\'), home.replace(/\\/g, '/')]) {
+        s = s.split(variant).join('~');
+      }
+    }
+  } catch (e) { }
+  return JSON.parse(s);
+}
+if (SENTRY_DSN) {
+  Sentry.init({
+    dsn: SENTRY_DSN,
+    release: `armgddn-companion@${app.getVersion()}`,
+    environment: app.isPackaged ? 'production' : 'development',
+    sendDefaultPii: false,
+    tracesSampleRate: 0,
+    beforeSend(event) {
+      try {
+        if (event.user) delete event.user.ip_address;
+        return scrubForSentry(event);
+      } catch (e) {
+        return null; // never risk sending an unscrubbed event
+      }
+    },
+    beforeBreadcrumb(crumb) {
+      try { return scrubForSentry(crumb); } catch (e) { return null; }
+    },
+  });
+}
+
+// Failed downloads are caught and shown in the app, so Sentry would never see
+// them otherwise. Grouped by the first line of the error so each distinct
+// failure type is one issue.
+function reportDownloadFailure(download, errorText) {
+  if (!SENTRY_DSN) return;
+  try {
+    const firstLine = String(errorText || 'Unknown download error').split('\n')[0].slice(0, 200);
+    Sentry.withScope((scope) => {
+      scope.setLevel('warning');
+      scope.setFingerprint(['download-failure', firstLine]);
+      scope.setTag('mirror', (download && download.actualRemote) ? String(download.actualRemote) : 'unknown');
+      scope.setContext('download', {
+        name: download && download.name ? String(download.name) : '',
+        mirrorSwitches: download ? Number(download.mirrorSwitches) || 0 : 0,
+        failedFiles: download && Array.isArray(download.failedFiles) ? download.failedFiles.length : 0,
+      });
+      Sentry.captureMessage(`Download failed: ${firstLine}`);
+    });
+  } catch (e) { }
+}
 const { spawn, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const https = require('https');
@@ -3392,6 +3458,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       updateProgress(downloadId);
     } catch (e2) { }
     try { logToFile(`[start-download] mkdir failed path=${String(downloadDir)} err=${msg}`); } catch (e2) { }
+    try { reportDownloadFailure(download, download.error || msg); } catch (e3) { }
     try { mainWindow.webContents.send('download-error', { id: downloadId, error: download.error || msg }); } catch (e2) { }
     try { showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error || msg}`); } catch (e2) { }
     try { activeDownloads.delete(downloadId); } catch (e2) { }
@@ -4137,6 +4204,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         logToFile(`[rclone] spawn threw: ${msg} rclonePath=${String(rclonePath || '')}`);
       } catch (e2) { }
       try { updateProgress(downloadId); } catch (e2) { }
+      try { reportDownloadFailure(download, download.error); } catch (e3) { }
       try { mainWindow.webContents.send('download-error', { id: downloadId, error: download.error }); } catch (e2) { }
       try { showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`); } catch (e2) { }
       done(new Error(download.error));
@@ -4389,6 +4457,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 4) If on Linux, install/update ca-certificates`
           );
           updateProgress(downloadId);
+          try { reportDownloadFailure(download, download.error); } catch (e3) { }
           mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
           showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
           done(new Error(download.error));
@@ -4515,6 +4584,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
             'Retry the download. If it keeps happening, change mirrors by starting the download again from the website, or lower concurrency to 1-2.'
           );
           updateProgress(downloadId);
+          try { reportDownloadFailure(download, download.error); } catch (e3) { }
           mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
           showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
           done(new Error(download.error));
@@ -4678,6 +4748,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         }
 
         updateProgress(downloadId);
+        try { reportDownloadFailure(download, download.error); } catch (e3) { }
         mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
         let shouldShowNotification = true;
         if (quota) {
@@ -4710,6 +4781,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       try {
         logToFile(`[rclone] spawn error: ${err && err.message ? err.message : String(err)}`);
       } catch (e) { }
+      try { reportDownloadFailure(download, download.error); } catch (e3) { }
       mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
       showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
       done(err);
