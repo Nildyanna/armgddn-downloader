@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.8] - 2026-09-25
+
+### Fixed
+- **Crash on PCs with a failing GPU process** — Chromium terminates the app ("GPU process isn't usable. Goodbye.", EXCEPTION_BREAKPOINT in Sentry) when its GPU process keeps dying (bad/old drivers, remote desktop, VMs). An abnormal GPU process exit now writes a `gpu-disabled` marker in userData, and later launches run with hardware acceleration disabled (software rendering).
+
 ## [5.0.7] - 2026-09-24
 
 ### Added
