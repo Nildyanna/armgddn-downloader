@@ -542,6 +542,32 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
   try { updateProgress(download.id); } catch (e) { }
 }
 
+// GPU fallback. On some PCs (broken/old graphics drivers, remote desktop, VMs)
+// Chromium's GPU process keeps dying and Chromium then kills the whole app
+// ("GPU process isn't usable. Goodbye." — EXCEPTION_BREAKPOINT in Sentry).
+// When the GPU process dies abnormally we leave a marker, and every later
+// launch runs with hardware acceleration off. A download manager's UI renders
+// fine in software, so there's no reason to keep crashing.
+const GPU_FALLBACK_MARKER = (() => {
+  try { return path.join(app.getPath('userData'), 'gpu-disabled'); } catch (e) { return null; }
+})();
+try {
+  if (GPU_FALLBACK_MARKER && fs.existsSync(GPU_FALLBACK_MARKER)) {
+    app.disableHardwareAcceleration();
+    console.log('[gpu] hardware acceleration disabled (earlier GPU process failure)');
+  }
+} catch (e) { }
+app.on('child-process-gone', (event, details) => {
+  try {
+    if (!details || details.type !== 'GPU') return;
+    if (details.reason === 'clean-exit' || details.reason === 'killed') return;
+    if (GPU_FALLBACK_MARKER && !fs.existsSync(GPU_FALLBACK_MARKER)) {
+      fs.writeFileSync(GPU_FALLBACK_MARKER, `${new Date().toISOString()} ${details.reason} ${details.exitCode}\n`);
+      console.warn('[gpu] GPU process gone (' + details.reason + '); software rendering from next launch');
+    }
+  } catch (e) { }
+});
+
 // Ensure single instance
 const gotTheLock = app.requestSingleInstanceLock();
 
