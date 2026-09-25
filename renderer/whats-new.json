@@ -1,4 +1,10 @@
 {
+  "5.0.9": {
+    "title": "Clean Exits",
+    "highlights": [
+      "Fixed a crash that could happen when closing the app while a download was still running."
+    ]
+  },
   "5.0.8": {
     "title": "No More Graphics Crashes",
     "highlights": [
