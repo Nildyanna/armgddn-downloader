@@ -568,6 +568,19 @@ app.on('child-process-gone', (event, details) => {
   } catch (e) { }
 });
 
+// Every message to the main window goes through here. rclone output and
+// timers keep firing while the app quits (or after the window is gone), and
+// webContents.send on a destroyed window throws "Object has been destroyed",
+// which crashed the app (fatal TypeError in parseRcloneProgress, Sentry).
+function sendToMain(channel, payload) {
+  try {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const wc = mainWindow.webContents;
+    if (!wc || wc.isDestroyed()) return;
+    wc.send(channel, payload);
+  } catch (e) { }
+}
+
 // Ensure single instance
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -757,7 +770,7 @@ function flushPendingDeepLinks() {
     const toSend = pendingDeepLinks.splice(0, pendingDeepLinks.length);
     for (const u of toSend) {
       try {
-        mainWindow.webContents.send('deep-link', u);
+        sendToMain('deep-link', u);
       } catch (e) {
         // Put it back and try again on next flush.
         pendingDeepLinks.unshift(u);
@@ -2254,7 +2267,7 @@ function createWindow() {
       const entry = pendingWhatsNewEntry;
       pendingWhatsNewEntry = null; // Show once per version bump, never again this run
       setTimeout(() => {
-        try { mainWindow.webContents.send('show-whats-new', entry); } catch (e) { }
+        try { sendToMain('show-whats-new', entry); } catch (e) { }
       }, 50);
     }
   });
@@ -3460,7 +3473,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   }
 
   activeDownloads.set(downloadId, download);
-  mainWindow.webContents.send('download-started', downloadToRenderer(download));
+  sendToMain('download-started', downloadToRenderer(download));
 
   download.statusMessage = 'Preparing download...';
   if (forceDisableAutoExtract) {
@@ -3468,7 +3481,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   }
   try {
     if (mainWindow && mainWindow.webContents) {
-      mainWindow.webContents.send('download-progress', {
+      sendToMain('download-progress', {
         id: downloadId,
         status: download.status,
         progress: download.progress,
@@ -3506,7 +3519,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     } catch (e2) { }
     try { logToFile(`[start-download] mkdir failed path=${String(downloadDir)} err=${msg}`); } catch (e2) { }
     try { reportDownloadFailure(download, download.error || msg); } catch (e3) { }
-    try { mainWindow.webContents.send('download-error', { id: downloadId, error: download.error || msg }); } catch (e2) { }
+    try { sendToMain('download-error', { id: downloadId, error: download.error || msg }); } catch (e2) { }
     try { showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error || msg}`); } catch (e2) { }
     try { activeDownloads.delete(downloadId); } catch (e2) { }
     throw new Error(download.error || msg);
@@ -3566,7 +3579,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
   // Update status to in_progress
   download.status = 'in_progress';
-  mainWindow.webContents.send('download-progress', {
+  sendToMain('download-progress', {
     id: downloadId,
     status: 'in_progress',
     progress: 0,
@@ -4252,7 +4265,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       } catch (e2) { }
       try { updateProgress(downloadId); } catch (e2) { }
       try { reportDownloadFailure(download, download.error); } catch (e3) { }
-      try { mainWindow.webContents.send('download-error', { id: downloadId, error: download.error }); } catch (e2) { }
+      try { sendToMain('download-error', { id: downloadId, error: download.error }); } catch (e2) { }
       try { showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`); } catch (e2) { }
       done(new Error(download.error));
       return;
@@ -4505,7 +4518,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           );
           updateProgress(downloadId);
           try { reportDownloadFailure(download, download.error); } catch (e3) { }
-          mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
+          sendToMain('download-error', { id: downloadId, error: download.error });
           showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
           done(new Error(download.error));
           return;
@@ -4632,7 +4645,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           );
           updateProgress(downloadId);
           try { reportDownloadFailure(download, download.error); } catch (e3) { }
-          mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
+          sendToMain('download-error', { id: downloadId, error: download.error });
           showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
           done(new Error(download.error));
           return;
@@ -4796,7 +4809,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 
         updateProgress(downloadId);
         try { reportDownloadFailure(download, download.error); } catch (e3) { }
-        mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
+        sendToMain('download-error', { id: downloadId, error: download.error });
         let shouldShowNotification = true;
         if (quota) {
           if (download.quotaNotified) {
@@ -4829,7 +4842,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         logToFile(`[rclone] spawn error: ${err && err.message ? err.message : String(err)}`);
       } catch (e) { }
       try { reportDownloadFailure(download, download.error); } catch (e3) { }
-      mainWindow.webContents.send('download-error', { id: downloadId, error: download.error });
+      sendToMain('download-error', { id: downloadId, error: download.error });
       showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
       done(err);
     });
@@ -4856,11 +4869,11 @@ function sendServerNotice(message, ttlMs) {
     if (msg) {
       lastServerNoticeText = msg;
       lastServerNoticeUntilMs = until;
-      mainWindow.webContents.send('server-notice', { message: msg, untilMs: until });
+      sendToMain('server-notice', { message: msg, untilMs: until });
     } else {
       lastServerNoticeText = '';
       lastServerNoticeUntilMs = 0;
-      mainWindow.webContents.send('server-notice', { message: '', untilMs: 0 });
+      sendToMain('server-notice', { message: '', untilMs: 0 });
     }
   } catch (e) {
   }
@@ -4975,7 +4988,7 @@ setInterval(() => {
           download.progress = 99;
           try {
             if (mainWindow && mainWindow.webContents) {
-              mainWindow.webContents.send('download-progress', {
+              sendToMain('download-progress', {
                 id,
                 status: download.status,
                 progress: download.progress,
@@ -5623,7 +5636,7 @@ function parseRcloneProgress(downloadId, fileKey, output) {
 
   clampProgressUnlessFinal(download);
 
-  mainWindow.webContents.send('download-progress', {
+  sendToMain('download-progress', {
     id: downloadId,
     progress: download.progress,
     eta: download.eta || '',
@@ -5746,7 +5759,7 @@ function updateProgress(downloadId) {
     } catch (e) { }
   }
 
-  mainWindow.webContents.send('download-progress', {
+  sendToMain('download-progress', {
     id: downloadId,
     status: download.status,
     progress: download.progress,
@@ -5796,7 +5809,7 @@ ipcMain.handle('cancel-download', (event, downloadId) => {
       }
     }
 
-    mainWindow.webContents.send('download-cancelled', { id: downloadId });
+    sendToMain('download-cancelled', { id: downloadId });
     activeDownloads.delete(downloadId);
   }
   return true;
@@ -5944,7 +5957,7 @@ async function resumeDownloadFiles(downloadId) {
   }
 
   // Notify UI that we're resuming (but don't check finalization yet since we have files to download)
-  mainWindow.webContents.send('download-progress', {
+  sendToMain('download-progress', {
     id: downloadId,
     status: download.status,
     progress: download.progress,
@@ -6108,7 +6121,7 @@ function finalizeCompletedDownload(downloadId) {
   // This makes the UI update even if the dedicated 'download-completed' event is missed.
   try {
     if (mainWindow && mainWindow.webContents) {
-      mainWindow.webContents.send('download-progress', {
+      sendToMain('download-progress', {
         id: downloadId,
         status: 'completed',
         progress: 100,
@@ -6146,7 +6159,7 @@ function finalizeCompletedDownload(downloadId) {
 
   if (mainWindow && mainWindow.webContents) {
     logToFile(`[completeDownload] Sending download-completed event to renderer`);
-    mainWindow.webContents.send('download-completed', { id: downloadId });
+    sendToMain('download-completed', { id: downloadId });
   } else {
     logToFile(`[completeDownload] ERROR: mainWindow or webContents is null!`);
   }
@@ -6191,7 +6204,7 @@ function completeDownload(downloadId) {
       download.totalSpeed = formatSpeed(download.peakSpeedBytes || 0);
       try {
         if (mainWindow && mainWindow.webContents) {
-          mainWindow.webContents.send('download-progress', {
+          sendToMain('download-progress', {
             id: downloadId,
             status: 'extracting',
             progress: download.progress,
@@ -6228,7 +6241,7 @@ function completeDownload(downloadId) {
           download.extractionError = e && e.message ? e.message : String(e);
           try {
             if (mainWindow && mainWindow.webContents) {
-              mainWindow.webContents.send('download-progress', {
+              sendToMain('download-progress', {
                 id: downloadId,
                 status: 'extracting',
                 progress: download.progress,
