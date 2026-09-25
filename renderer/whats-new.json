@@ -1,4 +1,11 @@
 {
+  "5.0.8": {
+    "title": "No More Graphics Crashes",
+    "highlights": [
+      "Fixed the app closing itself on some PCs because of a graphics driver problem. If your graphics card can't keep up, the app now switches to a safe drawing mode and keeps running.",
+      "You won't notice any difference in how the app looks or works in the safe mode."
+    ]
+  },
   "5.0.7": {
     "title": "Better Bug Hunting",
     "highlights": [
