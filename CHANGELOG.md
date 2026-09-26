@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.12] - 2026-09-26
+
+### Fixed
+- **Misleading "Server load is high... (6 / 8)"** — the server's per-user limit is 6 (`APP_BASE_CONCURRENCY_DEFAULT`), but the Max Concurrent Downloads dropdown offered 7–8, so those users saw a permanent throttling warning on a quiet server. The dropdown and saved settings now cap at 6; when the setting exceeds the server's normal limit, the notice names the per-user limit instead of blaming load (load is only blamed when `effective < base`).
+
 ## [5.0.11] - 2026-09-26
 
 ### Fixed
