@@ -557,6 +557,13 @@ try {
     console.log('[gpu] hardware acceleration disabled (earlier GPU process failure)');
   }
 } catch (e) { }
+// Sentry tag so a GPU crash on a PC already in software mode (fallback not
+// enough) can be told apart from a first crash: on / off / armed (marker
+// written this session, takes effect next launch).
+function setGpuFallbackTag(value) {
+  try { if (SENTRY_DSN) Sentry.setTag('gpu_fallback', value); } catch (e) { }
+}
+try { setGpuFallbackTag(GPU_FALLBACK_MARKER && fs.existsSync(GPU_FALLBACK_MARKER) ? 'on' : 'off'); } catch (e) { }
 app.on('child-process-gone', (event, details) => {
   try {
     if (!details || details.type !== 'GPU') return;
@@ -564,6 +571,7 @@ app.on('child-process-gone', (event, details) => {
     if (GPU_FALLBACK_MARKER && !fs.existsSync(GPU_FALLBACK_MARKER)) {
       fs.writeFileSync(GPU_FALLBACK_MARKER, `${new Date().toISOString()} ${details.reason} ${details.exitCode}\n`);
       console.warn('[gpu] GPU process gone (' + details.reason + '); software rendering from next launch');
+      setGpuFallbackTag('armed');
     }
   } catch (e) { }
 });
