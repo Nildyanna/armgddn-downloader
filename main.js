@@ -3851,9 +3851,33 @@ async function refetchManifestAndRetryExpiredLink(downloadId, download, file, do
     download.tokenRefreshes = (Number(download.tokenRefreshes) || 0) + 1;
     if (download.tokenRefreshes > 2) return false;
 
-    logToFile(`[TokenRefresh] refetching manifest for expired link refreshCount=${download.tokenRefreshes} file=${file && file.name ? String(file.name) : ''}`);
-    const newManifest = await fetchManifestInternal(String(download.manifestUrl), download.token);
+    // First refresh: same mirror (a genuinely expired signed link). If that
+    // still fails, the "expired" 403 is more likely the mirror refusing the
+    // file (Google per-file limits also answer 403), so the second refresh
+    // asks for a different mirror. Sentry COMPANION-2: five "link expired"
+    // failures in a row, all on PCVR-1.
+    const avoidCurrent = download.tokenRefreshes >= 2 && download.actualRemote;
+    logToFile(`[TokenRefresh] refetching manifest for expired link refreshCount=${download.tokenRefreshes}${avoidCurrent ? ` avoidMirror=${download.actualRemote}` : ''} file=${file && file.name ? String(file.name) : ''}`);
+    let newManifest;
+    if (avoidCurrent) {
+      try { markMirrorCooldown(String(download.actualRemote), 'repeated expired-link 403'); } catch (e) { }
+      const tried = Array.isArray(download.triedMirrors) ? download.triedMirrors.map(String) : [];
+      if (!tried.includes(String(download.actualRemote))) tried.push(String(download.actualRemote));
+      newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, getActiveMirrorAvoidList(tried).join(','));
+    } else {
+      newManifest = await fetchManifestInternal(String(download.manifestUrl), download.token);
+    }
     if (!newManifest || !Array.isArray(newManifest.files)) return false;
+    try {
+      const newActual = newManifest.actualRemote ? String(newManifest.actualRemote) : '';
+      if (avoidCurrent && newActual && newActual !== String(download.actualRemote)) {
+        download.actualRemote = newActual;
+        download.mirrorSwitches = (Number(download.mirrorSwitches) || 0) + 1;
+        if (!Array.isArray(download.triedMirrors)) download.triedMirrors = [];
+        download.triedMirrors.push(newActual);
+        logToFile(`[TokenRefresh] switched mirror to ${newActual} for expired-link retry`);
+      }
+    } catch (e) { }
 
     const wantPath = file && file.path ? String(file.path) : '';
     const wantName = file && file.name ? String(file.name) : '';
@@ -4578,6 +4602,11 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         // failover decision below.
         const mirrorHostFault = !!(httpStatus && httpStatus.code >= 500 && httpStatus.code < 600) ||
           errorOutput.toLowerCase().includes('econnrefused');
+        // Google quota / rate limits are per mirror account: another mirror is
+        // exactly what fixes them (Sentry COMPANION-8: a 429 on PC-1 failed
+        // outright instead of trying PC-2/PC-3).
+        const rateLimited = !!(httpStatus && httpStatus.code === 429) ||
+          /too many requests/i.test(errorOutput);
 
         let fileUrlHost = '';
         try {
@@ -4742,8 +4771,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         let canTryMirrorFailoverRetryStarted = false;
         try {
           const canTryMirrorFailover = !!(
-            (networkStream || mirrorHostFault) &&
-            !quota &&
+            (networkStream || mirrorHostFault || quota || rateLimited) &&
             !busy &&
             !sslError &&
             !dnsError &&
