@@ -99,6 +99,21 @@ jobs:
         if: matrix.platform == 'linux'
         run: npm run build:linux -- --publish never
 
+      # Launch the packaged app in smoke-test mode: real window + UI load,
+      # bundled rclone, and a real rclone download from a local server.
+      # A failure here blocks the release job.
+      - name: Smoke test packaged app (Linux)
+        if: matrix.platform == 'linux'
+        shell: bash
+        env:
+          ARMGDDN_SMOKE_TEST: '1'
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb >/dev/null
+          exe="$(find dist/linux-unpacked -maxdepth 1 -type f -executable ! -name '*.so*' ! -name 'chrome*' | head -n 1)"
+          echo "Smoke testing $exe"
+          timeout 180 xvfb-run -a "$exe" --no-sandbox 2>&1 | tee smoke.log
+          grep -q '\[smoke\] PASS' smoke.log
+
       - name: Build Electron app (macOS)
         if: matrix.platform == 'mac'
         run: npm run build:mac -- --publish never
@@ -174,6 +189,18 @@ jobs:
 
       - name: Build Electron app (Windows)
         run: npm run build:win -- --publish never
+
+      - name: Smoke test packaged app (Windows)
+        shell: bash
+        env:
+          ARMGDDN_SMOKE_TEST: '1'
+        run: |
+          export ARMGDDN_SMOKE_RESULT="$PWD/smoke-result.txt"
+          exe="$(ls dist/win-unpacked/*.exe | grep -vi 'uninstall' | head -n 1)"
+          echo "Smoke testing $exe"
+          timeout 180 "$exe" || true
+          cat smoke-result.txt || echo "no smoke result written (app crashed or hung)"
+          grep -q '\[smoke\] PASS' smoke-result.txt
 
       - name: Upload artifacts (Windows)
         uses: actions/upload-artifact@v4
