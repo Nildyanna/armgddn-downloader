@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.11] - 2026-09-26
+
+### Fixed
+- **Quota / 429 rate-limit errors now trigger mirror failover** — they're per mirror account, but the failover condition excluded quota and never matched 429, so these failed outright (Sentry COMPANION-8).
+- **"Download link expired" on a refusing mirror** — the expired-link refresh retried the same mirror twice; a mirror answering 403 because of Google's per-file limit then surfaced as "link expired" (Sentry COMPANION-2). The second refresh now requests a different mirror and puts the old one on cooldown.
+
 ## [5.0.10] - 2026-09-26
 
 ### Fixed
