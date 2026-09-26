@@ -1,4 +1,11 @@
 {
+  "5.0.13": {
+    "title": "Recovering From Dropped Connections",
+    "highlights": [
+      "If your connection to a mirror drops partway through a file, the app now switches to another mirror and carries on, instead of failing the download.",
+      "Error reports now include the recovery steps the app tried, so we can fix stuck downloads faster."
+    ]
+  },
   "5.0.12": {
     "title": "Honest Speed Limits",
     "highlights": [
