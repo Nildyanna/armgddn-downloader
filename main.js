@@ -32,6 +32,7 @@ function scrubForSentry(value) {
 // in startup) the saved config is read directly, so an opted-out user's
 // startup crash is never sent either.
 function isErrorReportingEnabled() {
+  if (process.env.ARMGDDN_SMOKE_TEST === '1') return false;
   try {
     if (typeof settings === 'object' && settings && settingsLoadedFromDisk) return settings.errorReporting !== false;
   } catch (e) { /* settings not initialised yet */ }
@@ -540,6 +541,13 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
   }
 
   try { updateProgress(download.id); } catch (e) { }
+}
+
+// CI smoke test (ARMGDDN_SMOKE_TEST=1): run against a throwaway profile so it
+// never reads or writes real settings, and never reports to Sentry.
+const SMOKE_TEST = process.env.ARMGDDN_SMOKE_TEST === '1';
+if (SMOKE_TEST) {
+  try { app.setPath('userData', fs.mkdtempSync(path.join(os.tmpdir(), 'armgddn-smoke-'))); } catch (e) { }
 }
 
 // GPU fallback. On some PCs (broken/old graphics drivers, remote desktop, VMs)
@@ -2474,6 +2482,75 @@ function createAppMenu() {
 }
 
 // App ready
+// Launches the real window and exercises the real download engine, then exits
+// 0 (pass) or 1 (fail). CI runs this before a release can publish, since
+// Companion builds otherwise only get a syntax check before reaching users.
+function runSmokeTest() {
+  const http = require('http');
+  const { execFile } = require('child_process');
+  const failures = [];
+  let finished = false;
+  const finish = () => {
+    if (finished) return;
+    finished = true;
+    const ok = failures.length === 0;
+    const line = `[smoke] ${ok ? 'PASS' : 'FAIL'}${ok ? '' : ': ' + failures.join(' | ')}`;
+    console.log(line);
+    // Windows GUI apps don't reliably write to a redirected stdout, so CI
+    // reads the result from this file instead.
+    if (process.env.ARMGDDN_SMOKE_RESULT) {
+      try { fs.writeFileSync(process.env.ARMGDDN_SMOKE_RESULT, line + '\n', 'utf8'); } catch (e) { }
+    }
+    app.exit(ok ? 0 : 1);
+  };
+  setTimeout(() => { failures.push('timed out after 120s'); finish(); }, 120000);
+  process.on('uncaughtException', (e) => failures.push(`uncaught: ${e && e.message}`));
+  process.on('unhandledRejection', (e) => failures.push(`unhandled rejection: ${e && e.message}`));
+
+  const waitForWindow = () => new Promise((resolve) => {
+    const wc = mainWindow && mainWindow.webContents;
+    if (!wc) { failures.push('main window was not created'); return resolve(); }
+    wc.on('console-message', (...args) => {
+      const d = args[0] && typeof args[0] === 'object' && 'level' in args[0] ? args[0] : { level: args[1], message: args[2] };
+      if (d.level === 'error' || d.level === 3) failures.push(`renderer console error: ${d.message}`);
+    });
+    wc.on('render-process-gone', (_e, det) => failures.push(`renderer died: ${det && det.reason}`));
+    wc.on('did-fail-load', (_e, code, desc) => failures.push(`UI failed to load: ${code} ${desc}`));
+    if (!wc.isLoading()) return resolve();
+    wc.once('did-finish-load', resolve);
+  });
+
+  const run = (args) => new Promise((resolve) => {
+    execFile(getRclonePath(), args, { timeout: 60000 }, (err, stdout, stderr) => resolve({ err, stdout, stderr }));
+  });
+
+  (async () => {
+    await waitForWindow();
+    const v = await run(['version']);
+    if (v.err) failures.push(`bundled rclone did not run: ${v.err.message}`);
+
+    const payload = Buffer.alloc(2 * 1024 * 1024, 7);
+    const server = http.createServer((req, res) => {
+      res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': payload.length });
+      res.end(payload);
+    });
+    await new Promise((r) => server.listen(0, '127.0.0.1', r));
+    const dest = path.join(app.getPath('userData'), 'smoke-download.bin');
+    const cfg = getEmptyRcloneConfigPath();
+    const dl = await run(['copyurl', `http://127.0.0.1:${server.address().port}/smoke.bin`, dest, ...(cfg ? ['--config', cfg] : [])]);
+    server.close();
+    if (dl.err) failures.push(`rclone copyurl failed: ${(dl.stderr || dl.err.message).toString().slice(0, 300)}`);
+    else {
+      let size = -1;
+      try { size = fs.statSync(dest).size; } catch (e) { }
+      if (size !== payload.length) failures.push(`downloaded file has ${size} bytes, expected ${payload.length}`);
+    }
+    // Let the UI settle so late renderer errors are caught too.
+    await new Promise((r) => setTimeout(r, 3000));
+    finish();
+  })().catch((e) => { failures.push(`smoke runner crashed: ${e && e.message}`); finish(); });
+}
+
 app.whenReady().then(() => {
   try {
     logToFile(`[Startup] version: ${app.getVersion()}`);
@@ -2563,6 +2640,7 @@ app.whenReady().then(() => {
     }
   })();
   createWindow();
+  if (SMOKE_TEST) { runSmokeTest(); return; }
   createTray();
   createAppMenu();
 
