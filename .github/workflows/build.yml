@@ -118,6 +118,24 @@ jobs:
         if: matrix.platform == 'mac'
         run: npm run build:mac -- --publish never
 
+      - name: Smoke test packaged app (macOS)
+        if: matrix.platform == 'mac'
+        shell: bash
+        env:
+          ARMGDDN_SMOKE_TEST: '1'
+        run: |
+          export ARMGDDN_SMOKE_RESULT="$PWD/smoke-result.txt"
+          app="$(find dist -maxdepth 2 -name '*.app' -type d | head -n 1)"
+          exe="$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -n 1)"
+          echo "Smoke testing $exe"
+          # macOS runners have no coreutils timeout; background + kill instead
+          "$exe" > smoke.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 180); do kill -0 $pid 2>/dev/null || break; sleep 1; done
+          kill $pid 2>/dev/null || true
+          cat smoke-result.txt 2>/dev/null || { echo "no smoke result written"; tail -50 smoke.log; }
+          grep -q '\[smoke\] PASS' smoke-result.txt
+
       - name: Upload artifacts (Linux)
         if: matrix.platform == 'linux'
         uses: actions/upload-artifact@v4
