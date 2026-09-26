@@ -530,7 +530,12 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
   if (!notice) {
     const effNow = Number(download.effectiveConcurrency);
     if (Number.isFinite(effNow) && effNow > 0 && requestedWorkers > effNow) {
-      notice = `Server load is high. Concurrent downloads may be throttled (${effNow} / ${requestedWorkers}).`;
+      // Only blame load when the server is actually giving less than its
+      // normal per-user limit; otherwise the setting is just above that limit.
+      const base = Number(download.serverOverhead && download.serverOverhead.concurrency && download.serverOverhead.concurrency.base);
+      notice = (Number.isFinite(base) && base > 0 && effNow >= base)
+        ? `The server allows up to ${base} parallel downloads per user (you set ${requestedWorkers}).`
+        : `Server load is high. Concurrent downloads may be throttled (${effNow} / ${requestedWorkers}).`;
     }
   }
 
@@ -1284,7 +1289,7 @@ function normalizeSettings() {
     if (!settings || typeof settings !== 'object') return;
     const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
     // Enforce cap of 8 for stability
-    settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 8) : 2;
+    settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 6) : 2;
 
     const rawDownloadPath = settings.downloadPath;
     const defaultDownloadPath = path.join(app.getPath('downloads'), 'ARMGDDN');

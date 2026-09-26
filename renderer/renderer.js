@@ -97,9 +97,11 @@ async function showAlertDialog(title, message) {
       const requested = Number(settings && settings.maxConcurrentDownloads);
       const effectiveNow = lastEffectiveConcurrency;
       const shouldWarn = Number.isFinite(requested) && requested > 0 && Number.isFinite(effectiveNow) && effectiveNow > 0 && requested > effectiveNow;
-      const derivedNotice = shouldWarn
-        ? `Server load is high. Concurrent downloads may be throttled (${effectiveNow} / ${requested}).`
-        : '';
+      const base = Number(result.concurrency.base);
+      const derivedNotice = !shouldWarn ? ''
+        : (Number.isFinite(base) && base > 0 && effectiveNow >= base)
+          ? `The server allows up to ${base} parallel downloads per user (you set ${requested}).`
+          : `Server load is high. Concurrent downloads may be throttled (${effectiveNow} / ${requested}).`;
       setOverheadNotice(notice || derivedNotice);
     } catch (e) {
       lastEffectiveConcurrency = null;
