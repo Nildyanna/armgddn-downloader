@@ -5,6 +5,14 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.13] - 2026-09-26
+
+### Fixed
+- **No mirror failover on dropped connections** — rclone reports a connection cut mid-file as a bare `EOF` (Sentry COMPANION-A), which `isNetworkStreamError` didn't match, so the download failed without trying another mirror.
+
+### Added
+- Download failure reports include `triedMirrors` and a short log of why each stall failover/retry ended (COMPANION-3 failed with `mirrorSwitches: 0` and no trace of why).
+
 ## [5.0.12] - 2026-09-26
 
 ### Fixed
