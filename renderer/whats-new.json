@@ -1,4 +1,11 @@
 {
+  "5.0.12": {
+    "title": "Honest Speed Limits",
+    "highlights": [
+      "Max Concurrent Downloads now goes up to 6, the most the server allows per user. If you had it set higher, it's been set to 6 for you. You won't lose any speed, because the extra slots were never being used.",
+      "Fixed a misleading \"Server load is high\" warning that showed up even when the server wasn't busy, for anyone with the setting above 6."
+    ]
+  },
   "5.0.11": {
     "title": "Smarter Mirror Switching",
     "highlights": [
