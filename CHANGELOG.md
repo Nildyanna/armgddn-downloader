@@ -5,6 +5,14 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.10] - 2026-09-26
+
+### Fixed
+- **Settings and other panels cut off on ultra-wide/short windows** — the vertically centred `.settings-content` had no height cap, so a panel taller than the viewport lost its top and bottom. Now capped at `100vh - 2rem` and scrolls internally.
+
+### Added
+- **`gpu_fallback` Sentry tag** (`off` / `armed` / `on`) on every event, so a GPU crash on a PC already in software mode (the 5.0.8 fallback not being enough) can be told apart from a first crash.
+
 ## [5.0.9] - 2026-09-25
 
 ### Fixed
