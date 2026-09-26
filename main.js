@@ -80,9 +80,21 @@ function reportDownloadFailure(download, errorText) {
         name: download && download.name ? String(download.name) : '',
         mirrorSwitches: download ? Number(download.mirrorSwitches) || 0 : 0,
         failedFiles: download && Array.isArray(download.failedFiles) ? download.failedFiles.length : 0,
+        triedMirrors: download && Array.isArray(download.triedMirrors) ? download.triedMirrors.join(',') : '',
+        // Why each recovery attempt ended (see noteRecovery), so a failure that
+        // never switched mirrors shows where failover stopped.
+        recovery: download && Array.isArray(download.__recoveryNotes) ? download.__recoveryNotes.slice(-10) : [],
       });
       Sentry.captureMessage(`Download failed: ${firstLine}`);
     });
+  } catch (e) { }
+}
+function noteRecovery(download, note) {
+  try {
+    if (!download) return;
+    if (!Array.isArray(download.__recoveryNotes)) download.__recoveryNotes = [];
+    download.__recoveryNotes.push(`${new Date().toISOString().slice(11, 19)} ${String(note).slice(0, 200)}`);
+    if (download.__recoveryNotes.length > 20) download.__recoveryNotes.splice(0, download.__recoveryNotes.length - 20);
   } catch (e) { }
 }
 const { spawn, spawnSync } = require('child_process');
@@ -408,6 +420,7 @@ function isNetworkStreamError(output) {
     lower.includes('connection reset') ||
     lower.includes('econnreset') ||
     lower.includes('unexpected eof') ||
+    /(^|[":\s])eof\s*$/m.test(lower) ||
     lower.includes('broken pipe') ||
     lower.includes('rst_stream') ||
     lower.includes('http2') ||
@@ -4657,10 +4670,18 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
                 markMirrorCooldown(currentMirror, 'stall0 retry');
               }
             } catch (e) { }
+            if (!(download && download.manifestUrl && download.token)) {
+              noteRecovery(download, `stall0 failover skipped: manifestUrl=${download && download.manifestUrl ? 'yes' : 'no'} token=${download && download.token ? 'yes' : 'no'}`);
+            } else if ((Number(download.mirrorSwitches) || 0) >= 5) {
+              noteRecovery(download, 'stall0 failover skipped: 5 mirror switches used');
+            }
             if (download && download.manifestUrl && download.token && (Number(download.mirrorSwitches) || 0) < 5) {
               logToFile(`[MirrorFailover] stall0: attempting manifest refetch avoidMirror=${avoid} file=${file && file.name ? String(file.name) : ''}`);
               const newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, avoid);
               const newActual = newManifest && newManifest.actualRemote ? String(newManifest.actualRemote) : '';
+              if (!newActual || tried.includes(newActual)) {
+                noteRecovery(download, `stall0 failover: server offered ${newActual || 'no mirror'} (tried ${tried.join(',') || 'none'}, avoid ${avoid || 'none'})`);
+              }
 
               if (newActual && !tried.includes(newActual) && Array.isArray(newManifest.files)) {
                 const wantPath = file && file.path ? String(file.path) : '';
@@ -4672,6 +4693,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
                   return false;
                 });
 
+                if (!(match && match.url)) {
+                  noteRecovery(download, `stall0 failover: ${newActual} manifest has no match for ${wantName}`);
+                }
                 if (match && match.url) {
                   download.actualRemote = newActual;
                   download.mirrorSwitches = (Number(download.mirrorSwitches) || 0) + 1;
@@ -4686,6 +4710,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
                     if (transformed && transformed !== retryFile.url) retryFile.url = transformed;
                   } catch (e) { }
 
+                  noteRecovery(download, `stall0 failover: switched to ${newActual} for ${wantName}`);
                   logToFile(`[MirrorFailover] stall0: retrying on new mirror actualRemote=${newActual} file=${wantName}`);
                   // Remove from failedFiles if it was marked earlier.
                   try {
@@ -4710,6 +4735,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
               }
             }
           } catch (e) {
+            noteRecovery(download, `stall0 failover error: ${e && e.message ? e.message : String(e)}`);
             try { logToFile(`[MirrorFailover] stall0: manifest refetch/retry failed: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
           }
 
@@ -4739,6 +4765,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
                   const transformed = transformProxyUrlToDirectIfPossible(retryFile.url);
                   if (transformed && transformed !== retryFile.url) retryFile.url = transformed;
                 } catch (e) { }
+                noteRecovery(download, `stall retry ${attempt}/${STALL_SAME_MIRROR_RETRIES} on ${download.actualRemote || '?'} for ${wantName}`);
                 logToFile(`[StallRetry] attempt ${attempt}/${STALL_SAME_MIRROR_RETRIES}: retrying with a fresh link actualRemote=${download.actualRemote || ''} file=${wantName}`);
                 try {
                   if (Array.isArray(download.failedFiles)) {
@@ -4756,6 +4783,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
               }
             }
           } catch (e) {
+            noteRecovery(download, `stall retry error: ${e && e.message ? e.message : String(e)}`);
             try { logToFile(`[StallRetry] fresh-link retry failed: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
           }
 
