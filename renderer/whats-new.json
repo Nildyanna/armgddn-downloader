@@ -1,4 +1,11 @@
 {
+  "5.0.10": {
+    "title": "Fits Every Screen",
+    "highlights": [
+      "Fixed Settings being cut off at the top and bottom on ultra-wide and short screens. It now scrolls, so every option is reachable.",
+      "Behind the scenes: crash reports now include a little more detail about graphics issues, so they're easier to fix."
+    ]
+  },
   "5.0.9": {
     "title": "Clean Exits",
     "highlights": [
