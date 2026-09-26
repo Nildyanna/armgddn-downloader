@@ -1,4 +1,11 @@
 {
+  "5.0.11": {
+    "title": "Smarter Mirror Switching",
+    "highlights": [
+      "If a mirror is rate-limiting a file or has hit its download limit, the app now switches to another mirror automatically instead of failing.",
+      "Fixed downloads that could fail with \"Download link expired\" when the real problem was one busy mirror. The app now tries a different mirror before giving up."
+    ]
+  },
   "5.0.10": {
     "title": "Fits Every Screen",
     "highlights": [
