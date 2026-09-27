@@ -244,6 +244,47 @@ if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function')
 }
 
 // Fetch manifest but request a different mirror when the remote is a mirror group.
+// Errors that mean the user's own connection is down (not a server/mirror
+// problem): retrying immediately just fails again in the same second.
+const NETWORK_DOWN_CODES = new Set(['ENOTFOUND', 'EAI_AGAIN', 'ENETUNREACH', 'ENETDOWN', 'EHOSTUNREACH', 'ECONNREFUSED', 'ECONNRESET', 'ETIMEDOUT']);
+function isNetworkDownError(err) {
+  if (!err) return false;
+  if (err.code && NETWORK_DOWN_CODES.has(String(err.code))) return true;
+  return /getaddrinfo|ENOTFOUND|EAI_AGAIN|ENETUNREACH|ENETDOWN|EHOSTUNREACH/i.test(String(err.message || err));
+}
+
+// Wait until the service host resolves again (up to maxMs). Returns true once
+// the network looks back, false if it stayed down.
+async function waitForNetwork(maxMs = 5 * 60 * 1000, hostname = 'www.armgddnbrowser.com') {
+  const dnsPromises = require('dns').promises;
+  const deadline = Date.now() + maxMs;
+  while (Date.now() < deadline) {
+    try {
+      await dnsPromises.lookup(hostname);
+      return true;
+    } catch (e) { }
+    await new Promise(r => setTimeout(r, 15000));
+  }
+  return false;
+}
+
+// fetchManifestWithAvoidMirror, but rides out a dropped connection: on a
+// network-down error, wait for the network (up to 5 min) and try once more.
+async function fetchManifestRidingOutNetwork(download, manifestUrl, token, avoidMirror) {
+  try {
+    return await fetchManifestWithAvoidMirror(manifestUrl, token, avoidMirror);
+  } catch (e) {
+    if (!isNetworkDownError(e)) throw e;
+    noteRecovery(download, `network down (${e && e.code ? e.code : 'error'}); waiting for it to come back`);
+    if (!(await waitForNetwork())) {
+      noteRecovery(download, 'network still down after 5 minutes');
+      throw e;
+    }
+    noteRecovery(download, 'network back; retrying');
+    return await fetchManifestWithAvoidMirror(manifestUrl, token, avoidMirror);
+  }
+}
+
 async function fetchManifestWithAvoidMirror(manifestUrl, token, avoidMirror, redirectCount = 0) {
   // Prevent infinite redirect loops
   if (redirectCount > 3) {
@@ -3858,7 +3899,7 @@ function isTokenExpiredError(output, fileUrl) {
   return weakIndicators.some(indicator => lowerOutput.includes(indicator));
 }
 
-async function refetchManifestAndRetryExpiredLink(downloadId, download, file, downloadDir) {
+async function refetchManifestAndRetryExpiredLink(downloadId, download, file, downloadDir, reason = 'expired') {
   // Prevents the poll loop's hasErrors-and-no-active-processes check from
   // finalizing this download as failed while a retry is in flight — activeProcesses
   // is empty for the whole duration of the manifest refetch below, not just the
@@ -3866,24 +3907,39 @@ async function refetchManifestAndRetryExpiredLink(downloadId, download, file, do
   if (download) download.recovering = true;
   try {
     if (!download || !download.manifestUrl || !download.token) return false;
+    // Budget per file, not per download: a game split into many parts used to
+    // share 2 renewals for the whole download, so later parts failed outright
+    // (Sentry COMPANION-2, Half-Life Alyx part .011). Overall cap stops loops.
     download.tokenRefreshes = (Number(download.tokenRefreshes) || 0) + 1;
-    if (download.tokenRefreshes > 2) return false;
+    if (download.tokenRefreshes > 30) return false;
+    if (!download.__fileRetries) download.__fileRetries = {};
+    const retryKey = String((file && (file.path || file.name)) || '');
+    const counts = download.__fileRetries[retryKey] || (download.__fileRetries[retryKey] = { expired: 0, network: 0 });
+    counts[reason] = (Number(counts[reason]) || 0) + 1;
+    if (counts[reason] > 3) {
+      noteRecovery(download, `${reason} retries used up for ${file && file.name ? file.name : retryKey}`);
+      return false;
+    }
+    if (reason === 'network' && !(await waitForNetwork())) {
+      noteRecovery(download, 'network still down after 5 minutes');
+      return false;
+    }
 
     // First refresh: same mirror (a genuinely expired signed link). If that
     // still fails, the "expired" 403 is more likely the mirror refusing the
     // file (Google per-file limits also answer 403), so the second refresh
     // asks for a different mirror. Sentry COMPANION-2: five "link expired"
     // failures in a row, all on PCVR-1.
-    const avoidCurrent = download.tokenRefreshes >= 2 && download.actualRemote;
+    const avoidCurrent = reason === 'expired' && counts.expired >= 2 && download.actualRemote;
     logToFile(`[TokenRefresh] refetching manifest for expired link refreshCount=${download.tokenRefreshes}${avoidCurrent ? ` avoidMirror=${download.actualRemote}` : ''} file=${file && file.name ? String(file.name) : ''}`);
     let newManifest;
     if (avoidCurrent) {
       try { markMirrorCooldown(String(download.actualRemote), 'repeated expired-link 403'); } catch (e) { }
       const tried = Array.isArray(download.triedMirrors) ? download.triedMirrors.map(String) : [];
       if (!tried.includes(String(download.actualRemote))) tried.push(String(download.actualRemote));
-      newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, getActiveMirrorAvoidList(tried).join(','));
+      newManifest = await fetchManifestRidingOutNetwork(download, String(download.manifestUrl), download.token, getActiveMirrorAvoidList(tried).join(','));
     } else {
-      newManifest = await fetchManifestInternal(String(download.manifestUrl), download.token);
+      newManifest = await fetchManifestRidingOutNetwork(download, String(download.manifestUrl), download.token, '');
     }
     if (!newManifest || !Array.isArray(newManifest.files)) return false;
     try {
@@ -3932,7 +3988,8 @@ async function refetchManifestAndRetryExpiredLink(downloadId, download, file, do
       updateProgress(downloadId);
     } catch (e) { }
 
-    logToFile(`[TokenRefresh] retrying file with refreshed url file=${wantName}`);
+    noteRecovery(download, `${reason === 'network' ? 'network recovered' : 'link renewed'} (${counts[reason]}/3) for ${wantName}`);
+    logToFile(`[TokenRefresh] retrying file with refreshed url reason=${reason} file=${wantName}`);
     await downloadFile(downloadId, retryFile, downloadDir);
     return true;
   } catch (e) {
@@ -4677,7 +4734,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
             }
             if (download && download.manifestUrl && download.token && (Number(download.mirrorSwitches) || 0) < 5) {
               logToFile(`[MirrorFailover] stall0: attempting manifest refetch avoidMirror=${avoid} file=${file && file.name ? String(file.name) : ''}`);
-              const newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, avoid);
+              const newManifest = await fetchManifestRidingOutNetwork(download, String(download.manifestUrl), download.token, avoid);
               const newActual = newManifest && newManifest.actualRemote ? String(newManifest.actualRemote) : '';
               if (!newActual || tried.includes(newActual)) {
                 noteRecovery(download, `stall0 failover: server offered ${newActual || 'no mirror'} (tried ${tried.join(',') || 'none'}, avoid ${avoid || 'none'})`);
@@ -4748,7 +4805,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
             const attempt = (Number(download.__stallRetries[retryKey]) || 0) + 1;
             if (download.manifestUrl && download.token && attempt <= STALL_SAME_MIRROR_RETRIES) {
               download.__stallRetries[retryKey] = attempt;
-              const freshManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, '');
+              const freshManifest = await fetchManifestRidingOutNetwork(download, String(download.manifestUrl), download.token, '');
               const wantPath = file && file.path ? String(file.path) : '';
               const wantName = file && file.name ? String(file.name) : '';
               const match = freshManifest && Array.isArray(freshManifest.files) ? freshManifest.files.find(f => {
@@ -4830,7 +4887,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
             // is empty for the whole manifest refetch, so without this the poll loop
             // can finalize the download as failed while this retry is still in flight.
             download.recovering = true;
-            const newManifest = await fetchManifestWithAvoidMirror(String(download.manifestUrl), download.token, avoid);
+            const newManifest = await fetchManifestRidingOutNetwork(download, String(download.manifestUrl), download.token, avoid);
             const newActual = newManifest && newManifest.actualRemote ? String(newManifest.actualRemote) : '';
 
             if (newActual && !tried.includes(newActual) && Array.isArray(newManifest.files)) {
@@ -4890,6 +4947,18 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           if (!canTryMirrorFailoverRetryStarted) {
             try { download.recovering = false; } catch (e) { }
           }
+        }
+
+        // The user's own connection dropped mid-file: wait for it to come back
+        // and retry with a fresh link instead of failing (Sentry COMPANION-6/-3).
+        if (dnsError && !tokenExpired) {
+          try {
+            const recovered = await refetchManifestAndRetryExpiredLink(downloadId, download, file, downloadDir, 'network');
+            if (recovered) {
+              done();
+              return;
+            }
+          } catch (e) { }
         }
 
         // If this is a signed link expiry, attempt a manifest refetch + retry before surfacing an error.
