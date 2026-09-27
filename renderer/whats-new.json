@@ -1,4 +1,11 @@
 {
+  "5.0.14": {
+    "title": "Riding Out Connection Drops",
+    "highlights": [
+      "If your internet drops for a moment during a download, the app now waits for it to come back (up to 5 minutes) and carries on, instead of failing right away.",
+      "Fixed large multi-part games failing on their later parts with \"Download link expired\". Each part now gets its own fresh links when it needs them."
+    ]
+  },
   "5.0.13": {
     "title": "Recovering From Dropped Connections",
     "highlights": [

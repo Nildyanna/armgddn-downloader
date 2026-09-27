@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.14] - 2026-09-27
+
+### Fixed
+- **Downloads failing the instant the user's connection drops** — every recovery path (stall failover, stall retry, link renewal) failed in the same second on `getaddrinfo ENOTFOUND` (Sentry COMPANION-3/-6). Network-down errors now wait up to 5 minutes for the network before retrying, and a file that fails on a DNS/network error retries with a fresh link (up to 3 times per file).
+- **"Download link expired" on later parts of multi-part games** — link renewals were capped at 2 for the whole download, so big split archives ran out partway (COMPANION-2, Half-Life Alyx part .011). Renewals are now budgeted per file (3 each, 30 per download).
+
 ## [5.0.13] - 2026-09-26
 
 ### Fixed
