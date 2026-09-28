@@ -5,6 +5,20 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.16] - 2026-09-28
+
+### Added
+- **Auto-retry after network drops** — a download that fails on a transient error (stall, expired link, network/DNS, timeout, gateway) waits for the network (up to 30 min) and resumes once on its own, like clicking Retry (Sentry COMPANION-2/-3/-5/-6). Disk-space, quota, clock and folder errors are left to the user.
+- **Pre-download install-space warning** (Windows) — before starting, checks free space on the drive holding the Windows temp folder, where setup unpacks its temp files; counts the download too when it's the same drive. Offers Download Anyway / Cancel.
+
+### Changed
+- The install-space heads-up at download completion checks the drive holding the Windows temp folder instead of always C:.
+- "certificate has expired / not yet valid" errors now say the PC clock is wrong or antivirus is intercepting HTTPS (our certificate is valid), instead of retrying until a generic stall/SSL error (COMPANION-3, COMPANION-C).
+
+### Fixed
+- **Cancelled/paused downloads reported as failures** — recovery code mid-retry hit "Download not found" after the user cancelled, then showed "Download failed", notified, and reported to Sentry (COMPANION-3). Abandoned downloads now stop quietly.
+- **Crash when launching a second instance while the app was closing** ("Object has been destroyed" in the second-instance handler, COMPANION-B).
+
 ## [5.0.15] - 2026-09-28
 
 ### Fixed
