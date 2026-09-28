@@ -1,4 +1,14 @@
 {
+  "5.0.16": {
+    "title": "Fewer Failed Downloads",
+    "highlights": [
+      "If a download fails because your internet dropped, the app now waits for your connection to come back and resumes it automatically. No more coming back to a failed download that just needed a Retry.",
+      "Before a download starts, the app now checks the drive your Windows temp folder is on (usually C:). The game's setup unpacks its temp files there even when you install elsewhere. If there isn't enough room, it warns you up front instead of after the download finishes.",
+      "If your PC's date/time is wrong, or your antivirus is scanning secure connections, downloads can't connect. The app now tells you exactly that and how to fix it, instead of failing with a vague error.",
+      "Cancelling or pausing a download no longer shows a \"Download failed\" message.",
+      "Fixed a crash when opening the app while it was closing."
+    ]
+  },
   "5.0.15": {
     "title": "Smoother Installs",
     "highlights": [
