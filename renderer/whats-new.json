@@ -1,4 +1,11 @@
 {
+  "5.0.15": {
+    "title": "Smoother Installs",
+    "highlights": [
+      "Auto-extract now unpacks games straight into the download folder, like 7-Zip's \"Extract here\", instead of into an extra subfolder. That extra folder could make file paths too long for Windows, and setup would then \"finish\" instantly with nothing installed.",
+      "If your C: drive doesn't have enough free space for a game's installer, the app now tells you when the download finishes. Setup unpacks to C: first even when you install the game somewhere else."
+    ]
+  },
   "5.0.14": {
     "title": "Riding Out Connection Drops",
     "highlights": [
