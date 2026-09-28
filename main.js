@@ -6341,13 +6341,13 @@ function finalizeCompletedDownload(downloadId) {
         id: downloadId,
         status: 'completed',
         progress: 100,
-        statusMessage: '',
         downloadedSize: download.downloadedSize,
         totalSpeed: formatSpeed(download.peakSpeedBytes || 0),
         activeFiles: [],
         completedFiles: download.completedFiles,
         fileCount: download.fileCount,
-        extractionError: download.extractionError || ''
+        extractionError: download.extractionError || '',
+        statusMessage: installSpaceTip(download) || ''
       });
       logToFile(`[completeDownload] Sent final download-progress status=completed`);
     }
@@ -6386,6 +6386,26 @@ function finalizeCompletedDownload(downloadId) {
   }
   activeDownloads.delete(downloadId);
   logToFile(`[completeDownload] Done, download removed from activeDownloads`);
+}
+
+// Installers unpack to C: (temp) no matter where the game is installed, so a
+// nearly-full C: makes setup "finish" instantly with nothing installed. Warn
+// when C: has less free space than the download itself.
+function installSpaceTip(download) {
+  try {
+    if (process.platform !== 'win32') return '';
+    const need = Number(download && download.totalSize) || 0;
+    if (need <= 0) return '';
+    const sysDrive = (process.env.SystemDrive || 'C:') + '\\';
+    const free = getFreeDiskSpace(sysDrive);
+    if (free < 0 || free >= need) return '';
+    const msg = `Heads up: installing needs about ${formatBytes(need)} free on ${sysDrive.slice(0, 2)} ` +
+      `(setup unpacks there first, even if you install to another drive). You have ${formatBytes(free)} free.`;
+    logToFile(`[completeDownload] ${msg}`);
+    return msg;
+  } catch (e) {
+    return '';
+  }
 }
 
 function completeDownload(downloadId) {
@@ -6447,10 +6467,12 @@ function completeDownload(downloadId) {
                 return 'Extracted';
               }
             })();
-            const extractDir = path.join(downloadDir, archiveBase);
-            try {
-              fs.mkdirSync(extractDir, { recursive: true });
-            } catch (e) { }
+            // "Extract here", not "extract to <archive name>": the extra
+            // folder level made paths long enough (with our long folder
+            // names) to hit Windows' 260-char limit, and installers then
+            // "finish" instantly with every file missing.
+            const extractDir = downloadDir;
+            logToFile(`[extract] ${archiveBase} -> ${extractDir}`);
             await run7zExtract(a, extractDir);
           }
         } catch (e) {
