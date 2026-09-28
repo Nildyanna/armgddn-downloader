@@ -6388,19 +6388,22 @@ function finalizeCompletedDownload(downloadId) {
   logToFile(`[completeDownload] Done, download removed from activeDownloads`);
 }
 
-// Installers unpack to C: (temp) no matter where the game is installed, so a
-// nearly-full C: makes setup "finish" instantly with nothing installed. Warn
-// when C: has less free space than the download itself.
+// Installers unpack their temp files into the Windows temp folder (usually on
+// C:) no matter where the game is installed, so a nearly-full temp drive makes
+// setup "finish" instantly with nothing installed. Warn when the drive holding
+// the temp folder has less free space than the download itself.
 function installSpaceTip(download) {
   try {
     if (process.platform !== 'win32') return '';
     const need = Number(download && download.totalSize) || 0;
     if (need <= 0) return '';
-    const sysDrive = (process.env.SystemDrive || 'C:') + '\\';
-    const free = getFreeDiskSpace(sysDrive);
+    const tempDir = os.tmpdir();
+    const tempDrive = path.parse(tempDir).root || ((process.env.SystemDrive || 'C:') + '\\');
+    const free = getFreeDiskSpace(tempDir);
     if (free < 0 || free >= need) return '';
-    const msg = `Heads up: installing needs about ${formatBytes(need)} free on ${sysDrive.slice(0, 2)} ` +
-      `(setup unpacks there first, even if you install to another drive). You have ${formatBytes(free)} free.`;
+    const driveLabel = tempDrive.replace(/[\\/]+$/, '');
+    const msg = `Heads up: setup needs about ${formatBytes(need)} free on ${driveLabel} for its temp files ` +
+      `(your Windows temp folder is there), even if you install to another drive. You have ${formatBytes(free)} free.`;
     logToFile(`[completeDownload] ${msg}`);
     return msg;
   } catch (e) {
