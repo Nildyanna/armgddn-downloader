@@ -5,6 +5,14 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.15] - 2026-09-28
+
+### Fixed
+- **Installs "finishing" instantly with nothing installed after auto-extract** — archives were extracted into an extra `<archive name>` subfolder ("extract to X"), which with our long folder names could push paths past Windows' 260-character limit; setup then skipped every file and verify reported them all missing (reported for Half-Life Alyx). Auto-extract now extracts in place ("extract here").
+
+### Added
+- When a download finishes on Windows and the system drive has less free space than the download, the app shows a heads-up that setup unpacks to C: first even when installing elsewhere.
+
 ## [5.0.14] - 2026-09-27
 
 ### Fixed
