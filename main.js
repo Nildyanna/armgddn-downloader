@@ -70,6 +70,7 @@ if (SENTRY_DSN) {
 // failure type is one issue.
 function reportDownloadFailure(download, errorText) {
   if (!SENTRY_DSN || !isErrorReportingEnabled()) return;
+  if (isDownloadAbandoned(download)) return;
   try {
     const firstLine = String(errorText || 'Unknown download error').split('\n')[0].slice(0, 200);
     Sentry.withScope((scope) => {
@@ -89,7 +90,32 @@ function reportDownloadFailure(download, errorText) {
     });
   } catch (e) { }
 }
+// True when the user cancelled, paused or removed the download. Recovery code
+// that was mid-retry then fails with "Download not found" or a killed-process
+// error; that's not a real failure, so it must not be shown or reported
+// (a cancelled Half-Life Alyx download showed up in Sentry COMPANION-3).
+function isDownloadAbandoned(download) {
+  try {
+    if (!download) return true;
+    if (download.cancelled || download.paused || download.status === 'cancelled') return true;
+    for (const d of activeDownloads.values()) if (d === download) return false;
+    return true;
+  } catch (e) {
+    return false;
+  }
+}
+// "certificate has expired" / "not yet valid" while our certificate is valid
+// means the PC clock is wrong or security software is intercepting HTTPS
+// (Sentry COMPANION-3/-C). Retrying can't fix either, so say what will.
+const CLOCK_CERT_RE = /(certificate has expired|not yet valid|cert_date_invalid|certificate_expired|err_cert_date)/i;
+function clockCertMessage() {
+  return withSupportFooter(
+    "Secure connection refused: this PC's date/time looks wrong, or antivirus is scanning HTTPS traffic.",
+    "Set your clock to update automatically (Windows: Settings > Time & language > Date & time > Set time automatically, then Sync now). If the time is already right, turn off your antivirus' HTTPS/web scanning for the Companion. Then click Retry."
+  );
+}
 function noteRecovery(download, note) {
+  try { if (download && CLOCK_CERT_RE.test(String(note))) download.__clockSuspect = true; } catch (e) { }
   try {
     if (!download) return;
     if (!Array.isArray(download.__recoveryNotes)) download.__recoveryNotes = [];
@@ -663,8 +689,9 @@ if (!gotTheLock) {
   app.quit();
 } else {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
-    // Someone tried to run a second instance, focus our window
-    if (mainWindow) {
+    // Someone tried to run a second instance, focus our window. The window
+    // can already be destroyed while the app is quitting (Sentry COMPANION-B).
+    if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       // KDE Plasma enforces focus-stealing prevention; focus() is unreliable there.
@@ -1662,6 +1689,9 @@ function formatDownloadFailedMessage(code, errorOutput) {
         `The connection dropped mid-download. (${detail})`,
         'Retry the download. If it repeats, try a different network or lower concurrency.'
       );
+    }
+    if (CLOCK_CERT_RE.test(detail)) {
+      return clockCertMessage();
     }
     if (/(x509|certificate|ssl)/i.test(detail)) {
       return withSupportFooter(
@@ -2720,6 +2750,55 @@ app.whenReady().then(() => {
 
 ipcMain.handle('retry-download', async (event, downloadId) => {
   if (!isValidDownloadId(downloadId)) return false;
+  return retryFailedDownload(downloadId);
+});
+
+// Auto-retry: most failures are the member's connection dropping (Sentry
+// COMPANION-2/-3/-5/-6). Once a download has failed on one of those, wait for
+// the network and resume it once by itself, as if they'd clicked Retry.
+// Errors a retry can't fix (disk space, quota, clock, folder) are left alone.
+const AUTO_RETRY_TRANSIENT_RE = /(stalled|link expired|network\/dns|timed out|connection dropped|gateway error|could not be resumed|download failed\.)/i;
+const AUTO_RETRY_BLOCK_RE = /(disk space|quota|date\/time|download folder|security error)/i;
+const AUTO_RETRY_MAX = 1;
+function scheduleAutoRetry(downloadId, download) {
+  try {
+    if (!download || download.__autoRetryPending) return;
+    if ((Number(download.__autoRetries) || 0) >= AUTO_RETRY_MAX) return;
+    const err = String(download.error || '');
+    if (!AUTO_RETRY_TRANSIENT_RE.test(err) || AUTO_RETRY_BLOCK_RE.test(err)) return;
+    download.__autoRetryPending = true;
+    noteRecovery(download, 'auto-retry scheduled');
+    (async () => {
+      try {
+        // Let the other workers finish failing so the download settles on 'error'.
+        const settleDeadline = Date.now() + 30 * 60 * 1000;
+        await new Promise(r => setTimeout(r, 60 * 1000));
+        while (Date.now() < settleDeadline) {
+          if (isDownloadAbandoned(download) || activeDownloads.get(downloadId) !== download) return;
+          if (download.status === 'error') break;
+          if (download.status === 'completed') return;
+          await new Promise(r => setTimeout(r, 15000));
+        }
+        if (download.status !== 'error') return;
+        if (!(await waitForNetwork(30 * 60 * 1000))) {
+          noteRecovery(download, 'auto-retry: network still down after 30 minutes');
+          return;
+        }
+        if (isDownloadAbandoned(download) || download.status !== 'error') return;
+        download.__autoRetries = (Number(download.__autoRetries) || 0) + 1;
+        noteRecovery(download, 'auto-retry: resuming');
+        logToFile(`[AutoRetry] resuming ${downloadId} after: ${err.split('\n')[0]}`);
+        await retryFailedDownload(downloadId, 'Connection is back, resuming automatically...');
+      } catch (e) {
+        try { logToFile(`[AutoRetry] failed: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
+      } finally {
+        download.__autoRetryPending = false;
+      }
+    })();
+  } catch (e) { }
+}
+
+async function retryFailedDownload(downloadId, statusMessage) {
   const download = activeDownloads.get(downloadId);
   if (!download) return false;
 
@@ -2735,6 +2814,7 @@ ipcMain.handle('retry-download', async (event, downloadId) => {
     download.status = 'in_progress';
     download.error = '';
     download.failedFiles = [];
+    if (statusMessage) download.statusMessage = statusMessage;
     updateProgress(downloadId);
 
     await resumeDownloadFiles(downloadId);
@@ -2743,7 +2823,7 @@ ipcMain.handle('retry-download', async (event, downloadId) => {
     console.error('Retry download error:', e);
     return false;
   }
-});
+}
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') {
@@ -3560,6 +3640,23 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
         }
       }
     }
+
+    // Check 3 (Windows): setup unpacks its temp files to the drive holding the
+    // Windows temp folder. Warn now, before hours of downloading, instead of
+    // only when the download finishes (see installSpaceTip).
+    const tempWarn = (totalSize > 0) ? preStartInstallSpaceWarning(totalSize, targetPath) : '';
+    if (tempWarn) {
+      const { response } = await withDialogFocus(() => dialog.showMessageBox(getDialogParentWindow(), {
+        type: 'warning',
+        buttons: ['Download Anyway', 'Cancel'],
+        defaultId: 0,
+        cancelId: 1,
+        title: 'Low Space for Installing',
+        message: 'You may not have enough free space to install this game.',
+        detail: tempWarn
+      }));
+      if (response === 1) return null;
+    }
   } catch (e) {
     // Pass through explicit errors (like "Not enough space"), ignore others
     if (e.message && e.message.startsWith('Not enough disk space')) {
@@ -3664,8 +3761,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     } catch (e2) { }
     try { logToFile(`[start-download] mkdir failed path=${String(downloadDir)} err=${msg}`); } catch (e2) { }
     try { reportDownloadFailure(download, download.error || msg); } catch (e3) { }
-    try { sendToMain('download-error', { id: downloadId, error: download.error || msg }); } catch (e2) { }
-    try { showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error || msg}`); } catch (e2) { }
+    try { if (!isDownloadAbandoned(download)) sendToMain('download-error', { id: downloadId, error: download.error || msg }); } catch (e2) { }
+    try { scheduleAutoRetry(downloadId, download); } catch (eAr) { }
+    try { if (!isDownloadAbandoned(download)) showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error || msg}`); } catch (e2) { }
     try { activeDownloads.delete(downloadId); } catch (e2) { }
     throw new Error(download.error || msg);
   }
@@ -4450,8 +4548,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       } catch (e2) { }
       try { updateProgress(downloadId); } catch (e2) { }
       try { reportDownloadFailure(download, download.error); } catch (e3) { }
-      try { sendToMain('download-error', { id: downloadId, error: download.error }); } catch (e2) { }
-      try { showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`); } catch (e2) { }
+      try { if (!isDownloadAbandoned(download)) sendToMain('download-error', { id: downloadId, error: download.error }); } catch (e2) { }
+      try { scheduleAutoRetry(downloadId, download); } catch (eAr) { }
+      try { if (!isDownloadAbandoned(download)) showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`); } catch (e2) { }
       done(new Error(download.error));
       return;
     }
@@ -4708,8 +4807,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           );
           updateProgress(downloadId);
           try { reportDownloadFailure(download, download.error); } catch (e3) { }
-          sendToMain('download-error', { id: downloadId, error: download.error });
-          showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
+          if (!isDownloadAbandoned(download)) sendToMain('download-error', { id: downloadId, error: download.error });
+          try { scheduleAutoRetry(downloadId, download); } catch (eAr) { }
+          if (!isDownloadAbandoned(download)) showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
           done(new Error(download.error));
           return;
         }
@@ -4844,14 +4944,15 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
             try { logToFile(`[StallRetry] fresh-link retry failed: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
           }
 
-          download.error = withSupportFooter(
+          download.error = download.__clockSuspect ? clockCertMessage() : withSupportFooter(
             'Download stalled and could not be resumed after several retries.',
             'Retry the download. If it keeps happening, change mirrors by starting the download again from the website, or lower concurrency to 1-2.'
           );
           updateProgress(downloadId);
           try { reportDownloadFailure(download, download.error); } catch (e3) { }
-          sendToMain('download-error', { id: downloadId, error: download.error });
-          showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
+          if (!isDownloadAbandoned(download)) sendToMain('download-error', { id: downloadId, error: download.error });
+          try { scheduleAutoRetry(downloadId, download); } catch (eAr) { }
+          if (!isDownloadAbandoned(download)) showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
           done(new Error(download.error));
           return;
         }
@@ -5009,6 +5110,8 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
             'Download link expired.',
             'Go back to the website and start the download again to generate a fresh link.'
           );
+        } else if (sslError && CLOCK_CERT_RE.test(errorOutput)) {
+          download.error = clockCertMessage();
         } else if (sslError) {
           download.error = withSupportFooter(
             'SSL/Certificate error.',
@@ -5025,7 +5128,8 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 
         updateProgress(downloadId);
         try { reportDownloadFailure(download, download.error); } catch (e3) { }
-        sendToMain('download-error', { id: downloadId, error: download.error });
+        if (!isDownloadAbandoned(download)) sendToMain('download-error', { id: downloadId, error: download.error });
+        try { scheduleAutoRetry(downloadId, download); } catch (eAr) { }
         let shouldShowNotification = true;
         if (quota) {
           if (download.quotaNotified) {
@@ -5035,7 +5139,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           }
         }
         if (shouldShowNotification) {
-          showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
+          if (!isDownloadAbandoned(download)) showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
         }
         done(new Error(download.error));
       }
@@ -5058,8 +5162,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         logToFile(`[rclone] spawn error: ${err && err.message ? err.message : String(err)}`);
       } catch (e) { }
       try { reportDownloadFailure(download, download.error); } catch (e3) { }
-      sendToMain('download-error', { id: downloadId, error: download.error });
-      showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
+      if (!isDownloadAbandoned(download)) sendToMain('download-error', { id: downloadId, error: download.error });
+      try { scheduleAutoRetry(downloadId, download); } catch (eAr) { }
+      if (!isDownloadAbandoned(download)) showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
       done(err);
     });
     })().catch((e) => {
@@ -6392,6 +6497,32 @@ function finalizeCompletedDownload(downloadId) {
 // C:) no matter where the game is installed, so a nearly-full temp drive makes
 // setup "finish" instantly with nothing installed. Warn when the drive holding
 // the temp folder has less free space than the download itself.
+// Before a download starts: will the Windows temp-folder drive have room for
+// setup's temp files once the download is done? If it's the same drive as the
+// download, the downloaded files take their share of it first.
+function preStartInstallSpaceWarning(totalSize, downloadPath) {
+  try {
+    if (process.platform !== 'win32') return '';
+    const need = Number(totalSize) || 0;
+    if (need <= 0) return '';
+    const tempDir = os.tmpdir();
+    const tempRoot = (path.parse(tempDir).root || '').toLowerCase();
+    const dlRoot = (path.parse(path.resolve(String(downloadPath || ''))).root || '').toLowerCase();
+    const free = getFreeDiskSpace(tempDir);
+    if (free < 0) return '';
+    const sameDrive = !!tempRoot && tempRoot === dlRoot;
+    const required = sameDrive ? need * 2 : need;
+    if (free >= required) return '';
+    const driveLabel = (path.parse(tempDir).root || 'C:\\').replace(/[\\/]+$/, '');
+    const why = sameDrive
+      ? `This game downloads to ${driveLabel}, and setup also unpacks about ${formatBytes(need)} of temp files there (your Windows temp folder is on ${driveLabel}), even if you install to another drive.`
+      : `Setup unpacks about ${formatBytes(need)} of temp files to ${driveLabel} (your Windows temp folder is there), even if you install to another drive.`;
+    return `${why}\n\nNeeded on ${driveLabel}: about ${formatBytes(required)}\nFree on ${driveLabel}: ${formatBytes(free)}\n\nYou can still download now and free up space on ${driveLabel} before running setup.`;
+  } catch (e) {
+    return '';
+  }
+}
+
 function installSpaceTip(download) {
   try {
     if (process.platform !== 'win32') return '';
