@@ -68,11 +68,25 @@ if (SENTRY_DSN) {
 // Failed downloads are caught and shown in the app, so Sentry would never see
 // them otherwise. Grouped by the first line of the error so each distinct
 // failure type is one issue.
+// Failures caused by a member's own connection, the mirror rate-limiting them,
+// or an expired link are expected and already retried/explained in the app, so
+// reporting them only spams Sentry alerts. Gateway errors (502-504), engine
+// start failures and anything unrecognised are still reported.
+const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error)/i;
+function isExpectedDownloadFailure(errorText) {
+  return EXPECTED_FAILURE_RE.test(String(errorText || '').split('\n')[0]);
+}
+// rclone log lines start with a timestamp; leaving it in gave every event its
+// own issue.
+function normalizeFailureLine(line) {
+  return String(line).replace(/\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}/g, '<time>');
+}
 function reportDownloadFailure(download, errorText) {
   if (!SENTRY_DSN || !isErrorReportingEnabled()) return;
   if (isDownloadAbandoned(download)) return;
+  if (isExpectedDownloadFailure(errorText)) return;
   try {
-    const firstLine = String(errorText || 'Unknown download error').split('\n')[0].slice(0, 200);
+    const firstLine = normalizeFailureLine(String(errorText || 'Unknown download error').split('\n')[0].slice(0, 200));
     Sentry.withScope((scope) => {
       scope.setLevel('warning');
       scope.setFingerprint(['download-failure', firstLine]);
