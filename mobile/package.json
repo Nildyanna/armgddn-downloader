@@ -23,5 +23,9 @@
   "devDependencies": {
     "@types/react": "~18.2.79",
     "typescript": "~5.3.3"
+  },
+  "overrides": {
+    "postcss": "^8.5.28",
+    "@xmldom/xmldom": "^0.8.15"
   }
 }
