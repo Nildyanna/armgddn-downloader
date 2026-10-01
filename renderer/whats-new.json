@@ -1,4 +1,11 @@
 {
+  "5.0.19": {
+    "title": "Android App Update",
+    "highlights": [
+      "The Android app has been rebuilt on the latest Android app framework, with security updates throughout. Login, layout and downloads were tested on a real phone.",
+      "Nothing changes in the desktop app. This update is for Android users."
+    ]
+  },
   "5.0.18": {
     "title": "Safer and Clearer",
     "highlights": [
