@@ -1,4 +1,11 @@
 {
+  "5.0.17": {
+    "title": "Quieter Behind the Scenes",
+    "highlights": [
+      "Cleaned up how the app reports problems back to us. Everyday hiccups, like an expired download link, a rate limit, or your connection dropping, no longer count as bugs, so the real ones stand out and get fixed faster.",
+      "Nothing changes in how downloads work. This update is just housekeeping."
+    ]
+  },
   "5.0.16": {
     "title": "Fewer Failed Downloads",
     "highlights": [

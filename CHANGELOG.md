@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.17] - 2026-10-01
+
+### Changed
+- **Error reporting no longer includes expected download failures** — rate limits, expired/invalid links, stalls, network/DNS drops and gateway 500s are handled by the app and the user is told what to do, so they are no longer sent to Sentry. Remaining rclone errors are grouped regardless of the timestamp in the message, so one failure no longer creates a new issue every time. 404s are still reported on purpose, since they exposed a real gateway misconfiguration.
+
 ## [5.0.16] - 2026-09-28
 
 ### Added
