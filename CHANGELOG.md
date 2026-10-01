@@ -5,6 +5,13 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.19] - 2026-10-01
+
+### Changed
+- **Android app upgraded from Expo SDK 51 to 57** (React Native 0.74 to 0.86, React 18 to 19, react-native-blob-util 0.19 to 0.25). The classic file API now comes from `expo-file-system/legacy`, `SafeAreaView` from `react-native-safe-area-context`, and `expo-system-ui` keeps the dark theme on Android. The mobile `npm audit` went from 38 findings (2 critical) to 0. Tested on a Pixel: the app opens, the layout is correct, and a real download from the site completes.
+- CI: `expo prebuild` uses `CI=1`, and `gradle.properties` is ended with a newline before settings are appended (the missing newline broke Expo 57's autolinker). Ubuntu runners are pinned to 24.04 and the GitHub Actions are on current versions.
+- Desktop app: no changes.
+
 ## [5.0.18] - 2026-10-01
 
 ### Security
