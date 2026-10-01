@@ -5,6 +5,16 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.18] - 2026-10-01
+
+### Security
+- **Electron 42.0.1 -> 42.11.10** (11 Chromium security releases) and electron-builder 26.8.1 -> 26.15.3. `npm audit` is clean (was 15 findings in the build tooling). Removed the old `ajv@6` override, which electron-builder 26.15 can't build with.
+
+### Changed
+- **Clearer message when the downloader engine can't start** (COMPANION-E, `spawn EFTYPE`): it now says the antivirus may have quarantined or blocked the engine, to restore it from quarantine and add the Companion's install folder as an exclusion, instead of telling people to disable their antivirus.
+- **Update check no longer reports a GitHub rate limit as an error** — it says GitHub is limiting checks from the network and to try again later, and logs a warning instead of an error. The CI smoke test no longer calls GitHub at all (it failed the 5.0.17 macOS build once).
+- A download folder that can't be created (missing drive, no permission) is explained in the app and is no longer reported to Sentry (COMPANION-1B).
+
 ## [5.0.17] - 2026-10-01
 
 ### Changed
