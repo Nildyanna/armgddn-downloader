@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Linking, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import * as FileSystem from 'expo-file-system';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
+// The classic file API (documentDirectory, createDownloadResumable, StorageAccessFramework) lives at /legacy since SDK 54.
+import * as FileSystem from 'expo-file-system/legacy';
 import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
@@ -723,6 +725,7 @@ export default function App() {
   }
 
   return (
+    <SafeAreaProvider>
     <SafeAreaView style={styles.container}>
       <ExpoStatusBar style="light" />
       <ScrollView contentContainerStyle={styles.content}>
@@ -851,6 +854,7 @@ export default function App() {
         </Section>
       </ScrollView>
     </SafeAreaView>
+    </SafeAreaProvider>
   );
 }
 

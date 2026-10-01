@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { Platform, PermissionsAndroid } from 'react-native';
 
 // react-native-blob-util is a native module — guard the require so that
