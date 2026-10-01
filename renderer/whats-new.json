@@ -1,4 +1,12 @@
 {
+  "5.0.18": {
+    "title": "Safer and Clearer",
+    "highlights": [
+      "Updated the app's built-in browser engine to its latest security release, picking up 11 rounds of Chromium security fixes.",
+      "If your antivirus quarantines the download engine, the app now tells you how to restore it and exclude the app's folder, instead of just saying it failed to start.",
+      "Checking for updates no longer shows a confusing error when GitHub is busy. The app just asks you to try again in a little while."
+    ]
+  },
   "5.0.17": {
     "title": "Quieter Behind the Scenes",
     "highlights": [
