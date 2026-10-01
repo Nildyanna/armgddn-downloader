@@ -10,22 +10,25 @@
     "web": "expo start --web"
   },
   "dependencies": {
-    "@types/react": "~18.2.79",
-    "expo": "~51.0.0",
-    "expo-file-system": "~17.0.1",
-    "expo-secure-store": "~13.0.1",
-    "expo-status-bar": "~1.12.1",
-    "react": "18.2.0",
-    "react-native": "0.74.5",
-    "react-native-blob-util": "^0.19.8",
-    "typescript": "~5.3.3"
+    "expo": "~57.0.26",
+    "expo-constants": "~57.0.20",
+    "expo-file-system": "~57.0.7",
+    "expo-secure-store": "~57.0.4",
+    "expo-status-bar": "~57.0.1",
+    "expo-system-ui": "~57.0.4",
+    "react": "19.2.3",
+    "react-native": "0.86.3",
+    "react-native-blob-util": "^0.25.1",
+    "react-native-safe-area-context": "~5.7.0"
   },
   "devDependencies": {
-    "@types/react": "~18.2.79",
-    "typescript": "~5.3.3"
+    "@types/react": "~19.2.2",
+    "babel-preset-expo": "~57.0.13",
+    "typescript": "~6.0.3"
   },
   "overrides": {
     "postcss": "^8.5.28",
-    "@xmldom/xmldom": "^0.8.15"
+    "@xmldom/xmldom": "^0.8.15",
+    "uuid": "^14.0.2"
   }
 }

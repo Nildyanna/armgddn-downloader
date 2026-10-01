@@ -258,7 +258,9 @@ jobs:
 
       - name: Prebuild Android project
         working-directory: mobile
-        run: npx expo prebuild --platform android --non-interactive --clean
+        env:
+          CI: '1'
+        run: npx expo prebuild --platform android --clean
 
       - name: Ensure Android splash color resource exists
         shell: bash
@@ -295,6 +297,9 @@ jobs:
           else
             printf 'org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8\n' > gradle.properties
           fi
+          # The generated gradle.properties can end without a newline; appending to it would glue a setting onto the
+          # last line (Expo 57 then fails parsing expo.inlineModules.watchedDirectories as JSON).
+          if [ -n "$(tail -c1 gradle.properties)" ]; then printf '\n' >> gradle.properties; fi
           grep -q '^org\.gradle\.caching=' gradle.properties || printf 'org.gradle.caching=true\n' >> gradle.properties
           grep -q '^org\.gradle\.parallel=' gradle.properties || printf 'org.gradle.parallel=true\n' >> gradle.properties
           grep -q '^org\.gradle\.configureondemand=' gradle.properties || printf 'org.gradle.configureondemand=true\n' >> gradle.properties
