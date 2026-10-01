@@ -11,7 +11,7 @@
   },
   "dependencies": {
     "@types/react": "~18.2.79",
-    "expo": "~51.0.0",
+    "expo": "~57.0.26",
     "expo-file-system": "~17.0.1",
     "expo-secure-store": "~13.0.1",
     "expo-status-bar": "~1.12.1",
