@@ -6734,6 +6734,9 @@ function getWhatsNewForVersion(version) {
 // The check-updates IPC handler strips installerUrl before returning to renderer (C1/H1).
 function fetchLatestReleaseInfo() {
   return new Promise((resolve) => {
+    // CI smoke test: never call GitHub (shared runner IPs get rate limited, and any
+    // console error fails the smoke test).
+    if (SMOKE_TEST) { resolve({ hasUpdate: false, version: app.getVersion() }); return; }
     const options = {
       hostname: 'api.github.com',
       path: '/repos/Nildyanna/armgddn-downloader/releases', // Fetch all releases to include prereleases for testing
@@ -6758,6 +6761,14 @@ function fetchLatestReleaseInfo() {
         try {
           const releases = JSON.parse(data);
           if (!Array.isArray(releases)) {
+            // GitHub answers an object like {"message":"API rate limit exceeded ..."} (403/429)
+            // when an IP makes too many unauthenticated requests. Not an app error: say so.
+            const msg = releases && typeof releases.message === 'string' ? releases.message : '';
+            if (res.statusCode === 403 || res.statusCode === 429 || /rate limit/i.test(msg)) {
+              resolve({ hasUpdate: false, version: app.getVersion(), rateLimited: true,
+                error: 'GitHub is limiting update checks from your network right now. Try again in a little while.' });
+              return;
+            }
             resolve({ error: 'Invalid releases response' });
             return;
           }
