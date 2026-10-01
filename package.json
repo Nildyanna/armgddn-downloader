@@ -125,7 +125,6 @@
     "electron-builder": "^26.15.3"
   },
   "overrides": {
-    "ajv": "^6.12.6",
     "glob": "^13.0.0",
     "rimraf": "^5.0.0",
     "@electron/get": "^5.0.0",
