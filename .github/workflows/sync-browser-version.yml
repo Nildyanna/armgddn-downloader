@@ -8,13 +8,13 @@ name: Sync Browser Version
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
 
     steps:
       - name: Checkout downloader repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Sync version to ArmgddnBrowser
         env:
