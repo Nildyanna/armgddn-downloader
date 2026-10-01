@@ -3766,12 +3766,24 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     // Controlled Folder Access. If this throws, we must surface a clear error and
     // avoid leaving a stuck "in_progress" download that never spawns workers.
     const msg = (e && e.message) ? String(e.message) : String(e);
+    // ENOENT even with recursive mkdir on Windows means the drive itself is gone
+    // (unplugged, renamed, or a letter that no longer exists).
+    let missingDrive = '';
+    try {
+      const root = path.parse(downloadDir).root;
+      if (process.platform === 'win32' && e && e.code === 'ENOENT' && /^[A-Za-z]:\\$/.test(root) && !fs.existsSync(root)) missingDrive = root.slice(0, 2);
+    } catch (eD) { }
     try {
       download.status = 'error';
-      download.error = withSupportFooter(
-        `Can't create the download folder. (${msg})`,
-        'Change the download folder in settings to a writable location (e.g. inside your user folder) and retry. On Windows, check Defender Controlled Folder Access / antivirus blocks.'
-      );
+      download.error = missingDrive
+        ? withSupportFooter(
+          `Can't create the download folder because drive ${missingDrive} isn't available right now. (${msg})`,
+          `Reconnect drive ${missingDrive}, or change the download folder in settings to a drive that is connected, then retry.`
+        )
+        : withSupportFooter(
+          `Can't create the download folder. (${msg})`,
+          'Change the download folder in settings to a writable location (e.g. inside your user folder) and retry. On Windows, check Defender Controlled Folder Access / antivirus blocks.'
+        );
       download.statusMessage = download.error;
       updateProgress(downloadId);
     } catch (e2) { }
