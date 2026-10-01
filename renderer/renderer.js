@@ -1356,7 +1356,8 @@ async function showAlertDialog(title, message) {
       const result = await api.checkUpdates();
 
       if (result.error) {
-        console.error('Update check failed:', result.error);
+        // A rate limit is expected now and then on shared networks; it isn't a bug.
+        (result.rateLimited ? console.warn : console.error)('Update check failed:', result.error);
         return;
       }
 
