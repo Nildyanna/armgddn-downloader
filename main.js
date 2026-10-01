@@ -71,8 +71,10 @@ if (SENTRY_DSN) {
 // Failures caused by a member's own connection, the mirror rate-limiting them,
 // or an expired link are expected and already retried/explained in the app, so
 // reporting them only spams Sentry alerts. Gateway errors (502-504), engine
-// start failures and anything unrecognised are still reported.
-const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error)/i;
+// start failures and anything unrecognised are still reported. A download folder that
+// can't be created (missing drive, no permission) is the member's setup and is explained
+// in the app, so it isn't reported either.
+const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error|Can't create the download folder)/i;
 function isExpectedDownloadFailure(errorText) {
   return EXPECTED_FAILURE_RE.test(String(errorText || '').split('\n')[0]);
 }
@@ -4545,7 +4547,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       const msg = (e && e.message) ? String(e.message) : String(e);
       download.error = withSupportFooter(
         `Failed to start downloader engine (rclone). (${msg})`,
-        'Try reinstalling/updating the Companion, or temporarily disable antivirus/quarantine and retry.'
+        'Your antivirus may have quarantined or blocked the Companion\'s downloader engine. Restore it from your antivirus quarantine, add the Companion\'s install folder as an exclusion (Windows Security > Virus & threat protection > Manage settings > Exclusions), then retry. If it keeps happening, reinstall the Companion.'
       );
       try {
         if (!Array.isArray(download.failedFiles)) download.failedFiles = [];
