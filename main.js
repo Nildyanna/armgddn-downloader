@@ -1811,11 +1811,13 @@ const get7zPath = () => {
 // (root-owned) or an AppImage mount (read-only) won't let the app chmod it, so running it
 // fails and extraction reports "Failed to validate archive contents". When it can't be run
 // in place, run a private copy from the app's own writable folder.
-function ensureRunnable7z(exe) {
+function ensureRunnable7z(exe, force = false) {
   if (!exe || process.platform === 'win32') return exe;
   const canExec = () => { try { fs.accessSync(exe, fs.constants.X_OK); return true; } catch (e) { return false; } };
-  if (canExec()) return exe;
-  if (process.env.ARMGDDN_TEST_NO_CHMOD !== '1') {
+  // force: the file looks executable but starting it still failed (seen on an AppImage), so
+  // skip these checks and use a private copy.
+  if (!force && canExec()) return exe;
+  if (!force && process.env.ARMGDDN_TEST_NO_CHMOD !== '1') {
     try { fs.chmodSync(exe, 0o755); } catch (e) { }
     if (canExec()) return exe;
   }
@@ -1853,18 +1855,57 @@ function describe7zTool(exe) {
   }
 }
 
-let _sevenZipSelfTestDone = false;
-function selfTest7zOnce(exe) {
-  if (_sevenZipSelfTestDone) return;
-  _sevenZipSelfTestDone = true;
+// Find a 7-Zip that actually starts. A Linux member's AppImage had a bundled 7za that looked
+// executable but would not spawn ("List failed: code=null err=yes"), so try the bundled tool,
+// then a private copy of it, then the system's own 7-Zip, and log each result.
+let _resolved7z = null;
+let _resolved7zFailures = [];
+
+function probe7z(exe) {
   try {
     const r = spawnSync(exe, ['i'], { encoding: 'utf8', timeout: 10000 });
-    const err = r.error ? `${r.error.code || ''} ${r.error.message || r.error}`.trim() : '';
-    const firstLine = String(r.stdout || '').split(/\r?\n/).find((l) => l.trim()) || '';
-    logToFile(`[7z] Self-test: status=${r.status} signal=${r.signal || ''} error=${err || 'none'} output="${snip7z(firstLine, 120)}" stderr="${snip7z(r.stderr, 200)}"`);
+    if (!r.error && r.status === 0) {
+      const first = String(r.stdout || '').split(/\r?\n/).find((l) => l.trim()) || '';
+      return { ok: true, note: snip7z(first, 100) };
+    }
+    const why = r.error
+      ? `${r.error.code || ''} ${r.error.message || r.error}`.trim()
+      : `exit ${r.status}${r.signal ? ` signal ${r.signal}` : ''} ${snip7z(r.stderr, 120)}`.trim();
+    return { ok: false, note: why };
   } catch (e) {
-    logToFile(`[7z] Self-test threw: ${e && e.message ? e.message : e}`);
+    return { ok: false, note: e && e.message ? e.message : String(e) };
   }
+}
+
+function resolve7zTool() {
+  if (_resolved7z) return _resolved7z;
+  const bundled = get7zPath();
+  const candidates = [];
+  if (bundled && fs.existsSync(bundled)) {
+    candidates.push({ label: 'bundled', get: () => ensureRunnable7z(bundled) });
+    if (process.platform !== 'win32') candidates.push({ label: 'private copy', get: () => ensureRunnable7z(bundled, true) });
+  }
+  if (process.platform !== 'win32') {
+    for (const name of ['7zz', '7z', '7za']) candidates.push({ label: `system ${name}`, get: () => name });
+  }
+  const tried = new Set();
+  const failures = [];
+  for (const c of candidates) {
+    const exe = c.get();
+    if (!exe || tried.has(exe)) continue;
+    tried.add(exe);
+    const r = probe7z(exe);
+    try { logToFile(`[7z] Tool candidate "${c.label}" (${exe}): ${r.ok ? 'works' : 'failed'} - ${r.note}`); } catch (e) { }
+    if (r.ok) {
+      _resolved7z = exe;
+      _resolved7zFailures = [];
+      try { if (exe.includes(path.sep)) logToFile(`[7z] Tool: ${describe7zTool(exe)}`); } catch (e) { }
+      return exe;
+    }
+    failures.push(`${c.label}: ${r.note}`);
+  }
+  _resolved7zFailures = failures;
+  return null;
 }
 
 function isStarfieldAutoExtractTargetValue(value) {
@@ -2724,11 +2765,11 @@ function runSmokeTest() {
         if (process.platform !== 'win32') {
           process.env.ARMGDDN_TEST_NO_CHMOD = '1';
           try { fs.chmodSync(sevenZip, 0o644); } catch (e) { failures.push(`could not strip the execute bit for the test: ${e && e.message}`); }
-          sevenZipRun = ensureRunnable7z(sevenZip);
+          sevenZipRun = resolve7zTool() || sevenZip;
           // With the execute bit stripped and chmod forbidden, running it in place is impossible,
-          // so a pass is only meaningful if the private copy was really used.
-          if (sevenZipRun === sevenZip) failures.push('7z fallback was not used: the tool was run in place without the execute bit');
-          else if (!fs.existsSync(sevenZipRun)) failures.push(`7z fallback copy is missing: ${sevenZipRun}`);
+          // so a pass is only meaningful if the private copy (or a system 7-Zip) was really used.
+          if (sevenZipRun === sevenZip) failures.push(`7z fallback was not used: ${_resolved7zFailures.join('; ') || 'the tool was run in place without the execute bit'}`);
+          else if (sevenZipRun.includes(path.sep) && !fs.existsSync(sevenZipRun)) failures.push(`7z fallback copy is missing: ${sevenZipRun}`);
         }
         const dir = path.join(app.getPath('userData'), 'smoke-7z');
         const srcDir = path.join(dir, 'src');
@@ -5555,20 +5596,22 @@ function run7zExtract(archivePath, outputDir) {
       reject(new Error('7z extraction tool not found'));
       return;
     }
-    const exe = fs.existsSync(bundledExe) ? ensureRunnable7z(bundledExe) : bundledExe;
-    if (!fs.existsSync(exe)) {
-      // Not "failed to validate": the install itself is missing the tool (this is what
-      // 5.0.18 to 5.0.20 did when the build stopped bundling it), so say so.
-      try { logToFile(`[7z] Bundled extraction tool is missing: ${exe}`); } catch (e) { }
-      reject(new Error('The extraction tool (7-Zip) is missing from this install. Please report this in the chat so we can fix it.'));
+    try { logToFile(`[7z] Extract start: ${archivePath} -> ${outputDir}`); } catch (e) { }
+    const exe = resolve7zTool();
+    if (!exe) {
+      if (!fs.existsSync(bundledExe)) {
+        // Not "failed to validate": the install itself is missing the tool (this is what
+        // 5.0.18 to 5.0.20 did when the build stopped bundling it), so say so.
+        try { logToFile(`[7z] Bundled extraction tool is missing: ${bundledExe}`); } catch (e) { }
+        reject(new Error('The extraction tool (7-Zip) is missing from this install. Please report this in the chat so we can fix it.'));
+      } else {
+        const detail = _resolved7zFailures.join('; ');
+        try { logToFile(`[7z] No working extraction tool: ${detail}`); } catch (e) { }
+        const first = (_resolved7zFailures[0] || '').replace(/^bundled: /, '');
+        reject(new Error(`The built-in extraction tool couldn't start on this system (${snip7z(first, 120)}). Install 7-Zip from your package manager (the 7zz or p7zip package) and try again, or extract the files by hand.`));
+      }
       return;
     }
-
-    try {
-      logToFile(`[7z] Extract start: ${archivePath} -> ${outputDir}`);
-      logToFile(`[7z] Tool: ${describe7zTool(exe)}`);
-      selfTest7zOnce(exe);
-    } catch (e) { }
 
     // Packaging-convenience password only — not a security control. Electron apps are
     // trivially unpackable via asar; this merely keeps archives from opening without the app.
