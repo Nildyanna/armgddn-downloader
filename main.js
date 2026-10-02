@@ -6797,7 +6797,9 @@ function fetchLatestReleaseInfo() {
           const currentVersion = app.getVersion();
 
           // Compare versions
-          const hasUpdate = compareVersions(latestVersion, currentVersion) > 0;
+          const newerExists = compareVersions(latestVersion, currentVersion) > 0;
+          const osTooOld = newerExists && macTooOldForRelease(latestVersion, process.platform, os.release());
+          const hasUpdate = newerExists && !osTooOld;
 
           // Find the appropriate installer asset
           let installerUrl = null;
@@ -6859,6 +6861,8 @@ function fetchLatestReleaseInfo() {
             hasUpdate,
             version: currentVersion,
             latestVersion,
+            osTooOld,
+            notice: osTooOld ? `Version ${latestVersion} needs macOS 13 or newer, so it isn't offered on this Mac. You can keep using v${currentVersion}.` : '',
             releaseUrl: release.html_url || 'https://github.com/Nildyanna/armgddn-downloader/releases',
             installerUrl,  // Only used internally; stripped before sending to renderer
             releaseNotes: release.body || ''
@@ -7625,6 +7629,17 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
 });
 
 // Compare semantic versions (returns 1 if a > b, -1 if a < b, 0 if equal)
+// Electron 44 (Companion 5.0.20 and newer) needs macOS 13, which is Darwin 22.
+// Older Macs stay on the version they have instead of being offered one that won't open.
+const MAC_MIN_DARWIN_MAJOR = 22;
+const MAC_MIN_DARWIN_FROM_VERSION = '5.0.20';
+function macTooOldForRelease(latestVersion, platform, osRelease) {
+  if (platform !== 'darwin') return false;
+  if (compareVersions(latestVersion, MAC_MIN_DARWIN_FROM_VERSION) < 0) return false;
+  const major = parseInt(String(osRelease || ''), 10);
+  return Number.isFinite(major) && major < MAC_MIN_DARWIN_MAJOR;
+}
+
 function compareVersions(a, b) {
   if (!a || !b) return 0;
   const partsA = a.split('.').map(n => parseInt(n, 10) || 0);

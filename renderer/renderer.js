@@ -1342,6 +1342,8 @@ async function showAlertDialog(title, message) {
           }
           showUpdateNotification(result);
         }
+      } else if (result.osTooOld && result.notice) {
+        await showAlertDialog('Update Check', result.notice);
       } else {
         await showAlertDialog('Update Check', `You're running the latest version (v${result.version})`);
       }

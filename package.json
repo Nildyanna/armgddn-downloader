@@ -91,6 +91,7 @@
       ]
     },
     "mac": {
+      "minimumSystemVersion": "13.0",
       "target": [
         "pkg"
       ],
