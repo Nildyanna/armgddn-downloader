@@ -1807,6 +1807,34 @@ const get7zPath = () => {
   return null;
 };
 
+// On Linux and macOS the bundled 7za can lack the execute bit, and an install under /opt
+// (root-owned) or an AppImage mount (read-only) won't let the app chmod it, so running it
+// fails and extraction reports "Failed to validate archive contents". When it can't be run
+// in place, run a private copy from the app's own writable folder.
+function ensureRunnable7z(exe) {
+  if (!exe || process.platform === 'win32') return exe;
+  const canExec = () => { try { fs.accessSync(exe, fs.constants.X_OK); return true; } catch (e) { return false; } };
+  if (canExec()) return exe;
+  if (process.env.ARMGDDN_TEST_NO_CHMOD !== '1') {
+    try { fs.chmodSync(exe, 0o755); } catch (e) { }
+    if (canExec()) return exe;
+  }
+  try {
+    const dir = path.join(app.getPath('userData'), '7z-bin');
+    fs.mkdirSync(dir, { recursive: true });
+    const copy = path.join(dir, path.basename(exe));
+    let current = false;
+    try { current = fs.statSync(copy).size === fs.statSync(exe).size; } catch (e) { }
+    if (!current) fs.copyFileSync(exe, copy);
+    fs.chmodSync(copy, 0o755);
+    try { logToFile(`[7z] Bundled extraction tool is not runnable in place; using a private copy: ${copy}`); } catch (e) { }
+    return copy;
+  } catch (e) {
+    try { logToFile(`[7z] Could not prepare a runnable copy of the extraction tool: ${e && e.message ? e.message : e}`); } catch (e2) { }
+    return exe;
+  }
+}
+
 function isStarfieldAutoExtractTargetValue(value) {
   const raw = String(value || '').replace(/\\/g, '/').replace(/\/+/g, '/').trim();
   if (!raw) return false;
@@ -2658,7 +2686,14 @@ function runSmokeTest() {
       if (!sevenZip || !fs.existsSync(sevenZip)) {
         failures.push(`bundled 7z is missing: ${sevenZip}`);
       } else {
-        if (process.platform !== 'win32') { try { fs.chmodSync(sevenZip, 0o755); } catch (e) { } }
+        // A real Linux/macOS install can't chmod the bundled tool, so strip its execute bit
+        // and forbid chmod here too: only the private-copy fallback can make this pass.
+        let sevenZipRun = sevenZip;
+        if (process.platform !== 'win32') {
+          process.env.ARMGDDN_TEST_NO_CHMOD = '1';
+          try { fs.chmodSync(sevenZip, 0o644); } catch (e) { failures.push(`could not strip the execute bit for the test: ${e && e.message}`); }
+          sevenZipRun = ensureRunnable7z(sevenZip);
+        }
         const dir = path.join(app.getPath('userData'), 'smoke-7z');
         const srcDir = path.join(dir, 'src');
         const outDir = path.join(dir, 'out');
@@ -2667,7 +2702,7 @@ function runSmokeTest() {
         fs.writeFileSync(path.join(srcDir, 'a.txt'), 'hello 7z smoke', 'utf8');
         const archive = path.join(dir, 'test.7z');
         const made = await new Promise((resolve) => {
-          execFile(sevenZip, ['a', '-pARMGDDNGames', '-y', archive, 'a.txt'], { cwd: srcDir, timeout: 60000 }, (err, stdout, stderr) => resolve({ err, stderr }));
+          execFile(sevenZipRun, ['a', '-pARMGDDNGames', '-y', archive, 'a.txt'], { cwd: srcDir, timeout: 60000 }, (err, stdout, stderr) => resolve({ err, stderr }));
         });
         if (made.err) {
           failures.push(`bundled 7z could not create an archive: ${(made.stderr || made.err.message).toString().slice(0, 200)}`);
@@ -5479,11 +5514,12 @@ function find7zArchivesInDir(rootDir) {
 
 function run7zExtract(archivePath, outputDir) {
   return new Promise((resolve, reject) => {
-    const exe = get7zPath();
-    if (!exe) {
+    const bundledExe = get7zPath();
+    if (!bundledExe) {
       reject(new Error('7z extraction tool not found'));
       return;
     }
+    const exe = fs.existsSync(bundledExe) ? ensureRunnable7z(bundledExe) : bundledExe;
     if (!fs.existsSync(exe)) {
       // Not "failed to validate": the install itself is missing the tool (this is what
       // 5.0.18 to 5.0.20 did when the build stopped bundling it), so say so.
