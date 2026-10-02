@@ -122,6 +122,7 @@
     }
   },
   "devDependencies": {
+    "7zip-bin": "^5.2.0",
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3"
   },
