@@ -5,6 +5,13 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.20] - 2026-10-02
+
+### Changed
+- **Electron 42.11.10 -> 44.5.1.** Checked against the 43 and 44 breaking-changes lists: Companion uses none of the removed or changed APIs (clipboard in renderers, isUnityRunning, login-item attributes, select-client-certificate, net.request frames) and builds no 32-bit targets. `npm audit` is clean. CI test builds passed on Windows, Linux, macOS and Android.
+- **macOS 13 is now the minimum** (an Electron 44 requirement). The update check no longer offers 5.0.20 or newer to Macs older than macOS 13 (it says why in a manual check), and the Mac package declares a 13.0 minimum system version.
+- **A missing download drive is named in the error** ("drive D: isn't available right now"), with the advice to reconnect it or pick another folder. Before, mkdir failed with a generic message.
+
 ## [5.0.19] - 2026-10-01
 
 ### Changed

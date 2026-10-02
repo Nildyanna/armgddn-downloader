@@ -1,4 +1,12 @@
 {
+  "5.0.20": {
+    "title": "Newer Engine, Clearer Drive Errors",
+    "highlights": [
+      "Updated the app's built-in browser engine to its newest major version, with the latest security fixes from Chromium. Everything works the same.",
+      "Mac users: this version needs macOS 13 or newer. Macs on macOS 12 simply won't be offered the update and can keep using their current version.",
+      "If the drive you picked for downloads isn't connected (an unplugged external drive, say), the app now tells you which drive is missing and to reconnect it or choose another download folder, instead of a generic \"can't create the folder\" error."
+    ]
+  },
   "5.0.19": {
     "title": "Android App Update",
     "highlights": [
