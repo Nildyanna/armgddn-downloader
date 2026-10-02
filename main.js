@@ -1835,6 +1835,38 @@ function ensureRunnable7z(exe) {
   }
 }
 
+// Diagnostics for extraction failures: one-line summaries that go to debug.log so a member
+// can paste the "[7z]" lines instead of us guessing why the tool would not run.
+function snip7z(text, max = 400) {
+  const t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+  return t.length > max ? `${t.slice(0, max)}...` : t;
+}
+
+function describe7zTool(exe) {
+  try {
+    const st = fs.statSync(exe);
+    let exec = 'n/a';
+    if (process.platform !== 'win32') { try { fs.accessSync(exe, fs.constants.X_OK); exec = 'yes'; } catch (e) { exec = 'no'; } }
+    return `path=${exe} size=${st.size} mode=${(st.mode & 0o777).toString(8)} executable=${exec} platform=${process.platform}/${process.arch}`;
+  } catch (e) {
+    return `path=${exe} stat failed: ${e && e.message ? e.message : e}`;
+  }
+}
+
+let _sevenZipSelfTestDone = false;
+function selfTest7zOnce(exe) {
+  if (_sevenZipSelfTestDone) return;
+  _sevenZipSelfTestDone = true;
+  try {
+    const r = spawnSync(exe, ['i'], { encoding: 'utf8', timeout: 10000 });
+    const err = r.error ? `${r.error.code || ''} ${r.error.message || r.error}`.trim() : '';
+    const firstLine = String(r.stdout || '').split(/\r?\n/).find((l) => l.trim()) || '';
+    logToFile(`[7z] Self-test: status=${r.status} signal=${r.signal || ''} error=${err || 'none'} output="${snip7z(firstLine, 120)}" stderr="${snip7z(r.stderr, 200)}"`);
+  } catch (e) {
+    logToFile(`[7z] Self-test threw: ${e && e.message ? e.message : e}`);
+  }
+}
+
 function isStarfieldAutoExtractTargetValue(value) {
   const raw = String(value || '').replace(/\\/g, '/').replace(/\/+/g, '/').trim();
   if (!raw) return false;
@@ -5534,6 +5566,8 @@ function run7zExtract(archivePath, outputDir) {
 
     try {
       logToFile(`[7z] Extract start: ${archivePath} -> ${outputDir}`);
+      logToFile(`[7z] Tool: ${describe7zTool(exe)}`);
+      selfTest7zOnce(exe);
     } catch (e) { }
 
     // Packaging-convenience password only — not a security control. Electron apps are
@@ -5560,6 +5594,10 @@ function run7zExtract(archivePath, outputDir) {
           const le = listResult && listResult.error ? (listResult.error.message || String(listResult.error)) : '';
           const ls = listResult && listResult.signal ? String(listResult.signal) : '';
           logToFile(`[7z] List failed: code=${code} signal=${ls} err=${le ? 'yes' : 'no'} stdoutLen=${so.length} stderrLen=${se.length}`);
+          const spawnErr = listResult && listResult.error ? `${listResult.error.code || ''} ${le}`.trim() : 'none';
+          let archiveInfo = '';
+          try { archiveInfo = `size=${fs.statSync(archivePath).size}`; } catch (eA) { archiveInfo = `stat failed: ${eA && eA.message ? eA.message : eA}`; }
+          logToFile(`[7z] List failure detail: spawnError=${spawnErr} archive=${archivePath} ${archiveInfo} stdout="${snip7z(so, 300)}" stderr="${snip7z(se, 400)}"`);
         } catch (e) { }
 
         if (listResult && listResult.error && listResult.error.code === 'ETIMEDOUT') {
@@ -5578,16 +5616,19 @@ function run7zExtract(archivePath, outputDir) {
         if (!entryPath) continue;
         const safeRel = sanitizeRelativePath(entryPath);
         if (!safeRel) {
+          try { logToFile(`[7z] Unsafe entry path rejected (sanitize): ${snip7z(entryPath, 200)}`); } catch (e) { }
           reject(new Error('Unsafe archive entry path detected'));
           return;
         }
         const resolved = resolveInside(outputDir, safeRel);
         if (!resolved) {
+          try { logToFile(`[7z] Unsafe entry path rejected (outside output folder): ${snip7z(entryPath, 200)}`); } catch (e) { }
           reject(new Error('Unsafe archive entry path detected'));
           return;
         }
       }
     } catch (e) {
+      try { logToFile(`[7z] Validation threw: ${e && e.message ? e.message : e}`); } catch (e2) { }
       reject(new Error('Failed to validate archive contents before extraction'));
       return;
     }
@@ -5672,7 +5713,7 @@ function run7zExtract(archivePath, outputDir) {
           return;
         }
         try {
-          logToFile(`[7z] Extract failed: ${archivePath} code=${code} outLen=${out.length} errLen=${err.length}`);
+          logToFile(`[7z] Extract failed: ${archivePath} code=${code} outLen=${out.length} errLen=${err.length} stderr="${snip7z(err, 400)}" stdoutTail="${snip7z(out.slice(-300), 300)}"`);
         } catch (e) { }
         reject(new Error(`7z extraction failed (code ${code})${err ? `: ${err.trim()}` : ''}`));
       });
