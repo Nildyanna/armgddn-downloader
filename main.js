@@ -2693,6 +2693,10 @@ function runSmokeTest() {
           process.env.ARMGDDN_TEST_NO_CHMOD = '1';
           try { fs.chmodSync(sevenZip, 0o644); } catch (e) { failures.push(`could not strip the execute bit for the test: ${e && e.message}`); }
           sevenZipRun = ensureRunnable7z(sevenZip);
+          // With the execute bit stripped and chmod forbidden, running it in place is impossible,
+          // so a pass is only meaningful if the private copy was really used.
+          if (sevenZipRun === sevenZip) failures.push('7z fallback was not used: the tool was run in place without the execute bit');
+          else if (!fs.existsSync(sevenZipRun)) failures.push(`7z fallback copy is missing: ${sevenZipRun}`);
         }
         const dir = path.join(app.getPath('userData'), 'smoke-7z');
         const srcDir = path.join(dir, 'src');
