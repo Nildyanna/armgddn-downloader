@@ -2650,6 +2650,37 @@ function runSmokeTest() {
       try { size = fs.statSync(dest).size; } catch (e) { }
       if (size !== payload.length) failures.push(`downloaded file has ${size} bytes, expected ${payload.length}`);
     }
+    // Bundled 7-Zip (auto-extract). 5.0.18 to 5.0.20 shipped without it because the build
+    // tool stopped pulling it in, and nothing noticed. Round-trip a password-protected
+    // archive through the app's real extraction code.
+    try {
+      const sevenZip = get7zPath();
+      if (!sevenZip || !fs.existsSync(sevenZip)) {
+        failures.push(`bundled 7z is missing: ${sevenZip}`);
+      } else {
+        if (process.platform !== 'win32') { try { fs.chmodSync(sevenZip, 0o755); } catch (e) { } }
+        const dir = path.join(app.getPath('userData'), 'smoke-7z');
+        const srcDir = path.join(dir, 'src');
+        const outDir = path.join(dir, 'out');
+        fs.mkdirSync(srcDir, { recursive: true });
+        fs.mkdirSync(outDir, { recursive: true });
+        fs.writeFileSync(path.join(srcDir, 'a.txt'), 'hello 7z smoke', 'utf8');
+        const archive = path.join(dir, 'test.7z');
+        const made = await new Promise((resolve) => {
+          execFile(sevenZip, ['a', '-pARMGDDNGames', '-y', archive, 'a.txt'], { cwd: srcDir, timeout: 60000 }, (err, stdout, stderr) => resolve({ err, stderr }));
+        });
+        if (made.err) {
+          failures.push(`bundled 7z could not create an archive: ${(made.stderr || made.err.message).toString().slice(0, 200)}`);
+        } else {
+          await run7zExtract(archive, outDir);
+          let text = '';
+          try { text = fs.readFileSync(path.join(outDir, 'a.txt'), 'utf8'); } catch (e) { }
+          if (text !== 'hello 7z smoke') failures.push(`7z extraction produced ${JSON.stringify(text)}`);
+        }
+      }
+    } catch (e) {
+      failures.push(`7z extraction failed: ${e && e.message}`);
+    }
     // Let the UI settle so late renderer errors are caught too.
     await new Promise((r) => setTimeout(r, 3000));
     finish();
@@ -5451,6 +5482,13 @@ function run7zExtract(archivePath, outputDir) {
     const exe = get7zPath();
     if (!exe) {
       reject(new Error('7z extraction tool not found'));
+      return;
+    }
+    if (!fs.existsSync(exe)) {
+      // Not "failed to validate": the install itself is missing the tool (this is what
+      // 5.0.18 to 5.0.20 did when the build stopped bundling it), so say so.
+      try { logToFile(`[7z] Bundled extraction tool is missing: ${exe}`); } catch (e) { }
+      reject(new Error('The extraction tool (7-Zip) is missing from this install. Please report this in the chat so we can fix it.'));
       return;
     }
 
