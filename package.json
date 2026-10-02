@@ -121,7 +121,7 @@
     }
   },
   "devDependencies": {
-    "electron": "^42.11.10",
+    "electron": "^44.5.1",
     "electron-builder": "^26.15.3"
   },
   "overrides": {
