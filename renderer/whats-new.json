@@ -1,4 +1,12 @@
 {
+  "5.0.21": {
+    "title": "Auto-Extract Fixed",
+    "highlights": [
+      "Fixed auto-extract. If you were on 5.0.18, 5.0.19 or 5.0.20, extracting your downloads inside the app failed with \"Failed to validate archive contents before extraction.\" A packaging mistake on our side left out the tool the app uses to unpack archives. It's back, and this update puts it in place again.",
+      "If the unpacking tool is ever missing, the app now says so plainly and asks you to report it, instead of showing a confusing validation error.",
+      "Thanks to seb for reporting it."
+    ]
+  },
   "5.0.20": {
     "title": "Newer Engine, Clearer Drive Errors",
     "highlights": [

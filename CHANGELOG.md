@@ -5,6 +5,15 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.21] - 2026-10-02
+
+### Fixed
+- **Auto-extract was broken in 5.0.18, 5.0.19 and 5.0.20.** electron-builder 26.15 stopped pulling in `7zip-bin` as a hidden dependency, so the `extraResources` copies from `node_modules/7zip-bin/*` found nothing and the packaged app shipped without `7za`. Every extraction failed at the validation step with "Failed to validate archive contents before extraction". `7zip-bin` is now an explicit dev dependency.
+
+### Added
+- **CI smoke test for extraction.** The packaged-app smoke test now creates a password-protected archive with the bundled 7za and extracts it through the app's real `run7zExtract`. Without the dependency it failed on Windows, Linux and macOS, and with it it passes on all three, so this class of packaging loss can't ship silently again.
+- A missing extraction tool gets its own message ("The extraction tool (7-Zip) is missing from this install...") and a log line, instead of the generic validation error.
+
 ## [5.0.20] - 2026-10-02
 
 ### Changed
