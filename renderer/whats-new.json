@@ -1,4 +1,13 @@
 {
+  "5.0.23": {
+    "title": "Auto-Extract Finds a Way",
+    "highlights": [
+      "Auto-extract now works on Linux systems where the app's built-in unpacking tool refuses to start. If it can't run, the app tries a private copy of it, and then the 7-Zip already installed on your system.",
+      "If no unpacking tool can start, the app now says so plainly and tells you to install 7-Zip from your package manager, instead of \"Failed to validate archive contents.\"",
+      "The app's log now records exactly why an extraction fails, so problems are quicker to track down.",
+      "Thanks to Dirk for the detailed testing."
+    ]
+  },
   "5.0.22": {
     "title": "Auto-Extract Works on Linux",
     "highlights": [

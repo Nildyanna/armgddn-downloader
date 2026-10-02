@@ -5,6 +5,16 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.23] - 2026-10-02
+
+### Fixed
+- **Auto-extract still failed on a Linux AppImage after 5.0.22.** The member's log showed `[7z] List failed: code=null err=yes`: the bundled 7za looked executable but would not spawn, so 5.0.22's private-copy fallback never triggered. `run7zExtract` now resolves a working tool once, trying the bundled 7za in place, a forced private copy in the data folder, then the system's `7zz`, `7z` or `7za` (Linux and macOS), and keeps the first that answers `7za i`.
+
+### Changed
+- If no tool starts, the error says the built-in tool couldn't start (with the reason) and to install 7-Zip or extract by hand, instead of "Failed to validate archive contents".
+- `debug.log` records every tool attempt with its exact result, the tool's path, size, permissions and platform, the spawn error and 7-Zip's own output when a check fails, and why an entry path was rejected. The password is never logged.
+- The CI smoke test uses the same resolver, with the execute bit stripped and chmod forbidden, and fails unless the private copy (or a system tool) was used.
+
 ## [5.0.22] - 2026-10-02
 
 ### Fixed
