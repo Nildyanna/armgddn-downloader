@@ -5,6 +5,14 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.22] - 2026-10-02
+
+### Fixed
+- **Auto-extract still failed on some Linux (and macOS) installs after 5.0.21.** The bundled `7za` can lack the execute bit, and installs under `/opt` (root-owned) or an AppImage mount (read-only) don't let the app chmod it, so spawning it failed and extraction reported "Failed to validate archive contents before extraction". `run7zExtract` now falls back to a copy in the app's writable data folder (chmod 755 there) when the tool can't be run in place.
+
+### Changed
+- **The CI smoke test now reproduces a real install.** On Linux and macOS it strips the execute bit and forbids chmod before the extraction round trip, and it fails unless the private-copy fallback was actually used. The 5.0.21 test chmod'ed the file itself, which hid this problem.
+
 ## [5.0.21] - 2026-10-02
 
 ### Fixed

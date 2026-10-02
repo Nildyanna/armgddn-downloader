@@ -1,4 +1,11 @@
 {
+  "5.0.22": {
+    "title": "Auto-Extract Works on Linux",
+    "highlights": [
+      "Fixed auto-extract on some Linux and Mac installs. On 5.0.21, extraction could still fail with \"Failed to validate archive contents\" even though the tool was bundled, because the system wouldn't let the app run it from where it was installed. The app now falls back to running its own copy from its data folder.",
+      "Windows is unchanged. Extraction already worked there."
+    ]
+  },
   "5.0.21": {
     "title": "Auto-Extract Fixed",
     "highlights": [
