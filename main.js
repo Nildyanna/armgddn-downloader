@@ -2766,6 +2766,17 @@ function runSmokeTest() {
     } catch (e) {
       failures.push(`error-detail check threw: ${e && e.message}`);
     }
+    // A member who left the group must be told to rejoin, not shown "session expired".
+    try {
+      if (!/rejoin/i.test(notInChannelMessage({ code: 'NOT_IN_CHANNEL', message: 'Please rejoin the group.' }) || '')) {
+        failures.push('NOT_IN_CHANNEL did not surface the server message');
+      }
+      if (notInChannelMessage({ code: undefined, errMsg: 'Authentication required' }) !== null) {
+        failures.push('an ordinary 401 was treated as NOT_IN_CHANNEL');
+      }
+    } catch (e) {
+      failures.push(`not-in-channel check threw: ${e && e.message}`);
+    }
     // Bundled 7-Zip (auto-extract). 5.0.18 to 5.0.20 shipped without it because the build
     // tool stopped pulling it in, and nothing noticed. Round-trip a password-protected
     // archive through the app's real extraction code.
@@ -3334,7 +3345,7 @@ function attemptResolveDownloadToken(downloadToken, bearerToken) {
           const json = JSON.parse(data || '{}');
           if (!json || json.success !== true || !json.manifestUrl) {
             const errMsg = (json && json.error) ? String(json.error) : 'Failed to resolve download token';
-            resolve({ ok: false, statusCode: res.statusCode, errMsg });
+            resolve({ ok: false, statusCode: res.statusCode, errMsg, code: json && json.code, message: json && json.message });
             return;
           }
           resolve({ ok: true, json });
@@ -3347,6 +3358,13 @@ function attemptResolveDownloadToken(downloadToken, bearerToken) {
     req.on('error', (err) => resolve({ ok: false, statusCode: 0, errMsg: err.message }));
     req.end();
   });
+}
+
+// The site answers NOT_IN_CHANNEL when the member has left the ARMGDDN group. Retrying or
+// logging in again can't fix that, so show the site's rejoin steps instead of "session expired".
+function notInChannelMessage(result) {
+  if (!result || result.code !== 'NOT_IN_CHANNEL') return null;
+  return String(result.message || 'You are no longer a member of the ARMGDDN group. Rejoin it, then retry the download.');
 }
 
 ipcMain.handle('resolve-download-token', async (event, downloadToken, urlToken) => {
@@ -3371,6 +3389,11 @@ ipcMain.handle('resolve-download-token', async (event, downloadToken, urlToken) 
     if (attempt.ok) {
       return attempt.json;
     }
+    const leftGroup = notInChannelMessage(attempt);
+    if (leftGroup) {
+      logToFile('resolve-download-token: member is no longer in the ARMGDDN group');
+      throw new Error(leftGroup);
+    }
     logToFile('resolve-download-token: URL token attempt failed, falling back to stored session: ' + attempt.errMsg);
   }
 
@@ -3389,6 +3412,12 @@ ipcMain.handle('resolve-download-token', async (event, downloadToken, urlToken) 
   const result = await attemptResolveDownloadToken(downloadToken, token);
   if (result.ok) {
     return result.json;
+  }
+
+  const leftGroup = notInChannelMessage(result);
+  if (leftGroup) {
+    logToFile('resolve-download-token: member is no longer in the ARMGDDN group');
+    throw new Error(leftGroup);
   }
 
   // Session expired on the server — clear it, open auth window, and reject so the
