@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.24] - 2026-10-04
+
+### Fixed
+- **A failed download could report rclone's startup line as the cause.** A member's failure showed "Starting bandwidth limiter" because rclone exited before logging a real error and the last line of its output, an INFO line, was used as the detail. INFO and DEBUG lines are now ignored when choosing the failure message, so the app falls back to the exit-code message ("Download failed (code N)") and Sentry shows something actionable.
+- The CI smoke test asserts that an INFO-only log gives no detail and that a real error line is still reported.
+
 ## [5.0.23] - 2026-10-02
 
 ### Fixed
