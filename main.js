@@ -1609,10 +1609,14 @@ function extractRcloneErrorDetail(errorOutput) {
     const raw = String(errorOutput || '');
     if (!raw.trim()) return '';
     const redacted = redactUrlQueryStrings(raw);
+    // rclone's INFO/DEBUG lines ("Starting bandwidth limiter...") are never the reason a
+    // download failed. When they are all there is, report nothing so the caller falls back
+    // to the exit-code message instead of showing one as the cause.
     const lines = redacted
       .split(/\r?\n/)
       .map(l => String(l || '').trim())
-      .filter(Boolean);
+      .filter(Boolean)
+      .filter(l => !/^(?:\S+\s+\S+\s+)?(?:INFO|DEBUG)\s*:/i.test(l));
 
     if (!lines.length) return '';
 
@@ -2750,6 +2754,17 @@ function runSmokeTest() {
       let size = -1;
       try { size = fs.statSync(dest).size; } catch (e) { }
       if (size !== payload.length) failures.push(`downloaded file has ${size} bytes, expected ${payload.length}`);
+    }
+    // rclone's INFO lines are never the reason a download failed. 5.0.23 reported "Starting
+    // bandwidth limiter" as a download's error, which hid the real cause.
+    try {
+      if (extractRcloneErrorDetail('2026/10/03 19:25:42 INFO  : Starting bandwidth limiter at 7.500Mi Byte/s') !== '') {
+        failures.push('an INFO-only rclone log was reported as the failure reason');
+      }
+      const realError = extractRcloneErrorDetail('2026/10/03 19:25:42 INFO  : Starting bandwidth limiter\n2026/10/03 19:25:44 ERROR : a.7z: Failed to copy: boom');
+      if (!/Failed to copy: boom/.test(realError)) failures.push(`a real rclone error was not reported: ${JSON.stringify(realError)}`);
+    } catch (e) {
+      failures.push(`error-detail check threw: ${e && e.message}`);
     }
     // Bundled 7-Zip (auto-extract). 5.0.18 to 5.0.20 shipped without it because the build
     // tool stopped pulling it in, and nothing noticed. Round-trip a password-protected
