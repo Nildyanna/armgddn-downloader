@@ -1,4 +1,12 @@
 {
+  "5.0.25": {
+    "title": "A Clear Message If You Left The Group",
+    "highlights": [
+      "If your account is no longer in the ARMGDDN group, downloads can't start. The app now says so and tells you how to fix it, instead of showing \"session expired\".",
+      "To fix it: rejoin the group, complete the CAPTCHA Rose sends you within an hour, then retry the download.",
+      "The website shows the same message as soon as you click Download."
+    ]
+  },
   "5.0.24": {
     "title": "Clearer Download Errors",
     "highlights": [
