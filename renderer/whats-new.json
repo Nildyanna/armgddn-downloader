@@ -1,4 +1,12 @@
 {
+  "5.0.24": {
+    "title": "Clearer Download Errors",
+    "highlights": [
+      "When a download stopped without a clear reason, the app could show a meaningless startup message as the cause. It now shows the normal \"Download failed\" message with an error code instead.",
+      "If you need to report a failed download, include that code and the game name so we can find the cause faster.",
+      "Messages for expired links, full disks and dropped connections are unchanged."
+    ]
+  },
   "5.0.23": {
     "title": "Auto-Extract Finds a Way",
     "highlights": [
