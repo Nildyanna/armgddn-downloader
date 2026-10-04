@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.25] - 2026-10-04
+
+### Fixed
+- **A member who had left the ARMGDDN group saw "session expired" and a login loop instead of the real reason.** They kept a valid browser session, but every download token minted for them was revoked on first use, so the app only ever got a bare 401. The site now answers `NOT_IN_CHANNEL` (on the download button and on token revocation), and the Companion shows the rejoin steps (rejoin the group, complete Rose's CAPTCHA within an hour, retry) and stops retrying or reopening the login window, which cannot fix it.
+- The CI smoke test asserts that `NOT_IN_CHANNEL` surfaces the server's message and that an ordinary 401 does not.
+
 ## [5.0.24] - 2026-10-04
 
 ### Fixed
