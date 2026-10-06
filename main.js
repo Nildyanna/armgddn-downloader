@@ -1462,6 +1462,38 @@ function showDownloadNotification(title, body) {
   }
 }
 
+// Desktop Entry spec: an Exec argument containing spaces or shell-special characters must be
+// double-quoted, with " ` $ and \ backslash-escaped, and then every backslash doubled again by the
+// general string-escape rule. An unquoted path with a space (e.g. "~/My Apps/Companion.AppImage")
+// made the armgddn:// handler silently do nothing. Also "%" is a field code, so it becomes "%%".
+function quoteDesktopExecArg(arg) {
+  const raw = String(arg == null ? '' : arg).replace(/%/g, '%%');
+  if (!/[\s"'\\<>~|&;$*?#()`=]/.test(raw)) return raw;
+  const quoted = '"' + raw.replace(/(["`$\\])/g, '\\$1') + '"';
+  return quoted.replace(/\\/g, '\\\\');
+}
+
+// In-app AppImage updates rename the old file to "<AppImage>.old" and never remove it, so the folder
+// gained a leftover backup after every update. Once the new version has been running for a while it is
+// no longer needed. Returns a short status string for the log; never throws.
+function cleanupAppImageBackup(appImagePath) {
+  try {
+    const current = String(appImagePath || '');
+    if (!current) return 'skipped: not running as an AppImage';
+    const oldPath = current + '.old';
+    let oldSt;
+    try { oldSt = fs.lstatSync(oldPath); } catch (e) { return 'none'; }
+    if (!oldSt.isFile()) return `kept: ${oldPath} is not a regular file`;
+    const curSt = fs.statSync(current);
+    if (!curSt.isFile() || curSt.size < 1024 * 1024) return 'kept: the current AppImage looks wrong';
+    if (oldSt.mtimeMs > curSt.mtimeMs + 1000) return 'kept: the backup is newer than the running AppImage';
+    fs.unlinkSync(oldPath);
+    return `deleted ${oldPath}`;
+  } catch (e) {
+    return `failed: ${e && e.message ? e.message : e}`;
+  }
+}
+
 function ensureLinuxProtocolDesktopHandler() {
   try {
     if (process.platform !== 'linux') return;
@@ -1481,7 +1513,7 @@ function ensureLinuxProtocolDesktopHandler() {
       '[Desktop Entry]',
       'Type=Application',
       'Name=ARMGDDN Companion',
-      `Exec=${execPath} %u`,
+      `Exec=${quoteDesktopExecArg(execPath)} %u`,
       'Terminal=false',
       'NoDisplay=true',
       'MimeType=x-scheme-handler/armgddn;',
@@ -1493,6 +1525,8 @@ function ensureLinuxProtocolDesktopHandler() {
       existing = fs.readFileSync(desktopPath, 'utf8');
     } catch (e) { }
     if (existing !== content) {
+      const prevExec = (existing.match(/^Exec=(.*) %u$/m) || [])[1];
+      if (prevExec) logToFile(`[Protocol][linux] armgddn:// handler path changed: ${prevExec} -> ${quoteDesktopExecArg(execPath)}`);
       fs.writeFileSync(desktopPath, content, 'utf8');
       try { fs.chmodSync(desktopPath, 0o644); } catch (e) { }
     }
@@ -1527,6 +1561,8 @@ function ensureLinuxProtocolDesktopHandler() {
     }
 
     logToFile(`[Protocol][linux] desktop=${desktopPath} exec=${execPath} registered=${registered}`);
+    const sysDefault = tryCmd('xdg-mime', ['query', 'default', 'x-scheme-handler/armgddn']);
+    logToFile(`[Protocol][linux] system default for armgddn:// is "${sysDefault.out || '(none)'}"${sysDefault.out && sysDefault.out !== desktopFileName ? ' (NOT this app)' : ''}`);
     if (!registered) {
       logToFile(`[Protocol][linux] gio mime: ok=${gioRes.ok} status=${gioRes.status} err=${gioRes.err}`);
     }
@@ -2766,6 +2802,32 @@ function runSmokeTest() {
     } catch (e) {
       failures.push(`error-detail check threw: ${e && e.message}`);
     }
+    // Linux handler path quoting and AppImage backup cleanup (pure fs/string logic, runs everywhere).
+    try {
+      const q = quoteDesktopExecArg;
+      if (q('/home/u/App.AppImage') !== '/home/u/App.AppImage') failures.push(`plain path was quoted: ${q('/home/u/App.AppImage')}`);
+      if (q('/home/u/My Apps/App.AppImage') !== '"/home/u/My Apps/App.AppImage"') failures.push(`path with a space was not quoted: ${q('/home/u/My Apps/App.AppImage')}`);
+      if (q('/a/b$c/App') !== '"/a/b\\\\$c/App"') failures.push(`$ was not escaped: ${q('/a/b$c/App')}`);
+      if (q('/a/100%/App') !== '/a/100%%/App') failures.push(`% was not doubled: ${q('/a/100%/App')}`);
+      const tmp = path.join(app.getPath('userData'), 'smoke-appimage');
+      fs.mkdirSync(tmp, { recursive: true });
+      const cur = path.join(tmp, 'Companion.AppImage');
+      fs.writeFileSync(cur, Buffer.alloc(2 * 1024 * 1024, 1));
+      fs.writeFileSync(cur + '.old', Buffer.alloc(1024, 2));
+      const past = new Date(Date.now() - 3600 * 1000);
+      fs.utimesSync(cur + '.old', past, past);
+      const r1 = cleanupAppImageBackup(cur);
+      if (!/^deleted /.test(r1) || fs.existsSync(cur + '.old')) failures.push(`backup was not cleaned up: ${r1}`);
+      if (!fs.existsSync(cur)) failures.push('cleanup removed the running AppImage itself');
+      if (cleanupAppImageBackup(cur) !== 'none') failures.push('cleanup with no backup was not a no-op');
+      fs.writeFileSync(cur + '.old', Buffer.alloc(1024, 2));
+      fs.writeFileSync(cur, Buffer.alloc(10, 1));
+      if (!/^kept: the current AppImage looks wrong/.test(cleanupAppImageBackup(cur)) || !fs.existsSync(cur + '.old')) failures.push('cleanup deleted the backup although the current AppImage looks wrong');
+      try { fs.rmSync(tmp, { recursive: true, force: true }); } catch (e) { }
+    } catch (e) {
+      failures.push(`appimage helper check threw: ${e && e.message}`);
+    }
+
     // A member who left the group must be told to rejoin, not shown "session expired".
     try {
       if (!/rejoin/i.test(notInChannelMessage({ code: 'NOT_IN_CHANNEL', message: 'Please rejoin the group.' }) || '')) {
@@ -2919,6 +2981,15 @@ app.whenReady().then(() => {
   createAppMenu();
 
   ensureLinuxProtocolDesktopHandler();
+
+  // An AppImage that has stayed up for two minutes updated fine: drop the "<AppImage>.old" backup.
+  if (process.platform === 'linux' && process.env.APPIMAGE) {
+    const t = setTimeout(() => {
+      const res = cleanupAppImageBackup(process.env.APPIMAGE);
+      if (res !== 'none') logToFile(`[Update] AppImage backup cleanup: ${res}`);
+    }, 2 * 60 * 1000);
+    if (t && typeof t.unref === 'function') t.unref();
+  }
 
   // Handle deep link on macOS
   app.on('open-url', (event, url) => {
