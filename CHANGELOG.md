@@ -5,6 +5,17 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.26] - 2026-10-06
+
+### Changed
+- **The Linux install command saves the AppImage to `~/Applications/ARMGDDN-Companion.AppImage` instead of `~/Downloads`.** The `armgddn://` link handler points at the AppImage's exact path, so a file left in Downloads broke browser downloads as soon as it was tidied away. The name is fixed, so re-running the command updates the same file; it downloads to a `.part` file and renames it into place, so a copy that is running is never overwritten. Debian/Ubuntu still get the `.deb`. (The installer is served by the website and changes only for new installs.)
+- On every Linux launch the log now records when the handler path changes and what the system's default `armgddn://` handler actually is (flagging when it is not this app).
+
+### Fixed
+- **The `armgddn://` link did nothing when the AppImage lived in a folder with a space in its name** (for example `~/My Apps`). The path in the generated `.desktop` entry is now quoted and escaped per the Desktop Entry spec, checked against GLib's parser for spaces, `$`, apostrophes and backslashes. A literal `%` in a folder name is still not supported.
+- **In-app AppImage updates left a `<AppImage>.old` backup behind after every update.** It is now deleted once the new version has run for two minutes (regular files only, and only when the running AppImage looks sane and the backup is not newer).
+- The CI smoke test asserts the path quoting and the cleanup rules.
+
 ## [5.0.25] - 2026-10-04
 
 ### Fixed

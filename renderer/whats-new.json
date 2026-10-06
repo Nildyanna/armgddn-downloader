@@ -1,4 +1,13 @@
 {
+  "5.0.26": {
+    "title": "Tidier Linux Installs",
+    "highlights": [
+      "The Linux install command now saves the app to ~/Applications instead of your Downloads folder, and running it again updates the same file.",
+      "Website downloads now work when the app is in a folder with a space in its name. Before, the link between the website and the app silently did nothing.",
+      "The leftover .old backup after an in-app update is now cleaned up automatically.",
+      "Thanks to Dirk for the suggestion."
+    ]
+  },
   "5.0.25": {
     "title": "A Clear Message If You Left The Group",
     "highlights": [
