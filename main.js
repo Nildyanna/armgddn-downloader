@@ -2775,6 +2775,12 @@ function runSmokeTest() {
     const v = await run(['version']);
     if (v.err) failures.push(`bundled rclone did not run: ${v.err.message}`);
 
+    // The "Low Space" box has to say the download folder is fine and name the drive that needs room.
+    try {
+      const w = buildInstallSpaceWarning({ need: 40 * 1024 ** 3, required: 40 * 1024 ** 3, free: 12 * 1024 ** 3, sameDrive: false, driveLabel: 'C:', dlLabel: 'D:' });
+      if (!/download folder \(D:\) is fine/.test(w.detail) || !/C:/.test(w.title) || !/Wiki/.test(w.detail)) failures.push('low-space box wording changed');
+    } catch (e) { failures.push(`low-space box failed: ${e.message}`); }
+
     const payload = Buffer.alloc(2 * 1024 * 1024, 7);
     const server = http.createServer((req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/octet-stream', 'Content-Length': payload.length });
@@ -3918,16 +3924,16 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     // Check 3 (Windows): setup unpacks its temp files to the drive holding the
     // Windows temp folder. Warn now, before hours of downloading, instead of
     // only when the download finishes (see installSpaceTip).
-    const tempWarn = (totalSize > 0) ? preStartInstallSpaceWarning(totalSize, targetPath) : '';
+    const tempWarn = (totalSize > 0) ? preStartInstallSpaceWarning(totalSize, targetPath) : null;
     if (tempWarn) {
       const { response } = await withDialogFocus(() => dialog.showMessageBox(getDialogParentWindow(), {
         type: 'warning',
         buttons: ['Download Anyway', 'Cancel'],
         defaultId: 0,
         cancelId: 1,
-        title: 'Low Space for Installing',
-        message: 'You may not have enough free space to install this game.',
-        detail: tempWarn
+        title: tempWarn.title,
+        message: tempWarn.message,
+        detail: tempWarn.detail
       }));
       if (response === 1) return null;
     }
@@ -6807,25 +6813,41 @@ function finalizeCompletedDownload(downloadId) {
 // download, the downloaded files take their share of it first.
 function preStartInstallSpaceWarning(totalSize, downloadPath) {
   try {
-    if (process.platform !== 'win32') return '';
+    if (process.platform !== 'win32') return null;
     const need = Number(totalSize) || 0;
-    if (need <= 0) return '';
+    if (need <= 0) return null;
     const tempDir = os.tmpdir();
     const tempRoot = (path.parse(tempDir).root || '').toLowerCase();
     const dlRoot = (path.parse(path.resolve(String(downloadPath || ''))).root || '').toLowerCase();
     const free = getFreeDiskSpace(tempDir);
-    if (free < 0) return '';
+    if (free < 0) return null;
     const sameDrive = !!tempRoot && tempRoot === dlRoot;
     const required = sameDrive ? need * 2 : need;
-    if (free >= required) return '';
+    if (free >= required) return null;
     const driveLabel = (path.parse(tempDir).root || 'C:\\').replace(/[\\/]+$/, '');
-    const why = sameDrive
-      ? `This game downloads to ${driveLabel}, and setup also unpacks about ${formatBytes(need)} of temp files there (your Windows temp folder is on ${driveLabel}), even if you install to another drive.`
-      : `Setup unpacks about ${formatBytes(need)} of temp files to ${driveLabel} (your Windows temp folder is there), even if you install to another drive.`;
-    return `${why}\n\nNeeded on ${driveLabel}: about ${formatBytes(required)}\nFree on ${driveLabel}: ${formatBytes(free)}\n\nYou can still download now and free up space on ${driveLabel} before running setup.`;
+    const dlLabel = (path.parse(path.resolve(String(downloadPath || ''))).root || '').replace(/[\\/]+$/, '') || 'your download folder';
+    return buildInstallSpaceWarning({ need, required, free, sameDrive, driveLabel, dlLabel });
   } catch (e) {
-    return '';
+    return null;
   }
+}
+
+// The words of the "Low Space" box, kept apart from the disk checks so they can be tested. The point to get across:
+// the download folder is fine, but setup always unpacks its temp files into the Windows temp folder (C: by default).
+function buildInstallSpaceWarning({ need, required, free, sameDrive, driveLabel, dlLabel }) {
+  const needed = formatBytes(need);
+  const lead = sameDrive
+    ? `Your download folder is on ${driveLabel}, so the downloaded files and setup's temporary files both need room there. Setup unpacks about ${needed} of temporary files into your Windows temp folder, even if you install the game to another drive.`
+    : `Your download folder (${dlLabel}) is fine. Setup unpacks about ${needed} of temporary files into your Windows temp folder, which is on ${driveLabel}, no matter where you save or install the game.`;
+  return {
+    title: sameDrive ? `Low space on ${driveLabel}` : `Your download folder is fine - ${driveLabel} needs room for setup`,
+    message: sameDrive
+      ? `${driveLabel} may not have enough room to download and install this game.`
+      : `Downloads will go to ${dlLabel}. ${driveLabel} needs free space for setup.`,
+    detail: `${lead}\n\nSpace needed: about ${formatBytes(required)}\nAvailable on ${driveLabel} now: ${formatBytes(free)}\n\n` +
+      `You can still download now. Before running setup, free up space on ${driveLabel} or move your Windows temp folder to another drive. ` +
+      `Steps are in the ARMGDDN Browser Wiki (Companion troubleshooting): "Low space on my temp drive even though I save to another drive".`
+  };
 }
 
 function installSpaceTip(download) {
