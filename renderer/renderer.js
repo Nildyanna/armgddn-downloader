@@ -225,6 +225,8 @@ async function showAlertDialog(title, message) {
     document.getElementById('close-settings-btn').addEventListener('click', closeSettings);
     document.getElementById('save-settings-btn').addEventListener('click', saveSettings);
     document.getElementById('browse-path-btn').addEventListener('click', browseDownloadPath);
+    const setupCheckBtn = document.getElementById('setup-check-btn');
+    if (setupCheckBtn) setupCheckBtn.addEventListener('click', runSetupCheck);
     const help7zBtn = document.getElementById('help-7z-btn');
     if (help7zBtn) {
       help7zBtn.addEventListener('click', openHelp7z);
@@ -1113,6 +1115,42 @@ async function showAlertDialog(title, message) {
     panel.classList.remove('is-open');
     updateBackgroundInertState();
     restoreFocusAfterModal();
+  }
+
+  // Settings > "Check my setup": findings are built with textContent so nothing from the machine can inject markup.
+  async function runSetupCheck() {
+    const btn = document.getElementById('setup-check-btn');
+    const box = document.getElementById('setup-check-results');
+    if (!btn || !box) return;
+    btn.disabled = true;
+    box.textContent = 'Checking...';
+    try {
+      const res = await api.runSetupCheck();
+      box.textContent = '';
+      if (!res || !res.ok || !Array.isArray(res.findings) || !res.findings.length) {
+        box.textContent = 'The check could not run. Try again, or ask in the chat.';
+        return;
+      }
+      for (const f of res.findings) {
+        const item = document.createElement('div');
+        item.className = `setup-check-item ${f.status === 'warn' || f.status === 'info' ? f.status : 'ok'}`;
+        const title = document.createElement('div');
+        title.className = 'setup-check-title';
+        title.textContent = (f.status === 'ok' ? '\u2713 ' : f.status === 'warn' ? '\u26A0 ' : '\u2139 ') + String(f.title || '');
+        item.appendChild(title);
+        if (f.detail) {
+          const d = document.createElement('div');
+          d.className = 'setup-check-detail';
+          d.textContent = String(f.detail);
+          item.appendChild(d);
+        }
+        box.appendChild(item);
+      }
+    } catch (e) {
+      box.textContent = 'The check could not run. Try again, or ask in the chat.';
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   async function refreshFreeSpaceIndicator(targetPath) {

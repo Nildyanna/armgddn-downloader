@@ -7,6 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveSettings: (settings) => ipcRenderer.invoke('save-settings', settings),
   browseFolder: () => ipcRenderer.invoke('browse-folder'),
   checkDiskSpace: (targetPath) => ipcRenderer.invoke('check-disk-space', targetPath),
+  runSetupCheck: () => ipcRenderer.invoke('run-setup-check'),
 
   // Downloads
   fetchManifest: (url, token) => ipcRenderer.invoke('fetch-manifest', url, token),

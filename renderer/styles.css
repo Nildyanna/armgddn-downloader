@@ -1209,3 +1209,11 @@ body::after {
 .toast--error {
   border-left-color: var(--neon-magenta);
 }
+
+/* Settings > Setup Check */
+.setup-check-results { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
+.setup-check-item { padding: 8px 10px; border-radius: 8px; border-left: 4px solid var(--setup-check-ok, #3fb950); background: rgba(255, 255, 255, 0.04); }
+.setup-check-item.warn { border-left-color: #e3a008; }
+.setup-check-item.info { border-left-color: #6b7280; }
+.setup-check-item .setup-check-title { font-weight: 600; }
+.setup-check-item .setup-check-detail { margin-top: 2px; font-size: 0.9em; opacity: 0.85; }

@@ -2775,6 +2775,17 @@ function runSmokeTest() {
     const v = await run(['version']);
     if (v.err) failures.push(`bundled rclone did not run: ${v.err.message}`);
 
+    // The setup check has to flag a full temp drive and a missing runtime, and stay quiet on a healthy machine.
+    try {
+      const sc = require('./setupCheck');
+      const GBs = 1024 ** 3;
+      const bad = sc.evaluateSetup({ platform: 'win32', downloadPath: 'D:\\Games', homeDir: 'C:\\Users\\me', tempDir: 'C:\\Temp', freeDownload: 500 * GBs, freeTemp: 5 * GBs, avProducts: ['Windows Defender'], defenderExclusions: ['D:\\Games'], vcRuntime: false, d3dx: true });
+      const good = sc.evaluateSetup({ platform: 'win32', downloadPath: 'D:\\Games', homeDir: 'C:\\Users\\me', tempDir: 'C:\\Temp', freeDownload: 500 * GBs, freeTemp: 200 * GBs, avProducts: ['Windows Defender'], defenderExclusions: ['D:\\Games'], vcRuntime: true, d3dx: true });
+      const warns = (r) => r.filter(f => f.status === 'warn').map(f => f.id).sort().join(',');
+      if (warns(bad) !== 'redists,temp-space') failures.push(`setup check flagged: ${warns(bad)}`);
+      if (warns(good) !== '') failures.push(`setup check warned on a healthy machine: ${warns(good)}`);
+    } catch (e) { failures.push(`setup check failed: ${e.message}`); }
+
     // The "Low Space" box has to say the download folder is fine and name the drive that needs room.
     try {
       const w = buildInstallSpaceWarning({ need: 40 * 1024 ** 3, required: 40 * 1024 ** 3, free: 12 * 1024 ** 3, sameDrive: false, driveLabel: 'C:', dlLabel: 'D:' });
@@ -3166,6 +3177,18 @@ ipcMain.handle('check-disk-space', async (event, targetPath) => {
     freeBytes,
     freeFormatted: freeBytes >= 0 ? formatBytes(freeBytes) : null
   };
+});
+
+// "Check my setup" (Settings): disk space, folder location, antivirus and redistributables, as plain findings.
+ipcMain.handle('run-setup-check', async () => {
+  try {
+    const setupCheck = require('./setupCheck');
+    const facts = await setupCheck.collectFacts({ downloadPath: settings.downloadPath, getFreeDiskSpace });
+    return { ok: true, findings: setupCheck.evaluateSetup(facts) };
+  } catch (e) {
+    logToFile(`[setup-check] failed: ${e.message}`);
+    return { ok: false, findings: [] };
+  }
 });
 
 // Show native message box (Yes/No)
