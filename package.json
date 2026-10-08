@@ -29,6 +29,7 @@
     },
     "files": [
       "main.js",
+      "setupCheck.js",
       "preload.js",
       "preload-update.js",
       "renderer/**/*",
