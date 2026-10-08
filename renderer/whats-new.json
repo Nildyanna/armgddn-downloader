@@ -1,4 +1,12 @@
 {
+  "5.2.0": {
+    "title": "Check My Setup",
+    "highlights": [
+      "A new button in Settings, Check my setup, looks at the things behind most install and launch problems before you download.",
+      "It checks free space on your download drive and your Windows temp drive, your download folder's location, your antivirus, and the redistributables games need.",
+      "Each line says what is fine and what to fix. If redistributables are missing, it points you to /redists in the ARMGDDN chat."
+    ]
+  },
   "5.1.0": {
     "title": "A Clearer Low-Space Warning",
     "highlights": [

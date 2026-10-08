@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.2.0] - 2026-10-09
+
+### Added
+- **Settings > Check my setup.** A button that looks at the causes behind most install and launch support questions and reports each as OK, a warning with what to fix, or "could not check": free space on the download drive; free space on the Windows temp drive (setup unpacks its temporary files there wherever the game is saved); a download folder that is in a protected place (Program Files, Windows, OneDrive, the user profile's Desktop/Documents/Downloads) or has a very long path; the antivirus products installed (third-party ones are flagged) and whether Windows Defender excludes the download folder; and whether the Visual C++ runtime and DirectX 9 files are installed, pointing to `/redists` when they are not. The logic is in `setupCheck.js` (pure evaluation plus a fact collector that never throws), and the CI smoke test asserts that a full temp drive and a missing runtime are flagged and a healthy machine is not.
+
 ## [5.1.0] - 2026-10-08
 
 ### Changed
