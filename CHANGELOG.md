@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.0.27] - 2026-10-08
+
+### Changed
+- **The "Low Space" box before a download now says what is actually short.** Members who changed their download folder still saw a C: warning and reasonably thought the change had not worked. When the download folder is on another drive, the box now opens with "Your download folder is fine" and names the drive that needs room: setup unpacks its temporary files into the Windows temp folder (C: by default) wherever the game is saved or installed. When the download folder is on the temp drive too, it says the downloaded files and setup's temporary files both need room there. The box points to a new Wiki entry on moving the temp folder.
+- The CI smoke test asserts the box's wording.
+
 ## [5.0.26] - 2026-10-06
 
 ### Changed

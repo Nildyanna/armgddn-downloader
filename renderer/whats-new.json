@@ -1,4 +1,12 @@
 {
+  "5.0.27": {
+    "title": "A Clearer Low-Space Warning",
+    "highlights": [
+      "If your download folder is on another drive, the low-space box now says so: your download folder is fine.",
+      "It explains that setup always unpacks its temporary files into the Windows temp folder (C: by default), wherever you save or install the game.",
+      "It links to a new Wiki guide for moving your temp folder to another drive."
+    ]
+  },
   "5.0.26": {
     "title": "Tidier Linux Installs",
     "highlights": [
