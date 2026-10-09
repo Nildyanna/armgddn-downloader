@@ -1,4 +1,11 @@
 {
+  "5.3.0": {
+    "title": "Share My Setup",
+    "highlights": [
+      "After Check my setup, a new button copies a short report you can paste in the ARMGDDN chat so Tulip can help from real facts.",
+      "The report leaves out your name, folder names and anything private. It holds the check results and recent warnings from the app's log."
+    ]
+  },
   "5.2.0": {
     "title": "Check My Setup",
     "highlights": [
