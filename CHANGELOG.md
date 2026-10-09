@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.0] - 2026-10-09
+
+### Added
+- **Settings > Check my setup > Copy report for Tulip.** One code (`ARMGDDN-SETUP:1:` plus base64url of deflated JSON, at most about 3,200 characters) holding the app version, OS, the check findings, free space, antivirus names, redistributable status and up to 20 recent warning or error lines from `debug.log`. Before it leaves the machine, `setupReport.js` removes user names in paths, URL query strings, e-mail addresses, IP addresses and anything that looks like a token or password. Pasted into the ARMGDDN chat, Tulip decodes it and answers from the facts. The CI smoke test asserts the report round-trips and that user names and URL secrets never appear in it.
+
 ## [5.2.0] - 2026-10-09
 
 ### Added
