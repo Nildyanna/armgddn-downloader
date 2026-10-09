@@ -3,7 +3,7 @@
     "name": "ARMGDDN Companion",
     "slug": "armgddn-companion-mobile",
     "version": "4.2.77",
-    "orientation": "portrait",
+    "orientation": "default",
     "scheme": "armgddn",
     "userInterfaceStyle": "dark",
     "assetBundlePatterns": [
@@ -27,6 +27,9 @@
     "extra": {
       "apiBaseUrl": "https://www.armgddnbrowser.com"
     },
-    "icon": "./assets/icon.png"
+    "icon": "./assets/icon.png",
+    "plugins": [
+      "./plugins/withTvAndQuest"
+    ]
   }
 }
