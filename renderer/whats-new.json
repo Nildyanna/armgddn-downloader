@@ -1,4 +1,10 @@
 {
+  "5.3.1": {
+    "title": "A Steadier Finish",
+    "highlights": [
+      "Fixed a rare crash that could happen when a download finished just as the Companion window was closing."
+    ]
+  },
   "5.3.0": {
     "title": "Share My Setup",
     "highlights": [
