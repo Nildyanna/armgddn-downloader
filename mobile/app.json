@@ -17,10 +17,16 @@
       "permissions": [
         "android.permission.WRITE_EXTERNAL_STORAGE",
         "android.permission.DOWNLOAD_WITHOUT_NOTIFICATION"
-      ]
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-foreground.png",
+        "monochromeImage": "./assets/adaptive-monochrome.png",
+        "backgroundColor": "#020617"
+      }
     },
     "extra": {
       "apiBaseUrl": "https://www.armgddnbrowser.com"
-    }
+    },
+    "icon": "./assets/icon.png"
   }
 }
