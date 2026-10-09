@@ -227,6 +227,8 @@ async function showAlertDialog(title, message) {
     document.getElementById('browse-path-btn').addEventListener('click', browseDownloadPath);
     const setupCheckBtn = document.getElementById('setup-check-btn');
     if (setupCheckBtn) setupCheckBtn.addEventListener('click', runSetupCheck);
+    const setupReportBtn = document.getElementById('setup-report-btn');
+    if (setupReportBtn) setupReportBtn.addEventListener('click', copySetupReport);
     const help7zBtn = document.getElementById('help-7z-btn');
     if (help7zBtn) {
       help7zBtn.addEventListener('click', openHelp7z);
@@ -1146,8 +1148,29 @@ async function showAlertDialog(title, message) {
         }
         box.appendChild(item);
       }
+      const rb = document.getElementById('setup-report-btn');
+      if (rb) rb.style.display = '';
     } catch (e) {
       box.textContent = 'The check could not run. Try again, or ask in the chat.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // "Copy report for Tulip": one code (personal details already removed) to paste into the ARMGDDN chat.
+  async function copySetupReport() {
+    const note = document.getElementById('setup-report-note');
+    const btn = document.getElementById('setup-report-btn');
+    if (!note || !btn) return;
+    btn.disabled = true;
+    note.textContent = 'Building the report...';
+    try {
+      const res = await api.buildSetupReport();
+      if (!res || !res.ok || !res.code) { note.textContent = 'Could not build the report.'; return; }
+      try { await navigator.clipboard.writeText(res.code); note.textContent = 'Copied. Paste it in the ARMGDDN chat and ask Tulip for help. It holds no names, paths or passwords.'; }
+      catch (e) { note.textContent = 'Could not copy automatically. Select this and copy it: ' + res.code; }
+    } catch (e) {
+      note.textContent = 'Could not build the report.';
     } finally {
       btn.disabled = false;
     }

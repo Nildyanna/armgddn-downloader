@@ -30,6 +30,7 @@
     "files": [
       "main.js",
       "setupCheck.js",
+      "setupReport.js",
       "preload.js",
       "preload-update.js",
       "renderer/**/*",
