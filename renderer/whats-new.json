@@ -1,4 +1,13 @@
 {
+  "5.4.0": {
+    "title": "Landscape & TV",
+    "highlights": [
+      "The Android app now works in landscape, with two columns on wide screens.",
+      "You can use it with a TV remote or game controller. The selected button lights up.",
+      "The app is now set up for Android TV and Meta Quest. Android TV is tested; Quest is not yet tested on a real headset.",
+      "The app finally has the ARMGDDN skull icon instead of the default Android robot, including the round style and the themed style on Android 13 and newer."
+    ]
+  },
   "5.3.1": {
     "title": "A Steadier Finish",
     "highlights": [
