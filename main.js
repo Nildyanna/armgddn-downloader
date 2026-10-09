@@ -698,6 +698,12 @@ function sendToMain(channel, payload) {
   } catch (e) { }
 }
 
+// Reading .webContents on a destroyed window throws "Object has been destroyed" (Sentry ARMGDDN-COMPANION-1M), so every
+// "is there a window to talk to" check goes through this instead of testing mainWindow.webContents.
+function mainWindowAlive() {
+  try { return !!mainWindow && !mainWindow.isDestroyed(); } catch (e) { return false; }
+}
+
 // Ensure single instance
 const gotTheLock = app.requestSingleInstanceLock();
 
@@ -881,7 +887,7 @@ const pendingDeepLinks = [];
 
 function flushPendingDeepLinks() {
   try {
-    if (!mainWindow || !mainWindow.webContents) return;
+    if (!mainWindowAlive()) return;
     if (!mainWindowDidFinishLoad) return;
     if (!pendingDeepLinks.length) return;
 
@@ -2754,7 +2760,7 @@ function runSmokeTest() {
   process.on('unhandledRejection', (e) => failures.push(`unhandled rejection: ${e && e.message}`));
 
   const waitForWindow = () => new Promise((resolve) => {
-    const wc = mainWindow && mainWindow.webContents;
+    const wc = mainWindowAlive() ? mainWindow.webContents : null;
     if (!wc) { failures.push('main window was not created'); return resolve(); }
     wc.on('console-message', (...args) => {
       const d = args[0] && typeof args[0] === 'object' && 'level' in args[0] ? args[0] : { level: args[1], message: args[2] };
@@ -4063,7 +4069,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     download.statusMessage = `${download.statusMessage} Starfield detected: auto-extract disabled for this download.`;
   }
   try {
-    if (mainWindow && mainWindow.webContents) {
+    if (mainWindowAlive()) {
       sendToMain('download-progress', {
         id: downloadId,
         status: download.status,
@@ -5537,7 +5543,7 @@ let lastServerNoticeUntilMs = 0;
 
 function sendServerNotice(message, ttlMs) {
   try {
-    if (!mainWindow || !mainWindow.webContents) return;
+    if (!mainWindowAlive()) return;
     const msg = (message && typeof message === 'string') ? message.trim() : '';
     const until = Date.now() + clampInt(ttlMs, 1000, 60000);
     if (msg) {
@@ -5661,7 +5667,7 @@ setInterval(() => {
         if (download.progress >= 100) {
           download.progress = 99;
           try {
-            if (mainWindow && mainWindow.webContents) {
+            if (mainWindowAlive()) {
               sendToMain('download-progress', {
                 id,
                 status: download.status,
@@ -6813,7 +6819,7 @@ function finalizeCompletedDownload(downloadId) {
   // Send a final progress event marking completion.
   // This makes the UI update even if the dedicated 'download-completed' event is missed.
   try {
-    if (mainWindow && mainWindow.webContents) {
+    if (mainWindowAlive()) {
       sendToMain('download-progress', {
         id: downloadId,
         status: 'completed',
@@ -6850,7 +6856,7 @@ function finalizeCompletedDownload(downloadId) {
   });
   saveHistory();
 
-  if (mainWindow && mainWindow.webContents) {
+  if (mainWindowAlive()) {
     logToFile(`[completeDownload] Sending download-completed event to renderer`);
     sendToMain('download-completed', { id: downloadId });
   } else {
@@ -6961,7 +6967,7 @@ function completeDownload(downloadId) {
       download.progress = 99;
       download.totalSpeed = formatSpeed(download.peakSpeedBytes || 0);
       try {
-        if (mainWindow && mainWindow.webContents) {
+        if (mainWindowAlive()) {
           sendToMain('download-progress', {
             id: downloadId,
             status: 'extracting',
@@ -7000,7 +7006,7 @@ function completeDownload(downloadId) {
         } catch (e) {
           download.extractionError = e && e.message ? e.message : String(e);
           try {
-            if (mainWindow && mainWindow.webContents) {
+            if (mainWindowAlive()) {
               sendToMain('download-progress', {
                 id: downloadId,
                 status: 'extracting',
