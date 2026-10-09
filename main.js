@@ -2786,6 +2786,16 @@ function runSmokeTest() {
       if (warns(good) !== '') failures.push(`setup check warned on a healthy machine: ${warns(good)}`);
     } catch (e) { failures.push(`setup check failed: ${e.message}`); }
 
+    // The setup report must decode back to what was put in, and keep user names, URL queries and tokens out.
+    try {
+      const rep = require('./setupReport');
+      const code = rep.buildReport({ appVersion: '0.0.0', platform: 'win32', release: '10', arch: 'x64', findings: [{ id: 'x', status: 'warn', title: 'C:\\Users\\Alice\\Temp is full' }], facts: { downloadPath: 'D:\\Games' },
+        logText: '[ERROR] failed https://h.example/p?token=SECRETVALUE1234 for C:\\Users\\Alice\\x' });
+      const back = rep.decodeReport(code);
+      const flat = JSON.stringify(back);
+      if (!/<user>/.test(flat) || /Alice|SECRETVALUE/.test(flat) || back.v !== 1) failures.push('setup report leaked or failed to round-trip');
+    } catch (e) { failures.push(`setup report failed: ${e.message}`); }
+
     // The "Low Space" box has to say the download folder is fine and name the drive that needs room.
     try {
       const w = buildInstallSpaceWarning({ need: 40 * 1024 ** 3, required: 40 * 1024 ** 3, free: 12 * 1024 ** 3, sameDrive: false, driveLabel: 'C:', dlLabel: 'D:' });
@@ -3188,6 +3198,34 @@ ipcMain.handle('run-setup-check', async () => {
   } catch (e) {
     logToFile(`[setup-check] failed: ${e.message}`);
     return { ok: false, findings: [] };
+  }
+});
+
+// "Copy report for Tulip": the setup check results and recent log problems as one pasteable code, personal details removed.
+ipcMain.handle('build-setup-report', async () => {
+  try {
+    const setupCheck = require('./setupCheck');
+    const setupReport = require('./setupReport');
+    const facts = await setupCheck.collectFacts({ downloadPath: settings.downloadPath, getFreeDiskSpace });
+    const findings = setupCheck.evaluateSetup(facts);
+    let logText = '';
+    try {
+      const logPath = getDebugLogPath();
+      const size = fs.statSync(logPath).size;
+      const fd = fs.openSync(logPath, 'r');
+      const len = Math.min(size, 64 * 1024);
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, size - len);
+      fs.closeSync(fd);
+      logText = buf.toString('utf8');
+    } catch (e) { /* no log yet */ }
+    const code = setupReport.buildReport({
+      appVersion: app.getVersion(), platform: process.platform, release: os.release(), arch: process.arch, findings, facts, logText,
+    });
+    return { ok: true, code };
+  } catch (e) {
+    logToFile(`[setup-report] failed: ${e.message}`);
+    return { ok: false, code: '' };
   }
 });
 
