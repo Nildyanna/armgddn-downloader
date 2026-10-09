@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.3.1] - 2026-10-09
+
+### Fixed
+- Reading `mainWindow.webContents` on a window that was already destroyed threw "Object has been destroyed" and crashed the app, seen in `finalizeCompletedDownload` on 5.0.26 (Sentry ARMGDDN-COMPANION-1M). All 8 places that checked it now go through `mainWindowAlive()`, which tests `isDestroyed()` first.
+
 ## [5.3.0] - 2026-10-09
 
 ### Added
