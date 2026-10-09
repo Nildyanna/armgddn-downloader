@@ -15,13 +15,30 @@ def adb(*args, check=True):
     return r.stdout
 
 
+def dismiss_system_dialogs(root):
+    """A slow emulator can make System UI or the launcher show an "isn't responding" box that sits over the app. Press Wait."""
+    for n in root.iter("node"):
+        if "isn't responding" in (n.get("text") or "") or "keeps stopping" in (n.get("text") or ""):
+            for m in root.iter("node"):
+                if (m.get("text") or "") in ("Wait", "Close app", "OK"):
+                    b = bounds(m)
+                    if b:
+                        adb("shell", "input", "tap", str((b[0] + b[2]) // 2), str((b[1] + b[3]) // 2), check=False)
+                        return True
+    return False
+
+
 def dump():
     adb("shell", "uiautomator", "dump", "/sdcard/ui.xml", check=False)
     xml = adb("shell", "cat", "/sdcard/ui.xml", check=False)
     try:
-        return ET.fromstring(xml[xml.index("<"):])
+        root = ET.fromstring(xml[xml.index("<"):])
     except Exception:
         return None
+    if dismiss_system_dialogs(root):
+        time.sleep(1.5)
+        return dump()
+    return root
 
 
 def bounds(node):

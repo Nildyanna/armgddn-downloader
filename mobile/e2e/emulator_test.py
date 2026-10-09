@@ -31,6 +31,8 @@ def left(root, rid):
     return bounds(n)[0] if n is not None else None
 
 
+adb("shell", "settings", "put", "global", "hide_error_dialogs", "1", check=False)   # no crash / not-responding boxes over the app
+time.sleep(20)                                                                       # let a freshly booted emulator settle
 adb("shell", "pm", "grant", PKG, "android.permission.POST_NOTIFICATIONS", check=False)
 launch()
 root = wait_for("section-status")
