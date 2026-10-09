@@ -5,6 +5,15 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.4.0] - 2026-10-09
+
+### Added
+- Android app: landscape support (`orientation` changed from `portrait` to `default`) with a two-column layout when the window is wider than tall.
+- Android app: `FocusButton`, so every button takes focus from a TV remote, controller or keyboard and shows a focus ring.
+- Android app: `plugins/withTvAndQuest.js` adds the `LEANBACK_LAUNCHER` category, optional `leanback` and `touchscreen` features, and Meta Quest `com.oculus.supportedDevices`.
+- Android app: a real launcher icon with legacy, round, adaptive and themed monochrome versions (the build had none, so Android showed its default robot).
+- A `Mobile emulator test` workflow that runs the app on a phone and an Android TV emulator and checks the layout and D-pad focus.
+
 ## [5.3.1] - 2026-10-09
 
 ### Fixed
