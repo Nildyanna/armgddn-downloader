@@ -74,8 +74,11 @@ def wait_for(rid, seconds=90):
 
 
 def screen_size():
-    m = re.search(r"(\d+)x(\d+)", adb("shell", "wm", "size"))
-    return int(m.group(1)), int(m.group(2))
+    """Size of what is on screen right now (follows rotation; `wm size` does not)."""
+    import struct
+    png = subprocess.run(["adb", "exec-out", "screencap", "-p"], capture_output=True).stdout
+    w, h = struct.unpack(">II", png[16:24])
+    return w, h
 
 
 def screenshot(path):
