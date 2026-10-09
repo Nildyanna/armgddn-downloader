@@ -1,0 +1,133 @@
+name: Mobile emulator test
+
+# Builds the Android app and runs it in real emulators (a phone and an Android TV) to check the landscape layout and
+# remote / D-pad navigation. Linux runners have KVM, so the emulators run at normal speed. Nothing here needs a person.
+
+on:
+  push:
+    branches:
+      - 'mobile-e2e/**'
+  pull_request:
+    paths:
+      - 'mobile/**'
+      - '.github/workflows/mobile-emulator-test.yml'
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Set up JDK
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Install mobile dependencies
+        working-directory: mobile
+        run: npm ci --no-audit --no-fund
+
+      - name: Prebuild Android project
+        working-directory: mobile
+        env:
+          CI: '1'
+        run: npx expo prebuild --platform android --clean
+
+      - name: Android resources and Gradle settings
+        working-directory: mobile/android
+        run: |
+          set -euo pipefail
+          mkdir -p app/src/main/res/values
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('app/src/main/res/values/colors.xml')
+          content = path.read_text(encoding='utf-8') if path.exists() else '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n</resources>\n'
+          if 'splashscreen_background' not in content:
+              content = content.replace('</resources>', '  <color name="splashscreen_background">#020617</color>\n</resources>')
+          path.write_text(content, encoding='utf-8')
+          PY
+          if [ -n "$(tail -c1 gradle.properties)" ]; then printf '\n' >> gradle.properties; fi
+          sed -i 's/^org\.gradle\.jvmargs=.*/org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8/' gradle.properties
+          grep -q '^org\.gradle\.caching=' gradle.properties || printf 'org.gradle.caching=true\n' >> gradle.properties
+          grep -q '^org\.gradle\.parallel=' gradle.properties || printf 'org.gradle.parallel=true\n' >> gradle.properties
+
+      - name: Show the manifest the app is built with
+        working-directory: mobile/android
+        run: cat app/src/main/AndroidManifest.xml
+
+      - name: Build Android release APK
+        working-directory: mobile/android
+        run: ./gradlew assembleRelease --stacktrace --build-cache -x mergeReleaseNativeDebugMetadata
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-apk
+          path: mobile/android/app/build/outputs/apk/release/app-release.apk
+
+  emulator:
+    needs: build-apk
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: phone
+            target: google_apis
+            arch: x86_64
+            profile: pixel_6
+          - name: tv
+            target: android-tv
+            arch: x86
+            profile: tv_1080p
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Download APK
+        uses: actions/download-artifact@v8
+        with:
+          name: e2e-apk
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Run the app in the emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          target: ${{ matrix.target }}
+          arch: ${{ matrix.arch }}
+          profile: ${{ matrix.profile }}
+          disable-animations: true
+          emulator-boot-timeout: 900
+          script: |
+            adb install -r apk/app-release.apk
+            python3 mobile/e2e/emulator_test.py ${{ matrix.name }} e2e-out
+
+      - name: Upload screenshots and logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-${{ matrix.name }}
+          path: e2e-out
+          if-no-files-found: ignore

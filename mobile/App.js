@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Linking, Platform, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context';
 // The classic file API (documentDirectory, createDownloadResumable, StorageAccessFramework) lives at /legacy since SDK 54.
 import * as FileSystem from 'expo-file-system/legacy';
@@ -7,6 +7,7 @@ import Constants from 'expo-constants';
 import * as SecureStore from 'expo-secure-store';
 import { StatusBar as ExpoStatusBar } from 'expo-status-bar';
 import { ProgressBar } from './src/components/ProgressBar';
+import { FocusButton } from './src/components/FocusButton';
 import {
   API_BASE_URL,
   downloadFilesFromManifest,
@@ -49,7 +50,7 @@ function getAppVersion() {
 
 function Section({ title, children }) {
   return (
-    <View style={styles.section}>
+    <View style={styles.section} testID={`section-${title.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}>
       <Text style={styles.sectionTitle}>{title}</Text>
       {children}
     </View>
@@ -57,6 +58,8 @@ function Section({ title, children }) {
 }
 
 export default function App() {
+  const { width, height } = useWindowDimensions();
+  const wide = width > height && width >= 640;    // landscape phones, tablets, TVs and headsets: two columns
   const [status, setStatus] = useState('Waiting for a download link');
   const [statusDetail, setStatusDetail] = useState('Open a download on the website and let it hand off to this app.');
   const [downloadProgress, setDownloadProgress] = useState(0);
@@ -732,6 +735,8 @@ export default function App() {
         <Text style={styles.brand}>ARMGDDN Companion</Text>
         <Text style={styles.subtitle}>Mobile download handoff for Android and iPhone</Text>
 
+        <View style={wide ? styles.columns : null} testID={wide ? 'layout-wide' : 'layout-narrow'}>
+        <View style={wide ? styles.column : styles.columnStack}>
         <Section title="Status">
           <View style={styles.statusRow}>
             <View style={[styles.dot, connectionState === 'error' && styles.dotError, connectionState === 'completed' && styles.dotSuccess, connectionState === 'downloading' && styles.dotActive]} />
@@ -751,9 +756,9 @@ export default function App() {
               <Text style={styles.detailText}>
                 Update available: v{updateState.latestVersion} is newer than your installed v{updateState.currentVersion}.
               </Text>
-              <TouchableOpacity style={styles.updateButton} onPress={openUpdatePage}>
+              <FocusButton style={styles.updateButton} onPress={openUpdatePage} testID="btn-update-app">
                 <Text style={styles.updateButtonText}>Update App</Text>
-              </TouchableOpacity>
+              </FocusButton>
             </>
           ) : updateState.error ? (
             <Text style={[styles.metaText, styles.errorText]}>Update check failed: {updateState.error}</Text>
@@ -761,9 +766,9 @@ export default function App() {
             <Text style={styles.metaText}>You&apos;re on the latest version (v{updateState.currentVersion}).</Text>
           )}
           {!updateState.checking && (
-            <TouchableOpacity style={styles.secondaryButton} onPress={checkForAppUpdate}>
+            <FocusButton style={styles.secondaryButton} onPress={checkForAppUpdate} testID="btn-check-updates">
               <Text style={styles.secondaryButtonText}>Check for Updates</Text>
-            </TouchableOpacity>
+            </FocusButton>
           )}
         </Section>
 
@@ -777,12 +782,12 @@ export default function App() {
                 </Text>
               </Text>
               <View style={styles.folderActionsRow}>
-                <TouchableOpacity style={styles.secondaryButton} onPress={useDefaultDownloadFolder} disabled={isBusy}>
+                <FocusButton style={styles.secondaryButton} onPress={useDefaultDownloadFolder} disabled={isBusy} testID="btn-use-downloads">
                   <Text style={styles.secondaryButtonText}>Use Downloads Folder</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryButton} onPress={pickDownloadFolder} disabled={isBusy}>
+                </FocusButton>
+                <FocusButton style={styles.secondaryButton} onPress={pickDownloadFolder} disabled={isBusy} testID="btn-choose-folder">
                   <Text style={styles.secondaryButtonText}>Choose Custom Folder</Text>
-                </TouchableOpacity>
+                </FocusButton>
               </View>
               <Text style={styles.metaText}>
                 {customAndroidDownloadDir
@@ -801,6 +806,8 @@ export default function App() {
           <Text style={styles.metaText}>{renderBytes(downloadedBytes)} / {renderBytes(totalBytes)}</Text>
         </Section>
 
+        </View>
+        <View style={wide ? styles.column : styles.columnStack}>
         <Section title="Recent downloads">
           {downloadHistory.length === 0 ? (
             <Text style={styles.metaText}>No downloads completed yet.</Text>
@@ -825,12 +832,12 @@ export default function App() {
               </Text>
               <Text style={styles.metaText} numberOfLines={2}>Folder: {downloadFolderUri || downloadRootUri}</Text>
               <View style={styles.folderActionsRow}>
-                <TouchableOpacity style={styles.secondaryButton} onPress={() => openDownloadedFolder(downloadRootUri)}>
+                <FocusButton style={styles.secondaryButton} onPress={() => openDownloadedFolder(downloadRootUri)} testID="btn-open-folder">
                   <Text style={styles.secondaryButtonText}>Open Downloaded Folder</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.secondaryButton} onPress={refreshDownloadedFolder}>
+                </FocusButton>
+                <FocusButton style={styles.secondaryButton} onPress={refreshDownloadedFolder} testID="btn-refresh">
                   <Text style={styles.secondaryButtonText}>Refresh</Text>
-                </TouchableOpacity>
+                </FocusButton>
               </View>
               {downloadFolderLoading ? <Text style={styles.metaText}>Loading folder...</Text> : null}
               {!!downloadFolderError && <Text style={[styles.metaText, styles.errorText]}>Folder error: {downloadFolderError}</Text>}
@@ -838,20 +845,22 @@ export default function App() {
                 <Text style={styles.metaText}>Open the folder to see files here.</Text>
               ) : null}
               {downloadFolderEntries.map((item) => (
-                <TouchableOpacity key={item.uri} style={styles.folderItem} onPress={() => openFolderItem(item)}>
+                <FocusButton key={item.uri} style={styles.folderItem} onPress={() => openFolderItem(item)}>
                   <Text style={styles.folderItemIcon}>{item.isDirectory ? '📁' : '📄'}</Text>
                   <View style={styles.folderItemBody}>
                     <Text style={styles.folderItemName} numberOfLines={1}>{item.name}</Text>
                     <Text style={styles.metaText}>{item.isDirectory ? 'Folder' : 'File'}</Text>
                   </View>
                   <Text style={styles.folderItemChevron}>›</Text>
-                </TouchableOpacity>
+                </FocusButton>
               ))}
             </>
           ) : (
             <Text style={styles.metaText}>No completed download folder yet.</Text>
           )}
         </Section>
+        </View>
+        </View>
       </ScrollView>
     </SafeAreaView>
     </SafeAreaProvider>
@@ -859,6 +868,19 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  columns: {
+    flexDirection: 'row',
+    gap: 14,
+    alignItems: 'flex-start',
+  },
+  column: {
+    flex: 1,
+    gap: 14,
+    minWidth: 0,
+  },
+  columnStack: {
+    gap: 14,
+  },
   container: {
     flex: 1,
     backgroundColor: '#020617',
