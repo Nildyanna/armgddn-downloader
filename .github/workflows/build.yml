@@ -144,6 +144,7 @@ jobs:
           path: |
             dist/*.AppImage
             dist/*.deb
+          retention-days: 1
 
       - name: Upload artifacts (macOS)
         if: matrix.platform == 'mac'
@@ -152,6 +153,7 @@ jobs:
           name: mac-build
           path: |
             dist/*.pkg
+          retention-days: 1
 
   build-win32:
     permissions:
@@ -226,6 +228,7 @@ jobs:
           name: windows-build
           path: |
             dist/*.exe
+          retention-days: 1
 
   mobile-android:
     permissions:
@@ -329,6 +332,7 @@ jobs:
           name: mobile-android-build
           path: |
             mobile-artifacts/*.apk
+          retention-days: 1
 
   release:
     needs:
@@ -339,6 +343,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     permissions:
       contents: write
+      actions: write
     
     steps:
       - name: Checkout repository
@@ -486,3 +491,20 @@ jobs:
             mobile-artifacts/*.apk
           draft: false
           prerelease: false
+
+      - name: Delete temporary build artifacts
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          artifacts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100")
+          mapfile -t artifact_ids < <(jq -r '.artifacts[] | select(.name == "linux-build" or .name == "mac-build" or .name == "windows-build" or .name == "mobile-android-build") | .id' <<< "$artifacts")
+          if ((${#artifact_ids[@]} == 0)); then
+            echo "No temporary build artifacts found."
+            exit 0
+          fi
+          for artifact_id in "${artifact_ids[@]}"; do
+            gh api --method DELETE "repos/${GITHUB_REPOSITORY}/actions/artifacts/${artifact_id}"
+            echo "Deleted temporary artifact ${artifact_id}."
+          done
