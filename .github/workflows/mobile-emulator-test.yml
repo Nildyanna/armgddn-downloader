@@ -77,6 +77,7 @@ jobs:
         with:
           name: e2e-apk
           path: mobile/android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 1
 
   emulator:
     needs: build-apk
@@ -131,3 +132,4 @@ jobs:
           name: e2e-${{ matrix.name }}
           path: e2e-out
           if-no-files-found: ignore
+          retention-days: 1
