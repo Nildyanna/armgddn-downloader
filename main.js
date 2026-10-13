@@ -74,7 +74,10 @@ if (SENTRY_DSN) {
 // start failures and anything unrecognised are still reported. A download folder that
 // can't be created (missing drive, no permission) is the member's setup and is explained
 // in the app, so it isn't reported either.
-const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error|Can't create the download folder)/i;
+// Windows ending the download process itself (PC shutting down or signing out, the app being closed): 3221225794 is
+// 0xC0000142, 1073807364 is 0x40010004 and 3221225786 is 0xC000013A. They arrive together, for every running download at
+// the same second, so they are the system closing things and not a fault (Sentry COMPANION-1N and 1P).
+const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error|Can't create the download folder|\(code (?:3221225794|1073807364|3221225786)\))/i;
 function isExpectedDownloadFailure(errorText) {
   return EXPECTED_FAILURE_RE.test(String(errorText || '').split('\n')[0]);
 }
@@ -1692,6 +1695,9 @@ function extractRcloneErrorDetail(errorOutput) {
 }
 
 function formatRcloneExitCodeHint(code) {
+  if (code === 3221225794 || code === 1073807364 || code === 3221225786) {
+    return 'Windows ended the download (the PC was shutting down or signing out, or the app was closed). Start it again and it picks up where it stopped.';
+  }
   if (code === 1) {
     return 'Something went wrong while downloading. This is often caused by an expired link, temporary provider limits, a network hiccup, or not being able to write the file to disk.';
   }
