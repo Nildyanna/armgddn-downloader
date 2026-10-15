@@ -5,10 +5,40 @@ on:
     tags:
       - 'v*'
   pull_request:
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
   workflow_dispatch:
 
 jobs:
+  # Pull requests only: says whether anything under mobile/ changed, so the Android build can be skipped otherwise.
+  changes:
+    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    outputs:
+      mobile: ${{ steps.diff.outputs.mobile }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          lfs: false
+
+      - name: Did mobile/ change?
+        id: diff
+        shell: bash
+        run: |
+          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -q '^mobile/'; then
+            echo "mobile=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "mobile=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
+    # Dependabot version bumps are tested locally before merging, so they do not spend Linux/macOS minutes here.
+    if: github.actor != 'dependabot[bot]'
     permissions:
       contents: read
     strategy:
@@ -156,6 +186,7 @@ jobs:
           retention-days: 1
 
   build-win32:
+    if: github.actor != 'dependabot[bot]'
     permissions:
       contents: read
     runs-on: windows-latest
@@ -231,6 +262,9 @@ jobs:
           retention-days: 1
 
   mobile-android:
+    # Tags and manual runs always build it; a pull request builds it only when mobile/ changed.
+    needs: changes
+    if: ${{ !cancelled() && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || needs.changes.outputs.mobile == 'true') }}
     permissions:
       contents: read
     runs-on: windows-latest
