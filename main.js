@@ -6384,6 +6384,17 @@ function parseSpeedToBytes(value, unit) {
 }
 
 // Format bytes per second to human readable (decimal MB/s, not binary MiB/s)
+// Peak speed comes from rclone progress lines. Albums of tiny files finish before any line reports a speed,
+// so the peak stays 0: fall back to the average over the whole download.
+function peakOrAverageSpeedBytes(download) {
+  const peak = Number(download && download.peakSpeedBytes) || 0;
+  if (peak > 0) return peak;
+  const started = download && download.startTime ? new Date(download.startTime).getTime() : 0;
+  const bytes = Number(download && (download.downloadedSize || download.totalSize)) || 0;
+  const seconds = started ? (Date.now() - started) / 1000 : 0;
+  return seconds > 0.5 && bytes > 0 ? bytes / seconds : 0;
+}
+
 function formatSpeed(bytesPerSec) {
   const bitsPerSec = (Number.isFinite(bytesPerSec) ? bytesPerSec : 0) * 8;
   const units = ['bp/s', 'Kbp/s', 'Mbp/s', 'Gbp/s', 'Tbp/s'];
@@ -6832,7 +6843,7 @@ function finalizeCompletedDownload(downloadId) {
         status: 'completed',
         progress: 100,
         downloadedSize: download.downloadedSize,
-        totalSpeed: formatSpeed(download.peakSpeedBytes || 0),
+        totalSpeed: formatSpeed(peakOrAverageSpeedBytes(download)),
         activeFiles: [],
         completedFiles: download.completedFiles,
         fileCount: download.fileCount,
@@ -6972,7 +6983,7 @@ function completeDownload(downloadId) {
       download.__armgddnFinalizing = true;
       download.status = 'extracting';
       download.progress = 99;
-      download.totalSpeed = formatSpeed(download.peakSpeedBytes || 0);
+      download.totalSpeed = formatSpeed(peakOrAverageSpeedBytes(download));
       try {
         if (mainWindowAlive()) {
           sendToMain('download-progress', {
@@ -6980,7 +6991,7 @@ function completeDownload(downloadId) {
             status: 'extracting',
             progress: download.progress,
             downloadedSize: download.downloadedSize,
-            totalSpeed: formatSpeed(download.peakSpeedBytes || 0),
+            totalSpeed: formatSpeed(peakOrAverageSpeedBytes(download)),
             activeFiles: [],
             completedFiles: download.completedFiles,
             fileCount: download.fileCount
@@ -7019,7 +7030,7 @@ function completeDownload(downloadId) {
                 status: 'extracting',
                 progress: download.progress,
                 downloadedSize: download.downloadedSize,
-                totalSpeed: formatSpeed(download.peakSpeedBytes || 0),
+                totalSpeed: formatSpeed(peakOrAverageSpeedBytes(download)),
                 activeFiles: [],
                 completedFiles: download.completedFiles,
                 fileCount: download.fileCount,
