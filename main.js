@@ -3127,7 +3127,8 @@ app.on('window-all-closed', () => {
 });
 
 app.on('activate', () => {
-  if (BrowserWindow.getAllWindows().length === 0) {
+  // On macOS this can fire before the app is ready (a relaunch from a deep link), and creating a window then throws.
+  if (app.isReady() && BrowserWindow.getAllWindows().length === 0) {
     createWindow();
   }
 });
