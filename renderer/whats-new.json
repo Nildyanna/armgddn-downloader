@@ -1,5 +1,5 @@
 {
-  "5.4.1": {
+  "5.4.2": {
     "title": "Smaller Fixes",
     "highlights": [
       "On Windows, shutting down, signing out or closing the Companion while a download is running is no longer reported as a failed download.",

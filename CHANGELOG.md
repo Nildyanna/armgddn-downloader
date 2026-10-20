@@ -5,7 +5,7 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.4.1] - 2026-10-20
+## [5.4.2] - 2026-10-20
 
 ### Fixed
 - Windows: the download process being ended by a shutdown, sign-out or closing the app is no longer sent as a failure report.
@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 - Build: CI skips Dependabot and docs-only pull requests, and build artifacts expire after a day or after a release.
+- Build: the release job no longer gets skipped on tag builds (5.4.1 was tagged but never published because of this).
 
 ## [5.4.0] - 2026-10-09
 

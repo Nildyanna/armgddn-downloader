@@ -374,7 +374,8 @@ jobs:
       - build-win32
       - mobile-android
     runs-on: ubuntu-24.04
-    if: startsWith(github.ref, 'refs/tags/v')
+    # !cancelled() plus explicit results: the skipped `changes` job upstream (tags never run it) would otherwise skip this job too.
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.build.result == 'success' && needs.build-win32.result == 'success' && needs.mobile-android.result == 'success' }}
     permissions:
       contents: write
       actions: write
