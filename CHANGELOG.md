@@ -5,6 +5,16 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.4.1] - 2026-10-20
+
+### Fixed
+- Windows: the download process being ended by a shutdown, sign-out or closing the app is no longer sent as a failure report.
+- macOS: ignore the activate event until the app is ready (fixes a "Cannot create BrowserWindow before app is ready" crash).
+- The download card falls back to the average speed over the whole download when no peak speed was recorded (many small files finish before rclone prints a speed).
+
+### Changed
+- Build: CI skips Dependabot and docs-only pull requests, and build artifacts expire after a day or after a release.
+
 ## [5.4.0] - 2026-10-09
 
 ### Added

@@ -1,4 +1,12 @@
 {
+  "5.4.1": {
+    "title": "Smaller Fixes",
+    "highlights": [
+      "On Windows, shutting down, signing out or closing the Companion while a download is running is no longer reported as a failed download.",
+      "Fixed a crash on Mac that could happen if the app was opened from the Dock while it was still starting.",
+      "Downloads of many small files, like a music album, now show an average speed instead of 'Peak: 0 bp/s' when no peak could be measured."
+    ]
+  },
   "5.4.0": {
     "title": "Landscape & TV",
     "highlights": [
