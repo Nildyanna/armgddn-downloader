@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.5.1] - 2026-10-21
+
+### Fixed
+- Add to My Komga asked the bare domain, whose redirect to `www` dropped the login header, so the site refused the read list. It now asks `www.armgddnbrowser.com` directly and checks the reply is a reading list.
+
 ## [5.5.0] - 2026-10-21
 
 ### Added

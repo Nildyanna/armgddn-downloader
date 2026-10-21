@@ -1,4 +1,10 @@
 {
+  "5.5.1": {
+    "title": "Komga Fix",
+    "highlights": [
+      "Fixed Add to My Komga showing 'Could not get the read list from ARMGDDN'."
+    ]
+  },
   "5.5.0": {
     "title": "Read Lists for Komga",
     "highlights": [
