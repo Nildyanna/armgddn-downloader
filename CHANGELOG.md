@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.5.2] - 2026-10-21
+
+### Changed
+- Add to My Komga now updates an existing read list of the same name (matched by name, ignoring capitals) instead of reporting that it already exists.
+
 ## [5.5.1] - 2026-10-21
 
 ### Fixed
