@@ -2401,12 +2401,13 @@ async function addReadListToKomga(listId) {
 
     let xml;
     try {
-      const resp = await fetch(`https://armgddnbrowser.com/api/komga-readlist?id=${encodeURIComponent(listId)}`, {
+      const resp = await fetch(`https://www.armgddnbrowser.com/api/komga-readlist?id=${encodeURIComponent(listId)}`, {  // www directly: the bare domain redirects, and a redirect drops the login header
         headers: { 'Authorization': 'Bearer ' + sessionToken, 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion() },
         signal: AbortSignal.timeout(30000)
       });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
       xml = await resp.text();
+      if (!/<ReadingList[\s>]/.test(xml)) throw new Error('reply was not a reading list');
     } catch (e) {
       logToFile('Komga: could not get read list from the site: ' + (e && e.message ? e.message : e));
       await komgaMessage('error', 'Could not get the read list from ARMGDDN', 'Try again in a moment.');
