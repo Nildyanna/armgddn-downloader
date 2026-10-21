@@ -38,9 +38,24 @@ jobs:
 
           echo "Syncing Browser site_version to $VERSION"
 
-          git clone "https://${BROWSER_SYNC_PAT}@github.com/${BROWSER_REPO}.git" browser
+          # The token goes in a header, not in the URL: GitHub sometimes answers the clone with a redirect, and git drops
+          # credentials embedded in the URL when it follows one ("could not read Username"). A header is kept.
+          AUTH="$(printf 'x-access-token:%s' "${BROWSER_SYNC_PAT}" | base64 -w0)"
+          echo "::add-mask::${AUTH}"
+          for attempt in 1 2 3; do
+            rm -rf browser
+            if git -c "http.extraheader=Authorization: Basic ${AUTH}" clone "https://github.com/${BROWSER_REPO}.git" browser; then
+              break
+            fi
+            if [ "$attempt" = 3 ]; then
+              echo "Could not clone ${BROWSER_REPO} after 3 tries" >&2
+              exit 1
+            fi
+            sleep $((attempt * 5))
+          done
 
           cd browser
+          git config --local http.extraheader "Authorization: Basic ${AUTH}"
 
           if [ ! -f "default.php" ]; then
             echo "default.php not found in browser repo" >&2
