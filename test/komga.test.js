@@ -1,7 +1,7 @@
 const { test } = require('node:test');
 const assert = require('node:assert');
 const http = require('http');
-const { LISTS, normalizeBaseUrl, addReadList } = require('../komga');
+const { LISTS, normalizeBaseUrl, addReadList, isValidListId } = require('../komga');
 
 function standIn(handlers) {
   const seen = [];
@@ -83,4 +83,9 @@ test('a failed lookup still falls back to a normal create', async () => {
   server.close();
   assert.strictEqual(r.ok, true);
   assert.ok(!r.replaced);
+});
+
+test('list ids: any slug the site may send is fine, anything else is refused', () => {
+  for (const ok of ['marvel', 'fantastic-four-collection', 'x-men-and-friends', 'a1']) assert.ok(isValidListId(ok), ok);
+  for (const bad of ['', 'Marvel', '../x', 'a b', '-a', 'a-', 'a--b', 'x'.repeat(61), null, 5]) assert.ok(!isValidListId(bad), String(bad));
 });

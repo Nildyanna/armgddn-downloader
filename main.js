@@ -2277,8 +2277,8 @@ function validateDeepLink(url) {
       }
     }
 
-    if (parsed.hostname === 'komga' && !Object.prototype.hasOwnProperty.call(KOMGA_LISTS, String(parsed.searchParams.get('list') || ''))) {
-      logToFile('Deep link rejected - unknown komga list');
+    if (parsed.hostname === 'komga' && !komga.isValidListId(String(parsed.searchParams.get('list') || ''))) {
+      logToFile('Deep link rejected - bad komga list id');
       return null;
     }
 
@@ -2383,8 +2383,7 @@ async function komgaMessage(type, message, detail) {
 
 let komgaBusy = false;
 async function addReadListToKomga(listId) {
-  const list = KOMGA_LISTS[listId];
-  if (!list) return;
+  if (!komga.isValidListId(listId)) return;
   if (komgaBusy) return;
   komgaBusy = true;
   try {
@@ -2400,12 +2399,14 @@ async function addReadListToKomga(listId) {
     }
 
     let xml;
+    let listName = (KOMGA_LISTS[listId] && KOMGA_LISTS[listId].title) || '';
     try {
       const resp = await fetch(`https://www.armgddnbrowser.com/api/komga-readlist?id=${encodeURIComponent(listId)}`, {  // www directly: the bare domain redirects, and a redirect drops the login header
         headers: { 'Authorization': 'Bearer ' + sessionToken, 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion() },
         signal: AbortSignal.timeout(30000)
       });
       if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      try { const n = decodeURIComponent(resp.headers.get('x-readlist-name') || ''); if (n) listName = n; } catch (e) { }
       xml = await resp.text();
       if (!/<ReadingList[\s>]/.test(xml)) throw new Error('reply was not a reading list');
     } catch (e) {
@@ -2414,10 +2415,10 @@ async function addReadListToKomga(listId) {
       return;
     }
 
-    const r = await komga.addReadList({ baseUrl: cfg.url, apiKey: cfg.key, xml, fileName: list.file });
+    const r = await komga.addReadList({ baseUrl: cfg.url, apiKey: cfg.key, xml, fileName: `${listName || listId} - Suggested Reading Order.cbl` });
     if (r.ok) {
-      logToFile(`Komga: added "${list.title}" (${r.count} issues, ${r.missing} not in library)`);
-      await komgaMessage('info', `Added "${list.title}" to your Komga`,
+      logToFile(`Komga: ${r.replaced ? 'updated' : 'added'} "${listName || listId}" (${r.count} issues, ${r.missing} not in library)`);
+      await komgaMessage('info', `${r.replaced ? 'Updated' : 'Added'} "${listName || listId}" ${r.replaced ? 'in' : 'to'} your Komga`,
         `${r.count} issues are in the read list.` + (r.missing ? ` ${r.missing} are not in your Komga library yet, so they were left out.` : ''));
       return;
     }

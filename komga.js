@@ -92,4 +92,8 @@ async function addReadList({ baseUrl, apiKey, xml, fileName, fetchImpl = fetch, 
   return { ok: true, count: request.bookIds.length, missing };
 }
 
-module.exports = { LISTS, normalizeBaseUrl, addReadList };
+// The site decides which reading orders exist (new ones appear on their own), so any well-formed id is accepted here
+// and the site answers 404 for an unknown one.
+function isValidListId(id) { return typeof id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) && id.length <= 60; }
+
+module.exports = { LISTS, normalizeBaseUrl, addReadList, isValidListId };
