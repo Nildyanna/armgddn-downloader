@@ -33,6 +33,8 @@
       "setupReport.js",
       "preload.js",
       "preload-update.js",
+      "preload-komga.js",
+      "komga.js",
       "renderer/**/*",
       "assets/**/*"
     ],

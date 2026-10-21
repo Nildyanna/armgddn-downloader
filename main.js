@@ -2254,7 +2254,7 @@ function validateDeepLink(url) {
     if (parsed.protocol !== 'armgddn:') return null;
 
     // Whitelist allowed actions
-    const allowedHosts = ['download', 'open'];
+    const allowedHosts = ['download', 'open', 'komga'];
     if (!allowedHosts.includes(parsed.hostname)) {
       logToFile(`Deep link rejected - invalid host: ${parsed.hostname}`);
       return null;
@@ -2275,6 +2275,11 @@ function validateDeepLink(url) {
         logToFile('Deep link rejected - invalid downloadToken format');
         return null;
       }
+    }
+
+    if (parsed.hostname === 'komga' && !Object.prototype.hasOwnProperty.call(KOMGA_LISTS, String(parsed.searchParams.get('list') || ''))) {
+      logToFile('Deep link rejected - unknown komga list');
+      return null;
     }
 
     // Validate manifest parameter if present (URL or base64-encoded URL)
@@ -2312,6 +2317,118 @@ function validateDeepLink(url) {
   }
 }
 
+
+// ── Add a read list to the member's own Komga ───────────────────────────────────────────────
+// The site's "Add to My Komga" button opens armgddn://komga?list=<id>. The browser cannot call a Komga server
+// directly (Komga refuses other websites by default), so the app does it: it gets the reading list from the site
+// and sends it to the address and API key the member saved here. The key is stored encrypted when the OS allows it.
+const komga = require('./komga');
+const KOMGA_LISTS = komga.LISTS;
+let komgaPromptWin = null;
+let komgaPromptResolve = null;
+
+function komgaConfigPath() { return path.join(app.getPath('userData'), 'komga.json'); }
+
+function loadKomgaConfig() {
+  try {
+    const d = JSON.parse(fs.readFileSync(komgaConfigPath(), 'utf8'));
+    if (!d || !d.url || !d.key) return null;
+    const key = d.enc ? safeStorage.decryptString(Buffer.from(d.key, 'base64')) : d.key;
+    return { url: d.url, key };
+  } catch (e) { return null; }
+}
+
+function saveKomgaConfig(cfg) {
+  const enc = safeStorage.isEncryptionAvailable();
+  const data = { url: cfg.url, enc, key: enc ? safeStorage.encryptString(cfg.key).toString('base64') : cfg.key };
+  fs.writeFileSync(komgaConfigPath(), JSON.stringify(data), { mode: 0o600 });
+}
+
+function forgetKomgaKey() { try { fs.unlinkSync(komgaConfigPath()); } catch (e) { } }
+
+function promptKomgaSettings() {
+  return new Promise((resolve) => {
+    if (komgaPromptWin && !komgaPromptWin.isDestroyed()) { komgaPromptWin.focus(); return resolve(null); }
+    komgaPromptResolve = resolve;
+    komgaPromptWin = new BrowserWindow({
+      width: 460, height: 400, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true,
+      title: 'Add to My Komga', icon: getAppIcon(),
+      webPreferences: { preload: path.join(__dirname, 'preload-komga.js'), contextIsolation: true, nodeIntegration: false }
+    });
+    try { komgaPromptWin.setMenu(null); } catch (e) { }
+    komgaPromptWin.loadFile(path.join(__dirname, 'renderer', 'komga.html'));
+    komgaPromptWin.on('closed', () => {
+      komgaPromptWin = null;
+      if (komgaPromptResolve) { const r = komgaPromptResolve; komgaPromptResolve = null; r(null); }
+    });
+  });
+}
+
+ipcMain.handle('komga-get-defaults', () => ({ url: 'http://localhost:25600' }));
+ipcMain.handle('komga-cancel', () => { if (komgaPromptWin && !komgaPromptWin.isDestroyed()) komgaPromptWin.close(); });
+ipcMain.handle('komga-submit', (event, data) => {
+  const url = komga.normalizeBaseUrl(data && data.url);
+  const key = String((data && data.key) || '').trim();
+  if (!url) return { error: 'That address does not look right. Example: http://localhost:25600' };
+  if (!key) return { error: 'Paste your Komga API key.' };
+  if (komgaPromptResolve) { const r = komgaPromptResolve; komgaPromptResolve = null; r({ url, key }); }
+  if (komgaPromptWin && !komgaPromptWin.isDestroyed()) komgaPromptWin.close();
+  return { ok: true };
+});
+
+async function komgaMessage(type, message, detail) {
+  const opts = { type, title: 'Add to My Komga', message, detail: detail || undefined, buttons: ['OK'] };
+  try { return mainWindowAlive() ? await dialog.showMessageBox(mainWindow, opts) : await dialog.showMessageBox(opts); } catch (e) { }
+}
+
+let komgaBusy = false;
+async function addReadListToKomga(listId) {
+  const list = KOMGA_LISTS[listId];
+  if (!list) return;
+  if (komgaBusy) return;
+  komgaBusy = true;
+  try {
+    if (!sessionToken) {
+      await komgaMessage('info', 'Log in to the Companion first', 'Open the Companion, log in, then click Add to My Komga on the site again.');
+      return;
+    }
+    let cfg = loadKomgaConfig();
+    if (!cfg) {
+      cfg = await promptKomgaSettings();
+      if (!cfg) return;
+      saveKomgaConfig(cfg);
+    }
+
+    let xml;
+    try {
+      const resp = await fetch(`https://armgddnbrowser.com/api/komga-readlist?id=${encodeURIComponent(listId)}`, {
+        headers: { 'Authorization': 'Bearer ' + sessionToken, 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion() },
+        signal: AbortSignal.timeout(30000)
+      });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      xml = await resp.text();
+    } catch (e) {
+      logToFile('Komga: could not get read list from the site: ' + (e && e.message ? e.message : e));
+      await komgaMessage('error', 'Could not get the read list from ARMGDDN', 'Try again in a moment.');
+      return;
+    }
+
+    const r = await komga.addReadList({ baseUrl: cfg.url, apiKey: cfg.key, xml, fileName: list.file });
+    if (r.ok) {
+      logToFile(`Komga: added "${list.title}" (${r.count} issues, ${r.missing} not in library)`);
+      await komgaMessage('info', `Added "${list.title}" to your Komga`,
+        `${r.count} issues are in the read list.` + (r.missing ? ` ${r.missing} are not in your Komga library yet, so they were left out.` : ''));
+      return;
+    }
+    logToFile('Komga: add failed (' + r.reason + ')');
+    if (r.reason === 'auth' || r.reason === 'unreachable') forgetKomgaKey();
+    await komgaMessage('error', r.message, r.reason === 'auth' || r.reason === 'unreachable'
+      ? 'Your saved Komga details were cleared. Click Add to My Komga again to enter them again.' : undefined);
+  } finally {
+    komgaBusy = false;
+  }
+}
+
 // Handle deep link
 function handleDeepLink(url) {
   // Validate before processing
@@ -2320,6 +2437,15 @@ function handleDeepLink(url) {
     logToFile('Deep link rejected: ' + (url ? url.substring(0, 50) : 'null'));
     return;
   }
+
+  // Adding a read list to the member's Komga is handled here in the main process (no renderer round trip).
+  try {
+    const u = new URL(validatedUrl);
+    if (u.hostname === 'komga') {
+      addReadListToKomga(u.searchParams.get('list')).catch(e => logToFile('Komga add failed: ' + (e && e.message ? e.message : e)));
+      return;
+    }
+  } catch (e) { }
 
   // Queue and flush when the renderer is ready.
   pendingDeepLinks.push(validatedUrl);
