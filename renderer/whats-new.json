@@ -1,4 +1,11 @@
 {
+  "5.5.0": {
+    "title": "Read Lists for Komga",
+    "highlights": [
+      "On the Comics page, the new Add to My Komga buttons send a complete reading order (Marvel, DC, Batman, Daredevil, Spider-Man or Superman) straight to your own Komga server.",
+      "The first time, the app asks for your Komga address and an API key. They stay on your PC and are only used to talk to your Komga."
+    ]
+  },
   "5.4.2": {
     "title": "Smaller Fixes",
     "highlights": [

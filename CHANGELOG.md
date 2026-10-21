@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.5.0] - 2026-10-21
+
+### Added
+- Add to My Komga: the `armgddn://komga?list=<id>` link makes the Companion get a reading list (Marvel, DC, Batman, Daredevil, Spider-Man or Superman) from the site and add it to the member's own Komga server (match, then create), using a saved Komga address and API key. The key is encrypted with the OS keychain when available.
+- A small settings window asks for the Komga address and API key the first time. Wrong key or an unreachable Komga clears the saved details so it asks again.
+
 ## [5.4.2] - 2026-10-20
 
 ### Fixed
