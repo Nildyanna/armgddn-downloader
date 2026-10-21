@@ -26,7 +26,7 @@ function normalizeBaseUrl(input) {
 }
 
 // Returns { ok: true, count, missing } or { ok: false, reason, message }.
-// reason: 'unreachable' | 'auth' | 'nomatch' | 'exists' | 'komga'
+// reason: 'unreachable' | 'auth' | 'nomatch' | 'exists' | 'komga'. replaced: true when an existing list of that name was updated.
 async function addReadList({ baseUrl, apiKey, xml, fileName, fetchImpl = fetch, timeoutMs = 30000 }) {
   const base = normalizeBaseUrl(baseUrl);
   if (!base) return { ok: false, reason: 'komga', message: 'That Komga address does not look right.' };
@@ -50,6 +50,32 @@ async function addReadList({ baseUrl, apiKey, xml, fileName, fetchImpl = fetch, 
   const missing = Array.isArray(matched && matched.errors) ? matched.errors.length : 0;
   if (!request || !Array.isArray(request.bookIds) || !request.bookIds.length) {
     return { ok: false, reason: 'nomatch', message: 'None of the issues matched books in your Komga library yet. Add your comics to Komga first.' };
+  }
+
+  // A read list with the same name is replaced, so grabbing a fresh one from the site updates what the member has.
+  let existingId = null;
+  try {
+    const found = await fetchImpl(`${base}/api/v1/readlists?unpaged=true&search=${encodeURIComponent(request.name || '')}`, { headers, signal: sig() });
+    if (found.ok) {
+      const page = await found.json();
+      const rows = Array.isArray(page) ? page : (page && page.content) || [];
+      const hit = rows.find(r => r && String(r.name || '').toLowerCase() === String(request.name || '').toLowerCase());
+      if (hit && hit.id) existingId = hit.id;
+    }
+  } catch (e) { /* fall through to a normal create */ }
+  if (existingId) {
+    let patched;
+    try {
+      patched = await fetchImpl(`${base}/api/v1/readlists/${encodeURIComponent(existingId)}`, {
+        method: 'PATCH', headers: { ...headers, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: request.name, summary: request.summary, ordered: request.ordered !== false, bookIds: request.bookIds }), signal: sig()
+      });
+    } catch (e) {
+      return { ok: false, reason: 'unreachable', message: `Lost the connection to Komga at ${base}.` };
+    }
+    if (patched.status === 401 || patched.status === 403) return { ok: false, reason: 'auth', message: 'Komga did not accept that API key.' };
+    if (!patched.ok) return { ok: false, reason: 'komga', message: `Komga could not update the existing read list (${patched.status}).` };
+    return { ok: true, count: request.bookIds.length, missing, replaced: true };
   }
 
   let created;

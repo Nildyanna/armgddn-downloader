@@ -42,11 +42,11 @@ test('matches the file then creates the read list, with the key on both calls', 
   const r = await addReadList({ baseUrl: base, apiKey: 'k123', xml: XML, fileName: 'x.cbl' });
   server.close();
   assert.deepStrictEqual(r, { ok: true, count: 3, missing: 1 });
-  assert.strictEqual(seen.length, 2);
+  assert.strictEqual(seen.length, 3);   // match, look for a list of the same name, create
   assert.ok(seen.every(s => s.key === 'k123'));
   assert.ok(seen[0].type.startsWith('multipart/form-data'));
   assert.ok(seen[0].body.includes('<ReadingList>'));
-  assert.deepStrictEqual(JSON.parse(seen[1].body).bookIds, ['a', 'b', 'c']);
+  assert.deepStrictEqual(JSON.parse(seen[2].body).bookIds, ['a', 'b', 'c']);
 });
 
 test('wrong key, empty match, existing list and a dead server each give a clear reason', async () => {
@@ -58,4 +58,29 @@ test('wrong key, empty match, existing list and a dead server each give a clear 
   assert.strictEqual((await addReadList({ baseUrl: s.base, apiKey: 'k', xml: XML, fileName: 'x.cbl' })).reason, 'exists'); s.server.close();
   const dead = await addReadList({ baseUrl: 'http://127.0.0.1:1', apiKey: 'k', xml: XML, fileName: 'x.cbl', timeoutMs: 2000 });
   assert.strictEqual(dead.reason, 'unreachable');
+});
+
+test('a read list with the same name is replaced instead of failing', async () => {
+  const { server, seen, base } = await standIn({
+    'POST /api/v1/readlists/match/comicrack': { body: { request: { name: 'Marvel X', ordered: true, bookIds: ['n1', 'n2'] }, errors: [] } },
+    'GET /api/v1/readlists?unpaged=true&search=Marvel%20X': { body: { content: [{ id: 'old1', name: 'marvel x' }, { id: 'other', name: 'Marvel X Extra' }] } },
+    'PATCH /api/v1/readlists/old1': { status: 204 }
+  });
+  const r = await addReadList({ baseUrl: base, apiKey: 'k', xml: XML, fileName: 'x.cbl' });
+  server.close();
+  assert.deepStrictEqual(r, { ok: true, count: 2, missing: 0, replaced: true });
+  assert.ok(!seen.some(s => s.method === 'POST' && s.url === '/api/v1/readlists'));
+  assert.deepStrictEqual(JSON.parse(seen.find(s => s.method === 'PATCH').body).bookIds, ['n1', 'n2']);
+});
+
+test('a failed lookup still falls back to a normal create', async () => {
+  const { server, seen, base } = await standIn({
+    'POST /api/v1/readlists/match/comicrack': { body: { request: { name: 'Y', bookIds: ['a'] }, errors: [] } },
+    'GET /api/v1/readlists?unpaged=true&search=Y': { status: 500 },
+    'POST /api/v1/readlists': { status: 201 }
+  });
+  const r = await addReadList({ baseUrl: base, apiKey: 'k', xml: XML, fileName: 'x.cbl' });
+  server.close();
+  assert.strictEqual(r.ok, true);
+  assert.ok(!r.replaced);
 });
