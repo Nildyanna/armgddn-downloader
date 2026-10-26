@@ -1157,7 +1157,7 @@ async function showAlertDialog(title, message) {
     }
   }
 
-  // "Copy report for Tulip": one code (personal details already removed) to paste into the ARMGDDN chat.
+  // "Copy report for Tulip": one code (personal details already removed) to paste into the ARMGDDN Beta chat.
   async function copySetupReport() {
     const note = document.getElementById('setup-report-note');
     const btn = document.getElementById('setup-report-btn');
@@ -1167,8 +1167,8 @@ async function showAlertDialog(title, message) {
     try {
       const res = await api.buildSetupReport();
       if (!res || !res.ok || !res.code) { note.textContent = 'Could not build the report.'; return; }
-      try { await navigator.clipboard.writeText(res.code); note.textContent = 'Copied. Paste it in the ARMGDDN chat and ask Tulip for help. It holds no names, paths or passwords.'; }
-      catch (e) { note.textContent = 'Could not copy automatically. Select this and copy it: ' + res.code; }
+      try { await navigator.clipboard.writeText(res.code); note.textContent = 'Copied. Paste this code in the ARMGDDN Beta chat channel (not the main chat) and ask Tulip for help. It holds no names, paths or passwords.'; }
+      catch (e) { note.textContent = 'Could not copy automatically. Paste this code in the ARMGDDN Beta chat channel (not the main chat): ' + res.code; }
     } catch (e) {
       note.textContent = 'Could not build the report.';
     } finally {
