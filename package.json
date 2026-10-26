@@ -2,6 +2,7 @@
   "name": "armgddn-downloader",
   "version": "5.5.4",
   "description": "ARMGDDN Companion - Fast rclone-powered download manager",
+  "homepage": "https://www.armgddnbrowser.com",
   "main": "main.js",
   "author": {
     "name": "Armgddn Games",
