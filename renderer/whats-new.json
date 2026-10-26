@@ -1,4 +1,10 @@
 {
+  "5.5.4": {
+    "title": "Setup Reports Go to Beta",
+    "highlights": [
+      "Copy for Tulip now directs setup reports to the ARMGDDN Beta chat, and Tulip redirects reports pasted into the main chat."
+    ]
+  },
   "5.5.3": {
     "title": "More Read Lists",
     "highlights": [
