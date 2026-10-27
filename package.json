@@ -128,7 +128,7 @@
   },
   "devDependencies": {
     "7zip-bin": "^5.2.0",
-    "electron": "^44.5.1",
+    "electron": "^44.9.1",
     "electron-builder": "^26.15.3"
   },
   "overrides": {
@@ -141,7 +141,8 @@
     "ip-address": "^10.2.0",
     "lodash": "^4.18.1",
     "picomatch": "^4.0.4",
-    "@xmldom/xmldom": "~0.8.13"
+    "@xmldom/xmldom": "~0.8.13",
+    "fast-uri": "^3.1.9"
   },
   "dependencies": {
     "@sentry/electron": "^7.20.0"
