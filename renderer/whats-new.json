@@ -1,4 +1,13 @@
 {
+  "5.6.0": {
+    "title": "ARMGDDN Companion is Live",
+    "highlights": [
+      "The Beta label is gone: ARMGDDN Companion is now the official app.",
+      "Copy for Tulip now tells you to paste your report code in the ARMGDDN Games Welcome & Support chat.",
+      "Check my setup now warns you if your download folder is the root of a drive (like D:\\) and suggests a short plain folder instead.",
+      "Under-the-hood security updates."
+    ]
+  },
   "5.5.4": {
     "title": "Setup Reports Go to Beta",
     "highlights": [

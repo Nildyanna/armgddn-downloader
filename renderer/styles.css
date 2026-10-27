@@ -316,12 +316,6 @@ body::after {
   margin-right: 8px;
 }
 
-.beta-badge {
-  font-size: 0.6em;
-  color: var(--neon-amber);
-  font-weight: normal;
-}
-
 .connection-status--centered {
   margin: 0 auto 1.5rem auto;
 }

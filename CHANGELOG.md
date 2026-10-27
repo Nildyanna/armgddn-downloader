@@ -5,6 +5,18 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.6.0] - 2026-11-01
+
+### Changed
+- The Beta label is removed from the window title and the app header.
+- Copy for Tulip now tells you to paste your report code in the ARMGDDN Games Welcome & Support chat.
+
+### Added
+- Check my setup warns when the download folder is the root of a drive (for example D:\), because Windows protects it and setup often fails there.
+
+### Security
+- Electron 44.9.3, undici 6.29.1 / 7.30.1, fast-uri 3.1.9, and mobile zod 4.6.7 (the updates held in the unpublished 5.5.6).
+
 ## [5.5.5] - 2026-10-27
 
 ### Fixed
