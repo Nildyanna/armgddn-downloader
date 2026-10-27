@@ -8115,7 +8115,10 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                       fs.appendFileSync(wrapperLogPath, `[${new Date().toISOString()}] preparing update runner\r\n`, { encoding: 'utf8' });
                     } catch (e) { }
 
-                    const silentArg = silent ? '/S' : '';
+                    // --updated makes the NSIS installer keep the user's existing shortcuts (it
+                    // only does that for updates); without it every update recreated the Start
+                    // Menu shortcut, even after the user moved or deleted it.
+                    const silentArg = silent ? '/S --updated' : '--updated';
                     const runner = [
                       '# ARMGDDN Companion update runner — auto-generated, do not edit',
                       `$pid_to_wait = ${pid}`,
@@ -8135,11 +8138,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                       '',
                       '# Run installer',
                       'Set-Content -Path $resultPath -Value (\'{"state":"installing"}\')',
-                      'if ($silentArg) {',
-                      '  $proc = Start-Process -FilePath $installer -ArgumentList $silentArg -Wait -PassThru',
-                      '} else {',
-                      '  $proc = Start-Process -FilePath $installer -Wait -PassThru',
-                      '}',
+                      '$proc = Start-Process -FilePath $installer -ArgumentList $silentArg -Wait -PassThru',
                       '$rc = $proc.ExitCode',
                       'Add-Content -Path $logPath -Value ("[{0}] installer finished rc=$rc" -f (Get-Date -Format o))',
                       '',
