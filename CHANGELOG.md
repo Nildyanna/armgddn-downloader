@@ -5,6 +5,12 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [5.5.5] - 2026-10-27
+
+### Fixed
+- Cancelling a download now stops in-flight transfers and removes files downloaded by that request, including partial files. Files that were already complete before the request started are preserved.
+- The cancel confirmation now explains which files will be removed.
+
 ## [5.5.3] - 2026-10-21
 
 ### Changed

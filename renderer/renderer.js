@@ -941,12 +941,15 @@ async function showAlertDialog(title, message) {
   async function cancelDownload(id) {
     const confirmed = await showConfirmDialog(
       'Cancel Download',
-      'If you cancel this download, completed files will not need to be redownloaded, but incomplete files will not resume and must be restarted. Are you sure you want to cancel?'
+      'Cancel and remove files from this download? Files already complete before this request started will be kept. Files downloaded by this request, including partial files, will be deleted.'
     );
     if (!confirmed) return;
-    await api.cancelDownload(id);
+    const result = await api.cancelDownload(id);
     downloads.delete(id);
     renderDownloads();
+    if (result && result.cleanupWarning) {
+      showToast('The download was cancelled, but some files could not be removed. Check its folder and delete any remaining partial files.', 'error');
+    }
   }
 
   async function pauseDownload(id) {

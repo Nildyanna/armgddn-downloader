@@ -116,6 +116,9 @@ The engine SHALL support pausing and cancelling downloads initiated by the user.
   - Mark the download as `cancelled`.
   - Set a flag so that no new files are started.
   - Attempt to terminate all active rclone processes.
+  - After active transfers stop, delete files belonging to this request, including partial files.
+  - Preserve files that were already complete on disk before this request started.
+  - Avoid deleting a file that another active download still owns in a shared target folder.
   - Emit a `download-cancelled` event to the renderer.
 - Pausing a download SHALL:
   - Mark the download as `paused`.
@@ -127,6 +130,8 @@ The engine SHALL support pausing and cancelling downloads initiated by the user.
 - **WHEN** the renderer requests cancellation for an in-progress download
 - **THEN** the engine marks the download as `cancelled`
 - **AND** terminates all active rclone processes for that download
+- **AND** waits for any in-flight file tasks to stop before removing their output files
+- **AND** preserves files that were already complete before this request started
 - **AND** notifies the renderer that the download was cancelled so the UI can remove it from the list or update its status.
 
 #### Scenario: User pauses an active download

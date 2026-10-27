@@ -3795,6 +3795,173 @@ function isFileCompleteOnDisk(downloadDir, file) {
   }
 }
 
+function isPathInside(parentPath, childPath) {
+  const parent = path.resolve(parentPath);
+  const child = path.resolve(childPath);
+  const relative = path.relative(parent, child);
+  return relative !== '' && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+}
+
+function waitForChildClose(proc, timeoutMs = 10000) {
+  return new Promise((resolve) => {
+    if (!proc || proc.exitCode !== null || proc.signalCode !== null) {
+      resolve(true);
+      return;
+    }
+    let settled = false;
+    const finish = (closed) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      proc.removeListener('close', onClose);
+      resolve(closed);
+    };
+    const onClose = () => finish(true);
+    const timer = setTimeout(() => finish(false), timeoutMs);
+    try { timer.unref(); } catch (e) { }
+    proc.once('close', onClose);
+    // Close may have fired between the first check and listener registration.
+    if (proc.exitCode !== null || proc.signalCode !== null) finish(true);
+  });
+}
+
+async function stopDownloadProcesses(processes) {
+  const active = (Array.isArray(processes) ? processes : []).filter((proc) =>
+    proc && proc.exitCode === null && proc.signalCode === null
+  );
+  const closed = new Set();
+  const waits = active.map((proc) => waitForChildClose(proc).then((didClose) => {
+    if (didClose) closed.add(proc);
+    return didClose;
+  }));
+
+  for (const proc of active) {
+    try { proc.kill('SIGTERM'); } catch (e) { }
+  }
+
+  if (waits.length) {
+    await Promise.race([
+      Promise.all(waits),
+      new Promise((resolve) => setTimeout(resolve, 2000))
+    ]);
+  }
+
+  for (const proc of active) {
+    if (closed.has(proc) || proc.exitCode !== null || proc.signalCode !== null) continue;
+    try { proc.kill('SIGKILL'); } catch (e) { }
+  }
+  if (waits.length) await Promise.all(waits);
+}
+
+function waitForDownloadTasksToFinish(download) {
+  if (!download || !(Number(download.pendingTaskCount) > 0)) return Promise.resolve();
+  return new Promise((resolve) => {
+    if (!Array.isArray(download.cancelWaiters)) download.cancelWaiters = [];
+    download.cancelWaiters.push(resolve);
+  });
+}
+
+async function cleanupCancelledDownloadFiles(download) {
+  const normalizePathKey = (value) => {
+    const normalized = String(value || '').replace(/\\/g, '/');
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  };
+  const normalizeAbsolutePathKey = (value) => {
+    const normalized = path.resolve(value);
+    return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
+  };
+  const downloadDir = download && download.downloadDir ? path.resolve(download.downloadDir) : '';
+  const downloadRoot = settings && settings.downloadPath ? path.resolve(settings.downloadPath) : '';
+  if (!downloadDir || !downloadRoot || !isPathInside(downloadRoot, downloadDir)) {
+    logToFile('[Cancel] Skipped file cleanup: download directory is outside the configured download folder.');
+    return false;
+  }
+
+  let rootReal;
+  let dirReal;
+  try {
+    rootReal = fs.realpathSync(downloadRoot);
+    dirReal = fs.realpathSync(downloadDir);
+  } catch (e) {
+    // The folder may not have been created yet if cancellation happened early.
+    return !fs.existsSync(downloadDir);
+  }
+  if (!isPathInside(rootReal, dirReal)) {
+    logToFile('[Cancel] Skipped file cleanup: resolved download directory escaped the configured folder.');
+    return false;
+  }
+
+  const preserve = new Set();
+  for (const fileName of (Array.isArray(download.preexistingFiles) ? download.preexistingFiles : [])) {
+    const safeRel = sanitizeRelativePath(String(fileName || ''));
+    if (safeRel) preserve.add(normalizePathKey(safeRel));
+  }
+
+  // Concurrent requests can share a title folder. Keep paths another active
+  // download owns, and files it is still writing while its cancellation drains.
+  const owners = new Set();
+  for (const other of activeDownloads.values()) {
+    if (!other || other === download || !other.downloadDir) continue;
+    if (normalizeAbsolutePathKey(other.downloadDir) !== normalizeAbsolutePathKey(downloadDir)) continue;
+    const ownedFiles = other.cancelled
+      ? Object.values(other.activeFiles || {}).map((active) => ({ name: active && active.name }))
+      : (Array.isArray(other.files) ? other.files : []);
+    for (const file of ownedFiles) {
+      const safeRel = sanitizeRelativePath(String(file && file.name ? file.name : ''));
+      if (safeRel) owners.add(normalizePathKey(safeRel));
+    }
+  }
+
+  let cleanupOk = true;
+  for (const file of (Array.isArray(download.files) ? download.files : [])) {
+    const safeRel = sanitizeRelativePath(String(file && file.name ? file.name : ''));
+    if (!safeRel) continue;
+    const key = normalizePathKey(safeRel);
+    if (preserve.has(key) || owners.has(key)) continue;
+
+    const targetPath = resolveInside(downloadDir, safeRel);
+    if (!targetPath || !isPathInside(downloadDir, targetPath)) continue;
+
+    // Refuse to traverse symlinks in the download tree while cleaning up.
+    const parts = safeRel.split('/');
+    let parentPath = downloadDir;
+    let unsafeParent = false;
+    for (const part of parts.slice(0, -1)) {
+      parentPath = path.join(parentPath, part);
+      try {
+        const parentStat = fs.lstatSync(parentPath);
+        if (parentStat.isSymbolicLink() || !parentStat.isDirectory()) {
+          unsafeParent = true;
+          break;
+        }
+      } catch (e) {
+        unsafeParent = true;
+        break;
+      }
+    }
+    if (unsafeParent) {
+      cleanupOk = false;
+      continue;
+    }
+
+    try {
+      const targetStat = fs.lstatSync(targetPath);
+      if (!targetStat.isFile() || targetStat.isSymbolicLink()) {
+        if (targetStat.isSymbolicLink()) cleanupOk = false;
+        continue;
+      }
+      await fs.promises.unlink(targetPath);
+      logToFile(`[Cancel] Removed incomplete download file: ${safeRel}`);
+    } catch (e) {
+      if (e && e.code !== 'ENOENT') {
+        cleanupOk = false;
+        logToFile(`[Cancel] Could not remove download file ${safeRel}: ${e.message || e}`);
+      }
+    }
+  }
+  return cleanupOk;
+}
+
 function normalizeFileSize(size) {
   const n = Number(size);
   return Number.isFinite(n) && n > 0 ? n : 0;
@@ -4163,10 +4330,13 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     totalSize: totalSize,
     downloadedSize: 0,
     files: files,
+    preexistingFiles: [], // Completed files present before this request; cancellation must preserve them.
     fileCount: files.length,
     completedFiles: 0,
     activeFiles: {},  // Track per-file progress: { fileName: { progress, speed, eta } }
     activeProcesses: [],  // Track all active rclone processes for cancellation
+    pendingTaskCount: 0, // Includes file tasks waiting on link resolution before rclone starts.
+    cancelWaiters: [],
     totalSpeed: 0,
     peakSpeedBytes: 0,
     startTime: new Date().toISOString(),
@@ -4276,6 +4446,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       if (isFileCompleteOnDisk(downloadDir, f)) {
         completedFiles++;
         downloadedSize += normalizeFileSize(f.size);
+        download.preexistingFiles.push(String(f.name));
         try {
           reportFileProgressToServer(download, effectiveToken, f, 'completed', normalizeFileSize(f.size));
         } catch (e) { }
@@ -4735,8 +4906,21 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         try { releaseGlobal(); } catch (e) { }
       };
 
+      let trackedDownload = null;
+      let taskTracked = false;
+      let taskFinished = false;
       const done = (err) => {
         try { releaseOnce(); } catch (e) { }
+        if (taskTracked && !taskFinished) {
+          taskFinished = true;
+          trackedDownload.pendingTaskCount = Math.max(0, (Number(trackedDownload.pendingTaskCount) || 0) - 1);
+          if (trackedDownload.pendingTaskCount === 0) {
+            const waiters = Array.isArray(trackedDownload.cancelWaiters) ? trackedDownload.cancelWaiters.splice(0) : [];
+            for (const waiter of waiters) {
+              try { waiter(); } catch (e) { }
+            }
+          }
+        }
         if (err) reject(err);
         else resolve();
       };
@@ -4744,6 +4928,13 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       const download = activeDownloads.get(downloadId);
       if (!download) {
         done(new Error('Download not found'));
+        return;
+      }
+      trackedDownload = download;
+      taskTracked = true;
+      download.pendingTaskCount = (Number(download.pendingTaskCount) || 0) + 1;
+      if (download.cancelled) {
+        done();
         return;
       }
 
@@ -4777,6 +4968,11 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       }
     } catch (e) {
     }
+
+      if (download.cancelled) {
+        done();
+        return;
+      }
 
       const safeRel = sanitizeRelativePath(file.name);
       if (!safeRel) {
@@ -6636,28 +6832,33 @@ function updateProgress(downloadId) {
 }
 
 // Cancel download
-ipcMain.handle('cancel-download', (event, downloadId) => {
+ipcMain.handle('cancel-download', async (event, downloadId) => {
   if (!isValidDownloadId(downloadId)) return false;
   const download = activeDownloads.get(downloadId);
-  if (download) {
-    download.cancelled = true;
-    download.status = 'cancelled';
+  if (!download) return true;
+  if (download.cancelCleanupPromise) return await download.cancelCleanupPromise;
 
-    // Kill all active processes
-    if (download.activeProcesses && download.activeProcesses.length > 0) {
-      for (const proc of download.activeProcesses) {
-        try {
-          proc.kill('SIGTERM');
-        } catch (e) {
-          logToFile('Error killing process: ' + e.message);
-        }
-      }
+  download.cancelled = true;
+  download.status = 'cancelled';
+  download.statusMessage = 'Cancelling and removing downloaded files...';
+
+  // Snapshot before termination; the child close handlers remove entries.
+  const processes = Array.isArray(download.activeProcesses) ? [...download.activeProcesses] : [];
+  download.cancelCleanupPromise = (async () => {
+    let cleanupOk = false;
+    try {
+      await stopDownloadProcesses(processes);
+      await waitForDownloadTasksToFinish(download);
+      cleanupOk = await cleanupCancelledDownloadFiles(download);
+    } catch (e) {
+      logToFile(`[Cancel] Cleanup failed for ${downloadId}: ${e && e.message ? e.message : String(e)}`);
+    } finally {
+      if (activeDownloads.get(downloadId) === download) activeDownloads.delete(downloadId);
+      sendToMain('download-cancelled', { id: downloadId, cleanupWarning: !cleanupOk });
     }
-
-    sendToMain('download-cancelled', { id: downloadId });
-    activeDownloads.delete(downloadId);
-  }
-  return true;
+    return { success: true, cleanupWarning: !cleanupOk };
+  })();
+  return await download.cancelCleanupPromise;
 });
 
 // Reorder active downloads by drag-and-drop priority. orderedIds is the full
