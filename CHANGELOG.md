@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cancelling a download now stops in-flight transfers and removes files downloaded by that request, including partial files. Files that were already complete before the request started are preserved.
 - The cancel confirmation now explains which files will be removed.
 
-## [Unreleased]
+## [5.5.6] - 2026-10-27
 
 ### Security
 - Updated Electron to 44.9.3, including patched Undici 6.29.1 and 7.30.1 dependencies, and pinned fast-uri to 3.1.9.
