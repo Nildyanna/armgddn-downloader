@@ -66,7 +66,7 @@ jobs:
           sed -i "s/\$site_version = '.*';/\$site_version = '${VERSION}';/" default.php
 
           # Update credit line text (keeps dynamic version output)
-          sed -i 's|Created by [^<]* v<?= $site_version ?>|Created by Old Man of the Hills (Beta) v<?= $site_version ?>|g' default.php
+          sed -i 's|Created by [^<]* v<?= $site_version ?>|Created by Old Man of the Hills v<?= $site_version ?>|g' default.php
 
           # Verify the version was actually updated
           if ! grep -q "\$site_version = '${VERSION}';" default.php; then
