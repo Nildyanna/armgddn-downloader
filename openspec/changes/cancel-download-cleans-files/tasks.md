@@ -1,4 +1,4 @@
 - [x] Update cancellation to stop active transfers, drain in-flight tasks, and clean up request-owned files.
 - [x] Preserve pre-existing complete files and protect shared-folder paths owned by other active downloads.
 - [x] Update cancel confirmation copy and download-engine spec.
-- [ ] Review the final diff and include the change in a Companion release.
+- [x] Review the final diff and include the change in Companion 5.5.5.
