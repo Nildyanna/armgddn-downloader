@@ -25,6 +25,11 @@ function driveOf(p) {
   return root.replace(/[\\/]+$/, '');
 }
 
+// "D:", "D:\\" or "D:/": the top of a drive, which Windows treats as protected
+function isDriveRoot(p) {
+  return /^[a-z]:[\\/]*$/i.test(String(p || '').trim());
+}
+
 function protectedPlace(p, facts) {
   const low = String(p || '').toLowerCase().replace(/\//g, '\\');
   const home = String(facts.homeDir || '').toLowerCase().replace(/\//g, '\\');
@@ -57,7 +62,11 @@ function evaluateSetup(facts) {
 
   // Download folder: where it lives
   const place = protectedPlace(dl, facts);
-  if (place) {
+  if (isDriveRoot(dl)) {
+    add('download-path', 'warn', 'Download folder is the root of a drive',
+      `Your download folder is the root of ${dlDrive}\\. Windows protects the root of a drive, and setup and antivirus often fail there. ` +
+      'Make a short plain folder such as D:\\Games and choose it in Settings.');
+  } else if (place) {
     add('download-path', 'warn', 'Download folder is in a protected place',
       `Your download folder is inside ${place}. Setup and antivirus often fail there. Use a short plain folder such as D:\\Games.`);
   } else if (dl.length > LONG_PATH) {
