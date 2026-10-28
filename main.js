@@ -145,6 +145,7 @@ function noteRecovery(download, note) {
 const { spawn, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const https = require('https');
+const { resumeDownload, ResumeProc } = require('./resumeDownload');
 const { pathToFileURL } = require('url');
 
 function getDialogParentWindow() {
@@ -4727,7 +4728,7 @@ async function refetchManifestAndRetryExpiredLink(downloadId, download, file, do
 
     if (!match || !match.url) return false;
 
-    const retryFile = { ...file, url: String(match.url) };
+    const retryFile = { ...file, url: String(match.url), __resume: true };
     try {
       const transformed = transformProxyUrlToDirectIfPossible(retryFile.url);
       if (transformed && transformed !== retryFile.url) {
@@ -5211,6 +5212,99 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       logToFile(`[rclone-copyurl] url=${shown}`);
     } catch (e) { }
 
+    // Retries after a failure (expired link, dropped connection, mirror change) run
+    // through the resumable downloader: rclone copyurl deletes its partial file on
+    // any error and starts again from byte 0, which threw away hours of progress.
+    if (file.__resume) {
+      const fileName = file && file.name ? String(file.name) : '';
+      const expected = normalizeFileSize(file.size);
+      let lastResumeBytes = 0;
+      const getFreshUrl = async () => {
+        if (!download.manifestUrl || !download.token) return String(file.url);
+        const m = await fetchManifestRidingOutNetwork(download, String(download.manifestUrl), download.token, '');
+        const wantPath = file.path ? String(file.path) : '';
+        const hit = m && Array.isArray(m.files) ? m.files.find(f => f && ((wantPath && f.path && String(f.path) === wantPath) || (fileName && f.name && String(f.name) === fileName))) : null;
+        if (!hit || !hit.url) return String(file.url);
+        let u = String(hit.url);
+        try { u = transformProxyUrlToDirectIfPossible(u) || u; } catch (e) { }
+        logToFile(`[Resume] fresh link for ${fileName}`);
+        return u;
+      };
+      const ctl = resumeDownload({
+        url: String(file.url),
+        outputPath,
+        expectedSize: expected,
+        getFreshUrl,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+          'Referer': 'https://www.armgddnbrowser.com/',
+          'Origin': 'https://www.armgddnbrowser.com',
+          'Accept': '*/*'
+        },
+        onProgress: (bytes, total) => {
+          try {
+            const t = total || expected || 0;
+            const pct = t > 0 ? Math.min(100, Math.floor((bytes / t) * 100)) : 0;
+            const mb = (n) => `${(n / 1048576).toFixed(3)} MiB`;
+            parseRcloneProgress(downloadId, fileKey, `\r${mb(bytes)} / ${mb(t)}, ${pct}%, 1 MiB/s, ETA -\r`);
+            lastResumeBytes = bytes;
+          } catch (e) { }
+        }
+      });
+      const rproc = new ResumeProc(ctl.abort);
+      download.activeProcesses.push(rproc);
+      logToFile(`[Resume] resumable transfer file=${fileName}`);
+      let failure = null;
+      try { await ctl.promise; } catch (e) { failure = e; }
+      const ridx = download.activeProcesses.indexOf(rproc);
+      if (ridx !== -1) download.activeProcesses.splice(ridx, 1);
+      rproc.finish(failure ? 1 : 0);
+
+      if (download.cancelled) {
+        if (download.activeFiles[fileKey]) { download.activeFiles[fileKey].status = 'cancelled'; delete download.activeFiles[fileKey]; }
+        updateProgress(downloadId);
+        done();
+        return;
+      }
+      if (download.paused || (failure && failure.kind === 'aborted')) {
+        if (download.activeFiles[fileKey]) download.activeFiles[fileKey].status = 'paused';
+        updateProgress(downloadId);
+        done();
+        return;
+      }
+      if (!failure) {
+        download.downloadedSize += normalizeFileSize(file.size);
+        download.completedFiles++;
+        if (download.activeFiles[fileKey]) {
+          download.activeFiles[fileKey].status = 'completed';
+          download.activeFiles[fileKey].progress = 100;
+          delete download.activeFiles[fileKey];
+        }
+        try { reportFileProgressToServer(download, download.token, file, 'completed', normalizeFileSize(file.size)); } catch (e) { }
+        updateProgress(downloadId);
+        done();
+        return;
+      }
+      logToFile(`[Resume] gave up on ${fileName}: ${failure && failure.message ? failure.message : String(failure)} (kept ${lastResumeBytes} bytes)`);
+      download.status = 'error';
+      if (!Array.isArray(download.failedFiles)) download.failedFiles = [];
+      download.failedFiles.push(file.name);
+      if (download.activeFiles[fileKey]) { download.activeFiles[fileKey].status = 'error'; delete download.activeFiles[fileKey]; }
+      download.error = failure.kind === 'expired'
+        ? withSupportFooter('Download link expired.', 'Go back to the website and start the download again to generate a fresh link.')
+        : withSupportFooter(
+          'Download stalled and could not be resumed after several retries.',
+          'Retry the download. If it keeps happening, change mirrors by starting the download again from the website, or lower concurrency to 1-2.'
+        );
+      updateProgress(downloadId);
+      try { reportDownloadFailure(download, download.error); } catch (e3) { }
+      if (!isDownloadAbandoned(download)) sendToMain('download-error', { id: downloadId, error: download.error });
+      try { scheduleAutoRetry(downloadId, download); } catch (eAr) { }
+      if (!isDownloadAbandoned(download)) showDownloadNotification('Download failed', `${download.name || 'Download'}: ${download.error}`);
+      done(new Error(download.error));
+      return;
+    }
+
     let proc;
     try {
       proc = spawn(rclonePath, args);
@@ -5551,7 +5645,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
                     download.triedMirrors.push(newActual);
                   } catch (e) { }
 
-                  const retryFile = { ...file, url: String(match.url) };
+                  const retryFile = { ...file, url: String(match.url), __resume: true };
                   try {
                     const transformed = transformProxyUrlToDirectIfPossible(retryFile.url);
                     if (transformed && transformed !== retryFile.url) retryFile.url = transformed;
@@ -5607,7 +5701,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 
               if (match && match.url) {
                 if (freshManifest.actualRemote) download.actualRemote = String(freshManifest.actualRemote);
-                const retryFile = { ...file, url: String(match.url) };
+                const retryFile = { ...file, url: String(match.url), __resume: true };
                 try {
                   const transformed = transformProxyUrlToDirectIfPossible(retryFile.url);
                   if (transformed && transformed !== retryFile.url) retryFile.url = transformed;
@@ -5698,7 +5792,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
                   if (!Array.isArray(download.triedMirrors)) download.triedMirrors = [];
                   download.triedMirrors.push(newActual);
                 } catch (e) { }
-                const retryFile = { ...file, url: String(match.url) };
+                const retryFile = { ...file, url: String(match.url), __resume: true };
                 logToFile(`[MirrorFailover] retrying on new mirror actualRemote=${newActual} file=${wantName}`);
 
                 // Remove this file from failedFiles since we're retrying it.

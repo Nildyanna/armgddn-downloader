@@ -11,6 +11,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The Beta label is removed from the window title and the app header.
 - Copy for Tulip now tells you to paste your report code in the ARMGDDN Games Welcome & Support chat.
 
+### Fixed
+- When a download is retried after an expired link, a dropped connection or a mirror change, it now continues from the last byte it received instead of starting the file again from zero.
+
 ### Added
 - Check my setup warns when the download folder is the root of a drive (for example D:\), because Windows protects it and setup often fails there.
 
