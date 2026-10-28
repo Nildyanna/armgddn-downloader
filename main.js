@@ -1711,6 +1711,13 @@ function formatDownloadFailedMessage(code, errorOutput) {
   const detail = extractRcloneErrorDetail(errorOutput);
   const lower = String(errorOutput || '').toLowerCase();
 
+  if (isRcloneCrashOutput(errorOutput)) {
+    return withSupportFooter(
+      `The download engine (rclone) crashed on this PC. (${detail || 'fatal error'})`,
+      'This is not a link problem. Security software or a driver/memory issue on this PC is the usual cause: add the Companion folder to your antivirus exclusions, restart the PC, update to the latest Companion, and retry.'
+    );
+  }
+
   if (detail) {
     if (/(permission denied|access is denied|operation not permitted)/i.test(detail) || lower.includes('permission denied') || lower.includes('access is denied')) {
       return withSupportFooter(
@@ -4635,6 +4642,13 @@ function isLikelySignedExpiringUrl(urlString) {
 // Check output for expired-token indicators.
 // IMPORTANT: do not treat a generic 401 as "expired" unless the URL is actually
 // a signed/expiring URL. Direct Whatbox paths should not surface as "expired".
+// rclone is a Go program: when it dies with a runtime crash (memory fault,
+// SIGSEGV, panic) its stderr holds a goroutine dump full of words like "lookup"
+// and "not found" that used to be misread as DNS or expired-link errors.
+function isRcloneCrashOutput(output) {
+  return /fatal error: (fault|unexpected signal)|\bsigsegv\b|panic: runtime error|\bgoroutine \d+ \[/i.test(String(output || ''));
+}
+
 function isTokenExpiredError(output, fileUrl) {
   const lowerOutput = String(output || '').toLowerCase();
   const isExpiringUrl = isLikelySignedExpiringUrl(fileUrl);
@@ -5548,9 +5562,10 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         const quota = isQuotaError(errorOutput);
         const busy = isServerBusyError(errorOutput);
         const sslError = errorOutput.includes('x509') || errorOutput.includes('certificate') || errorOutput.includes('ssl');
-        const dnsError = errorOutput.includes('lookup') || errorOutput.includes('name resolution') || errorOutput.includes('no such host');
+        const rcloneCrashed = isRcloneCrashOutput(errorOutput);
+        const dnsError = !rcloneCrashed && (errorOutput.includes('lookup') || errorOutput.includes('name resolution') || errorOutput.includes('no such host'));
         const networkStream = isNetworkStreamError(errorOutput);
-        const tokenExpired = isTokenExpiredError(errorOutput, (file && file.url) ? String(file.url) : '');
+        const tokenExpired = !rcloneCrashed && isTokenExpiredError(errorOutput, (file && file.url) ? String(file.url) : '');
         const httpStatus = parseRcloneHttpStatus(errorOutput);
         const is502 = !!(httpStatus && httpStatus.code === 502);
         // Genuine per-mirror host faults (that specific mirror's server is

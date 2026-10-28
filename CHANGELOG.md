@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - When a download is retried after an expired link, a dropped connection or a mirror change, it now continues from the last byte it received instead of starting the file again from zero.
 - A download no longer shows a confusing "getaddrinfo ENOTFOUND" message under its name when the Companion's start-up server check cannot connect. The check is skipped quietly and the download continues.
+- If the download engine itself crashes on a PC (often security software or a driver problem), the Companion now says so and suggests what to try, instead of wrongly telling you the download link expired or retrying as if the network was down.
 
 ### Added
 - Check my setup warns when the download folder is the root of a drive (for example D:\), because Windows protects it and setup often fails there.
