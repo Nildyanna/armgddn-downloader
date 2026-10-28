@@ -610,9 +610,11 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
       // Provide a user-friendly message for quota exhaustion
       if (errMsg && /quota|limit|exhausted|too many/i.test(errMsg)) {
         notice = 'You are allowed 2 complete downloads per title per 24‑hour period and you have exhausted that for this title.';
-      } else {
-        notice = errMsg;
       }
+      // Any other failure (a DNS or connection error, a rate limit) only means the load check
+      // was skipped: the download carries on at the requested setting. Showing the raw error
+      // (it used to be the last fallback host's "getaddrinfo ENOTFOUND ...") made a working
+      // download look broken, so it stays in the log.
     }
   } catch (e) {
     try {
@@ -794,7 +796,6 @@ async function getAppLoadInfo(token, manifestUrl) {
       try { if (base) candidates.push(String(base)); } catch (e) { }
       candidates.push('https://www.armgddnbrowser.com');
       candidates.push('https://armgddnbrowser.com');
-      candidates.push('https://api.armgddnbrowser.com');
 
       const seen = new Set();
       let lastError = '';
