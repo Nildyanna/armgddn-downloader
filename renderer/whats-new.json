@@ -3,8 +3,11 @@
     "title": "ARMGDDN Companion is Live",
     "highlights": [
       "The Beta label is gone: ARMGDDN Companion is now the official app.",
-      "Copy for Tulip now tells you to paste your report code in the ARMGDDN Games Welcome & Support chat.",
+      "Pause and Resume now keep your progress on large files, and downloads that fail partway (expired link, dropped connection, mirror change) continue from where they stopped instead of starting the file over.",
       "Check my setup now warns you if your download folder is the root of a drive (like D:\\) and suggests a short plain folder instead.",
+      "Copy for Tulip now tells you to paste your report code in the ARMGDDN Games Welcome & Support chat.",
+      "If the download engine crashes on your PC, the Companion now says so and suggests what to try, instead of wrongly saying the link expired.",
+      "Updating the Companion now keeps your Start Menu and Desktop shortcuts.",
       "Under-the-hood security updates."
     ]
   },

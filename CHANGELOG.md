@@ -5,18 +5,22 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [5.6.0] - 2026-11-01
+## [5.6.0] - 2026-10-30
 
 ### Changed
 - The Beta label is removed from the window title and the app header.
 - Copy for Tulip now tells you to paste your report code in the ARMGDDN Games Welcome & Support chat.
+- The Pause confirmation and the note under each download now describe what Pause does: finished files are kept, large files pick up where they stopped, and a small file in progress may start over.
+- "No existing files found. Starting download..." no longer stays on screen for the whole download; it clears once data is flowing and when a download is resumed.
 
 ### Fixed
 - When a download is retried after an expired link, a dropped connection or a mirror change, it now continues from the last byte it received instead of starting the file again from zero.
 - A download no longer shows a confusing "getaddrinfo ENOTFOUND" message under its name when the Companion's start-up server check cannot connect. The check is skipped quietly and the download continues.
 - If the download engine itself crashes on a PC (often security software or a driver problem), the Companion now says so and suggests what to try, instead of wrongly telling you the download link expired or retrying as if the network was down.
+- Updating the Companion keeps your existing Start Menu and Desktop shortcuts.
 
 ### Added
+- Pause and Resume keep their progress on large files. Files that rclone would fetch in parallel streams (128 MB and up) now go through a resumable downloader that keeps the same parallel speed, writes to a temporary file beside the final name with a record of every chunk on disk, and only renames it when complete. Pause, a restart or a retry continue from that record. It uses one shared HTTP/2 connection to hosts that offer it, like rclone, and falls back to rclone when a server cannot do partial downloads. The speed limit still applies, Cancel removes the temporary files, and `segmentedDownloads: false` in the settings switches it off.
 - Check my setup warns when the download folder is the root of a drive (for example D:\), because Windows protects it and setup often fails there.
 
 ### Security
