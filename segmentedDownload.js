@@ -11,7 +11,8 @@
 //   - when every chunk is complete the temporary file is renamed to the final name
 const fs = require('fs');
 const { EventEmitter } = require('events');
-const { ResumeError, openStream } = require('./resumeDownload');
+const { ResumeError } = require('./resumeDownload');
+const { openAuto } = require('./httpOpen');
 
 const TEMP_SUFFIX = '.armdl';
 const STATE_SUFFIX = '.armseg';
@@ -21,11 +22,11 @@ const STATE_VERSION = 1;
 
 // Ask for the first byte only: 206 + a Content-Range total means the server honours Range. Two tries, so one slow
 // answer does not push a resume onto the slower rclone path.
-async function probeRanges(url, headers, stallMs = 15 * 1000) {
+async function probeRanges(url, headers, stallMs = 15 * 1000, tls) {
   let last = { ok: false, status: 0 };
   for (let attempt = 0; attempt < 2; attempt++) {
     try {
-      const { req, res } = await openStream(url, { ...headers, 'Accept-Encoding': 'identity', Range: 'bytes=0-0' }, stallMs);
+      const { req, res } = await openAuto(url, { ...headers, 'Accept-Encoding': 'identity', Range: 'bytes=0-0' }, stallMs, { tls });
       const code = res.statusCode || 0;
       const cr = /\/(\d+)\s*$/.exec(String(res.headers['content-range'] || ''));
       res.destroy(); req.destroy();
@@ -65,11 +66,14 @@ function planChunk(total, streams) {
 //   streams      parallel connections
 //   getFreshUrl  async () => url, called when a link has expired
 //   onProgress   (bytesOnDisk, total) => void
+const activeByPath = new Map();     // outputPath -> controller of the run that owns that file right now
+
 function segmentedDownload(opts) {
   const {
     outputPath, expectedSize = 0, streams = 4, getFreshUrl, onProgress, headers = {},
-    stallMs = 60 * 1000, maxAttempts = 12, retryDelayMs = 2000, chunkSize = 0, saveEveryMs = 1000, maxBytesPerSec = 0, onEvent
+    stallMs = 60 * 1000, maxAttempts = 12, retryDelayMs = 2000, chunkSize = 0, saveEveryMs = 1000, maxBytesPerSec = 0, onEvent, tlsOptions
   } = opts;
+  const ctl = new AbortController();      // cancels requests that are still waiting for their first response
   const emit = (m) => { if (onEvent) { try { onEvent(m); } catch (e) { } } };
   let limiterSlot = 0;     // shared by every stream: the moment the byte budget is next free (the user's speed limit)
   const tempPath = outputPath + TEMP_SUFFIX;
@@ -80,7 +84,11 @@ function segmentedDownload(opts) {
 
   const sleep = (ms) => new Promise((r) => { const t = setTimeout(r, ms); wake = () => { clearTimeout(t); r(); }; });
 
+  const previous = activeByPath.get(outputPath);
   const run = async () => {
+    // A Resume must never overlap the run it replaces (two writers on one file, two progress counters): stop it and wait.
+    if (previous) { try { previous.abort('superseded'); } catch (e) { } try { await previous.promise; } catch (e) { } }
+    if (aborted) throw aborted;
     if (!(expectedSize > 0)) throw new ResumeError('file size unknown', 'unsupported');
     const total = expectedSize;
     const resumed = loadState(statePath, tempPath, total);
@@ -144,7 +152,7 @@ function segmentedDownload(opts) {
         attempt++;
         try {
           const openedAt = Date.now();
-          const { req, res } = await openStream(url, { ...headers, 'Accept-Encoding': 'identity', Range: `bytes=${start}-${end}` }, stallMs);
+          const { req, res } = await openAuto(url, { ...headers, 'Accept-Encoding': 'identity', Range: `bytes=${start}-${end}` }, stallMs, { signal: ctl.signal, tls: tlsOptions });
           const handle = { req, res };
           live.add(handle);
           try {
@@ -243,10 +251,14 @@ function segmentedDownload(opts) {
   const promise = run();
   const abort = (reason) => {
     aborted = reason instanceof Error ? reason : new ResumeError(String(reason || 'aborted'), 'aborted');
+    try { ctl.abort(); } catch (e) { }
     for (const h of live) { try { h.res.destroy(); } catch (e) { } try { h.req.destroy(); } catch (e) { } }
     if (wake) { try { wake(); } catch (e) { } }
   };
-  return { promise, abort };
+  const me = { promise, abort };
+  activeByPath.set(outputPath, me);
+  promise.then(() => { }, () => { }).then(() => { if (activeByPath.get(outputPath) === me) activeByPath.delete(outputPath); });
+  return me;
 }
 
 module.exports = { segmentedDownload, probeRanges, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };

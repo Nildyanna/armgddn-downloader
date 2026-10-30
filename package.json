@@ -38,6 +38,7 @@
       "komga.js",
       "resumeDownload.js",
       "segmentedDownload.js",
+      "httpOpen.js",
       "renderer/**/*",
       "assets/**/*"
     ],

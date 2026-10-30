@@ -900,7 +900,7 @@ async function showAlertDialog(title, message) {
       ${showErrMsg ? `<div class="download-error-message">${formatSupportText(errMsg)}</div>` : ''}
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
       <div class="download-disclaimer">
-        If you use Pause/Resume, files that already finished will not be downloaded again, but the file that was in progress may restart from the beginning.
+        If you use Pause/Resume, files that already finished are kept and a large file in progress picks up where it stopped. Small files, and downloads from a server that cannot resume, start that file again.
       </div>
       <div class="download-actions">
         ${canPause ? `<button class="pause-btn" data-download-id="${id}">Pause</button>` : ''}
