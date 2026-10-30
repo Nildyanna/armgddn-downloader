@@ -1,5 +1,8 @@
 # ARMGDDN Companion Mobile
 
+> **Retired (2026-10-30).** The Android app is no longer built or released: Companion is Windows, Linux and macOS only. The release workflow
+> does not build an APK any more and releases carry no APK. This folder is kept for reference only.
+
 Expo React Native mobile Companion for Android and iOS.
 
 ## What it does

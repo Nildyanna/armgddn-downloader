@@ -5,6 +5,11 @@ All notable changes to ARMGDDN Companion will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Removed
+- The Android app (APK) is retired. Companion is Windows, Linux and macOS only; releases no longer include an APK and the `mobile-android` build and the mobile emulator test are gone from CI. The `mobile/` source is kept for reference.
+
 ## [5.6.0] - 2026-10-30
 
 ### Changed

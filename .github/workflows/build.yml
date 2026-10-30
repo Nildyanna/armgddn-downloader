@@ -11,36 +11,11 @@ on:
   workflow_dispatch:
     inputs:
       windows_only:
-        description: 'Build only the Windows installer (skips macOS, Linux and Android) for a quick private test'
+        description: 'Build only the Windows installer (skips macOS and Linux) for a quick private test'
         type: boolean
         default: false
 
 jobs:
-  # Pull requests only: says whether anything under mobile/ changed, so the Android build can be skipped otherwise.
-  changes:
-    if: github.event_name == 'pull_request' && github.actor != 'dependabot[bot]'
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: read
-    outputs:
-      mobile: ${{ steps.diff.outputs.mobile }}
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-          lfs: false
-
-      - name: Did mobile/ change?
-        id: diff
-        shell: bash
-        run: |
-          if git diff --name-only "origin/${{ github.base_ref }}...HEAD" | grep -q '^mobile/'; then
-            echo "mobile=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "mobile=false" >> "$GITHUB_OUTPUT"
-          fi
-
   build:
     # Dependabot version bumps are tested locally before merging, so they do not spend Linux/macOS minutes here.
     if: github.actor != 'dependabot[bot]' && inputs.windows_only != true
@@ -266,121 +241,12 @@ jobs:
             dist/*.exe
           retention-days: 1
 
-  mobile-android:
-    # Tags and manual runs always build it; a pull request builds it only when mobile/ changed.
-    needs: changes
-    if: ${{ !cancelled() && github.actor != 'dependabot[bot]' && inputs.windows_only != true && (github.event_name != 'pull_request' || needs.changes.outputs.mobile == 'true') }}
-    permissions:
-      contents: read
-    runs-on: windows-latest
-    defaults:
-      run:
-        shell: bash
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v7
-
-      - name: Set up JDK
-        uses: actions/setup-java@v6
-        with:
-          distribution: temurin
-          java-version: '17'
-
-      - name: Set mobile app version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        shell: bash
-        working-directory: mobile
-        run: |
-          node -e "const fs=require('fs'); const tag=process.env.GITHUB_REF_NAME||''; const v=tag.replace(/^v/,''); if(!/^\d+\.\d+\.\d+/.test(v)) { console.error('Invalid tag version:', tag); process.exit(1);} const pkg=JSON.parse(fs.readFileSync('package.json','utf8')); pkg.version=v; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2)+'\n','utf8'); const app=JSON.parse(fs.readFileSync('app.json','utf8')); if(app.expo && typeof app.expo==='object'){ app.expo.version=v; } fs.writeFileSync('app.json', JSON.stringify(app, null, 2)+'\n','utf8'); console.log('Set mobile version to', v);"
-
-      - name: Install mobile dependencies
-        working-directory: mobile
-        run: npm ci --no-audit --no-fund
-
-      - name: Prebuild Android project
-        working-directory: mobile
-        env:
-          CI: '1'
-        run: npx expo prebuild --platform android --clean
-
-      - name: Ensure Android splash color resource exists
-        shell: bash
-        working-directory: mobile/android/app/src/main/res/values
-        run: |
-          set -euo pipefail
-          python3 - <<'PY'
-          from pathlib import Path
-
-          path = Path('colors.xml')
-          content = path.read_text(encoding='utf-8') if path.exists() else '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n</resources>\n'
-          if 'splashscreen_background' not in content:
-              if '</resources>' in content:
-                  content = content.replace(
-                      '</resources>',
-                      '  <color name="splashscreen_background">#020617</color>\n</resources>'
-                  )
-              else:
-                  content = '<?xml version="1.0" encoding="utf-8"?>\n<resources>\n  <color name="splashscreen_background">#020617</color>\n</resources>\n'
-          path.write_text(content, encoding='utf-8')
-          PY
-
-      - name: Increase Gradle heap for Android build
-        shell: bash
-        working-directory: mobile/android
-        run: |
-          set -euo pipefail
-          if [ -f gradle.properties ]; then
-            if grep -q '^org\.gradle\.jvmargs=' gradle.properties; then
-              sed -i 's/^org\.gradle\.jvmargs=.*/org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8/' gradle.properties
-            else
-              printf '\norg.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8\n' >> gradle.properties
-            fi
-          else
-            printf 'org.gradle.jvmargs=-Xmx6g -Dfile.encoding=UTF-8\n' > gradle.properties
-          fi
-          # The generated gradle.properties can end without a newline; appending to it would glue a setting onto the
-          # last line (Expo 57 then fails parsing expo.inlineModules.watchedDirectories as JSON).
-          if [ -n "$(tail -c1 gradle.properties)" ]; then printf '\n' >> gradle.properties; fi
-          grep -q '^org\.gradle\.caching=' gradle.properties || printf 'org.gradle.caching=true\n' >> gradle.properties
-          grep -q '^org\.gradle\.parallel=' gradle.properties || printf 'org.gradle.parallel=true\n' >> gradle.properties
-          grep -q '^org\.gradle\.configureondemand=' gradle.properties || printf 'org.gradle.configureondemand=true\n' >> gradle.properties
-
-      - name: Build Android release APK
-        working-directory: mobile/android
-        run: |
-          set -o pipefail
-          ./gradlew.bat assembleRelease --stacktrace --build-cache -x mergeReleaseNativeDebugMetadata 2>&1 | grep -v 'warning: the variable'
-
-      - name: Stage mobile APK artifact
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p mobile-artifacts
-          # Use GITHUB_HEAD_REF (PR branch name) when available; fall back to
-          # GITHUB_REF_NAME for push/tag events. Replace any '/' so the label
-          # is always a valid filename component.
-          RAW_LABEL="${GITHUB_HEAD_REF:-${GITHUB_REF_NAME:-local}}"
-          SAFE_LABEL=$(echo "${RAW_LABEL}" | tr '/' '-')
-          cp mobile/android/app/build/outputs/apk/release/app-release.apk \
-            "mobile-artifacts/ARMGDDN-Companion-Mobile-${SAFE_LABEL}.apk"
-
-      - name: Upload mobile artifact
-        uses: actions/upload-artifact@v7
-        with:
-          name: mobile-android-build
-          path: |
-            mobile-artifacts/*.apk
-          retention-days: 1
-
   release:
     needs:
       - build
       - build-win32
-      - mobile-android
     runs-on: ubuntu-24.04
-    # !cancelled() plus explicit results: the skipped `changes` job upstream (tags never run it) would otherwise skip this job too.
-    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.build.result == 'success' && needs.build-win32.result == 'success' && needs.mobile-android.result == 'success' }}
+    if: ${{ !cancelled() && startsWith(github.ref, 'refs/tags/v') && needs.build.result == 'success' && needs.build-win32.result == 'success' }}
     permissions:
       contents: write
       actions: write
@@ -407,17 +273,8 @@ jobs:
           name: mac-build
           path: ./artifacts
 
-      - name: Download mobile Android artifacts
-        uses: actions/download-artifact@v8
-        with:
-          name: mobile-android-build
-          path: ./mobile-artifacts
-
       - name: List artifacts
         run: find ./artifacts -type f -ls
-
-      - name: List mobile artifacts
-        run: find ./mobile-artifacts -type f -ls
 
       - name: Sign release artifacts (Ed25519)
         shell: bash
@@ -474,10 +331,6 @@ jobs:
           - Make executable: chmod +x ARMGDDN*.AppImage
           - Run: ./ARMGDDN*.AppImage
 
-          Mobile (Android):
-          - Download the APK from the mobile artifacts
-          - Allow installs from unknown sources on your device
-          - Install the APK directly
           EOF
 
       - name: Stage Fix.command for release
@@ -516,10 +369,6 @@ jobs:
             - Make executable: `chmod +x ARMGDDN*.AppImage`
             - Run: `./ARMGDDN*.AppImage`
 
-            **Mobile (Android):**
-            - Download the APK from the mobile release assets
-            - Allow installs from unknown sources on your device
-            - Install the APK directly
           files: |
             artifacts/README.txt
             artifacts/Fix.command
@@ -528,7 +377,6 @@ jobs:
             artifacts/*.exe
             artifacts/*.pkg
             artifacts/*.sig
-            mobile-artifacts/*.apk
           draft: false
           prerelease: false
 
@@ -539,7 +387,7 @@ jobs:
         run: |
           set -euo pipefail
           artifacts=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/artifacts?per_page=100")
-          mapfile -t artifact_ids < <(jq -r '.artifacts[] | select(.name == "linux-build" or .name == "mac-build" or .name == "windows-build" or .name == "mobile-android-build") | .id' <<< "$artifacts")
+          mapfile -t artifact_ids < <(jq -r '.artifacts[] | select(.name == "linux-build" or .name == "mac-build" or .name == "windows-build") | .id' <<< "$artifacts")
           if ((${#artifact_ids[@]} == 0)); then
             echo "No temporary build artifacts found."
             exit 0
