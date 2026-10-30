@@ -183,4 +183,4 @@ class ResumeProc extends EventEmitter {
   }
 }
 
-module.exports = { resumeDownload, ResumeProc, ResumeError, MARKER_SUFFIX };
+module.exports = { resumeDownload, ResumeProc, ResumeError, MARKER_SUFFIX, openStream };

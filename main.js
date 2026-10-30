@@ -146,6 +146,7 @@ const { spawn, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const https = require('https');
 const { resumeDownload, ResumeProc } = require('./resumeDownload');
+const { segmentedDownload, probeRanges } = require('./segmentedDownload');
 const { pathToFileURL } = require('url');
 
 function getDialogParentWindow() {
@@ -3953,6 +3954,11 @@ async function cleanupCancelledDownloadFiles(download) {
       continue;
     }
 
+    // The resumable downloaders keep their half-done data beside the final name; a cancelled download leaves none of it.
+    for (const suffix of ['.armdl', '.armseg', '.armseg.tmp', '.armpart']) {
+      try { fs.unlinkSync(targetPath + suffix); } catch (e) { }
+    }
+
     try {
       const targetStat = fs.lstatSync(targetPath);
       if (!targetStat.isFile() || targetStat.isSymbolicLink()) {
@@ -5230,10 +5236,30 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
     // Retries after a failure (expired link, dropped connection, mirror change) run
     // through the resumable downloader: rclone copyurl deletes its partial file on
     // any error and starts again from byte 0, which threw away hours of progress.
-    if (file.__resume) {
+    //
+    // Big files that rclone would fetch in parallel streams go through the segmented downloader instead: same
+    // parallel speed, but it remembers every chunk it has on disk, so Pause/Resume (and a restart) continue
+    // where they stopped. A server that ignores Range, or settings.segmentedDownloads === false, keeps rclone.
+    const segmentHeaders = {
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+      'Referer': 'https://www.armgddnbrowser.com/',
+      'Origin': 'https://www.armgddnbrowser.com',
+      'Accept': '*/*'
+    };
+    let useSegmented = multiThreadStreams > 0 && fileSize > 0 && !file.__noSegmented && !(settings && settings.segmentedDownloads === false);
+    if (useSegmented) {
+      let probe = { ok: false };
+      try { probe = await probeRanges(String(file.url), segmentHeaders); } catch (e) { }
+      if (!probe.ok || (probe.total && probe.total !== fileSize)) {
+        useSegmented = false;
+        logToFile(`[Segmented] not used for ${file && file.name ? String(file.name) : ''}: server did not confirm Range for ${fileSize} bytes (status ${probe.status || 0}, total ${probe.total || 0}); using rclone`);
+      }
+    }
+    if (file.__resume || useSegmented) {
       const fileName = file && file.name ? String(file.name) : '';
       const expected = normalizeFileSize(file.size);
       let lastResumeBytes = 0;
+      let spBytes = null; let spAt = 0; let spRate = 0;
       const getFreshUrl = async () => {
         if (!download.manifestUrl || !download.token) return String(file.url);
         const m = await fetchManifestRidingOutNetwork(download, String(download.manifestUrl), download.token, '');
@@ -5245,7 +5271,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         logToFile(`[Resume] fresh link for ${fileName}`);
         return u;
       };
-      const ctl = resumeDownload({
+      const limitBytes = appliedBwLimit ? (parseFloat(appliedBwLimit) || 0) * 1048576 : 0;   // same per-worker limit rclone would get
+      const engine = useSegmented ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes }) : resumeDownload;
+      const ctl = engine({
         url: String(file.url),
         outputPath,
         expectedSize: expected,
@@ -5261,14 +5289,24 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
             const t = total || expected || 0;
             const pct = t > 0 ? Math.min(100, Math.floor((bytes / t) * 100)) : 0;
             const mb = (n) => `${(n / 1048576).toFixed(3)} MiB`;
-            parseRcloneProgress(downloadId, fileKey, `\r${mb(bytes)} / ${mb(t)}, ${pct}%, 1 MiB/s, ETA -\r`);
+            // Real speed and ETA (rclone's own stats line is not available from the in-process downloaders).
+            const nowMs = Date.now();
+            if (spBytes === null) { spBytes = bytes; spAt = nowMs; }
+            else if (nowMs - spAt >= 1000) {
+              const inst = Math.max(0, (bytes - spBytes) / ((nowMs - spAt) / 1000));
+              spRate = spRate > 0 ? (0.6 * spRate + 0.4 * inst) : inst;
+              spBytes = bytes; spAt = nowMs;
+            }
+            const rateMib = spRate / 1048576;
+            const etaSec = spRate > 0 && t > bytes ? Math.ceil((t - bytes) / spRate) : 0;
+            parseRcloneProgress(downloadId, fileKey, `\r${mb(bytes)} / ${mb(t)}, ${pct}%, ${rateMib.toFixed(3)} MiB/s, ETA ${etaSec > 0 ? `${etaSec}s` : '-'}\r`);
             lastResumeBytes = bytes;
           } catch (e) { }
         }
       });
       const rproc = new ResumeProc(ctl.abort);
       download.activeProcesses.push(rproc);
-      logToFile(`[Resume] resumable transfer file=${fileName}`);
+      logToFile(`[Resume] resumable transfer file=${fileName} engine=${useSegmented ? `segmented x${multiThreadStreams}` : 'single'}`);
       let failure = null;
       try { await ctl.promise; } catch (e) { failure = e; }
       const ridx = download.activeProcesses.indexOf(rproc);
