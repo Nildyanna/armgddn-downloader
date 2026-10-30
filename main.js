@@ -6453,6 +6453,12 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   const fileInfo = download.activeFiles[fileKey];
   if (!fileInfo) return;
 
+  // The start-up notice is only true until data is flowing; leaving it up made a running (or resumed) download read
+  // "No existing files found. Starting download..." for its whole length.
+  if (download.statusMessage === 'No existing files found. Starting download...' || download.statusMessage === 'Starting download...') {
+    download.statusMessage = '';
+  }
+
   // One-time diagnostic to prove the parser is running and seeing data for this file.
   try {
     if (!download.__rcloneParseDiagOnce) download.__rcloneParseDiagOnce = {};
@@ -7130,6 +7136,7 @@ async function resumeDownloadFiles(downloadId) {
 
   // Reset state
   download.paused = false;
+  download.statusMessage = '';
   download.status = 'in_progress';
   download.cancelled = false;
   download.error = '';

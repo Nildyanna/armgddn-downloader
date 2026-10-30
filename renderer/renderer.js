@@ -900,7 +900,7 @@ async function showAlertDialog(title, message) {
       ${showErrMsg ? `<div class="download-error-message">${formatSupportText(errMsg)}</div>` : ''}
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
       <div class="download-disclaimer">
-        If you use Pause/Resume, files that already finished are kept and a large file in progress picks up where it stopped. Small files, and downloads from a server that cannot resume, start that file again.
+        Pause keeps finished files, and large files pick up where they stopped when you resume. A small file in progress may start over.
       </div>
       <div class="download-actions">
         ${canPause ? `<button class="pause-btn" data-download-id="${id}">Pause</button>` : ''}
@@ -955,7 +955,7 @@ async function showAlertDialog(title, message) {
   async function pauseDownload(id) {
     const confirmed = await showConfirmDialog(
       'Pause Download',
-      'If you pause this download, completed files will not need to be redownloaded, but incomplete files will not resume and must be restarted when you resume. Are you sure you want to pause?'
+      'Pause this download? Finished files are kept, and large files pick up where they stopped when you resume. A small file that is still in progress may start over.'
     );
     if (!confirmed) return;
     const ok = await api.pauseDownload(id);
