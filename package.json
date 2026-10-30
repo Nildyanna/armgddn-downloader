@@ -37,6 +37,7 @@
       "preload-komga.js",
       "komga.js",
       "resumeDownload.js",
+      "segmentedDownload.js",
       "renderer/**/*",
       "assets/**/*"
     ],
