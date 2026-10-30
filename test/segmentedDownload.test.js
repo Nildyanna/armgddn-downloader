@@ -125,3 +125,30 @@ test('the speed limit is honoured', async () => {
   assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
   assert.ok(secs >= 1.4, `9.4 MB at 4 MB/s took ${secs}s`);
 });
+
+test('a resume keeps the chunk plan of the earlier run even when the stream count changes', async () => {
+  const slow = await server({ delayMs: 300 });
+  const out = tmp();
+  const c1 = segmentedDownload(base({ url: slow.base + '/f', outputPath: out, streams: 2 }));
+  await new Promise((r) => setTimeout(r, 450));
+  c1.abort('paused');
+  await assert.rejects(c1.promise, (e) => e.kind === 'aborted');
+  slow.srv.close();
+  const before = JSON.parse(fs.readFileSync(out + STATE_SUFFIX, 'utf8'));
+  const again = await server();
+  // no chunkSize this time and a different stream count: the recorded 2 MiB plan must still be used
+  await segmentedDownload({ url: again.base + '/f', outputPath: out, expectedSize: SIZE, streams: 3, retryDelayMs: 10 }).promise;
+  again.srv.close();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.strictEqual(before.chunk, CHUNK);
+  assert.ok(again.served() < SIZE, 'only the missing part was fetched');
+});
+
+test('by default each stream gets one long request instead of many short ones', async () => {
+  const { srv, seen, base: b } = await server();
+  const out = tmp();
+  await segmentedDownload({ url: b + '/f', outputPath: out, expectedSize: SIZE, streams: 4, retryDelayMs: 10 }).promise;
+  srv.close();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(seen.length <= 4, `${seen.length} requests`);
+});

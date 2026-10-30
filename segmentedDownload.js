@@ -19,29 +19,44 @@ const DEFAULT_CHUNK = 32 * 1024 * 1024;
 const WRITE_BATCH = 1024 * 1024;
 const STATE_VERSION = 1;
 
-// Ask for the first byte only: 206 + a Content-Range total means the server honours Range.
-async function probeRanges(url, headers, stallMs = 30 * 1000) {
-  try {
-    const { req, res } = await openStream(url, { ...headers, 'Accept-Encoding': 'identity', Range: 'bytes=0-0' }, stallMs);
-    const code = res.statusCode || 0;
-    const cr = /\/(\d+)\s*$/.exec(String(res.headers['content-range'] || ''));
-    res.destroy(); req.destroy();
-    if (code === 206 && cr) return { ok: true, total: Number(cr[1]) };
-    return { ok: false, status: code };
-  } catch (e) {
-    return { ok: false, status: 0, error: e && e.message ? e.message : String(e) };
+// Ask for the first byte only: 206 + a Content-Range total means the server honours Range. Two tries, so one slow
+// answer does not push a resume onto the slower rclone path.
+async function probeRanges(url, headers, stallMs = 15 * 1000) {
+  let last = { ok: false, status: 0 };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      const { req, res } = await openStream(url, { ...headers, 'Accept-Encoding': 'identity', Range: 'bytes=0-0' }, stallMs);
+      const code = res.statusCode || 0;
+      const cr = /\/(\d+)\s*$/.exec(String(res.headers['content-range'] || ''));
+      res.destroy(); req.destroy();
+      if (code === 206 && cr) return { ok: true, total: Number(cr[1]) };
+      last = { ok: false, status: code };
+      if (code && code < 500 && code !== 429) return last;     // a clear "no" is final; timeouts and 5xx get one more try
+    } catch (e) {
+      last = { ok: false, status: 0, error: e && e.message ? e.message : String(e) };
+    }
   }
+  return last;
 }
 
-function loadState(statePath, tempPath, total, chunk) {
+// The chunk size is whatever the earlier run used, so Pause then Resume survives a change in the stream count.
+function loadState(statePath, tempPath, total) {
   try {
     const s = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    const n = Math.ceil(total / chunk);
-    if (s && s.v === STATE_VERSION && s.total === total && s.chunk === chunk && Array.isArray(s.done) && s.done.length === n && fs.existsSync(tempPath)) {
-      return s.done.map((d, i) => Math.max(0, Math.min(Number(d) || 0, Math.min(chunk, total - i * chunk))));
+    const chunk = Number(s && s.chunk);
+    if (s && s.v === STATE_VERSION && s.total === total && Number.isInteger(chunk) && chunk >= 1024 * 1024 && Array.isArray(s.done)
+      && s.done.length === Math.ceil(total / chunk) && fs.existsSync(tempPath)) {
+      return { chunk, done: s.done.map((d, i) => Math.max(0, Math.min(Number(d) || 0, Math.min(chunk, total - i * chunk)))) };
     }
   } catch (e) { }
   return null;
+}
+
+// One long request per stream (like rclone's own multi-thread copy) instead of many short ones: the streams then do not all
+// reconnect to the server at the same moment, which a busy download host answers with long stalls.
+function planChunk(total, streams) {
+  const mib = 1024 * 1024;
+  return Math.max(DEFAULT_CHUNK, Math.ceil(total / Math.max(1, streams) / mib) * mib);
 }
 
 // Returns a controller { promise, abort(reason) } like resumeDownload().
@@ -53,8 +68,9 @@ function loadState(statePath, tempPath, total, chunk) {
 function segmentedDownload(opts) {
   const {
     outputPath, expectedSize = 0, streams = 4, getFreshUrl, onProgress, headers = {},
-    stallMs = 60 * 1000, maxAttempts = 12, retryDelayMs = 2000, chunkSize = DEFAULT_CHUNK, saveEveryMs = 1000, maxBytesPerSec = 0
+    stallMs = 60 * 1000, maxAttempts = 12, retryDelayMs = 2000, chunkSize = 0, saveEveryMs = 1000, maxBytesPerSec = 0, onEvent
   } = opts;
+  const emit = (m) => { if (onEvent) { try { onEvent(m); } catch (e) { } } };
   let limiterSlot = 0;     // shared by every stream: the moment the byte budget is next free (the user's speed limit)
   const tempPath = outputPath + TEMP_SUFFIX;
   const statePath = outputPath + STATE_SUFFIX;
@@ -67,11 +83,12 @@ function segmentedDownload(opts) {
   const run = async () => {
     if (!(expectedSize > 0)) throw new ResumeError('file size unknown', 'unsupported');
     const total = expectedSize;
-    const chunk = Math.max(1024 * 1024, chunkSize);
+    const resumed = loadState(statePath, tempPath, total);
+    const chunk = resumed ? resumed.chunk : (chunkSize > 0 ? Math.max(1024 * 1024, chunkSize) : planChunk(total, streams));
     const nChunks = Math.ceil(total / chunk);
     const lenOf = (i) => Math.min(chunk, total - i * chunk);
 
-    let done = loadState(statePath, tempPath, total, chunk);
+    let done = resumed ? resumed.done : null;
     if (!done) {
       done = new Array(nChunks).fill(0);
       try { fs.unlinkSync(statePath); } catch (e) { }
@@ -126,6 +143,7 @@ function segmentedDownload(opts) {
         const ver = urlVersion;
         attempt++;
         try {
+          const openedAt = Date.now();
           const { req, res } = await openStream(url, { ...headers, 'Accept-Encoding': 'identity', Range: `bytes=${start}-${end}` }, stallMs);
           const handle = { req, res };
           live.add(handle);
@@ -135,6 +153,7 @@ function segmentedDownload(opts) {
             if (code >= 500 || code === 429 || code === 408) { res.resume(); throw new ResumeError(`HTTP ${code}`, 'network', code); }
             if (code === 200 && start > 0) { res.resume(); throw new ResumeError('server stopped honouring Range', 'fatal', code); }
             if (code !== 206 && code !== 200) { res.resume(); throw new ResumeError(`HTTP ${code}`, 'fatal', code); }
+            emit(`chunk ${i} HTTP ${code} from byte ${start} (${Math.round((Date.now() - openedAt) / 100) / 10}s to first response)`);
             const cr = /^bytes (\d+)-(\d+)\/(\d+)/.exec(String(res.headers['content-range'] || ''));
             if (cr && (Number(cr[3]) !== total)) throw new ResumeError('file size changed on the server', 'fatal', code);
             if (cr && Number(cr[1]) !== start) throw new ResumeError('server answered a different range', 'fatal', code);
@@ -183,6 +202,7 @@ function segmentedDownload(opts) {
           const err = e instanceof ResumeError ? e : new ResumeError(e && e.message ? e.message : String(e), 'network');
           if (err.kind === 'fatal' || err.kind === 'unsupported') throw err;
           if (attempt >= maxAttempts) throw err;
+          emit(`chunk ${i} retry ${attempt}: ${err.kind} ${err.message}`);
           if (err.kind === 'expired') await refreshUrl(ver);
           await sleep(Math.min(15000, retryDelayMs * attempt));
         }

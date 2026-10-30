@@ -5248,12 +5248,21 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
     };
     let useSegmented = multiThreadStreams > 0 && fileSize > 0 && !file.__noSegmented && !(settings && settings.segmentedDownloads === false);
     if (useSegmented) {
-      let probe = { ok: false };
-      try { probe = await probeRanges(String(file.url), segmentHeaders); } catch (e) { }
-      if (!probe.ok || (probe.total && probe.total !== fileSize)) {
-        useSegmented = false;
-        logToFile(`[Segmented] not used for ${file && file.name ? String(file.name) : ''}: server did not confirm Range for ${fileSize} bytes (status ${probe.status || 0}, total ${probe.total || 0}); using rclone`);
+      // A progress record from an earlier run already proved this server honours Range: no need to ask again (and a slow
+      // answer must never push a Resume onto the rclone path, which starts the file over).
+      const hasRecord = fs.existsSync(outputPath + '.armseg') && fs.existsSync(outputPath + '.armdl');
+      if (!hasRecord) {
+        let probe = { ok: false };
+        try { probe = await probeRanges(String(file.url), segmentHeaders); } catch (e) { }
+        if (!probe.ok || (probe.total && probe.total !== fileSize)) {
+          useSegmented = false;
+          logToFile(`[Segmented] not used for ${file && file.name ? String(file.name) : ''}: server did not confirm Range for ${fileSize} bytes (status ${probe.status || 0}, total ${probe.total || 0}${probe.error ? `, ${probe.error}` : ''}); using rclone`);
+        }
       }
+    }
+    if (!useSegmented) {
+      // rclone starts the file from zero, so progress left by the segmented downloader would only waste disk space.
+      for (const suffix of ['.armdl', '.armseg', '.armseg.tmp']) { try { fs.unlinkSync(outputPath + suffix); } catch (e) { } }
     }
     if (file.__resume || useSegmented) {
       const fileName = file && file.name ? String(file.name) : '';
@@ -5272,7 +5281,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         return u;
       };
       const limitBytes = appliedBwLimit ? (parseFloat(appliedBwLimit) || 0) * 1048576 : 0;   // same per-worker limit rclone would get
-      const engine = useSegmented ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes }) : resumeDownload;
+      const engine = useSegmented
+        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, onEvent: (m) => logToFile(`[Segmented] ${fileName}: ${m}`) })
+        : resumeDownload;
       const ctl = engine({
         url: String(file.url),
         outputPath,
