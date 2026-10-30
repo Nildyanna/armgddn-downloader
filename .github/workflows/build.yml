@@ -9,6 +9,11 @@ on:
       - '**.md'
       - 'docs/**'
   workflow_dispatch:
+    inputs:
+      windows_only:
+        description: 'Build only the Windows installer (skips macOS, Linux and Android) for a quick private test'
+        type: boolean
+        default: false
 
 jobs:
   # Pull requests only: says whether anything under mobile/ changed, so the Android build can be skipped otherwise.
@@ -38,7 +43,7 @@ jobs:
 
   build:
     # Dependabot version bumps are tested locally before merging, so they do not spend Linux/macOS minutes here.
-    if: github.actor != 'dependabot[bot]'
+    if: github.actor != 'dependabot[bot]' && inputs.windows_only != true
     permissions:
       contents: read
     strategy:
@@ -264,7 +269,7 @@ jobs:
   mobile-android:
     # Tags and manual runs always build it; a pull request builds it only when mobile/ changed.
     needs: changes
-    if: ${{ !cancelled() && github.actor != 'dependabot[bot]' && (github.event_name != 'pull_request' || needs.changes.outputs.mobile == 'true') }}
+    if: ${{ !cancelled() && github.actor != 'dependabot[bot]' && inputs.windows_only != true && (github.event_name != 'pull_request' || needs.changes.outputs.mobile == 'true') }}
     permissions:
       contents: read
     runs-on: windows-latest
