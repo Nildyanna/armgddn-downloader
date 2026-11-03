@@ -86,3 +86,13 @@ test('Check files is gated only when Auto extract is on and automatic checking i
   assert.strictEqual(hc.gated({ autoExtract7z: false, autoHashCheck: true }), false);
   assert.strictEqual(hc.gated(null), false);
 });
+
+test('progress is reported as a percentage of the bytes checked, ending at 100', async () => {
+  const s = setup();
+  hc.saveManifest(s.userData, { id: 'dl-5', name: 'Game', downloadDir: s.dir, files: s.files });
+  const seen = [];
+  const r = await hc.verifyManifest(hc.loadManifest(s.userData, 'dl-5'), { resolvePath: s.resolvePath, onProgress: (p) => seen.push(p.percent) });
+  assert.strictEqual(r.ok, 2);
+  assert.strictEqual(seen[seen.length - 1], 100);
+  assert.ok(seen.every((v, i) => i === 0 || v >= seen[i - 1]), 'never goes backwards');
+});

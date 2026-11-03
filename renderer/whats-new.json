@@ -1,4 +1,11 @@
 {
+  "5.9.0": {
+    "title": "Progress You Can See",
+    "highlights": [
+      "The progress bar now shows file checking and extracting as they happen, with a percentage, both in the Companion and in the site's downloads panel.",
+      "Checking files is measured by how much data has been read, so a big game's bar moves steadily instead of sitting on a file count."
+    ]
+  },
   "5.8.0": {
     "title": "Setup Check on Linux and Mac",
     "highlights": [

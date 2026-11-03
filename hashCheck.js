@@ -82,12 +82,13 @@ function saveResult(userDataDir, id, result) {
   } catch (e) { /* ignore */ }
 }
 
-function md5OfFile(filePath, isCancelled) {
+function md5OfFile(filePath, isCancelled, onChunk) {
   return new Promise((resolve, reject) => {
     const h = crypto.createHash('md5');
     const s = fs.createReadStream(filePath, { highWaterMark: 4 * 1024 * 1024 });
     s.on('data', (chunk) => {
       h.update(chunk);
+      if (onChunk) { try { onChunk(chunk.length); } catch (e) { /* ignore */ } }
       if (isCancelled && isCancelled()) { s.destroy(); resolve(null); }
     });
     s.on('error', reject);
@@ -99,6 +100,9 @@ function md5OfFile(filePath, isCancelled) {
 // Returns { at, total, notChecked, ok, bad: [{ name, reason }], missing: [name], cancelled }.
 async function verifyManifest(doc, opts) {
   const o = opts || {};
+  const bytesTotal = doc.files.reduce((n, f) => n + (Number(f.size) || 0), 0);
+  let bytesDone = 0;
+  const pct = () => (bytesTotal > 0 ? Math.min(100, Math.floor((bytesDone / bytesTotal) * 100)) : 0);
   const result = { at: Date.now(), total: doc.files.length, notChecked: Math.max(0, (Number(doc.totalFiles) || doc.files.length) - doc.files.length), ok: 0, bad: [], missing: [], cancelled: false };
   for (let i = 0; i < doc.files.length; i++) {
     if (o.isCancelled && o.isCancelled()) { result.cancelled = true; break; }
@@ -110,16 +114,22 @@ async function verifyManifest(doc, opts) {
       result.missing.push(f.name);
     } else if (f.size > 0 && st.size !== f.size) {
       result.bad.push({ name: f.name, reason: 'wrong size' });      // cut short or padded: no need to read it
+      bytesDone += Number(f.size) || 0;
     } else {
       try {
-        const got = await md5OfFile(p, o.isCancelled);
+        const before = bytesDone;
+        const got = await md5OfFile(p, o.isCancelled, (n) => {
+          bytesDone += n;
+          if (o.onProgress) { try { o.onProgress({ done: i, total: doc.files.length, name: f.name, percent: pct(), partial: true }); } catch (e) { /* ignore */ } }
+        });
         if (got === null) { result.cancelled = true; break; }
+        bytesDone = before + (Number(f.size) || 0);
         if (got === f.md5) result.ok++; else result.bad.push({ name: f.name, reason: 'does not match' });
       } catch (e) {
         result.bad.push({ name: f.name, reason: 'could not be read' });
       }
     }
-    if (o.onProgress) { try { o.onProgress({ done: i + 1, total: doc.files.length, name: f.name }); } catch (e) { /* ignore */ } }
+    if (o.onProgress) { try { o.onProgress({ done: i + 1, total: doc.files.length, name: f.name, percent: pct() }); } catch (e) { /* ignore */ } }
   }
   return result;
 }

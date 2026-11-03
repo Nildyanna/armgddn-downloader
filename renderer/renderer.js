@@ -322,19 +322,20 @@ async function showAlertDialog(title, message) {
     // File check (comparing downloaded files with the originals' checksums)
     api.onHashCheckProgress((data) => {
       const download = downloads.get(data.id);
-      const text = `Checking files (${data.done}/${data.total})...`;
-      if (download) { download.hashRunning = true; download.hashText = text; renderDownloads(); }
+      const pct = Number.isFinite(Number(data.percent)) ? Number(data.percent) : null;
+      const text = pct == null ? `Checking files (${data.done}/${data.total})...` : `Checking files ${pct}% (${data.done}/${data.total})...`;
+      if (download) { download.hashRunning = true; download.hashPercent = pct; download.hashText = text; renderDownloads(); }
       setHistoryHashText(data.id, text, true);
     });
     api.onHashCheckResult((data) => {
       const download = downloads.get(data.id);
       const bad = data.result && (data.result.bad.length || data.result.missing.length);
-      if (download) { download.hashRunning = false; download.hashText = data.text || ''; download.hashBad = !!bad; renderDownloads(); }
+      if (download) { download.hashRunning = false; download.hashPercent = null; download.hashText = data.text || ''; download.hashBad = !!bad; renderDownloads(); }
       setHistoryHashText(data.id, data.text || '', false, !!bad);
     });
     api.onHashCheckRequested((data) => {
       const download = downloads.get(data.id);
-      if (download) { download.hashRunning = true; download.hashText = 'Checking files...'; renderDownloads(); }
+      if (download) { download.hashRunning = true; download.hashPercent = 0; download.hashText = 'Checking files...'; renderDownloads(); }
       setHistoryHashText(data.id, 'Checking files...', true);
     });
 
@@ -470,6 +471,13 @@ async function showAlertDialog(title, message) {
     scheduleRender();
   }
 
+  // The step that is running after the transfer (checking files, then extracting) fills the bar with its own percentage.
+  function phaseOf(download) {
+    if (download.hashRunning && Number.isFinite(download.hashPercent)) return { label: 'Checking files', pct: download.hashPercent, cls: 'progress-fill--hash' };
+    if (download.status === 'extracting' && Number.isFinite(download.extractPercent)) return { label: 'Extracting', pct: download.extractPercent, cls: 'progress-fill--extract' };
+    return null;
+  }
+
   function updateItemsInPlace(items, container) {
     for (const [id, download] of items) {
       const item = container.querySelector(`.download-item[data-id="${CSS.escape(String(id))}"]`);
@@ -477,9 +485,12 @@ async function showAlertDialog(title, message) {
 
       item.className = `download-item ${download.status}`;
 
+      const phase = phaseOf(download);
       const progressFill = item.querySelector('.progress-bar .progress-fill');
       if (progressFill) {
-        progressFill.style.width = `${download.progress || 0}%`;
+        progressFill.style.width = `${phase ? phase.pct : (download.progress || 0)}%`;
+        progressFill.classList.toggle('progress-fill--hash', !!phase && phase.cls === 'progress-fill--hash');
+        progressFill.classList.toggle('progress-fill--extract', !!phase && phase.cls === 'progress-fill--extract');
       }
 
       const stateEl = item.querySelector('.download-header .download-state');
@@ -574,7 +585,9 @@ async function showAlertDialog(title, message) {
         ? ` • ETA: ${download.eta.trim()}`
         : '';
 
-      if (leftInfo) {
+      if (leftInfo && phase) {
+        leftInfo.textContent = `${phase.label} ${phase.pct}%${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}`;
+      } else if (leftInfo) {
         leftInfo.textContent = `${download.progress || 0}%${etaText} ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}`;
       }
       if (rightInfo) {
@@ -909,10 +922,10 @@ async function showAlertDialog(title, message) {
       <div class="download-lowspace-badge" style="display: ${download.lowDiskSpaceWarning ? 'block' : 'none'};">Low disk space — this download may not finish</div>
       <div class="download-mirror-badge" style="display: ${download.mirrorSwitches ? 'block' : 'none'};" title="${escapeHtml(Array.isArray(download.triedMirrors) ? download.triedMirrors.join(', ') : '')}">Switched mirrors ×${download.mirrorSwitches || 0}</div>
       <div class="progress-bar">
-        <div class="progress-fill" style="width: ${download.progress || 0}%"></div>
+        <div class="progress-fill${phaseOf(download) ? ' ' + phaseOf(download).cls : ''}" style="width: ${phaseOf(download) ? phaseOf(download).pct : (download.progress || 0)}%"></div>
       </div>
       <div class="download-info">
-        <span>${download.progress || 0}%${etaText} ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}</span>
+        <span>${phaseOf(download) ? `${phaseOf(download).label} ${phaseOf(download).pct}%${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}` : `${download.progress || 0}%${etaText} ${fileCountText}${download.totalSize ? ` • ${formatBytes(download.totalSize)}` : ''}${streamsText}`}</span>
         <span class="total-speed">${(download.status === 'extracting' || download.status === 'completed') ? (download.totalSpeed ? `Peak: ${download.totalSpeed}` : '') : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
       </div>
       <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives, please wait..</div>

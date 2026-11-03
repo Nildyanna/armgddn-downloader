@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.9.0] - 2026-11-03
+
+### Added
+- The progress bar now shows file checking and extracting as they happen, with a percentage, in the Companion and in the site's downloads panel. Checking is measured by the data read, not the file count, so a big game's bar moves steadily. With several archives, the extraction percentage covers all of them.
+- The site forgets a check you stop, and stops showing one that stopped reporting.
+
 ## [5.8.0] - 2026-11-03
 
 ### Added

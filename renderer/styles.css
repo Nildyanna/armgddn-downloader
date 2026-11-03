@@ -650,6 +650,18 @@ body::after {
   animation: progress-shimmer 1.8s linear infinite;
 }
 
+.download-item .progress-fill.progress-fill--extract {
+  background: linear-gradient(90deg, rgba(255, 196, 77, 0.95), rgba(255, 59, 212, 0.92));
+  box-shadow: 0 0 14px rgba(255, 196, 77, 0.38);
+  animation: none;
+}
+
+.download-item .progress-fill.progress-fill--hash {
+  background: linear-gradient(90deg, rgba(120, 255, 170, 0.95), rgba(46, 242, 255, 0.92));
+  box-shadow: 0 0 14px rgba(120, 255, 170, 0.38);
+  animation: none;
+}
+
 @keyframes progress-shimmer {
   0% { background-position: 200% 0; }
   100% { background-position: -200% 0; }

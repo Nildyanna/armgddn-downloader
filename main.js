@@ -4063,7 +4063,8 @@ async function reportProgressToServer(download, token) {
       statusMessage: download.statusMessage || '',
       error: download.error || null,
       expectedTotalFiles: typeof download.fileCount === 'number' ? download.fileCount : null,
-      completedFiles: typeof download.completedFiles === 'number' ? download.completedFiles : null
+      completedFiles: typeof download.completedFiles === 'number' ? download.completedFiles : null,
+      extractProgress: (reportStatus === 'extracting' && typeof download.extractPercent === 'number') ? download.extractPercent : null
     });
 
     logToFile(`[Progress] Sending: ${postData.substring(0, 150)}`);
@@ -6289,7 +6290,7 @@ function find7zArchivesInDir(rootDir) {
   return results;
 }
 
-function run7zExtract(archivePath, outputDir) {
+function run7zExtract(archivePath, outputDir, onProgress) {
   return new Promise((resolve, reject) => {
     const bundledExe = get7zPath();
     if (!bundledExe) {
@@ -6418,7 +6419,12 @@ function run7zExtract(archivePath, outputDir) {
       } catch (e) { }
       proc.stdout.on('data', (d) => {
         lastOutputAt = Date.now();
-        out += d.toString();
+        const text = d.toString();
+        out += text;
+        if (onProgress) {                       // -bsp1 prints "  42% ..." as it goes; keep the last one in this chunk
+          const all = text.match(/(\d{1,3})%/g);
+          if (all && all.length) { const v = Math.min(100, parseInt(all[all.length - 1], 10)); if (Number.isFinite(v)) { try { onProgress(v); } catch (e) { /* ignore */ } } }
+        }
       });
       proc.stderr.on('data', (d) => {
         lastOutputAt = Date.now();
@@ -7520,6 +7526,24 @@ function reportHashUnavailableToServer(download) {
 }
 const hashChecksRunning = new Map();      // download id -> { cancelled }
 
+// Live progress of a check, so the site's downloads panel can fill its bar. Sent at most every 2 seconds; the final result replaces it.
+function reportHashProgressToServer(download, token, state) {
+  try {
+    if (!download || !token) return;
+    const host = download.progressHost || 'www.armgddnbrowser.com';
+    if (!isAllowedServiceHost(host)) return;
+    const body = JSON.stringify({ downloadId: download.id, remotePath: download.remotePath || '', running: !state.cancelled, cancelled: !!state.cancelled, progress: state.percent, done: state.done, total: state.total });
+    const req = https.request({
+      hostname: host, port: download.progressPort || 443, path: '/api/app-hash-check', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': `Bearer ${token}` }
+    }, (res) => { res.resume(); });
+    req.on('error', () => { });
+    req.setTimeout(15000, () => { try { req.destroy(); } catch (e) { } });
+    req.write(body);
+    req.end();
+  } catch (e) { }
+}
+
 function reportHashCheckToServer(download, token, result) {
   try {
     if (!download || !token || !result) return;
@@ -7555,20 +7579,30 @@ async function runHashCheck(downloadId, opts) {
   const downloadDir = doc.downloadDir || (live && live.name ? path.join(settings.downloadPath, live.name) : '');
   const state = { cancelled: false };
   hashChecksRunning.set(id, state);
+  const siteDownload = live || { id, remotePath: '', progressHost: null };
+  const siteToken = (live && live.token) || (() => { try { return loadSession(); } catch (e) { return null; } })();
+  let lastSent = 0;
+  let lastSite = 0;
   try {
-    sendToMain('hash-check-progress', { id, done: 0, total: doc.files.length, name: '' });
+    sendToMain('hash-check-progress', { id, done: 0, total: doc.files.length, name: '', percent: 0 });
+    reportHashProgressToServer(siteDownload, siteToken, { percent: 0, done: 0, total: doc.files.length });
     const result = await hashCheck.verifyManifest(doc, {
       resolvePath: (rel) => { const safe = sanitizeRelativePath(String(rel)); return safe ? resolveInside(downloadDir, safe) : null; },
       isCancelled: () => state.cancelled,
       onProgress: (pr) => {
-        if (live) { live.statusMessage = `Checking files (${pr.done}/${pr.total})...`; }
-        sendToMain('hash-check-progress', { id, done: pr.done, total: pr.total, name: pr.name });
+        const now = Date.now();
+        if (live) { live.hashPercent = pr.percent; live.statusMessage = `Checking files ${pr.percent}% (${pr.done}/${pr.total})...`; }
+        if (!pr.partial || now - lastSent >= 250) { lastSent = now; sendToMain('hash-check-progress', { id, done: pr.done, total: pr.total, name: pr.name, percent: pr.percent }); }
+        if (now - lastSite >= 2000) { lastSite = now; reportHashProgressToServer(siteDownload, siteToken, { percent: pr.percent, done: pr.done, total: pr.total }); }
       }
     });
     if (!result.cancelled) {
       hashCheck.saveResult(app.getPath('userData'), id, result);
-      reportHashCheckToServer(live || { id, remotePath: '' , progressHost: null }, (live && live.token) || (() => { try { return loadSession(); } catch (e) { return null; } })(), result);
+      reportHashCheckToServer(siteDownload, siteToken, result);
+    } else {
+      reportHashProgressToServer(siteDownload, siteToken, { cancelled: true });
     }
+    if (live) { live.hashPercent = null; }
     const text = hashCheck.describeResult(result);
     sendToMain('hash-check-result', { id, result, text });
     logToFile(`[hashCheck] ${doc.name}: ok=${result.ok} bad=${result.bad.length} missing=${result.missing.length} notChecked=${result.notChecked}${result.cancelled ? ' (stopped)' : ''}`);
@@ -7640,6 +7674,7 @@ function completeDownload(downloadId, afterHashCheck) {
       download.__armgddnFinalizing = true;
       download.status = 'extracting';
       download.progress = 99;
+      download.extractPercent = 0;
       download.totalSpeed = formatSpeed(peakOrAverageSpeedBytes(download));
       try {
         if (mainWindowAlive()) {
@@ -7647,6 +7682,7 @@ function completeDownload(downloadId, afterHashCheck) {
             id: downloadId,
             status: 'extracting',
             progress: download.progress,
+            extractPercent: 0,
             downloadedSize: download.downloadedSize,
             totalSpeed: formatSpeed(peakOrAverageSpeedBytes(download)),
             activeFiles: [],
@@ -7658,6 +7694,8 @@ function completeDownload(downloadId, afterHashCheck) {
 
       (async () => {
         try {
+          let archiveIndex = 0;
+          let lastTick = 0;
           for (const a of archives) {
             const archiveBase = (() => {
               try {
@@ -7676,8 +7714,23 @@ function completeDownload(downloadId, afterHashCheck) {
             // "finish" instantly with every file missing.
             const extractDir = downloadDir;
             logToFile(`[extract] ${archiveBase} -> ${extractDir}`);
-            await run7zExtract(a, extractDir);
+            const idx = archiveIndex;
+            await run7zExtract(a, extractDir, (pct) => {
+              const overall = Math.min(100, Math.floor(((idx + pct / 100) / archives.length) * 100));
+              download.extractPercent = overall;
+              const now = Date.now();
+              if (now - lastTick < 500 && pct < 100) return;
+              lastTick = now;
+              try {
+                if (mainWindowAlive()) {
+                  sendToMain('download-progress', { id: downloadId, status: 'extracting', progress: download.progress, extractPercent: overall, downloadedSize: download.downloadedSize, totalSpeed: formatSpeed(peakOrAverageSpeedBytes(download)), activeFiles: [], completedFiles: download.completedFiles, fileCount: download.fileCount });
+                }
+              } catch (e) { }
+              if (now - (download.__lastExtractReport || 0) >= 2000) { download.__lastExtractReport = now; try { reportProgressToServer(download, download.token); } catch (e) { } }
+            });
+            archiveIndex++;
           }
+          download.extractPercent = 100;
         } catch (e) {
           download.extractionError = e && e.message ? e.message : String(e);
           try {
