@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.10.0] - 2026-11-03
+
+### Added
+- Comics: only what I'm missing. A new Comics button opens a panel where you pick the folder your comics are in. The Companion reads it on your PC, compares it with the library (the whole library or one reading order) and shows how many comics you have and how many are missing. Nothing about your folder is sent to the site.
+- Comics are matched by the Comic Vine id inside each file, then by series, issue number and year. A cut-short or empty file is flagged as damaged and never counted as owned, so it is downloaded again.
+- Download what I'm missing starts downloads for just those comics, in batches, through the normal download list. They arrive in the download folder with the library's own folder layout.
+- The site's new "Only what I'm missing" button on each reading order opens this panel with that list selected.
+
 ## [5.9.0] - 2026-11-03
 
 ### Added

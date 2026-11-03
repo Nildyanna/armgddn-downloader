@@ -1,4 +1,12 @@
 {
+  "5.10.0": {
+    "title": "Only What I'm Missing",
+    "highlights": [
+      "Comics: pick your comics folder and the Companion shows which comics from a reading order you don't have yet, then downloads only those.",
+      "Your folder is read on your PC and nothing about it is sent to the site.",
+      "Damaged or cut-short comic files are flagged and re-downloaded."
+    ]
+  },
   "5.9.0": {
     "title": "Progress You Can See",
     "highlights": [
