@@ -927,7 +927,7 @@ async function showAlertDialog(title, message) {
         ${isPaused ? `<button class="resume-btn" data-download-id="${id}">Resume</button>` : ''}
         ${canCancel ? `<button class="cancel-btn" data-download-id="${id}">Cancel</button>` : ''}
         ${download.status === 'completed' ? `<button class="open-folder-btn">Open Folder</button>` : ''}
-        ${download.status === 'completed' ? (download.hashRunning ? `<button class="cancel-hash-btn" data-download-id="${id}">Stop check</button>` : `<button class="check-files-btn" data-download-id="${id}" title="Compare every file with the original's checksum">Check files</button>`) : ''}
+        ${download.status === 'completed' && !hashGated() ? (download.hashRunning ? `<button class="cancel-hash-btn" data-download-id="${id}">Stop check</button>` : `<button class="check-files-btn" data-download-id="${id}" title="Compare every file with the original's checksum">Check files</button>`) : ''}
         ${download.status === 'error' ? `<button class="retry-btn" data-download-id="${id}">Retry</button>` : ''}
       </div>
     `;
@@ -1329,6 +1329,8 @@ async function showAlertDialog(title, message) {
     await api.saveSettings(settings);
     closeSettings();
     showToast('Settings saved');
+    renderDownloads();      // the Check files buttons follow the Auto extract / Check files after download settings
+    try { if (document.getElementById('history-panel') && document.getElementById('history-panel').classList.contains('is-open')) loadHistory(); } catch (e) { }
   }
 
   async function browseDownloadPath() {
@@ -1395,10 +1397,14 @@ async function showAlertDialog(title, message) {
       <div class="history-hash-message" data-history-id="${escapeHtml(String(item.id || ''))}"></div>
     `;
       const histBtn = div.querySelector('.history-check-btn');
-      if (histBtn && item.id) { histBtn.onclick = () => startFileCheck(item.id); } else if (histBtn) { histBtn.style.display = 'none'; }
+      if (histBtn && item.id && !hashGated()) { histBtn.onclick = () => startFileCheck(item.id); } else if (histBtn) { histBtn.style.display = 'none'; }
 
       container.appendChild(div);
     }
+  }
+
+  function hashGated() {
+    return !!(settings && settings.autoExtract7z && !settings.autoHashCheck);
   }
 
   function setHistoryHashText(id, text, running, bad) {

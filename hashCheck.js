@@ -124,6 +124,12 @@ async function verifyManifest(doc, opts) {
   return result;
 }
 
+// Check files is only offered when files are checked automatically before they are unpacked: with Auto extract on and automatic checking off
+// they are unpacked unchecked, so a later check would only report on archives that were already used.
+function gated(settings) {
+  return !!(settings && settings.autoExtract7z && !settings.autoHashCheck);
+}
+
 // One plain sentence for the downloads list.
 function describeResult(r) {
   if (!r) return '';
@@ -140,4 +146,4 @@ function describeResult(r) {
   return parts.join(' ');
 }
 
-module.exports = { MANIFEST_DIR_NAME, expectedMd5, countHashable, saveManifest, loadManifest, saveResult, md5OfFile, verifyManifest, describeResult, manifestPath };
+module.exports = { gated, MANIFEST_DIR_NAME, expectedMd5, countHashable, saveManifest, loadManifest, saveResult, md5OfFile, verifyManifest, describeResult, manifestPath };

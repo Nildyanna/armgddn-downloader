@@ -1331,6 +1331,7 @@ let settings = {
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
   autoHashCheck: false,
+  hashGateNoticeSeen: false,
   showNotifications: true,
   minimizeToTrayOnMinimize: false,
   minimizeToTrayOnClose: false,
@@ -1417,6 +1418,7 @@ function normalizeSettings() {
 
     settings.autoExtract7z = !!settings.autoExtract7z;
     settings.autoHashCheck = !!settings.autoHashCheck;
+    settings.hashGateNoticeSeen = !!settings.hashGateNoticeSeen;
     settings.showNotifications = settings.showNotifications !== false;
     settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
     settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
@@ -3302,6 +3304,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'maxDownloadSpeedMBps',
     'autoExtract7z',
     'autoHashCheck',
+    'hashGateNoticeSeen',
     'showNotifications',
     'minimizeToTrayOnMinimize',
     'minimizeToTrayOnClose',
@@ -3322,6 +3325,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
   normalizeSettings();
   applyStartupRegistration();
   saveSettings();
+  setTimeout(() => { maybeShowHashGateNotice().catch(() => { }); }, 300);
   return settings;
 });
 
@@ -4499,6 +4503,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       }
     } catch (e) { }
     download.files = allFiles;
+    try { maybeShowHashGateNotice().catch(() => { }); } catch (eGate) { }
     try { hashCheck.saveManifest(app.getPath('userData'), { id: downloadId, name, downloadDir, files: allFiles }); } catch (eHash) { }
     if (allFiles.length > 0) {
       const skippedMessage = completedFiles > 0
@@ -7467,6 +7472,52 @@ function installSpaceTip(download) {
 }
 
 // ---- File check (MD5 against the checksums the site listed) ----
+// Check files is only offered when files are checked automatically before they are unpacked. With Auto extract on and automatic checking off,
+// downloads are unpacked unchecked, so a later check would only report on archives that were already used.
+function hashingGated() {
+  return hashCheck.gated(settings);
+}
+
+// Told once, with an "I understand" button, the first time that combination is in force.
+let hashGateNoticeOpen = false;
+async function maybeShowHashGateNotice() {
+  try {
+    if (!hashingGated() || settings.hashGateNoticeSeen || hashGateNoticeOpen) return;
+    hashGateNoticeOpen = true;
+    await withDialogFocus(() => dialog.showMessageBox(getDialogParentWindow(), {
+      type: 'info',
+      buttons: ['I understand'],
+      defaultId: 0,
+      title: 'Check files is off',
+      message: 'Check files is unavailable while Auto extract is on without automatic checking.',
+      detail: 'Auto extract unpacks your downloads as soon as they finish, so files would be used before anything checked them. Because of that, the Check files option is hidden.\n\nWant both? Turn on "Check files after download" in Settings. Files are then checked first, and anything that fails is reported instead of being unpacked.'
+    }));
+    settings.hashGateNoticeSeen = true;
+    saveSettings();
+  } catch (e) {
+    logToFile('[hashGate] notice failed: ' + (e && e.message ? e.message : e));
+  } finally {
+    hashGateNoticeOpen = false;
+  }
+}
+
+function reportHashUnavailableToServer(download) {
+  try {
+    const token = (download && download.token) || null;
+    if (!download || !token) return;
+    const host = download.progressHost || 'www.armgddnbrowser.com';
+    if (!isAllowedServiceHost(host)) return;
+    const body = JSON.stringify({ downloadId: download.id, remotePath: download.remotePath || '', unavailable: true });
+    const req = https.request({
+      hostname: host, port: download.progressPort || 443, path: '/api/app-hash-check', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': `Bearer ${token}` }
+    }, (res) => { res.resume(); });
+    req.on('error', () => { });
+    req.setTimeout(15000, () => { try { req.destroy(); } catch (e) { } });
+    req.write(body);
+    req.end();
+  } catch (e) { }
+}
 const hashChecksRunning = new Map();      // download id -> { cancelled }
 
 function reportHashCheckToServer(download, token, result) {
@@ -7496,6 +7547,7 @@ function reportHashCheckToServer(download, token, result) {
 async function runHashCheck(downloadId, opts) {
   const o = opts || {};
   const id = String(downloadId);
+  if (hashingGated() && !o.auto) return { error: 'Check files is turned off while Auto extract is on and Check files after download is off.' };
   if (hashChecksRunning.has(id)) return { error: 'A file check is already running for this download.' };
   const doc = hashCheck.loadManifest(app.getPath('userData'), id);
   if (!doc) return { error: 'This download has no checksums to compare against.' };
@@ -7533,8 +7585,8 @@ ipcMain.handle('verify-download-files', (event, id) => runHashCheck(id));
 ipcMain.handle('cancel-hash-check', (event, id) => { const st = hashChecksRunning.get(String(id)); if (st) st.cancelled = true; return !!st; });
 ipcMain.handle('get-hash-check-info', (event, id) => {
   const doc = hashCheck.loadManifest(app.getPath('userData'), String(id));
-  if (!doc) return { available: false };
-  return { available: true, files: doc.files.length, totalFiles: doc.totalFiles, lastCheck: doc.lastCheck || null, lastCheckText: doc.lastCheck ? hashCheck.describeResult(doc.lastCheck) : '', running: hashChecksRunning.has(String(id)) };
+  if (!doc) return { available: false, gated: hashingGated() };
+  return { available: !hashingGated(), gated: hashingGated(), files: doc.files.length, totalFiles: doc.totalFiles, lastCheck: doc.lastCheck || null, lastCheckText: doc.lastCheck ? hashCheck.describeResult(doc.lastCheck) : '', running: hashChecksRunning.has(String(id)) };
 });
 
 function completeDownload(downloadId, afterHashCheck) {
@@ -7554,13 +7606,15 @@ function completeDownload(downloadId, afterHashCheck) {
     return;
   }
 
+  if (!afterHashCheck && hashingGated()) { reportHashUnavailableToServer(download); }
+
   // "Check files automatically": compare every file with the checksums the site listed before anything is unpacked.
   if (!afterHashCheck && settings && settings.autoHashCheck && hashCheck.loadManifest(app.getPath('userData'), String(downloadId))) {
     download.__armgddnFinalizing = true;
     download.statusMessage = 'Checking files...';
     download.progress = 99;
     try { updateProgress(downloadId); } catch (e) { }
-    runHashCheck(downloadId).then((r) => {
+    runHashCheck(downloadId, { auto: true }).then((r) => {
       download.__armgddnFinalizing = false;
       const res = r && r.result;
       if (res && (res.bad.length || res.missing.length)) {

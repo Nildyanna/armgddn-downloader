@@ -78,3 +78,11 @@ test('odd ids cannot escape the manifest folder', () => {
   assert.ok(p.startsWith(path.join('/ud', hc.MANIFEST_DIR_NAME)));
   assert.ok(!p.includes('..'));
 });
+
+test('Check files is gated only when Auto extract is on and automatic checking is off', () => {
+  assert.strictEqual(hc.gated({ autoExtract7z: true, autoHashCheck: false }), true);
+  assert.strictEqual(hc.gated({ autoExtract7z: true, autoHashCheck: true }), false);
+  assert.strictEqual(hc.gated({ autoExtract7z: false, autoHashCheck: false }), false);
+  assert.strictEqual(hc.gated({ autoExtract7z: false, autoHashCheck: true }), false);
+  assert.strictEqual(hc.gated(null), false);
+});
