@@ -1,4 +1,11 @@
 {
+  "5.11.0": {
+    "title": "Comics Go Straight Into Your Folder",
+    "highlights": [
+      "Download what I'm missing now saves the comics straight into the comics folder you picked, using the library's folder layout.",
+      "Your own files are never unpacked or touched. Only the new comics are added."
+    ]
+  },
   "5.10.0": {
     "title": "Only What I'm Missing",
     "highlights": [

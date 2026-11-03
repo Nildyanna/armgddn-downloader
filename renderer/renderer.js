@@ -423,7 +423,7 @@ async function showAlertDialog(title, message) {
       // resolveDownloadToken just succeeded using that same fresh token — fetch-manifest
       // already falls back to the Companion's own stored session if this is absent.
       const manifest = await api.fetchManifest(manifestUrlStr, urlToken);
-      await api.startDownload(manifest, urlToken, manifestUrlStr);
+      await api.startDownload(manifest, urlToken, manifestUrlStr, urlObj.searchParams.get('dest') === 'comics' ? 'comics' : undefined);
 
     } catch (error) {
       console.error('Failed to handle deep link:', error);

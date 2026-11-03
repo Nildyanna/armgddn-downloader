@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.11.0] - 2026-11-03
+
+### Changed
+- Download what I'm missing now saves the comics straight into your comics folder, with the library's folder layout, instead of the download folder. Nothing in that folder is unpacked, and cancelling removes only the files that download wrote.
+- If no comics folder is chosen yet, the Companion asks you to choose one in the Comics panel before downloading.
+
 ## [5.10.0] - 2026-11-03
 
 ### Added

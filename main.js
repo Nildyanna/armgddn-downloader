@@ -2317,6 +2317,11 @@ function validateDeepLink(url) {
       }
     }
 
+    if (parsed.hostname === 'download' && parsed.searchParams.has('dest') && parsed.searchParams.get('dest') !== 'comics') {
+      logToFile('Deep link rejected - unknown download destination');
+      return null;
+    }
+
     if (parsed.hostname === 'comics') {
       const list = String(parsed.searchParams.get('list') || 'all');
       const tok = String(parsed.searchParams.get('token') || '');
@@ -3475,6 +3480,7 @@ ipcMain.handle('comics-download-missing', async () => {
   if (!last || !Array.isArray(last.missingRows) || !last.missingRows.length) return { ok: false, error: 'Compare first. There is nothing to download.' };
   const token = comicsState.token || loadSession();
   if (!token) return { ok: false, error: 'Sign in first: open the Comics page on the site and press "Only what I\'m missing".' };
+  const toFolder = !!(settings.comicsFolder && fs.existsSync(settings.comicsFolder));
   const batches = comicsScan.planBatches(last.missingRows, 400, 60e9).slice(0, 40);
   const base = 'https://www.armgddnbrowser.com';
   let started = 0, files = 0, bytes = 0;
@@ -3485,7 +3491,9 @@ ipcMain.handle('comics-download-missing', async () => {
       if (m.statusCode !== 200 || !m.json || !m.json.batchId) return { ok: false, started, error: (m.json && m.json.error) || `The site answered ${m.statusCode} when preparing the download.` };
       const t = await postJsonWithBearer(base + '/api/external-download-token', { remote: 'Comics', path: '__batch__/' + m.json.batchId }, token);
       if (t.statusCode !== 200 || !t.json || !t.json.downloadToken) return { ok: false, started, error: (t.json && t.json.error) || `The site answered ${t.statusCode} when authorizing the download.` };
-      handleDeepLink('armgddn://download?' + new URLSearchParams({ downloadToken: t.json.downloadToken, token }).toString());
+      const q = { downloadToken: t.json.downloadToken, token };
+      if (toFolder) q.dest = 'comics';
+      handleDeepLink('armgddn://download?' + new URLSearchParams(q).toString());
       started++; files += batch.length; bytes += batch.reduce((n, r) => n + (Number(r[2]) || 0), 0);
     } catch (e) {
       return { ok: false, started, error: 'Could not reach the site: ' + (e && e.message ? e.message : e) };
@@ -3493,7 +3501,7 @@ ipcMain.handle('comics-download-missing', async () => {
     await new Promise((r) => setTimeout(r, 1500));          // the token endpoints allow 20 calls a minute
   }
   logToFile(`[comics] started ${started} download(s) for ${files} missing comics`);
-  return { ok: true, started, files, bytes, folder: settings.downloadPath };
+  return { ok: true, started, files, bytes, folder: toFolder ? settings.comicsFolder : settings.downloadPath };
 });
 
 ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
@@ -4057,7 +4065,7 @@ async function cleanupCancelledDownloadFiles(download) {
     return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
   };
   const downloadDir = download && download.downloadDir ? path.resolve(download.downloadDir) : '';
-  const downloadRoot = settings && settings.downloadPath ? path.resolve(settings.downloadPath) : '';
+  const downloadRoot = download && download.rootDir ? path.resolve(download.rootDir) : (settings && settings.downloadPath ? path.resolve(settings.downloadPath) : '');
   if (!downloadDir || !downloadRoot || !isPathInside(downloadRoot, downloadDir)) {
     logToFile('[Cancel] Skipped file cleanup: download directory is outside the configured download folder.');
     return false;
@@ -4306,7 +4314,7 @@ function getFreeDiskSpace(targetPath) {
 }
 
 // Start download
-ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => {
+ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, dest) => {
   // Use the Companion's own session token; renderer may pass null for deep-link flows.
   const effectiveToken = token || sessionToken;
   if (!isValidToken(effectiveToken)) {
@@ -4431,6 +4439,11 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
     throw e;
   }
 
+  // "Only what I'm missing" downloads go straight into the member's own comics folder, with the library's folder layout.
+  // Nothing in that folder is ever unpacked or removed except the files this download itself wrote.
+  const toComics = dest === 'comics' && typeof settings.comicsFolder === 'string' && settings.comicsFolder.trim() !== '' && path.isAbsolute(settings.comicsFolder) && fs.existsSync(settings.comicsFolder);
+  if (dest === 'comics' && !toComics) throw new Error('Choose your comics folder in the Comics panel first.');
+
   const safeFolderName = sanitizeRelativePath(String(name || ''));
   if (safeFolderName) {
     name = safeFolderName;
@@ -4440,7 +4453,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
 
   // DISK SPACE CHECK
   try {
-    const targetPath = path.resolve(settings.downloadPath);
+    const targetPath = path.resolve(toComics ? settings.comicsFolder : settings.downloadPath);
     const freeBytes = getFreeDiskSpace(targetPath);
 
     if (freeBytes !== -1 && totalSize > 0) {
@@ -4580,10 +4593,13 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
   } catch (e) { }
 
   // Create download directory
-  const downloadDir = resolveInside(settings.downloadPath, name);
+  const downloadDir = toComics ? path.resolve(settings.comicsFolder) : resolveInside(settings.downloadPath, name);
   if (!downloadDir) {
     throw new Error('Security error: Invalid download folder path');
   }
+  download.toComics = toComics;
+  download.rootDir = toComics ? downloadDir : '';
+  if (toComics) download.forceDisableAutoExtract = true;
   download.downloadDir = downloadDir; // Stored for the periodic mid-download disk-space check in updateProgress()
   try {
     if (!fs.existsSync(downloadDir)) {
@@ -7267,7 +7283,7 @@ async function resumeDownloadFiles(downloadId) {
     throw new Error('Download not found');
   }
 
-  const downloadDir = path.join(settings.downloadPath, download.name || 'Download');
+  const downloadDir = download.rootDir || path.join(settings.downloadPath, download.name || 'Download');
   if (!fs.existsSync(downloadDir)) {
     fs.mkdirSync(downloadDir, { recursive: true });
   }
@@ -7819,10 +7835,10 @@ function completeDownload(downloadId, afterHashCheck) {
   }
 
   const shouldExtract = !!(settings && settings.autoExtract7z) &&
-    !download.forceDisableAutoExtract &&
+    !download.forceDisableAutoExtract && !download.toComics &&
     !isStarfieldAutoExtractTargetValue(download.remotePath) &&
     !isStarfieldAutoExtractTargetValue(download.name);
-  const downloadDir = path.join(settings.downloadPath, download.name || 'Download');
+  const downloadDir = download.rootDir || path.join(settings.downloadPath, download.name || 'Download');
 
   if (shouldExtract) {
     const archives = find7zArchivesInDir(downloadDir);
