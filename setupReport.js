@@ -27,6 +27,16 @@ function recentProblems(logText) {
   return lines.slice(-MAX_LOG_LINES).map(l => sanitize(l).slice(0, MAX_LINE));
 }
 
+// The format of the download drive on Linux / macOS (just its type, never a path).
+function posixFs(facts) {
+  try {
+    if (!facts || !facts.mounts || !facts.downloadPath) return null;
+    const { mountFor } = require('./setupCheck');
+    const m = mountFor(facts.downloadPath, facts.mounts);
+    return m ? { type: String(m.fs).slice(0, 12), ro: !!(m.opts && m.opts.includes('ro')) } : null;
+  } catch (e) { return null; }
+}
+
 function buildReport({ appVersion, platform, release, arch, findings, facts, logText }) {
   const payload = {
     v: 1,
@@ -39,7 +49,12 @@ function buildReport({ appVersion, platform, release, arch, findings, facts, log
       av: facts && Array.isArray(facts.avProducts) ? facts.avProducts.map(a => sanitize(a).slice(0, 40)) : null,
       vc: facts ? facts.vcRuntime : null,
       d3dx: facts ? facts.d3dx : null,
-      dlDrive: facts && facts.downloadPath ? String(facts.downloadPath).slice(0, 3) : null,
+      dlDrive: facts && facts.platform === 'win32' && facts.downloadPath ? String(facts.downloadPath).slice(0, 3) : null,
+      fs: posixFs(facts),
+      maxMap: facts && facts.maxMapCount != null ? facts.maxMapCount : null,
+      wine: facts && (facts.wine != null ? facts.wine : (facts.winLayer != null ? facts.winLayer : null)),
+      rosetta: facts && facts.rosetta != null ? facts.rosetta : null,
+      appMisplaced: facts && facts.appMisplaced != null ? facts.appMisplaced : null,
     },
     log: recentProblems(logText),
   };
