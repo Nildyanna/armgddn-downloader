@@ -1198,6 +1198,22 @@ async function showAlertDialog(title, message) {
       loadLists().catch(() => { });
     }
     $('comics-btn').addEventListener('click', open);
+    // The site's "Only what I'm missing" button opens this panel with its reading order selected.
+    if (api.onComicsOpen) api.onComicsOpen(async (d) => {
+      await open();
+      const sel = $('comics-list');
+      if (sel && d && d.listId && [...sel.options].some((o) => o.value === d.listId)) sel.value = d.listId;
+      else if (sel && d && d.listId) { say('comics-result', 'That reading order is not in the library list yet.'); }
+      if (scanned && sel && d && d.listId) $('comics-compare-btn').click();
+    });
+    $('comics-download-btn').addEventListener('click', async () => {
+      const btn = $('comics-download-btn');
+      btn.disabled = true; say('comics-download-note', 'Starting the downloads...');
+      const r = await api.comicsDownloadMissing();
+      btn.disabled = false;
+      if (!r || !r.ok) { say('comics-download-note', (r && r.error) || 'Could not start the downloads.'); return; }
+      say('comics-download-note', `Started ${num(r.started)} download${r.started === 1 ? '' : 's'} (${num(r.files)} comics, ${fmt(r.bytes)}). They are in the Downloads list, and arrive in ${r.folder}. Scan again afterwards.`);
+    });
     $('comics-close-btn').addEventListener('click', () => { panel.style.display = 'none'; });
     api.onComicsScanProgress((d) => say('comics-scan-status', `Scanning... ${num(d.scanned)} files`));
     $('comics-pick-btn').addEventListener('click', async () => { const f = await api.comicsPickFolder(); if (f) { await refreshState(); say('comics-scan-status', 'Folder chosen. Press Scan.'); } });
@@ -1217,6 +1233,8 @@ async function showAlertDialog(title, message) {
       if (!r || !r.ok) { box.textContent = (r && r.error) || 'The comparison failed.'; return; }
       const s = r.summary;
       box.textContent = '';
+      $('comics-download-btn').style.display = s.missing ? '' : 'none';
+      say('comics-download-note', '');
       const line = (cls, text) => { const d = document.createElement('div'); d.className = 'setup-check-item ' + cls; const t = document.createElement('div'); t.className = 'setup-check-title'; t.textContent = text; d.appendChild(t); box.appendChild(d); return d; };
       line(s.missing ? 'warn' : 'ok', s.missing
         ? `You have ${num(s.have + s.haveByName)} of ${num(s.total)}. ${num(s.missing)} are missing (${fmt(s.bytesMissing)}).`

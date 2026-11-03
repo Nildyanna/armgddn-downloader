@@ -117,3 +117,12 @@ test('numbers compare without leading zeros, and letter suffixes are kept', () =
   assert.strictEqual(cs.normNum('413b'), '413b');
   assert.strictEqual(cs.norm('The Mighty Thor'), 'mightythor');
 });
+
+test('missing comics are split into download batches by file count and by size, in order', () => {
+  const rows = Array.from({ length: 10 }, (_, i) => ['p' + i, 0, 10, '', '']);
+  assert.deepStrictEqual(cs.planBatches(rows, 4, 1e9).map((b) => b.length), [4, 4, 2]);
+  assert.deepStrictEqual(cs.planBatches(rows, 100, 25).map((b) => b.length), [2, 2, 2, 2, 2]);
+  assert.deepStrictEqual(cs.planBatches([['big', 0, 99, '', '']], 4, 10).map((b) => b.length), [1], 'a single file over the size limit still goes');
+  assert.deepStrictEqual(cs.planBatches([], 4, 10), []);
+  assert.strictEqual(cs.planBatches(rows, 4, 1e9)[0][0][0], 'p0');
+});

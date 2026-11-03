@@ -46,6 +46,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   comicsCancelScan: () => ipcRenderer.invoke('comics-cancel-scan'),
   comicsInfo: () => ipcRenderer.invoke('comics-info'),
   comicsCompare: (listId) => ipcRenderer.invoke('comics-compare', listId),
+  comicsDownloadMissing: () => ipcRenderer.invoke('comics-download-missing'),
+  onComicsOpen: (callback) => ipcRenderer.on('comics-open', (event, data) => callback(data)),
   onComicsScanProgress: (callback) => ipcRenderer.on('comics-scan-progress', (event, data) => callback(data)),
   cancelHashCheck: (id) => ipcRenderer.invoke('cancel-hash-check', id),
   getHashCheckInfo: (id) => ipcRenderer.invoke('get-hash-check-info', id),

@@ -877,6 +877,28 @@ function fetchJsonWithBearer(urlString, method, bearerToken) {
   });
 }
 
+// POST a JSON body to the ARMGDDN site with the member's app-session token.
+function postJsonWithBearer(urlString, bodyObj, bearerToken) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(urlString);
+    if (u.protocol !== 'https:' || !isAllowedServiceHost(u.hostname)) { reject(new Error('Security error: not the ARMGDDN site')); return; }
+    const body = JSON.stringify(bodyObj || {});
+    const req = https.request({
+      hostname: u.hostname, port: u.port ? Number(u.port) : 443, path: u.pathname + (u.search || ''), method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(), 'Authorization': 'Bearer ' + bearerToken },
+      timeout: 30000
+    }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => { let json = null; try { json = JSON.parse(data); } catch (e) { /* ignore */ } resolve({ statusCode: res.statusCode, json, text: data }); });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { try { req.destroy(new Error('Request timeout')); } catch (e) { } });
+    req.write(body);
+    req.end();
+  });
+}
+
 let mainWindow;
 let authWindow;
 let progressWin = null; // Update progress window
@@ -2272,7 +2294,7 @@ function validateDeepLink(url) {
     if (parsed.protocol !== 'armgddn:') return null;
 
     // Whitelist allowed actions
-    const allowedHosts = ['download', 'open', 'komga', 'verify'];
+    const allowedHosts = ['download', 'open', 'komga', 'verify', 'comics'];
     if (!allowedHosts.includes(parsed.hostname)) {
       logToFile(`Deep link rejected - invalid host: ${parsed.hostname}`);
       return null;
@@ -2291,6 +2313,15 @@ function validateDeepLink(url) {
           downloadToken.length > 200 ||
           !/^[A-Za-z0-9_-]+$/.test(downloadToken)) {
         logToFile('Deep link rejected - invalid downloadToken format');
+        return null;
+      }
+    }
+
+    if (parsed.hostname === 'comics') {
+      const list = String(parsed.searchParams.get('list') || 'all');
+      const tok = String(parsed.searchParams.get('token') || '');
+      if (!/^[a-z0-9-]{1,80}$/.test(list) || (tok && !/^[A-Za-z0-9._-]{8,400}$/.test(tok))) {
+        logToFile('Deep link rejected - bad comics list or token');
         return null;
       }
     }
@@ -2470,6 +2501,16 @@ function handleDeepLink(url) {
       const vid = String(u.searchParams.get('id') || '');
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } else { mainWindow.focus(); } sendToMain('hash-check-requested', { id: vid }); } } catch (e) { }
       runHashCheck(vid).catch(() => { });
+      return;
+    }
+    if (u.hostname === 'comics') {
+      // Opens the "only what I'm missing" panel for a reading order. The token minted by the site is kept in memory only (never saved
+      // as the Companion's own sign-in) and is used for the catalog and the downloads of this session.
+      const tok = String(u.searchParams.get('token') || '');
+      if (tok) comicsState.token = tok;
+      try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
+      const open = () => sendToMain('comics-open', { listId: String(u.searchParams.get('list') || 'all') });
+      if (mainWindowDidFinishLoad) open(); else setTimeout(open, 2500);
       return;
     }
     if (u.hostname === 'komga') {
@@ -3346,7 +3387,7 @@ ipcMain.handle('browse-folder', async () => {
 // ---- Comics: "only what I'm missing". The member's own folder is scanned here, on their PC, and compared with the site's catalog;
 // only the catalog comes down. Nothing about the folder is sent to the site.
 const comicsScan = require('./comicsScan');
-const comicsState = { running: false, worker: null, rows: null, root: '', at: 0, last: null };
+const comicsState = { running: false, worker: null, rows: null, root: '', at: 0, last: null, token: '' };
 const COMICS_LIST_RE = /^[a-z0-9-]{1,80}$/;
 
 function comicsCacheFile() { return path.join(app.getPath('userData'), 'comics-scan-cache.json'); }
@@ -3358,7 +3399,7 @@ function saveComicsCache(root, files) {
 }
 
 async function comicsGet(pathAndQuery) {
-  const token = loadSession();
+  const token = comicsState.token || loadSession();
   if (!token) return { ok: false, error: 'Sign in first: open the Comics page on the site and press "Only what I\'m missing".' };
   try {
     const r = await fetchJsonWithBearer(`https://www.armgddnbrowser.com${pathAndQuery}`, 'GET', token);
@@ -3424,6 +3465,35 @@ ipcMain.handle('comics-compare', async (event, listId) => {
   comicsState.last = { listId: id, list: r.json.list, missingRows: cmp.missingRows };      // kept for the download step
   const { missingRows, ...summary } = cmp;
   return { ok: true, list: r.json.list, summary: { ...summary, perSeries: summary.perSeries.slice(0, 40), damaged: summary.damaged.slice(0, 20) } };
+});
+
+// Starts the downloads for what the last comparison found missing, through the same path the site's own downloads use:
+// a batch manifest, a one-time download token for it, then the normal download link. Files arrive in the Companion's download
+// folder with the library's own folder layout.
+ipcMain.handle('comics-download-missing', async () => {
+  const last = comicsState.last;
+  if (!last || !Array.isArray(last.missingRows) || !last.missingRows.length) return { ok: false, error: 'Compare first. There is nothing to download.' };
+  const token = comicsState.token || loadSession();
+  if (!token) return { ok: false, error: 'Sign in first: open the Comics page on the site and press "Only what I\'m missing".' };
+  const batches = comicsScan.planBatches(last.missingRows, 400, 60e9).slice(0, 40);
+  const base = 'https://www.armgddnbrowser.com';
+  let started = 0, files = 0, bytes = 0;
+  for (const batch of batches) {
+    try {
+      const m = await postJsonWithBearer(base + '/api/batch-manifest', { remote: 'Comics', paths: batch.map((r) => r[0]) }, token);
+      if (m.statusCode === 401) return { ok: false, started, error: 'Your sign-in expired. Open the Comics page on the site and press "Only what I\'m missing" again.' };
+      if (m.statusCode !== 200 || !m.json || !m.json.batchId) return { ok: false, started, error: (m.json && m.json.error) || `The site answered ${m.statusCode} when preparing the download.` };
+      const t = await postJsonWithBearer(base + '/api/external-download-token', { remote: 'Comics', path: '__batch__/' + m.json.batchId }, token);
+      if (t.statusCode !== 200 || !t.json || !t.json.downloadToken) return { ok: false, started, error: (t.json && t.json.error) || `The site answered ${t.statusCode} when authorizing the download.` };
+      handleDeepLink('armgddn://download?' + new URLSearchParams({ downloadToken: t.json.downloadToken, token }).toString());
+      started++; files += batch.length; bytes += batch.reduce((n, r) => n + (Number(r[2]) || 0), 0);
+    } catch (e) {
+      return { ok: false, started, error: 'Could not reach the site: ' + (e && e.message ? e.message : e) };
+    }
+    await new Promise((r) => setTimeout(r, 1500));          // the token endpoints allow 20 calls a minute
+  }
+  logToFile(`[comics] started ${started} download(s) for ${files} missing comics`);
+  return { ok: true, started, files, bytes, folder: settings.downloadPath };
 });
 
 ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {

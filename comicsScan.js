@@ -201,4 +201,17 @@ function compare(catalog, localRows) {
   };
 }
 
-module.exports = { readZipInfo, parseComicInfo, parseFileName, scanFolder, compare, norm, normNum, COMIC_EXT };
+// Split the missing comics into download batches: at most maxFiles files and about maxBytes bytes each, in the order given.
+function planBatches(rows, maxFiles, maxBytes) {
+  const batches = [];
+  let cur = [], bytes = 0;
+  for (const r of rows || []) {
+    const size = Number(r && r[2]) || 0;
+    if (cur.length && (cur.length >= maxFiles || bytes + size > maxBytes)) { batches.push(cur); cur = []; bytes = 0; }
+    cur.push(r); bytes += size;
+  }
+  if (cur.length) batches.push(cur);
+  return batches;
+}
+
+module.exports = { planBatches, readZipInfo, parseComicInfo, parseFileName, scanFolder, compare, norm, normNum, COMIC_EXT };
