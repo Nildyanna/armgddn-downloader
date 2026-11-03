@@ -1,4 +1,12 @@
 {
+  "5.8.0": {
+    "title": "Setup Check on Linux and Mac",
+    "highlights": [
+      "Check my setup now works properly on Linux and Mac. It checks your download drive's format, warns about folders that cause trouble, and on Linux flags a setting many games need.",
+      "On a Mac it also checks that the Companion is in Applications and that Rosetta is installed.",
+      "Copy report for Tulip includes these results, so she can help Linux and Mac members without Windows advice."
+    ]
+  },
   "5.7.0": {
     "title": "Check Your Files",
     "highlights": [

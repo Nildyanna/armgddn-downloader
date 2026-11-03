@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.8.0] - 2026-11-03
+
+### Added
+- Check my setup now works on Linux and Mac: it checks the format of your download drive (FAT, read-only, NTFS on a Mac), warns about folders that cause trouble (/tmp, system folders, iCloud, Desktop and Documents on a Mac), and on Linux flags a low `vm.max_map_count` and a missing Wine. On a Mac it also checks that the Companion is in Applications, that Rosetta is installed on Apple Silicon, and whether a Windows layer (CrossOver, Whisky, Sikarugir, Wine) is present.
+- Copy report for Tulip carries these results (the drive format, never a path), so she can help Linux and Mac members without Windows advice.
+
 ## [5.7.0] - 2026-11-03
 
 ### Added
