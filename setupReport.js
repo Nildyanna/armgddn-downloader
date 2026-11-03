@@ -55,6 +55,7 @@ function buildReport({ appVersion, platform, release, arch, findings, facts, log
       wine: facts && (facts.wine != null ? facts.wine : (facts.winLayer != null ? facts.winLayer : null)),
       rosetta: facts && facts.rosetta != null ? facts.rosetta : null,
       appMisplaced: facts && facts.appMisplaced != null ? facts.appMisplaced : null,
+      comics: facts && facts.comicsFolder ? { ms: facts.comicsReadMs != null ? facts.comicsReadMs : null, kind: facts.comicsKind || null, timeout: !!facts.comicsTimedOut } : null,
     },
     log: recentProblems(logText),
   };

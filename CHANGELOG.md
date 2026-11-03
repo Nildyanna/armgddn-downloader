@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.12.0] - 2026-11-03
+
+### Changed
+- Scanning a comics folder is much faster when it holds comics from the library, including on a cloud or network drive. A file whose name and size match exactly one library comic is counted without being opened; anything else is read as before, and cut-short files are still flagged.
+
+### Added
+- Check my setup now times how long it takes to open a few comics in your comics folder and warns when it is slow, or when the folder is on a network share or a cloud-synced folder. The result is part of the copied report for Tulip (never the folder's path).
+
 ## [5.11.0] - 2026-11-03
 
 ### Changed

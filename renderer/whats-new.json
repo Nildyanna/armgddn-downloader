@@ -1,4 +1,12 @@
 {
+  "5.12.0": {
+    "title": "Faster Comics Scan",
+    "highlights": [
+      "Scanning a comics folder is much faster when it holds comics from the library, even on a cloud or network drive like R:. The Companion matches them by name and size instead of opening every file.",
+      "Files it doesn't recognise are still read, and damaged or cut-short comics are still caught.",
+      "Check my setup now tells you when your comics folder is slow to read, such as a network or cloud drive."
+    ]
+  },
   "5.11.0": {
     "title": "Comics Go Straight Into Your Folder",
     "highlights": [

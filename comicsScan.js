@@ -119,9 +119,26 @@ function sniffArchive(filePath, ext) {                         // cheap sanity c
 }
 
 // cache: { [rel]: { size, mtimeMs, ...row } } from an earlier scan of the same folder; unchanged files are not read again.
+// The catalog already says what every library comic is. A file whose name and size match exactly one catalog row IS that comic, so it never has to
+// be opened (reading it is slow on a cloud or network drive, and a cut-short file would have a different size anyway).
+// known: { "<file name lower case>|<bytes>": { cv, series, number, year } }
+function buildKnown(items) {
+  const seen = new Map();
+  for (const it of items || []) {
+    const [p, cv, size, number, year] = it;
+    if (!p || !size) continue;
+    const key = path.basename(String(p)).toLowerCase() + '|' + size;
+    seen.set(key, seen.has(key) ? null : { cv: cv || 0, series: String(p).split('/').slice(-2, -1)[0] || '', number: number == null ? '' : String(number), year: year == null ? '' : String(year) });
+  }
+  const known = {};
+  for (const [k, v] of seen) if (v) known[k] = v;          // a name and size shared by two library comics proves nothing: those are read
+  return known;
+}
+
 function scanFolder(root, opts) {
   const o = opts || {};
   const cache = o.cache || {};
+  const known = o.known || null;
   const rows = [], nextCache = {};
   let seen = 0;
   for (const full of walk(root, o.isCancelled)) {
@@ -134,6 +151,9 @@ function scanFolder(root, opts) {
     let row;
     if (hit && hit.size === st.size && hit.mtimeMs === st.mtimeMs) {
       row = hit;
+    } else if (known && st.size > 0 && known[path.basename(full).toLowerCase() + '|' + st.size]) {
+      const k = known[path.basename(full).toLowerCase() + '|' + st.size];
+      row = { rel, size: st.size, mtimeMs: st.mtimeMs, ext, cvId: k.cv, series: k.series, number: k.number, year: k.year, damaged: false, fast: true };
     } else {
       row = { rel, size: st.size, mtimeMs: st.mtimeMs, ext, cvId: 0, series: '', number: '', year: '', damaged: false };
       if (st.size === 0) row.damaged = true;
@@ -214,4 +234,4 @@ function planBatches(rows, maxFiles, maxBytes) {
   return batches;
 }
 
-module.exports = { planBatches, readZipInfo, parseComicInfo, parseFileName, scanFolder, compare, norm, normNum, COMIC_EXT };
+module.exports = { buildKnown, planBatches, readZipInfo, parseComicInfo, parseFileName, scanFolder, compare, norm, normNum, COMIC_EXT };

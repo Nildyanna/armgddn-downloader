@@ -3427,7 +3427,17 @@ ipcMain.handle('comics-pick-folder', async () => {
   return settings.comicsFolder;
 });
 
-ipcMain.handle('comics-scan', () => new Promise((resolve) => {
+ipcMain.handle('comics-scan', async () => {
+  // The library's own catalog lets the scan skip opening files it already knows by name and size (a big win on a cloud or network drive).
+  if (comicsState.running || comicsState.starting) return { ok: false, error: 'A scan is already running.' };
+  let known = null;
+  comicsState.starting = true;
+  try {
+    const cat = await comicsGet('/api/comics/catalog?list=all');
+    if (cat && cat.ok && cat.json && Array.isArray(cat.json.items)) known = comicsScan.buildKnown(cat.json.items);
+  } catch (e) { logToFile('[comics] catalog not available for the fast scan: ' + (e && e.message)); }
+  finally { comicsState.starting = false; }
+  return new Promise((resolve) => {
   const root = settings.comicsFolder;
   if (!root || !fs.existsSync(root)) { resolve({ ok: false, error: 'Choose your comics folder first.' }); return; }
   if (comicsState.running) { resolve({ ok: false, error: 'A scan is already running.' }); return; }
@@ -3436,7 +3446,7 @@ ipcMain.handle('comics-scan', () => new Promise((resolve) => {
   let worker;
   const finish = (out) => { comicsState.running = false; comicsState.worker = null; resolve(out); };
   try {
-    worker = new Worker(path.join(__dirname, 'comicsScanWorker.js'), { workerData: { root, cache: loadComicsCache(root) } });
+    worker = new Worker(path.join(__dirname, 'comicsScanWorker.js'), { workerData: { root, cache: loadComicsCache(root), known } });
   } catch (e) { finish({ ok: false, error: 'Could not start the scan: ' + e.message }); return; }
   comicsState.worker = worker;
   worker.on('message', (m) => {
@@ -3444,13 +3454,14 @@ ipcMain.handle('comics-scan', () => new Promise((resolve) => {
     if (m.type === 'done') {
       comicsState.rows = m.rows; comicsState.root = root; comicsState.at = Date.now(); comicsState.last = null;
       saveComicsCache(root, m.cache);
-      logToFile(`[comics] scanned ${m.rows.length} files`);
+      logToFile(`[comics] scanned ${m.rows.length} files (${m.rows.filter((r) => r.fast).length} matched the catalog by name and size without being opened)`);
       finish({ ok: true, count: m.rows.length, damaged: m.rows.filter((r) => r.damaged).length });
     }
   });
   worker.on('error', (e) => { logToFile('[comics] scan failed: ' + (e && e.message)); finish({ ok: false, error: 'The scan failed: ' + (e && e.message ? e.message : e) }); });
   worker.on('exit', (code) => { if (comicsState.running) finish({ ok: false, cancelled: true, error: 'The scan was stopped.' }); });
-}));
+  });
+});
 
 ipcMain.handle('comics-cancel-scan', () => { const w = comicsState.worker; if (w) { try { w.terminate(); } catch (e) { /* ignore */ } } return !!w; });
 
@@ -3528,7 +3539,7 @@ ipcMain.handle('check-disk-space', async (event, targetPath) => {
 ipcMain.handle('run-setup-check', async () => {
   try {
     const setupCheck = require('./setupCheck');
-    const facts = await setupCheck.collectFacts({ downloadPath: settings.downloadPath, getFreeDiskSpace });
+    const facts = await setupCheck.collectFacts({ downloadPath: settings.downloadPath, comicsFolder: settings.comicsFolder, getFreeDiskSpace });
     return { ok: true, findings: setupCheck.evaluateSetup(facts) };
   } catch (e) {
     logToFile(`[setup-check] failed: ${e.message}`);
@@ -3541,7 +3552,7 @@ ipcMain.handle('build-setup-report', async () => {
   try {
     const setupCheck = require('./setupCheck');
     const setupReport = require('./setupReport');
-    const facts = await setupCheck.collectFacts({ downloadPath: settings.downloadPath, getFreeDiskSpace });
+    const facts = await setupCheck.collectFacts({ downloadPath: settings.downloadPath, comicsFolder: settings.comicsFolder, getFreeDiskSpace });
     const findings = setupCheck.evaluateSetup(facts);
     let logText = '';
     try {

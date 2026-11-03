@@ -13,6 +13,10 @@ const TEMP_WARN_BYTES = 30 * GB;       // setup's temp files are as big as the g
 const DOWNLOAD_WARN_BYTES = 50 * GB;
 const LONG_PATH = 60;
 
+const COMICS_SLOW_MS = 400;          // opening one comic takes longer than this: scanning the folder will crawl
+const NETWORK_FS = /^(nfs|nfs4|cifs|smb|smbfs|smb3|afpfs|webdav|davfs|fuse\.sshfs|sshfs|fuse\.rclone|rclone|fuse\.s3fs|s3fs|9p|ceph|glusterfs)$/;
+const CLOUD_PATH = /(\/Library\/CloudStorage\/|\/Mobile Documents\/|[\\/](OneDrive|Google ?Drive|Dropbox|iCloud ?Drive)([\\/ -]|$))/i;
+
 function fmt(bytes) {
   if (bytes == null || bytes < 0) return 'unknown';
   return bytes >= GB ? `${(bytes / GB).toFixed(1)} GB` : `${Math.round(bytes / (1024 ** 2))} MB`;
@@ -81,6 +85,17 @@ function posixProblem(p, facts) {
   }
   if (/\/(snap|\.var\/app)\//.test(dl)) return 'a sandboxed app folder';
   return '';
+}
+
+// Where a comics folder obviously lives: a network share, or a folder a cloud service syncs. null = looks local.
+function comicsKind(p, facts) {
+  const dir = String(p || '');
+  if (!dir) return null;
+  if (/^\\\\/.test(dir)) return 'network';                       // \\server\share
+  if (CLOUD_PATH.test(dir)) return 'cloud';
+  const m = mountFor(dir, facts && facts.mounts);
+  if (m && NETWORK_FS.test(String(m.fs))) return 'network';
+  return null;
 }
 
 /** @returns {{id:string,status:'ok'|'warn'|'info',title:string,detail:string}[]} */
@@ -213,6 +228,22 @@ function evaluateSetup(facts) {
       add('redists', 'ok', 'Redistributables look installed', 'If a game still crashes on launch, type /redists in the ARMGDDN chat.');
     }
   }
+  // Comics folder (only when the member has chosen one in the Comics panel): is it quick to read?
+  if (facts.comicsFolder) {
+    const slow = facts.comicsTimedOut || (facts.comicsReadMs != null && facts.comicsReadMs >= COMICS_SLOW_MS);
+    const kind = facts.comicsKind;
+    if (slow || kind) {
+      const where = kind === 'network' ? 'a network drive' : kind === 'cloud' ? 'a cloud-synced folder' : 'a slow drive';
+      add('comics-folder', 'warn', 'Comics folder is slow to read',
+        `Your comics folder looks like ${where}` + (facts.comicsReadMs != null ? ` (opening one comic took about ${facts.comicsReadMs} ms)` : '') + '. ' +
+        'Scanning it opens every comic over the network, which can take hours. Comics that are in the ARMGDDN library are matched by name and size without being opened, so ' +
+        'those are quick, but anything else is slow. A comics folder on a drive inside your PC is fastest.');
+    } else if (facts.comicsReadMs != null) {
+      add('comics-folder', 'ok', 'Comics folder reads quickly', `Opening a comic took about ${facts.comicsReadMs} ms.`);
+    } else {
+      add('comics-folder', 'info', 'Comics folder', 'No comic files were found there to test.');
+    }
+  }
   return out;
 }
 
@@ -224,7 +255,49 @@ function run(cmd, args, timeout = 8000) {
   });
 }
 
-async function collectFacts({ downloadPath, getFreeDiskSpace }) {
+// Times how long it takes to open a few comics in the folder, in a worker so a slow drive cannot freeze the app.
+function benchComicsFolder(root) {
+  return new Promise((resolve) => {
+    let w;
+    const code = `
+      const { parentPort, workerData } = require('worker_threads');
+      const fs = require('fs'), path = require('path');
+      const cs = require(workerData.cs);
+      const t0 = Date.now(), files = [], stack = [workerData.root];
+      while (stack.length && files.length < 3 && Date.now() - t0 < 4000) {
+        let ents; try { ents = fs.readdirSync(stack.pop(), { withFileTypes: true }); } catch (e) { continue; }
+        for (const e of ents) {
+          const full = path.join(e.parentPath || e.path || '', e.name);
+          if (e.isDirectory()) stack.push(full);
+          else if (/\\.(cbz|zip)$/i.test(e.name) && files.length < 3) files.push(full);
+        }
+      }
+      let total = 0, n = 0;
+      for (const f of files) { const s = Date.now(); try { cs.readZipInfo(f); } catch (e) { /* counted anyway */ } total += Date.now() - s; n++; if (Date.now() - t0 > 9000) break; }
+      parentPort.postMessage({ ms: n ? Math.round(total / n) : null });`;
+    const timer = setTimeout(() => { try { w && w.terminate(); } catch (e) { /* ignore */ } resolve({ ms: null, timedOut: true }); }, 12000);
+    try {
+      const { Worker } = require('worker_threads');
+      w = new Worker(code, { eval: true, workerData: { root, cs: require.resolve('./comicsScan') } });
+      w.on('message', (m) => { clearTimeout(timer); try { w.terminate(); } catch (e) { /* ignore */ } resolve(m); });
+      w.on('error', () => { clearTimeout(timer); resolve({ ms: null }); });
+    } catch (e) { clearTimeout(timer); resolve({ ms: null }); }
+  });
+}
+
+async function collectFacts({ downloadPath, comicsFolder, getFreeDiskSpace }) {
+  const facts = await collectBaseFacts({ downloadPath, getFreeDiskSpace });
+  if (comicsFolder && fs.existsSync(comicsFolder)) {
+    facts.comicsFolder = comicsFolder;
+    facts.comicsKind = comicsKind(comicsFolder, facts);
+    const b = await benchComicsFolder(comicsFolder);
+    facts.comicsReadMs = b && b.ms != null ? b.ms : null;
+    facts.comicsTimedOut = !!(b && b.timedOut);
+  }
+  return facts;
+}
+
+async function collectBaseFacts({ downloadPath, getFreeDiskSpace }) {
   const facts = { platform: process.platform, downloadPath, homeDir: os.homedir(), tempDir: os.tmpdir() };
   try { facts.freeDownload = getFreeDiskSpace(downloadPath); } catch (e) { facts.freeDownload = null; }
   try { facts.freeTemp = getFreeDiskSpace(facts.tempDir); } catch (e) { facts.freeTemp = null; }
@@ -264,4 +337,4 @@ async function collectFacts({ downloadPath, getFreeDiskSpace }) {
   return facts;
 }
 
-module.exports = { evaluateSetup, collectFacts, parseMounts, mountFor };
+module.exports = { evaluateSetup, collectFacts, parseMounts, mountFor, comicsKind, COMICS_SLOW_MS };

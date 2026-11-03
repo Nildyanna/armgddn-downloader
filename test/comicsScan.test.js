@@ -126,3 +126,23 @@ test('missing comics are split into download batches by file count and by size, 
   assert.deepStrictEqual(cs.planBatches([], 4, 10), []);
   assert.strictEqual(cs.planBatches(rows, 4, 1e9)[0][0][0], 'p0');
 });
+
+
+test('a file whose name and size match the catalog is counted without being opened, others are still read', () => {
+  const junk = Buffer.alloc(1234, 7);                                     // not a real zip: reading it would call it damaged
+  const dir = folder({ 'mine/Thor 407 (1989).cbz': junk, 'mine/Thor 408 (1989).cbz': Buffer.alloc(999, 7) });
+  const items = [['Thor Collection/Thor/Thor 407 (1989).cbz', 38000, 1234, '407', '1989'], ['Thor Collection/Thor/Thor 408 (1989).cbz', 38001, 5555, '408', '1989']];
+  const known = cs.buildKnown(items);
+  const withFast = Object.fromEntries(cs.scanFolder(dir, { known }).rows.map((r) => [r.rel, r]));
+  assert.deepStrictEqual([withFast['mine/Thor 407 (1989).cbz'].cvId, withFast['mine/Thor 407 (1989).cbz'].damaged, withFast['mine/Thor 407 (1989).cbz'].fast], [38000, false, true]);
+  assert.strictEqual(withFast['mine/Thor 408 (1989).cbz'].damaged, true, 'a different size is read as before, and a cut-short file is still flagged');
+  const without = cs.scanFolder(dir).rows.find((r) => r.rel === 'mine/Thor 407 (1989).cbz');
+  assert.strictEqual(without.damaged, true);
+  const r = cs.compare(items, Object.values(withFast));
+  assert.deepStrictEqual([r.have, r.missing], [1, 1]);
+});
+
+test('a name and size that two library comics share is never trusted without reading', () => {
+  const known = cs.buildKnown([['A/Thor/x.cbz', 1, 100, '1', '2000'], ['B/Thor/x.cbz', 2, 100, '2', '2001'], ['A/Thor/y.cbz', 3, 200, '3', '2002']]);
+  assert.deepStrictEqual(Object.keys(known), ['y.cbz|200']);
+});

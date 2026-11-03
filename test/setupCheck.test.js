@@ -83,3 +83,23 @@ test('the report code carries the Linux and macOS facts without any path', () =>
   assert.strictEqual(rep.facts.dlDrive, null);
   assert.ok(!JSON.stringify(rep).includes('/mnt/usb'));
 });
+
+
+test('the comics folder: a slow read, a network or cloud folder warn; a quick local one is fine; none chosen says nothing', () => {
+  const { comicsKind, COMICS_SLOW_MS } = require('../setupCheck');
+  const find = (extra) => evaluateSetup({ ...facts('D:\\Games'), ...extra }).find((f) => f.id === 'comics-folder');
+  assert.strictEqual(find({}), undefined);
+  assert.strictEqual(find({ comicsFolder: 'D:\\Comics', comicsReadMs: 8 }).status, 'ok');
+  const slow = find({ comicsFolder: 'R:\\', comicsReadMs: COMICS_SLOW_MS + 1 });
+  assert.strictEqual(slow.status, 'warn');
+  assert.match(slow.detail, /name and size/);
+  assert.strictEqual(find({ comicsFolder: 'R:\\', comicsReadMs: null, comicsTimedOut: true }).status, 'warn');
+  assert.strictEqual(find({ comicsFolder: '\\\\nas\\comics', comicsReadMs: 5, comicsKind: 'network' }).status, 'warn');
+  assert.strictEqual(find({ comicsFolder: 'D:\\Comics', comicsReadMs: null }).status, 'info');
+  assert.strictEqual(comicsKind('\\\\nas\\comics', {}), 'network');
+  assert.strictEqual(comicsKind('C:\\Users\\a\\OneDrive\\Comics', {}), 'cloud');
+  assert.strictEqual(comicsKind('/Users/a/Library/CloudStorage/GoogleDrive-a/Comics', {}), 'cloud');
+  assert.strictEqual(comicsKind('D:\\Comics', {}), null);
+  assert.strictEqual(comicsKind('/mnt/nas/comics', { mounts: [{ mount: '/mnt/nas', fs: 'cifs', opts: [] }] }), 'network');
+  assert.strictEqual(comicsKind('/home/a/comics', { mounts: [{ mount: '/', fs: 'ext4', opts: [] }] }), null);
+});
