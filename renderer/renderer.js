@@ -319,6 +319,25 @@ async function showAlertDialog(title, message) {
       }
     });
 
+    // File check (comparing downloaded files with the originals' checksums)
+    api.onHashCheckProgress((data) => {
+      const download = downloads.get(data.id);
+      const text = `Checking files (${data.done}/${data.total})...`;
+      if (download) { download.hashRunning = true; download.hashText = text; renderDownloads(); }
+      setHistoryHashText(data.id, text, true);
+    });
+    api.onHashCheckResult((data) => {
+      const download = downloads.get(data.id);
+      const bad = data.result && (data.result.bad.length || data.result.missing.length);
+      if (download) { download.hashRunning = false; download.hashText = data.text || ''; download.hashBad = !!bad; renderDownloads(); }
+      setHistoryHashText(data.id, data.text || '', false, !!bad);
+    });
+    api.onHashCheckRequested((data) => {
+      const download = downloads.get(data.id);
+      if (download) { download.hashRunning = true; download.hashText = 'Checking files...'; renderDownloads(); }
+      setHistoryHashText(data.id, 'Checking files...', true);
+    });
+
     api.onDownloadError((data) => {
       const download = downloads.get(data.id);
       if (!download) {
@@ -897,6 +916,7 @@ async function showAlertDialog(title, message) {
         <span class="total-speed">${(download.status === 'extracting' || download.status === 'completed') ? (download.totalSpeed ? `Peak: ${download.totalSpeed}` : '') : (download.totalSpeed ? (hasMultipleFiles ? `Total: ${download.totalSpeed}` : download.totalSpeed) : '')}</span>
       </div>
       <div class="download-extracting-message" style="display: ${download.status === 'extracting' ? 'block' : 'none'};">Extracting .7z archives, please wait..</div>
+      ${download.hashText ? `<div class="download-hash-message${download.hashBad ? ' download-hash-message--bad' : ''}">${formatSupportText(download.hashText)}</div>` : ''}
       ${showErrMsg ? `<div class="download-error-message">${formatSupportText(errMsg)}</div>` : ''}
       ${activeFilesHtml ? `<div class="active-files">${activeFilesHtml}</div>` : ''}
       <div class="download-disclaimer">
@@ -907,6 +927,7 @@ async function showAlertDialog(title, message) {
         ${isPaused ? `<button class="resume-btn" data-download-id="${id}">Resume</button>` : ''}
         ${canCancel ? `<button class="cancel-btn" data-download-id="${id}">Cancel</button>` : ''}
         ${download.status === 'completed' ? `<button class="open-folder-btn">Open Folder</button>` : ''}
+        ${download.status === 'completed' ? (download.hashRunning ? `<button class="cancel-hash-btn" data-download-id="${id}">Stop check</button>` : `<button class="check-files-btn" data-download-id="${id}" title="Compare every file with the original's checksum">Check files</button>`) : ''}
         ${download.status === 'error' ? `<button class="retry-btn" data-download-id="${id}">Retry</button>` : ''}
       </div>
     `;
@@ -931,6 +952,14 @@ async function showAlertDialog(title, message) {
       const retryBtn = item.querySelector('.retry-btn');
       if (retryBtn) {
         retryBtn.onclick = () => retryDownload(id);
+      }
+      const checkBtn = item.querySelector('.check-files-btn');
+      if (checkBtn) {
+        checkBtn.onclick = () => startFileCheck(id);
+      }
+      const stopCheckBtn = item.querySelector('.cancel-hash-btn');
+      if (stopCheckBtn) {
+        stopCheckBtn.onclick = () => api.cancelHashCheck(id);
       }
     }
 
@@ -1214,6 +1243,10 @@ async function showAlertDialog(title, message) {
     if (autoExtractEl) {
       autoExtractEl.checked = !!settings.autoExtract7z;
     }
+    const autoHashEl = document.getElementById('auto-hash-check');
+    if (autoHashEl) {
+      autoHashEl.checked = !!settings.autoHashCheck;
+    }
     document.getElementById('show-notifications').checked = settings.showNotifications !== false;
     document.getElementById('minimize-to-tray-on-minimize').checked = !!settings.minimizeToTrayOnMinimize;
     document.getElementById('minimize-to-tray-on-exit').checked = !!settings.minimizeToTrayOnClose;
@@ -1265,6 +1298,10 @@ async function showAlertDialog(title, message) {
     const autoExtractEl = document.getElementById('auto-extract-7z');
     if (autoExtractEl) {
       settings.autoExtract7z = !!autoExtractEl.checked;
+    }
+    const autoHashEl = document.getElementById('auto-hash-check');
+    if (autoHashEl) {
+      settings.autoHashCheck = !!autoHashEl.checked;
     }
     settings.showNotifications = document.getElementById('show-notifications').checked;
     settings.minimizeToTrayOnMinimize = document.getElementById('minimize-to-tray-on-minimize').checked;
@@ -1353,10 +1390,33 @@ async function showAlertDialog(title, message) {
       </div>
       <div class="history-item-details">
         <span class="history-date">${ICON_CALENDAR} ${dateStr}</span>
+        <button class="history-check-btn secondary-btn" type="button" title="Compare every file with the original's checksum">Check files</button>
       </div>
+      <div class="history-hash-message" data-history-id="${escapeHtml(String(item.id || ''))}"></div>
     `;
+      const histBtn = div.querySelector('.history-check-btn');
+      if (histBtn && item.id) { histBtn.onclick = () => startFileCheck(item.id); } else if (histBtn) { histBtn.style.display = 'none'; }
 
       container.appendChild(div);
+    }
+  }
+
+  function setHistoryHashText(id, text, running, bad) {
+    try {
+      const el = document.querySelector(`.history-hash-message[data-history-id="${CSS.escape(String(id))}"]`);
+      if (!el) return;
+      el.textContent = text || '';
+      el.classList.toggle('history-hash-message--bad', !!bad);
+      el.classList.toggle('history-hash-message--running', !!running);
+    } catch (e) { }
+  }
+
+  async function startFileCheck(id) {
+    const out = await api.verifyDownloadFiles(id);
+    if (out && out.error) {
+      const download = downloads.get(id);
+      if (download) { download.hashRunning = false; download.hashText = out.error; download.hashBad = false; renderDownloads(); }
+      setHistoryHashText(id, out.error, false, false);
     }
   }
 

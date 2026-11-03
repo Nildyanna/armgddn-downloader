@@ -1211,3 +1211,9 @@ body::after {
 .setup-check-item.info { border-left-color: #6b7280; }
 .setup-check-item .setup-check-title { font-weight: 600; }
 .setup-check-item .setup-check-detail { margin-top: 2px; font-size: 0.9em; opacity: 0.85; }
+
+/* File check result under a download or history entry */
+.download-hash-message, .history-hash-message { margin-top: 6px; font-size: 0.85rem; color: var(--text-secondary, #9aa4b2); }
+.download-hash-message--bad, .history-hash-message--bad { color: #ff8a5c; font-weight: 600; }
+.history-hash-message:empty { display: none; }
+.history-check-btn { margin-left: auto; padding: 2px 10px; font-size: 0.8rem; }

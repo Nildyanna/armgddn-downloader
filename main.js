@@ -954,6 +954,8 @@ function isAllowedUpdateHost(hostname) {
   return false;
 }
 
+const hashCheck = require('./hashCheck');
+
 function sanitizeRelativePath(input) {
   if (input == null || input === '') return null;
   if (typeof input !== 'string') return null;
@@ -1328,6 +1330,7 @@ let settings = {
   maxConcurrentDownloads: 2,
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
+  autoHashCheck: false,
   showNotifications: true,
   minimizeToTrayOnMinimize: false,
   minimizeToTrayOnClose: false,
@@ -1413,6 +1416,7 @@ function normalizeSettings() {
     settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
 
     settings.autoExtract7z = !!settings.autoExtract7z;
+    settings.autoHashCheck = !!settings.autoHashCheck;
     settings.showNotifications = settings.showNotifications !== false;
     settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
     settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
@@ -2264,7 +2268,7 @@ function validateDeepLink(url) {
     if (parsed.protocol !== 'armgddn:') return null;
 
     // Whitelist allowed actions
-    const allowedHosts = ['download', 'open', 'komga'];
+    const allowedHosts = ['download', 'open', 'komga', 'verify'];
     if (!allowedHosts.includes(parsed.hostname)) {
       logToFile(`Deep link rejected - invalid host: ${parsed.hostname}`);
       return null;
@@ -2285,6 +2289,11 @@ function validateDeepLink(url) {
         logToFile('Deep link rejected - invalid downloadToken format');
         return null;
       }
+    }
+
+    if (parsed.hostname === 'verify' && !/^[A-Za-z0-9._-]{1,100}$/.test(String(parsed.searchParams.get('id') || ''))) {
+      logToFile('Deep link rejected - bad verify id');
+      return null;
     }
 
     if (parsed.hostname === 'komga' && !komga.isValidListId(String(parsed.searchParams.get('list') || ''))) {
@@ -2453,6 +2462,12 @@ function handleDeepLink(url) {
   // Adding a read list to the member's Komga is handled here in the main process (no renderer round trip).
   try {
     const u = new URL(validatedUrl);
+    if (u.hostname === 'verify') {
+      const vid = String(u.searchParams.get('id') || '');
+      try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } else { mainWindow.focus(); } sendToMain('hash-check-requested', { id: vid }); } } catch (e) { }
+      runHashCheck(vid).catch(() => { });
+      return;
+    }
     if (u.hostname === 'komga') {
       addReadListToKomga(u.searchParams.get('list')).catch(e => logToFile('Komga add failed: ' + (e && e.message ? e.message : e)));
       return;
@@ -3286,6 +3301,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'maxConcurrentDownloads',
     'maxDownloadSpeedMBps',
     'autoExtract7z',
+    'autoHashCheck',
     'showNotifications',
     'minimizeToTrayOnMinimize',
     'minimizeToTrayOnClose',
@@ -4483,6 +4499,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl) => 
       }
     } catch (e) { }
     download.files = allFiles;
+    try { hashCheck.saveManifest(app.getPath('userData'), { id: downloadId, name, downloadDir, files: allFiles }); } catch (eHash) { }
     if (allFiles.length > 0) {
       const skippedMessage = completedFiles > 0
         ? `Skipped ${completedFiles}/${allFiles.length} files already on disk.`
@@ -7449,7 +7466,78 @@ function installSpaceTip(download) {
   }
 }
 
-function completeDownload(downloadId) {
+// ---- File check (MD5 against the checksums the site listed) ----
+const hashChecksRunning = new Map();      // download id -> { cancelled }
+
+function reportHashCheckToServer(download, token, result) {
+  try {
+    if (!download || !token || !result) return;
+    const host = download.progressHost || 'www.armgddnbrowser.com';
+    if (!isAllowedServiceHost(host)) return;
+    const body = JSON.stringify({
+      downloadId: download.id,
+      remotePath: download.remotePath || '',
+      checked: result.total, ok: result.ok, bad: result.bad.length, missing: result.missing.length, notChecked: result.notChecked,
+      badNames: result.bad.slice(0, 5).map((b) => b.name),
+      at: result.at
+    });
+    const req = https.request({
+      hostname: host, port: download.progressPort || 443, path: '/api/app-hash-check', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': `Bearer ${token}` }
+    }, (res) => { res.resume(); });
+    req.on('error', () => { });
+    req.setTimeout(15000, () => { try { req.destroy(); } catch (e) { } });
+    req.write(body);
+    req.end();
+  } catch (e) { }
+}
+
+// Runs the check for one download (live or finished). Progress goes to the window as 'hash-check-progress'; the result is kept and reported to the site.
+async function runHashCheck(downloadId, opts) {
+  const o = opts || {};
+  const id = String(downloadId);
+  if (hashChecksRunning.has(id)) return { error: 'A file check is already running for this download.' };
+  const doc = hashCheck.loadManifest(app.getPath('userData'), id);
+  if (!doc) return { error: 'This download has no checksums to compare against.' };
+  const live = activeDownloads.get(downloadId) || activeDownloads.get(id) || null;
+  const downloadDir = doc.downloadDir || (live && live.name ? path.join(settings.downloadPath, live.name) : '');
+  const state = { cancelled: false };
+  hashChecksRunning.set(id, state);
+  try {
+    sendToMain('hash-check-progress', { id, done: 0, total: doc.files.length, name: '' });
+    const result = await hashCheck.verifyManifest(doc, {
+      resolvePath: (rel) => { const safe = sanitizeRelativePath(String(rel)); return safe ? resolveInside(downloadDir, safe) : null; },
+      isCancelled: () => state.cancelled,
+      onProgress: (pr) => {
+        if (live) { live.statusMessage = `Checking files (${pr.done}/${pr.total})...`; }
+        sendToMain('hash-check-progress', { id, done: pr.done, total: pr.total, name: pr.name });
+      }
+    });
+    if (!result.cancelled) {
+      hashCheck.saveResult(app.getPath('userData'), id, result);
+      reportHashCheckToServer(live || { id, remotePath: '' , progressHost: null }, (live && live.token) || (() => { try { return loadSession(); } catch (e) { return null; } })(), result);
+    }
+    const text = hashCheck.describeResult(result);
+    sendToMain('hash-check-result', { id, result, text });
+    logToFile(`[hashCheck] ${doc.name}: ok=${result.ok} bad=${result.bad.length} missing=${result.missing.length} notChecked=${result.notChecked}${result.cancelled ? ' (stopped)' : ''}`);
+    return { result, text };
+  } catch (e) {
+    logToFile(`[hashCheck] failed: ${e && e.message ? e.message : e}`);
+    return { error: 'The file check could not run: ' + (e && e.message ? e.message : e) };
+  } finally {
+    hashChecksRunning.delete(id);
+  }
+}
+
+ipcMain.handle('verify-download-files', (event, id) => runHashCheck(id));
+ipcMain.handle('cancel-hash-check', (event, id) => { const st = hashChecksRunning.get(String(id)); if (st) st.cancelled = true; return !!st; });
+ipcMain.handle('get-hash-check-info', (event, id) => {
+  const doc = hashCheck.loadManifest(app.getPath('userData'), String(id));
+  if (!doc) return { available: false };
+  return { available: true, files: doc.files.length, totalFiles: doc.totalFiles, lastCheck: doc.lastCheck || null, lastCheckText: doc.lastCheck ? hashCheck.describeResult(doc.lastCheck) : '', running: hashChecksRunning.has(String(id)) };
+});
+
+function completeDownload(downloadId, afterHashCheck) {
   logToFile(`[completeDownload] Called for ${downloadId}`);
   const download = activeDownloads.get(downloadId);
   if (!download) {
@@ -7463,6 +7551,26 @@ function completeDownload(downloadId) {
   }
 
   if (download.__armgddnFinalizing) {
+    return;
+  }
+
+  // "Check files automatically": compare every file with the checksums the site listed before anything is unpacked.
+  if (!afterHashCheck && settings && settings.autoHashCheck && hashCheck.loadManifest(app.getPath('userData'), String(downloadId))) {
+    download.__armgddnFinalizing = true;
+    download.statusMessage = 'Checking files...';
+    download.progress = 99;
+    try { updateProgress(downloadId); } catch (e) { }
+    runHashCheck(downloadId).then((r) => {
+      download.__armgddnFinalizing = false;
+      const res = r && r.result;
+      if (res && (res.bad.length || res.missing.length)) {
+        download.forceDisableAutoExtract = true;       // unpacking a damaged archive only produces a second, more confusing error
+        download.statusMessage = `${r.text} Automatic extraction was skipped.`;
+      } else {
+        download.statusMessage = res ? r.text : '';
+      }
+      completeDownload(downloadId, true);
+    }).catch(() => { download.__armgddnFinalizing = false; completeDownload(downloadId, true); });
     return;
   }
 

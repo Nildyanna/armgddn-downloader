@@ -39,6 +39,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   getAppLoad: (token, manifestUrl) => ipcRenderer.invoke('get-app-load', token, manifestUrl),
   showMessageBox: (options) => ipcRenderer.invoke('show-message-box', options),
   getWhatsNew: () => ipcRenderer.invoke('get-whats-new'),
+  verifyDownloadFiles: (id) => ipcRenderer.invoke('verify-download-files', id),
+  cancelHashCheck: (id) => ipcRenderer.invoke('cancel-hash-check', id),
+  getHashCheckInfo: (id) => ipcRenderer.invoke('get-hash-check-info', id),
 
   // Events
   onDeepLink: (callback) => ipcRenderer.on('deep-link', (event, url) => callback(url)),
@@ -49,6 +52,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onDownloadCancelled: (callback) => ipcRenderer.on('download-cancelled', (event, data) => callback(data)),
   onServerNotice: (callback) => ipcRenderer.on('server-notice', (event, message) => callback(message)),
   onShowWhatsNew: (callback) => ipcRenderer.on('show-whats-new', (event, data) => callback(data)),
+  onHashCheckProgress: (callback) => ipcRenderer.on('hash-check-progress', (event, data) => callback(data)),
+  onHashCheckResult: (callback) => ipcRenderer.on('hash-check-result', (event, data) => callback(data)),
+  onHashCheckRequested: (callback) => ipcRenderer.on('hash-check-requested', (event, data) => callback(data)),
 
   // Remove listeners
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
