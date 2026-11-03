@@ -1,4 +1,13 @@
 {
+  "5.7.0": {
+    "title": "Check Your Files",
+    "highlights": [
+      "New Check files button on finished downloads and in History: it compares every file with the originals' checksums and tells you which one, if any, is damaged.",
+      "New setting, Check files after download: files are checked before anything is extracted, so a bad file is reported instead of being unpacked.",
+      "The Downloads panel on the site shows the result and has its own link to start a check. A check can take a few minutes on big downloads.",
+      "If Auto extract is on without Check files after download, the Check files button is hidden, because files would be unpacked before anything checked them. You'll be told once; turn the setting on to get both."
+    ]
+  },
   "5.6.0": {
     "title": "ARMGDDN Companion is Live",
     "highlights": [

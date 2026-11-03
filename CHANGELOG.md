@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.7.0] - 2026-11-03
+
+### Added
+- Check files: compares each downloaded file with the checksum (MD5) the drive lists for it. There is a Check files button on finished downloads and in History, and a "Check files after download" setting that checks before anything is extracted and reports which file failed. The site's downloads panel shows the result and links to the check.
+- When Auto extract is on without "Check files after download", Check files is hidden (files would be unpacked before anything checked them) and the Companion says so once, with an "I understand" button. The site's downloads panel shows the same.
+
 ### Removed
 - The Android app (APK) is retired. Companion is Windows, Linux and macOS only; releases no longer include an APK and the `mobile-android` build and the mobile emulator test are gone from CI. The `mobile/` source is kept for reference.
 
