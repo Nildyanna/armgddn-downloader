@@ -19,6 +19,7 @@
           <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
           History
         </button>
+        <button id="comics-btn" class="settings-btn" title="Find the comics you are missing">Comics</button>
         <button id="check-updates-btn" class="settings-btn">
           <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
           Check for Updates
@@ -29,6 +30,29 @@
         </button>
       </div>
     </header>
+
+    <div id="comics-panel" class="comics-panel" style="display: none;" role="dialog" aria-label="Comics you are missing">
+      <div class="comics-panel-inner">
+        <div class="comics-panel-head">
+          <h2>Comics: only what I'm missing</h2>
+          <button id="comics-close-btn" class="secondary-btn" type="button">Close</button>
+        </div>
+        <p class="comics-note">Pick the folder where your comics are. The Companion reads it on this PC and compares it with the library. Nothing about your folder is sent to the site.</p>
+        <div class="comics-row">
+          <span id="comics-folder" class="comics-folder">No folder chosen</span>
+          <button id="comics-pick-btn" class="secondary-btn" type="button">Choose folder</button>
+          <button id="comics-scan-btn" class="secondary-btn" type="button">Scan</button>
+          <button id="comics-stop-btn" class="secondary-btn" type="button" style="display: none;">Stop</button>
+        </div>
+        <div id="comics-scan-status" class="comics-status" aria-live="polite"></div>
+        <div class="comics-row">
+          <label for="comics-list">Compare with</label>
+          <select id="comics-list"><option value="all">Everything in the library</option></select>
+          <button id="comics-compare-btn" class="secondary-btn" type="button">Find what I'm missing</button>
+        </div>
+        <div id="comics-result" class="comics-result" aria-live="polite"></div>
+      </div>
+    </div>
 
     <div id="overhead-notice" class="overhead-notice" style="display: none;">
       <div class="overhead-notice-inner">

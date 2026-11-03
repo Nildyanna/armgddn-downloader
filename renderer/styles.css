@@ -1229,3 +1229,15 @@ body::after {
 .download-hash-message--bad, .history-hash-message--bad { color: #ff8a5c; font-weight: 600; }
 .history-hash-message:empty { display: none; }
 .history-check-btn { margin-left: auto; padding: 2px 10px; font-size: 0.8rem; }
+
+/* Comics: only what I'm missing */
+.comics-panel { position: fixed; inset: 0; z-index: 60; background: rgba(5, 8, 18, 0.82); display: flex; align-items: center; justify-content: center; padding: 1.5rem; }
+.comics-panel-inner { width: min(760px, 100%); max-height: 90vh; overflow: auto; background: #0e1424; border: 1px solid rgba(46, 242, 255, 0.35); border-radius: 12px; padding: 1.25rem 1.5rem; }
+.comics-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.comics-panel-head h2 { margin: 0; font-size: 1.15rem; }
+.comics-note { opacity: 0.8; font-size: 0.9rem; margin: 0.6rem 0 1rem; }
+.comics-row { display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; margin: 0.6rem 0; }
+.comics-folder { flex: 1 1 220px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; opacity: 0.9; }
+.comics-status { min-height: 1.2rem; font-size: 0.9rem; opacity: 0.85; }
+.comics-result { margin-top: 0.8rem; display: flex; flex-direction: column; gap: 0.5rem; }
+.comics-row select { max-width: 100%; }

@@ -40,6 +40,8 @@
       "segmentedDownload.js",
       "httpOpen.js",
       "hashCheck.js",
+      "comicsScan.js",
+      "comicsScanWorker.js",
       "renderer/**/*",
       "assets/**/*"
     ],

@@ -40,6 +40,13 @@ contextBridge.exposeInMainWorld('electronAPI', {
   showMessageBox: (options) => ipcRenderer.invoke('show-message-box', options),
   getWhatsNew: () => ipcRenderer.invoke('get-whats-new'),
   verifyDownloadFiles: (id) => ipcRenderer.invoke('verify-download-files', id),
+  comicsGetState: () => ipcRenderer.invoke('comics-get-state'),
+  comicsPickFolder: () => ipcRenderer.invoke('comics-pick-folder'),
+  comicsScan: () => ipcRenderer.invoke('comics-scan'),
+  comicsCancelScan: () => ipcRenderer.invoke('comics-cancel-scan'),
+  comicsInfo: () => ipcRenderer.invoke('comics-info'),
+  comicsCompare: (listId) => ipcRenderer.invoke('comics-compare', listId),
+  onComicsScanProgress: (callback) => ipcRenderer.on('comics-scan-progress', (event, data) => callback(data)),
   cancelHashCheck: (id) => ipcRenderer.invoke('cancel-hash-check', id),
   getHashCheckInfo: (id) => ipcRenderer.invoke('get-hash-check-info', id),
 

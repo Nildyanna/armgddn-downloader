@@ -257,6 +257,7 @@ async function showAlertDialog(title, message) {
 
     // History
     document.getElementById('history-btn').addEventListener('click', openHistory);
+    initComicsPanel();
     document.getElementById('close-history-btn').addEventListener('click', closeHistory);
     document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
 
@@ -1165,6 +1166,73 @@ async function showAlertDialog(title, message) {
   }
 
   // Settings > "Check my setup": findings are built with textContent so nothing from the machine can inject markup.
+  // ---- Comics: only what I'm missing
+  function initComicsPanel() {
+    const $ = (id) => document.getElementById(id);
+    const panel = $('comics-panel');
+    if (!panel || !api.comicsGetState) return;
+    const fmt = (n) => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : Math.round(n / 1e6) + ' MB');
+    const num = (n) => Number(n || 0).toLocaleString();
+    const say = (id, text) => { const el = $(id); if (el) el.textContent = text || ''; };
+    let scanned = false;
+
+    async function refreshState() {
+      const st = await api.comicsGetState();
+      say('comics-folder', st.folder || 'No folder chosen');
+      scanned = !!st.scanned;
+      $('comics-compare-btn').disabled = !scanned;
+      if (scanned) say('comics-scan-status', `Scanned ${num(st.scanned)} comic files.`);
+    }
+    async function loadLists() {
+      const r = await api.comicsInfo();
+      const sel = $('comics-list');
+      if (!r || !r.ok) { say('comics-result', (r && r.error) || 'Could not load the list of reading orders.'); return; }
+      sel.textContent = '';
+      const all = document.createElement('option'); all.value = 'all'; all.textContent = `Everything in the library (${num(r.totals && r.totals.books)} comics)`; sel.appendChild(all);
+      for (const l of r.lists) { const o = document.createElement('option'); o.value = l.id; o.textContent = `${l.name} (${num(l.books)})`; sel.appendChild(o); }
+    }
+    async function open() {
+      panel.style.display = '';
+      say('comics-result', '');
+      await refreshState();
+      loadLists().catch(() => { });
+    }
+    $('comics-btn').addEventListener('click', open);
+    $('comics-close-btn').addEventListener('click', () => { panel.style.display = 'none'; });
+    api.onComicsScanProgress((d) => say('comics-scan-status', `Scanning... ${num(d.scanned)} files`));
+    $('comics-pick-btn').addEventListener('click', async () => { const f = await api.comicsPickFolder(); if (f) { await refreshState(); say('comics-scan-status', 'Folder chosen. Press Scan.'); } });
+    $('comics-scan-btn').addEventListener('click', async () => {
+      $('comics-scan-btn').disabled = true; $('comics-stop-btn').style.display = ''; say('comics-scan-status', 'Scanning...'); say('comics-result', '');
+      const r = await api.comicsScan();
+      $('comics-scan-btn').disabled = false; $('comics-stop-btn').style.display = 'none';
+      if (!r || !r.ok) { say('comics-scan-status', (r && r.error) || 'The scan failed.'); return; }
+      say('comics-scan-status', `Scanned ${num(r.count)} comic files${r.damaged ? `; ${num(r.damaged)} look damaged or cut short` : ''}.`);
+      await refreshState();
+    });
+    $('comics-stop-btn').addEventListener('click', () => api.comicsCancelScan());
+    $('comics-compare-btn').addEventListener('click', async () => {
+      const box = $('comics-result');
+      box.textContent = 'Comparing...';
+      const r = await api.comicsCompare($('comics-list').value);
+      if (!r || !r.ok) { box.textContent = (r && r.error) || 'The comparison failed.'; return; }
+      const s = r.summary;
+      box.textContent = '';
+      const line = (cls, text) => { const d = document.createElement('div'); d.className = 'setup-check-item ' + cls; const t = document.createElement('div'); t.className = 'setup-check-title'; t.textContent = text; d.appendChild(t); box.appendChild(d); return d; };
+      line(s.missing ? 'warn' : 'ok', s.missing
+        ? `You have ${num(s.have + s.haveByName)} of ${num(s.total)}. ${num(s.missing)} are missing (${fmt(s.bytesMissing)}).`
+        : `You already have all ${num(s.total)} comics in ${r.list.name}.`);
+      if (s.haveByName) line('ok', `${num(s.haveByName)} were matched by name because they have no Comic Vine tag.`);
+      if (s.maybe) line('info', `${num(s.maybe)} look like the same issue from a different year; they are listed as missing so nothing is skipped by mistake.`);
+      if (s.damagedCount) line('warn', `${num(s.damagedCount)} of your files look damaged or cut short and are not counted as owned: ${s.damaged.slice(0, 3).join(', ')}${s.damagedCount > 3 ? ', ...' : ''}`);
+      if (s.perSeries.length) {
+        const d = line('info', 'Missing by series');
+        const body = document.createElement('div'); body.className = 'setup-check-detail';
+        body.textContent = s.perSeries.slice(0, 15).map((x) => `${x.series}: ${num(x.count)} (${fmt(x.bytes)})`).join(' \u2022 ');
+        d.appendChild(body);
+      }
+    });
+  }
+
   async function runSetupCheck() {
     const btn = document.getElementById('setup-check-btn');
     const box = document.getElementById('setup-check-results');

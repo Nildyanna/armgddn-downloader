@@ -1331,6 +1331,7 @@ let settings = {
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
   autoHashCheck: false,
+  comicsFolder: '',
   hashGateNoticeSeen: false,
   showNotifications: true,
   minimizeToTrayOnMinimize: false,
@@ -1419,6 +1420,7 @@ function normalizeSettings() {
     settings.autoExtract7z = !!settings.autoExtract7z;
     settings.autoHashCheck = !!settings.autoHashCheck;
     settings.hashGateNoticeSeen = !!settings.hashGateNoticeSeen;
+    settings.comicsFolder = typeof settings.comicsFolder === 'string' ? settings.comicsFolder.slice(0, 500) : '';
     settings.showNotifications = settings.showNotifications !== false;
     settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
     settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
@@ -3305,6 +3307,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'autoExtract7z',
     'autoHashCheck',
     'hashGateNoticeSeen',
+    'comicsFolder',
     'showNotifications',
     'minimizeToTrayOnMinimize',
     'minimizeToTrayOnClose',
@@ -3338,6 +3341,89 @@ ipcMain.handle('browse-folder', async () => {
     return result.filePaths[0];
   }
   return null;
+});
+
+// ---- Comics: "only what I'm missing". The member's own folder is scanned here, on their PC, and compared with the site's catalog;
+// only the catalog comes down. Nothing about the folder is sent to the site.
+const comicsScan = require('./comicsScan');
+const comicsState = { running: false, worker: null, rows: null, root: '', at: 0, last: null };
+const COMICS_LIST_RE = /^[a-z0-9-]{1,80}$/;
+
+function comicsCacheFile() { return path.join(app.getPath('userData'), 'comics-scan-cache.json'); }
+function loadComicsCache(root) {
+  try { const d = JSON.parse(fs.readFileSync(comicsCacheFile(), 'utf8')); return d && d.root === root && d.files ? d.files : {}; } catch (e) { return {}; }
+}
+function saveComicsCache(root, files) {
+  try { const tmp = comicsCacheFile() + '.tmp'; fs.writeFileSync(tmp, JSON.stringify({ root, files })); fs.renameSync(tmp, comicsCacheFile()); } catch (e) { /* ignore */ }
+}
+
+async function comicsGet(pathAndQuery) {
+  const token = loadSession();
+  if (!token) return { ok: false, error: 'Sign in first: open the Comics page on the site and press "Only what I\'m missing".' };
+  try {
+    const r = await fetchJsonWithBearer(`https://www.armgddnbrowser.com${pathAndQuery}`, 'GET', token);
+    if (r.statusCode === 401) return { ok: false, error: 'Your sign-in expired. Open the Comics page on the site and press "Only what I\'m missing" again.' };
+    if (r.statusCode !== 200 || !r.json || r.json.success === false) return { ok: false, error: (r.json && r.json.error) || `The site answered ${r.statusCode}.` };
+    return { ok: true, json: r.json };
+  } catch (e) {
+    return { ok: false, error: 'Could not reach the site: ' + (e && e.message ? e.message : e) };
+  }
+}
+
+ipcMain.handle('comics-get-state', () => ({ folder: settings.comicsFolder || '', scanned: comicsState.rows ? comicsState.rows.length : 0, at: comicsState.at, running: comicsState.running }));
+
+ipcMain.handle('comics-pick-folder', async () => {
+  const result = await withDialogFocus(() => dialog.showOpenDialog(getDialogParentWindow(), { properties: ['openDirectory'] }));
+  if (result.canceled || !result.filePaths.length) return null;
+  settings.comicsFolder = result.filePaths[0];
+  saveSettings();
+  comicsState.rows = null; comicsState.at = 0; comicsState.last = null;
+  return settings.comicsFolder;
+});
+
+ipcMain.handle('comics-scan', () => new Promise((resolve) => {
+  const root = settings.comicsFolder;
+  if (!root || !fs.existsSync(root)) { resolve({ ok: false, error: 'Choose your comics folder first.' }); return; }
+  if (comicsState.running) { resolve({ ok: false, error: 'A scan is already running.' }); return; }
+  const { Worker } = require('worker_threads');
+  comicsState.running = true;
+  let worker;
+  const finish = (out) => { comicsState.running = false; comicsState.worker = null; resolve(out); };
+  try {
+    worker = new Worker(path.join(__dirname, 'comicsScanWorker.js'), { workerData: { root, cache: loadComicsCache(root) } });
+  } catch (e) { finish({ ok: false, error: 'Could not start the scan: ' + e.message }); return; }
+  comicsState.worker = worker;
+  worker.on('message', (m) => {
+    if (m.type === 'progress') { sendToMain('comics-scan-progress', { scanned: m.scanned, current: m.current }); return; }
+    if (m.type === 'done') {
+      comicsState.rows = m.rows; comicsState.root = root; comicsState.at = Date.now(); comicsState.last = null;
+      saveComicsCache(root, m.cache);
+      logToFile(`[comics] scanned ${m.rows.length} files`);
+      finish({ ok: true, count: m.rows.length, damaged: m.rows.filter((r) => r.damaged).length });
+    }
+  });
+  worker.on('error', (e) => { logToFile('[comics] scan failed: ' + (e && e.message)); finish({ ok: false, error: 'The scan failed: ' + (e && e.message ? e.message : e) }); });
+  worker.on('exit', (code) => { if (comicsState.running) finish({ ok: false, cancelled: true, error: 'The scan was stopped.' }); });
+}));
+
+ipcMain.handle('comics-cancel-scan', () => { const w = comicsState.worker; if (w) { try { w.terminate(); } catch (e) { /* ignore */ } } return !!w; });
+
+ipcMain.handle('comics-info', async () => {
+  const r = await comicsGet('/api/comics/catalog-info');
+  return r.ok ? { ok: true, lists: r.json.lists || [], totals: r.json.totals || null } : r;
+});
+
+ipcMain.handle('comics-compare', async (event, listId) => {
+  const id = String(listId || 'all');
+  if (id !== 'all' && !COMICS_LIST_RE.test(id)) return { ok: false, error: 'Unknown list.' };
+  if (!comicsState.rows) return { ok: false, error: 'Scan your folder first.' };
+  const r = await comicsGet('/api/comics/catalog?list=' + encodeURIComponent(id));
+  if (!r.ok) return r;
+  const items = Array.isArray(r.json.items) ? r.json.items : [];
+  const cmp = comicsScan.compare(items, comicsState.rows);
+  comicsState.last = { listId: id, list: r.json.list, missingRows: cmp.missingRows };      // kept for the download step
+  const { missingRows, ...summary } = cmp;
+  return { ok: true, list: r.json.list, summary: { ...summary, perSeries: summary.perSeries.slice(0, 40), damaged: summary.damaged.slice(0, 20) } };
 });
 
 ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
