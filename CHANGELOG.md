@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.13.0] - 2026-11-04
+
+### Added
+- Music: only what I'm missing. A new Music button opens a panel where you pick the folder your music is in. The Companion lists it on your PC, compares it with the library and shows how many albums are complete, partly there or missing. Nothing about your folder is sent to the site. Tracks match by artist folder, album folder and title, so another format or different track numbers still count as owned; an empty or cut-short file is flagged and downloaded again.
+- Download what I'm missing saves just those tracks into your music folder with the library's folder layout. Nothing in that folder is unpacked, and cancelling removes only the files that download wrote.
+- The Music page on the site has an Only what I'm missing button that opens the panel.
+
 ## [5.12.1] - 2026-11-03
 
 ### Fixed

@@ -1,4 +1,12 @@
 {
+  "5.13.0": {
+    "title": "Music: Only What I'm Missing",
+    "highlights": [
+      "A new Music button finds the music you don't have. Pick your music folder, and the Companion compares it with the library on your PC (nothing about your folder is sent) and shows how many albums are complete, partly there, or missing.",
+      "Download what I'm missing saves just those tracks into your music folder with the library's folder layout. Nothing in that folder is unpacked, and cancelling removes only the files that download wrote.",
+      "The Music page on the site has an Only what I'm missing button that opens it."
+    ]
+  },
   "5.12.1": {
     "title": "Comics Scan Checks Sign-in",
     "highlights": [
