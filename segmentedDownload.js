@@ -167,7 +167,12 @@ function segmentedDownload(opts) {
             if (cr && Number(cr[1]) !== start) throw new ResumeError('server answered a different range', 'fatal', code);
 
             let pending = []; let pendingBytes = 0;
-            const flush = async () => {
+            // Every flush waits for the ones before it, including a disk write that is still running. Without that, a dropped connection could
+            // start the retry while the last write was in flight (a slow disk, antivirus scanning), and the retry would restart from a stale
+            // position and write over the same bytes.
+            let flushQueue = Promise.resolve();
+            const flush = () => { const p = flushQueue.then(flushNow); flushQueue = p.catch(() => { }); return p; };
+            const flushNow = async () => {
               if (!pendingBytes) return;
               const buf = pending.length === 1 ? pending[0] : Buffer.concat(pending, pendingBytes);
               pending = []; pendingBytes = 0;
