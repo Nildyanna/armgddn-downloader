@@ -42,6 +42,8 @@
       "hashCheck.js",
       "comicsScan.js",
       "comicsScanWorker.js",
+      "musicScan.js",
+      "musicScanWorker.js",
       "renderer/**/*",
       "assets/**/*"
     ],

@@ -1354,6 +1354,7 @@ let settings = {
   autoExtract7z: false,
   autoHashCheck: false,
   comicsFolder: '',
+  musicFolder: '',
   hashGateNoticeSeen: false,
   showNotifications: true,
   minimizeToTrayOnMinimize: false,
@@ -1443,6 +1444,7 @@ function normalizeSettings() {
     settings.autoHashCheck = !!settings.autoHashCheck;
     settings.hashGateNoticeSeen = !!settings.hashGateNoticeSeen;
     settings.comicsFolder = typeof settings.comicsFolder === 'string' ? settings.comicsFolder.slice(0, 500) : '';
+    settings.musicFolder = typeof settings.musicFolder === 'string' ? settings.musicFolder.slice(0, 500) : '';
     settings.showNotifications = settings.showNotifications !== false;
     settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
     settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
@@ -2294,7 +2296,7 @@ function validateDeepLink(url) {
     if (parsed.protocol !== 'armgddn:') return null;
 
     // Whitelist allowed actions
-    const allowedHosts = ['download', 'open', 'komga', 'verify', 'comics'];
+    const allowedHosts = ['download', 'open', 'komga', 'verify', 'comics', 'music'];
     if (!allowedHosts.includes(parsed.hostname)) {
       logToFile(`Deep link rejected - invalid host: ${parsed.hostname}`);
       return null;
@@ -2317,7 +2319,7 @@ function validateDeepLink(url) {
       }
     }
 
-    if (parsed.hostname === 'download' && parsed.searchParams.has('dest') && parsed.searchParams.get('dest') !== 'comics') {
+    if (parsed.hostname === 'download' && parsed.searchParams.has('dest') && !['comics', 'music'].includes(parsed.searchParams.get('dest'))) {
       logToFile('Deep link rejected - unknown download destination');
       return null;
     }
@@ -2327,6 +2329,14 @@ function validateDeepLink(url) {
       const tok = String(parsed.searchParams.get('token') || '');
       if (!/^[a-z0-9-]{1,80}$/.test(list) || (tok && !/^[A-Za-z0-9._-]{8,400}$/.test(tok))) {
         logToFile('Deep link rejected - bad comics list or token');
+        return null;
+      }
+    }
+
+    if (parsed.hostname === 'music') {
+      const tok = String(parsed.searchParams.get('token') || '');
+      if (tok && !/^[A-Za-z0-9._-]{8,400}$/.test(tok)) {
+        logToFile('Deep link rejected - bad music token');
         return null;
       }
     }
@@ -2515,6 +2525,15 @@ function handleDeepLink(url) {
       if (tok) comicsState.token = tok;
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
       const open = () => sendToMain('comics-open', { listId: String(u.searchParams.get('list') || 'all') });
+      if (mainWindowDidFinishLoad) open(); else setTimeout(open, 2500);
+      return;
+    }
+    if (u.hostname === 'music') {
+      // Same as comics: opens the "only what I'm missing" panel; the site's token is kept in memory for this session only.
+      const tok = String(u.searchParams.get('token') || '');
+      if (tok) musicState.token = tok;
+      try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
+      const open = () => sendToMain('music-open', {});
       if (mainWindowDidFinishLoad) open(); else setTimeout(open, 2500);
       return;
     }
@@ -3354,6 +3373,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'autoHashCheck',
     'hashGateNoticeSeen',
     'comicsFolder',
+    'musicFolder',
     'showNotifications',
     'minimizeToTrayOnMinimize',
     'minimizeToTrayOnClose',
@@ -3403,12 +3423,13 @@ function saveComicsCache(root, files) {
   try { const tmp = comicsCacheFile() + '.tmp'; fs.writeFileSync(tmp, JSON.stringify({ root, files })); fs.renameSync(tmp, comicsCacheFile()); } catch (e) { /* ignore */ }
 }
 
-async function comicsGet(pathAndQuery) {
-  const token = comicsState.token || loadSession();
-  if (!token) return { ok: false, error: 'Sign in first: open the Comics page on the site and press "Only what I\'m missing".' };
+async function comicsGet(pathAndQuery, page, sessionToken) {
+  page = page || 'Comics';
+  const token = sessionToken || comicsState.token || loadSession();
+  if (!token) return { ok: false, error: `Sign in first: open the ${page} page on the site and press "Only what I'm missing".` };
   try {
     const r = await fetchJsonWithBearer(`https://www.armgddnbrowser.com${pathAndQuery}`, 'GET', token);
-    if (r.statusCode === 401) return { ok: false, error: 'Your sign-in expired. Open the Comics page on the site and press "Only what I\'m missing" again.' };
+    if (r.statusCode === 401) return { ok: false, error: `Your sign-in expired. Open the ${page} page on the site and press "Only what I'm missing" again.` };
     if (r.statusCode !== 200 || !r.json || r.json.success === false) return { ok: false, error: (r.json && r.json.error) || `The site answered ${r.statusCode}.` };
     return { ok: true, json: r.json };
   } catch (e) {
@@ -3520,6 +3541,96 @@ ipcMain.handle('comics-download-missing', async () => {
   }
   logToFile(`[comics] started ${started} download(s) for ${files} missing comics`);
   return { ok: true, started, files, bytes, folder: toFolder ? settings.comicsFolder : settings.downloadPath };
+});
+
+// ---- Music: only what I'm missing (same flow as comics: pick the folder, scan, compare with the library, download the rest into it)
+const musicScan = require('./musicScan');
+const musicState = { running: false, worker: null, rows: null, root: '', at: 0, last: null, token: '' };
+const musicGet = (pathAndQuery) => comicsGet(pathAndQuery, 'Music', musicState.token);
+
+ipcMain.handle('music-get-state', () => ({ folder: settings.musicFolder || '', scanned: musicState.rows ? musicState.rows.length : 0, at: musicState.at, running: musicState.running }));
+
+ipcMain.handle('music-pick-folder', async () => {
+  const result = await withDialogFocus(() => dialog.showOpenDialog(getDialogParentWindow(), { properties: ['openDirectory'] }));
+  if (result.canceled || !result.filePaths.length) return null;
+  settings.musicFolder = result.filePaths[0];
+  saveSettings();
+  musicState.rows = null; musicState.at = 0; musicState.last = null;
+  return settings.musicFolder;
+});
+
+ipcMain.handle('music-scan', async () => {
+  if (musicState.running) return { ok: false, error: 'A scan is already running.' };
+  const root = settings.musicFolder;
+  if (!root || !fs.existsSync(root)) return { ok: false, error: 'Choose your music folder first.' };
+  // Check the sign-in first, like the comics scan: without the library list the comparison could not run anyway.
+  const info = await musicGet('/api/music/catalog-info');
+  if (!info.ok) return { ok: false, needsSignIn: true, error: 'The scan did not start: ' + info.error };
+  return new Promise((resolve) => {
+    const { Worker } = require('worker_threads');
+    musicState.running = true;
+    let worker;
+    const finish = (out) => { musicState.running = false; musicState.worker = null; resolve(out); };
+    try { worker = new Worker(path.join(__dirname, 'musicScanWorker.js'), { workerData: { root } }); }
+    catch (e) { finish({ ok: false, error: 'Could not start the scan: ' + e.message }); return; }
+    musicState.worker = worker;
+    worker.on('message', (m) => {
+      if (m.type === 'progress') { sendToMain('music-scan-progress', { scanned: m.scanned, current: m.current }); return; }
+      if (m.type === 'done') {
+        musicState.rows = m.rows; musicState.root = root; musicState.at = Date.now(); musicState.last = null;
+        logToFile(`[music] scanned ${m.rows.length} files`);
+        finish({ ok: true, count: m.rows.length, damaged: m.rows.filter((r) => r.damaged).length });
+      }
+    });
+    worker.on('error', (e) => { logToFile('[music] scan failed: ' + (e && e.message)); finish({ ok: false, error: 'The scan failed: ' + (e && e.message ? e.message : e) }); });
+    worker.on('exit', () => { if (musicState.running) finish({ ok: false, cancelled: true, error: 'The scan was stopped.' }); });
+  });
+});
+
+ipcMain.handle('music-cancel-scan', () => { const w = musicState.worker; if (w) { try { w.terminate(); } catch (e) { /* ignore */ } } return !!w; });
+
+ipcMain.handle('music-info', async () => {
+  const r = await musicGet('/api/music/catalog-info');
+  return r.ok ? { ok: true, totals: r.json.totals || null } : r;
+});
+
+ipcMain.handle('music-compare', async () => {
+  if (!musicState.rows) return { ok: false, error: 'Scan your folder first.' };
+  const r = await musicGet('/api/music/catalog');
+  if (!r.ok) return r;
+  const items = Array.isArray(r.json.items) ? r.json.items : [];
+  const cmp = musicScan.compare(items, musicState.rows);
+  musicState.last = { missingRows: cmp.missingRows };           // kept for the download step
+  const { missingRows, ...summary } = cmp;
+  summary.bytesMissing = missingRows.reduce((n, x) => n + (Number(x[2]) || 0), 0);
+  return { ok: true, list: r.json.list, summary };
+});
+
+ipcMain.handle('music-download-missing', async () => {
+  const last = musicState.last;
+  if (!last || !Array.isArray(last.missingRows) || !last.missingRows.length) return { ok: false, error: 'Compare first. There is nothing to download.' };
+  const token = musicState.token || loadSession();
+  if (!token) return { ok: false, error: 'Sign in first: open the Music page on the site and press "Only what I\'m missing".' };
+  if (!(settings.musicFolder && fs.existsSync(settings.musicFolder))) return { ok: false, error: 'Choose your music folder first.' };
+  const batches = musicScan.planBatches(last.missingRows, 400, 60e9).slice(0, 40);
+  const base = 'https://www.armgddnbrowser.com';
+  let started = 0, files = 0, bytes = 0;
+  for (const batch of batches) {
+    try {
+      const m = await postJsonWithBearer(base + '/api/batch-manifest', { remote: 'Music', paths: batch.map((r) => r[0]) }, token);
+      if (m.statusCode === 401) return { ok: false, started, error: 'Your sign-in expired. Open the Music page on the site and press "Only what I\'m missing" again.' };
+      if (m.statusCode !== 200 || !m.json || !m.json.batchId) return { ok: false, started, error: (m.json && m.json.error) || `The site answered ${m.statusCode} when preparing the download.` };
+      const t = await postJsonWithBearer(base + '/api/external-download-token', { remote: 'Music', path: '__batch__/' + m.json.batchId }, token);
+      if (t.statusCode !== 200 || !t.json || !t.json.downloadToken) return { ok: false, started, error: (t.json && t.json.error) || `The site answered ${t.statusCode} when authorizing the download.` };
+      handleDeepLink('armgddn://download?' + new URLSearchParams({ downloadToken: t.json.downloadToken, token, dest: 'music' }).toString());
+      started++; files += batch.length; bytes += batch.reduce((n, r) => n + (Number(r[2]) || 0), 0);
+    } catch (e) {
+      return { ok: false, started, error: 'Could not reach the site: ' + (e && e.message ? e.message : e) };
+    }
+    await new Promise((r) => setTimeout(r, 1500));          // the token endpoints allow 20 calls a minute
+  }
+  logToFile(`[music] started ${started} download(s) for ${files} missing tracks`);
+  return { ok: true, started, files, bytes, folder: settings.musicFolder };
 });
 
 ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
@@ -4459,8 +4570,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
 
   // "Only what I'm missing" downloads go straight into the member's own comics folder, with the library's folder layout.
   // Nothing in that folder is ever unpacked or removed except the files this download itself wrote.
-  const toComics = dest === 'comics' && typeof settings.comicsFolder === 'string' && settings.comicsFolder.trim() !== '' && path.isAbsolute(settings.comicsFolder) && fs.existsSync(settings.comicsFolder);
-  if (dest === 'comics' && !toComics) throw new Error('Choose your comics folder in the Comics panel first.');
+  const destFolder = dest === 'music' ? settings.musicFolder : dest === 'comics' ? settings.comicsFolder : '';
+  const toComics = (dest === 'music' || dest === 'comics') && typeof destFolder === 'string' && destFolder.trim() !== '' && path.isAbsolute(destFolder) && fs.existsSync(destFolder);
+  if ((dest === 'music' || dest === 'comics') && !toComics) throw new Error(dest === 'music' ? 'Choose your music folder in the Music panel first.' : 'Choose your comics folder in the Comics panel first.');
 
   const safeFolderName = sanitizeRelativePath(String(name || ''));
   if (safeFolderName) {
@@ -4471,7 +4583,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
 
   // DISK SPACE CHECK
   try {
-    const targetPath = path.resolve(toComics ? settings.comicsFolder : settings.downloadPath);
+    const targetPath = path.resolve(toComics ? destFolder : settings.downloadPath);
     const freeBytes = getFreeDiskSpace(targetPath);
 
     if (freeBytes !== -1 && totalSize > 0) {
@@ -4611,7 +4723,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
   } catch (e) { }
 
   // Create download directory
-  const downloadDir = toComics ? path.resolve(settings.comicsFolder) : resolveInside(settings.downloadPath, name);
+  const downloadDir = toComics ? path.resolve(destFolder) : resolveInside(settings.downloadPath, name);
   if (!downloadDir) {
     throw new Error('Security error: Invalid download folder path');
   }

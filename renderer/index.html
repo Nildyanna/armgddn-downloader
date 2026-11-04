@@ -20,6 +20,7 @@
           History
         </button>
         <button id="comics-btn" class="settings-btn" title="Find the comics you are missing">Comics</button>
+        <button id="music-btn" class="settings-btn" title="Find the music you are missing">Music</button>
         <button id="check-updates-btn" class="settings-btn">
           <svg class="btn-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
           Check for Updates
@@ -54,6 +55,32 @@
         <div class="comics-row">
           <button id="comics-download-btn" class="secondary-btn" type="button" style="display: none;">Download what I'm missing</button>
           <span id="comics-download-note" class="comics-status"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="music-panel" class="comics-panel" style="display: none;" role="dialog" aria-label="Music you are missing">
+      <div class="comics-panel-inner">
+        <div class="comics-panel-head">
+          <h2>Music: only what I'm missing</h2>
+          <button id="music-close-btn" class="secondary-btn" type="button">Close</button>
+        </div>
+        <p class="comics-note">Pick the folder where your music is (Artist, then Album, then tracks). The Companion lists it on this PC and compares it with the library. Nothing about your folder is sent to the site.</p>
+        <div id="music-library" class="comics-status"></div>
+        <div class="comics-row">
+          <span id="music-folder" class="comics-folder">No folder chosen</span>
+          <button id="music-pick-btn" class="secondary-btn" type="button">Choose folder</button>
+          <button id="music-scan-btn" class="secondary-btn" type="button">Scan</button>
+          <button id="music-stop-btn" class="secondary-btn" type="button" style="display: none;">Stop</button>
+        </div>
+        <div id="music-scan-status" class="comics-status" aria-live="polite"></div>
+        <div class="comics-row">
+          <button id="music-compare-btn" class="secondary-btn" type="button">Find what I'm missing</button>
+        </div>
+        <div id="music-result" class="comics-result" aria-live="polite"></div>
+        <div class="comics-row">
+          <button id="music-download-btn" class="secondary-btn" type="button" style="display: none;">Download what I'm missing</button>
+          <span id="music-download-note" class="comics-status"></span>
         </div>
       </div>
     </div>

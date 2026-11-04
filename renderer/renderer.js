@@ -258,6 +258,7 @@ async function showAlertDialog(title, message) {
     // History
     document.getElementById('history-btn').addEventListener('click', openHistory);
     initComicsPanel();
+    initMusicPanel();
     document.getElementById('close-history-btn').addEventListener('click', closeHistory);
     document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
 
@@ -423,7 +424,7 @@ async function showAlertDialog(title, message) {
       // resolveDownloadToken just succeeded using that same fresh token — fetch-manifest
       // already falls back to the Companion's own stored session if this is absent.
       const manifest = await api.fetchManifest(manifestUrlStr, urlToken);
-      await api.startDownload(manifest, urlToken, manifestUrlStr, urlObj.searchParams.get('dest') === 'comics' ? 'comics' : undefined);
+      await api.startDownload(manifest, urlToken, manifestUrlStr, ['comics', 'music'].includes(urlObj.searchParams.get('dest')) ? urlObj.searchParams.get('dest') : undefined);
 
     } catch (error) {
       console.error('Failed to handle deep link:', error);
@@ -1248,6 +1249,70 @@ async function showAlertDialog(title, message) {
         body.textContent = s.perSeries.slice(0, 15).map((x) => `${x.series}: ${num(x.count)} (${fmt(x.bytes)})`).join(' \u2022 ');
         d.appendChild(body);
       }
+    });
+  }
+
+  // ---- Music: only what I'm missing (same flow as the Comics panel)
+  function initMusicPanel() {
+    const $ = (id) => document.getElementById(id);
+    const panel = $('music-panel');
+    if (!panel || !api.musicGetState) return;
+    const fmt = (n) => (n >= 1e9 ? (n / 1e9).toFixed(1) + ' GB' : Math.round(n / 1e6) + ' MB');
+    const num = (n) => Number(n || 0).toLocaleString();
+    const say = (id, text) => { const el = $(id); if (el) el.textContent = text || ''; };
+    let scanned = false;
+
+    async function refreshState() {
+      const st = await api.musicGetState();
+      say('music-folder', st.folder || 'No folder chosen');
+      scanned = !!st.scanned;
+      $('music-compare-btn').disabled = !scanned;
+      if (scanned) say('music-scan-status', `Scanned ${num(st.scanned)} music files.`);
+    }
+    async function open() {
+      panel.style.display = '';
+      say('music-result', '');
+      await refreshState();
+      api.musicInfo().then((r) => { if (r && r.ok && r.totals) say('music-library', `The library has ${num(r.totals.albums)} albums by ${num(r.totals.artists)} artists (${num(r.totals.tracks)} tracks, ${fmt(r.totals.bytes)}).`); }).catch(() => { });
+    }
+    $('music-btn').addEventListener('click', open);
+    // The site's "Only what I'm missing" button on the Music page opens this panel.
+    if (api.onMusicOpen) api.onMusicOpen(async () => { await open(); });
+    $('music-download-btn').addEventListener('click', async () => {
+      const btn = $('music-download-btn');
+      btn.disabled = true; say('music-download-note', 'Starting the downloads...');
+      const r = await api.musicDownloadMissing();
+      btn.disabled = false;
+      if (!r || !r.ok) { say('music-download-note', (r && r.error) || 'Could not start the downloads.'); return; }
+      say('music-download-note', `Started ${num(r.started)} download${r.started === 1 ? '' : 's'} (${num(r.files)} tracks, ${fmt(r.bytes)}). They are in the Downloads list, and arrive in ${r.folder}. Scan again afterwards.`);
+    });
+    $('music-close-btn').addEventListener('click', () => { panel.style.display = 'none'; });
+    api.onMusicScanProgress((d) => say('music-scan-status', `Scanning... ${num(d.scanned)} files`));
+    $('music-pick-btn').addEventListener('click', async () => { const f = await api.musicPickFolder(); if (f) { await refreshState(); say('music-scan-status', 'Folder chosen. Press Scan.'); } });
+    $('music-scan-btn').addEventListener('click', async () => {
+      $('music-scan-btn').disabled = true; $('music-stop-btn').style.display = ''; say('music-scan-status', 'Scanning...'); say('music-result', '');
+      const r = await api.musicScan();
+      $('music-scan-btn').disabled = false; $('music-stop-btn').style.display = 'none';
+      if (!r || !r.ok) { say('music-scan-status', (r && r.error) || 'The scan failed.'); return; }
+      say('music-scan-status', `Scanned ${num(r.count)} music files${r.damaged ? `; ${num(r.damaged)} look empty or cut short` : ''}.`);
+      await refreshState();
+    });
+    $('music-stop-btn').addEventListener('click', () => api.musicCancelScan());
+    $('music-compare-btn').addEventListener('click', async () => {
+      const box = $('music-result');
+      box.textContent = 'Comparing...';
+      const r = await api.musicCompare();
+      if (!r || !r.ok) { box.textContent = (r && r.error) || 'The comparison failed.'; return; }
+      const s = r.summary;
+      box.textContent = '';
+      $('music-download-btn').style.display = s.missing ? '' : 'none';
+      say('music-download-note', '');
+      const line = (cls, text) => { const d = document.createElement('div'); d.className = 'setup-check-item ' + cls; const t = document.createElement('div'); t.className = 'setup-check-title'; t.textContent = text; d.appendChild(t); box.appendChild(d); return d; };
+      line(s.missing ? 'warn' : 'ok', s.missing
+        ? `You have ${num(s.have)} of ${num(s.total)} tracks. ${num(s.missing)} are missing (${fmt(s.bytesMissing)}).`
+        : `You already have all ${num(s.total)} tracks in the library.`);
+      line('info', `Albums: ${num(s.albums.complete)} complete, ${num(s.albums.partial)} partly there, ${num(s.albums.none)} not in your folder.`);
+      if (s.damaged) line('warn', `${num(s.damaged)} of your files look empty or cut short and are not counted as owned; they will be downloaded again.`);
     });
   }
 
