@@ -977,6 +977,7 @@ function isAllowedUpdateHost(hostname) {
 }
 
 const hashCheck = require('./hashCheck');
+const { describe7zFailure } = require('./sevenZipErrors');
 
 function sanitizeRelativePath(input) {
   if (input == null || input === '') return null;
@@ -1352,7 +1353,8 @@ let settings = {
   maxConcurrentDownloads: 2,
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
-  autoHashCheck: false,
+  autoHashCheck: true,
+  autoHashCheckDefaultedOn: false,
   comicsFolder: '',
   musicFolder: '',
   hashGateNoticeSeen: false,
@@ -1441,6 +1443,8 @@ function normalizeSettings() {
     settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
 
     settings.autoExtract7z = !!settings.autoExtract7z;
+    // 5.15.0 turned "Check files after download" on for everyone, once. After that the member's own choice is kept, including off.
+    if (!settings.autoHashCheckDefaultedOn) { settings.autoHashCheck = true; settings.autoHashCheckDefaultedOn = true; }
     settings.autoHashCheck = !!settings.autoHashCheck;
     settings.hashGateNoticeSeen = !!settings.hashGateNoticeSeen;
     settings.comicsFolder = typeof settings.comicsFolder === 'string' ? settings.comicsFolder.slice(0, 500) : '';
@@ -2195,8 +2199,10 @@ function loadSettings() {
       const data = fs.readFileSync(configPath, 'utf8');
       settings = { ...settings, ...JSON.parse(data) };
     }
+    const hadHashDefault = !!settings.autoHashCheckDefaultedOn;
     normalizeSettings();
     settingsLoadedFromDisk = true;
+    if (!hadHashDefault && fs.existsSync(getConfigPath())) saveSettings();      // keep the one-time switch-on from repeating
   } catch (e) {
     console.error('Failed to load settings:', e);
   }
@@ -6660,7 +6666,9 @@ function run7zExtract(archivePath, outputDir, onProgress) {
           reject(new Error('7z extraction failed: validation timed out'));
           return;
         }
-        reject(new Error('Failed to validate archive contents before extraction'));
+        const listText = `${String((listResult && listResult.stdout) || '')}\n${String((listResult && listResult.stderr) || '')}`;
+        const listDescribed = describe7zFailure(listText, listResult && listResult.status);
+        reject(new Error(listDescribed || 'Failed to validate archive contents before extraction'));
         return;
       }
 
@@ -6769,8 +6777,10 @@ function run7zExtract(archivePath, outputDir, onProgress) {
           return;
         }
         const combined = (out + '\n' + err).trim();
-        if (isPasswordErrorText(combined)) {
-          reject(new Error('7z extraction failed: wrong password or encrypted archive'));
+        const described = describe7zFailure(combined, code);
+        if (described) {
+          try { logToFile(`[7z] Extract failed: ${archivePath} code=${code} stderr="${snip7z(err, 400)}"`); } catch (e) { }
+          reject(new Error(described));
           return;
         }
         try {

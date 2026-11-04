@@ -40,6 +40,7 @@
       "segmentedDownload.js",
       "httpOpen.js",
       "hashCheck.js",
+      "sevenZipErrors.js",
       "comicsScan.js",
       "comicsScanWorker.js",
       "musicScan.js",
