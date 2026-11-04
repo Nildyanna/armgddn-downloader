@@ -3435,6 +3435,13 @@ ipcMain.handle('comics-scan', async () => {
   try {
     const cat = await comicsGet('/api/comics/catalog?list=all');
     if (cat && cat.ok && cat.json && Array.isArray(cat.json.items)) known = comicsScan.buildKnown(cat.json.items);
+    else logToFile('[comics] the library list could not be loaded, so the scan did not start: ' + ((cat && cat.error) || 'no answer'));
+    if (!known) {
+      comicsState.starting = false;
+      // Without the library list the scan cannot skip the comics you already have (every file would be opened, which takes hours on a cloud or network drive)
+      // and the comparison needs the list anyway, so say so now instead of crawling.
+      return { ok: false, needsSignIn: true, error: 'The scan did not start: ' + ((cat && cat.error) || 'the library list could not be loaded') + ' It needs that list to skip the comics you already have; without it a cloud or network drive can take hours.' };
+    }
   } catch (e) { logToFile('[comics] catalog not available for the fast scan: ' + (e && e.message)); }
   finally { comicsState.starting = false; }
   return new Promise((resolve) => {
@@ -3455,7 +3462,7 @@ ipcMain.handle('comics-scan', async () => {
       comicsState.rows = m.rows; comicsState.root = root; comicsState.at = Date.now(); comicsState.last = null;
       saveComicsCache(root, m.cache);
       logToFile(`[comics] scanned ${m.rows.length} files (${m.rows.filter((r) => r.fast).length} matched the catalog by name and size without being opened)`);
-      finish({ ok: true, count: m.rows.length, damaged: m.rows.filter((r) => r.damaged).length });
+      finish({ ok: true, count: m.rows.length, damaged: m.rows.filter((r) => r.damaged).length, fast: m.rows.filter((r) => r.fast).length });
     }
   });
   worker.on('error', (e) => { logToFile('[comics] scan failed: ' + (e && e.message)); finish({ ok: false, error: 'The scan failed: ' + (e && e.message ? e.message : e) }); });

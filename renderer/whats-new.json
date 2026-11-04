@@ -1,4 +1,11 @@
 {
+  "5.12.1": {
+    "title": "Comics Scan Checks Sign-in",
+    "highlights": [
+      "The comics scan now checks that you're signed in before it starts, and tells you what to do if you're not. Without that it would open every file, which takes hours on a cloud or network drive.",
+      "When a scan finishes it shows how many comics were matched by name and size without being opened."
+    ]
+  },
   "5.12.0": {
     "title": "Faster Comics Scan",
     "highlights": [

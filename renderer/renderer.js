@@ -1222,7 +1222,7 @@ async function showAlertDialog(title, message) {
       const r = await api.comicsScan();
       $('comics-scan-btn').disabled = false; $('comics-stop-btn').style.display = 'none';
       if (!r || !r.ok) { say('comics-scan-status', (r && r.error) || 'The scan failed.'); return; }
-      say('comics-scan-status', `Scanned ${num(r.count)} comic files${r.damaged ? `; ${num(r.damaged)} look damaged or cut short` : ''}.`);
+      say('comics-scan-status', `Scanned ${num(r.count)} comic files${r.fast ? ` (${num(r.fast)} matched the library by name and size without being opened)` : ''}${r.damaged ? `; ${num(r.damaged)} look damaged or cut short` : ''}.`);
       await refreshState();
     });
     $('comics-stop-btn').addEventListener('click', () => api.comicsCancelScan());

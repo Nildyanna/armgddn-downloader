@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.12.1] - 2026-11-03
+
+### Fixed
+- The comics scan no longer starts blind. If the site's library list cannot be loaded (for example because the sign-in has expired) it says so and tells you what to do, instead of silently opening every file, which takes hours on a cloud or network drive. The list is needed anyway to compare your folder with the library.
+- When a scan finishes it shows how many comics were matched by name and size without being opened.
+
 ## [5.12.0] - 2026-11-03
 
 ### Changed
