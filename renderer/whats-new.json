@@ -1,4 +1,10 @@
 {
+  "5.15.1": {
+    "title": "Steadier on Linux",
+    "highlights": [
+      "If the Companion closes itself twice in a row when it starts because of a graphics driver problem, it now switches to software rendering by itself instead of crashing again."
+    ]
+  },
   "5.15.0": {
     "title": "Downloads Check Themselves",
     "highlights": [

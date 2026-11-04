@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.15.1] - 2026-11-04
+
+### Fixed
+- Linux: when Chromium closes the app at startup because its graphics process cannot start (the "GPU process isn't usable" crash on some NVIDIA drivers), the existing software-rendering fallback never got a chance to be recorded, so the crash repeated on every launch. The app now also notes whether each launch ended cleanly, and after two launches in a row that did not, the next one runs in software rendering.
+
 ## [5.15.0] - 2026-11-04
 
 ### Changed
