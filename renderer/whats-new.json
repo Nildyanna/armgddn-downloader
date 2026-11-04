@@ -1,4 +1,11 @@
 {
+  "5.14.0": {
+    "title": "Only What I'm Missing, Folder by Folder",
+    "highlights": [
+      "Every artist, album, collection and series folder on the Music and Comics pages now has its own Only what I'm missing button. It opens the Companion and compares just that folder with yours, so you can fill in one artist or one series without scanning the whole library.",
+      "The Music panel can switch back to the whole library with one click."
+    ]
+  },
   "5.13.0": {
     "title": "Music: Only What I'm Missing",
     "highlights": [

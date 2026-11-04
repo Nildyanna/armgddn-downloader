@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.14.0] - 2026-11-04
+
+### Added
+- Only what I'm missing for one folder. Every artist, album, collection and series folder on the site's Music and Comics pages has its own button, which opens the Companion and compares just that folder with yours. In Comics the folder appears as a choice in the "Compare with" list; the Music panel shows it and has a "Whole library instead" button.
+
 ## [5.13.0] - 2026-11-04
 
 ### Added
