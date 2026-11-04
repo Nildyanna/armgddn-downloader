@@ -41,6 +41,7 @@
       "httpOpen.js",
       "hashCheck.js",
       "sevenZipErrors.js",
+      "exitGuard.js",
       "comicsScan.js",
       "comicsScanWorker.js",
       "musicScan.js",

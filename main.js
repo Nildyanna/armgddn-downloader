@@ -717,6 +717,22 @@ const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
   app.quit();
 } else {
+  // Linux: two launches in a row that never ended cleanly mean Chromium is killing the app, typically because its GPU process cannot start
+  // (the "GPU process isn't usable" crash on some NVIDIA drivers). That can happen too fast for the marker above to be written,
+  // so after two such launches the next one runs in software rendering.
+  try {
+    if (process.platform === 'linux' && !SMOKE_TEST) {
+      const guardFile = path.join(app.getPath('userData'), 'session-state.json');
+      const unclean = exitGuard.begin(guardFile);
+      if (unclean >= 2 && GPU_FALLBACK_MARKER && !fs.existsSync(GPU_FALLBACK_MARKER)) {
+        fs.writeFileSync(GPU_FALLBACK_MARKER, `${new Date().toISOString()} unclean-exits ${unclean}\n`);
+        app.disableHardwareAcceleration();
+        setGpuFallbackTag('armed');
+        console.warn('[gpu] ' + unclean + ' launches in a row did not end cleanly; software rendering from now on');
+      }
+      app.on('before-quit', () => { try { exitGuard.markClean(guardFile); } catch (e) { } });
+    }
+  } catch (e) { }
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     // Someone tried to run a second instance, focus our window. The window
     // can already be destroyed while the app is quitting (Sentry COMPANION-B).
@@ -977,6 +993,7 @@ function isAllowedUpdateHost(hostname) {
 }
 
 const hashCheck = require('./hashCheck');
+const exitGuard = require('./exitGuard');
 const { describe7zFailure } = require('./sevenZipErrors');
 
 function sanitizeRelativePath(input) {
