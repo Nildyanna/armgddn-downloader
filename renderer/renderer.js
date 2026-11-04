@@ -1203,6 +1203,14 @@ async function showAlertDialog(title, message) {
     if (api.onComicsOpen) api.onComicsOpen(async (d) => {
       await open();
       const sel = $('comics-list');
+      if (sel && d && d.folder) {
+        // One real folder of the library (a collection or a series): added as the choice to compare with.
+        const value = 'folder:' + d.folder;
+        if (![...sel.options].some((o) => o.value === value)) { const o = document.createElement('option'); o.value = value; o.textContent = `Only this folder: ${d.folder}`; sel.insertBefore(o, sel.firstChild); }
+        sel.value = value;
+        if (scanned) $('comics-compare-btn').click();
+        return;
+      }
       if (sel && d && d.listId && [...sel.options].some((o) => o.value === d.listId)) sel.value = d.listId;
       else if (sel && d && d.listId) { say('comics-result', 'That reading order is not in the library list yet.'); }
       if (scanned && sel && d && d.listId) $('comics-compare-btn').click();
@@ -1277,7 +1285,22 @@ async function showAlertDialog(title, message) {
     }
     $('music-btn').addEventListener('click', open);
     // The site's "Only what I'm missing" button on the Music page opens this panel.
-    if (api.onMusicOpen) api.onMusicOpen(async () => { await open(); });
+    let scope = '';
+    const showScope = () => {
+      const el = $('music-scope');
+      if (!el) return;
+      el.textContent = scope ? `Comparing only this folder: ${scope}` : '';
+      const clear = $('music-scope-clear');
+      if (clear) clear.style.display = scope ? '' : 'none';
+    };
+    if (api.onMusicOpen) api.onMusicOpen(async (d) => {
+      await open();
+      scope = d && d.folder ? String(d.folder) : '';
+      showScope();
+      if (scope && scanned) $('music-compare-btn').click();
+    });
+    const clearBtn = $('music-scope-clear');
+    if (clearBtn) clearBtn.addEventListener('click', () => { scope = ''; showScope(); say('music-result', ''); });
     $('music-download-btn').addEventListener('click', async () => {
       const btn = $('music-download-btn');
       btn.disabled = true; say('music-download-note', 'Starting the downloads...');
@@ -1301,7 +1324,7 @@ async function showAlertDialog(title, message) {
     $('music-compare-btn').addEventListener('click', async () => {
       const box = $('music-result');
       box.textContent = 'Comparing...';
-      const r = await api.musicCompare();
+      const r = await api.musicCompare(scope);
       if (!r || !r.ok) { box.textContent = (r && r.error) || 'The comparison failed.'; return; }
       const s = r.summary;
       box.textContent = '';

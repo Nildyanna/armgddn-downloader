@@ -52,7 +52,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   musicScan: () => ipcRenderer.invoke('music-scan'),
   musicCancelScan: () => ipcRenderer.invoke('music-cancel-scan'),
   musicInfo: () => ipcRenderer.invoke('music-info'),
-  musicCompare: () => ipcRenderer.invoke('music-compare'),
+  musicCompare: (folder) => ipcRenderer.invoke('music-compare', folder),
   musicDownloadMissing: () => ipcRenderer.invoke('music-download-missing'),
   onMusicOpen: (callback) => ipcRenderer.on('music-open', (event, data) => callback(data)),
   onMusicScanProgress: (callback) => ipcRenderer.on('music-scan-progress', (event, data) => callback(data)),

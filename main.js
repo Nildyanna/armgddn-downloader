@@ -2327,16 +2327,18 @@ function validateDeepLink(url) {
     if (parsed.hostname === 'comics') {
       const list = String(parsed.searchParams.get('list') || 'all');
       const tok = String(parsed.searchParams.get('token') || '');
-      if (!/^[a-z0-9-]{1,80}$/.test(list) || (tok && !/^[A-Za-z0-9._-]{8,400}$/.test(tok))) {
-        logToFile('Deep link rejected - bad comics list or token');
+      const folder = parsed.searchParams.get('folder');
+      if (!/^[a-z0-9-]{1,80}$/.test(list) || (tok && !/^[A-Za-z0-9._-]{8,400}$/.test(tok)) || (folder !== null && !isSafeLibraryFolder(folder))) {
+        logToFile('Deep link rejected - bad comics list, folder or token');
         return null;
       }
     }
 
     if (parsed.hostname === 'music') {
       const tok = String(parsed.searchParams.get('token') || '');
-      if (tok && !/^[A-Za-z0-9._-]{8,400}$/.test(tok)) {
-        logToFile('Deep link rejected - bad music token');
+      const folder = parsed.searchParams.get('folder');
+      if ((tok && !/^[A-Za-z0-9._-]{8,400}$/.test(tok)) || (folder !== null && !isSafeLibraryFolder(folder))) {
+        logToFile('Deep link rejected - bad music folder or token');
         return null;
       }
     }
@@ -2524,7 +2526,7 @@ function handleDeepLink(url) {
       const tok = String(u.searchParams.get('token') || '');
       if (tok) comicsState.token = tok;
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
-      const open = () => sendToMain('comics-open', { listId: String(u.searchParams.get('list') || 'all') });
+      const open = () => sendToMain('comics-open', { listId: String(u.searchParams.get('list') || 'all'), folder: String(u.searchParams.get('folder') || '') });
       if (mainWindowDidFinishLoad) open(); else setTimeout(open, 2500);
       return;
     }
@@ -2533,7 +2535,7 @@ function handleDeepLink(url) {
       const tok = String(u.searchParams.get('token') || '');
       if (tok) musicState.token = tok;
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
-      const open = () => sendToMain('music-open', {});
+      const open = () => sendToMain('music-open', { folder: String(u.searchParams.get('folder') || '') });
       if (mainWindowDidFinishLoad) open(); else setTimeout(open, 2500);
       return;
     }
@@ -3414,6 +3416,10 @@ ipcMain.handle('browse-folder', async () => {
 const comicsScan = require('./comicsScan');
 const comicsState = { running: false, worker: null, rows: null, root: '', at: 0, last: null, token: '' };
 const COMICS_LIST_RE = /^[a-z0-9-]{1,80}$/;
+// A folder inside the library ("Artist", "Artist/Album", "Thor Collection/Thor"): relative, no "." or ".." parts, no backslash or control characters.
+function isSafeLibraryFolder(f) {
+  return typeof f === 'string' && f.length > 0 && f.length <= 400 && !/[\\\u0000-\u001f]/.test(f) && f.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
+}
 
 function comicsCacheFile() { return path.join(app.getPath('userData'), 'comics-scan-cache.json'); }
 function loadComicsCache(root) {
@@ -3500,9 +3506,11 @@ ipcMain.handle('comics-info', async () => {
 
 ipcMain.handle('comics-compare', async (event, listId) => {
   const id = String(listId || 'all');
-  if (id !== 'all' && !COMICS_LIST_RE.test(id)) return { ok: false, error: 'Unknown list.' };
+  // "folder:<path>" compares one folder of the library (a collection or a series) instead of a reading order.
+  const folder = id.startsWith('folder:') ? id.slice(7) : '';
+  if (folder ? !isSafeLibraryFolder(folder) : (id !== 'all' && !COMICS_LIST_RE.test(id))) return { ok: false, error: 'Unknown list.' };
   if (!comicsState.rows) return { ok: false, error: 'Scan your folder first.' };
-  const r = await comicsGet('/api/comics/catalog?list=' + encodeURIComponent(id));
+  const r = await comicsGet(folder ? '/api/comics/catalog?folder=' + encodeURIComponent(folder) : '/api/comics/catalog?list=' + encodeURIComponent(id));
   if (!r.ok) return r;
   const items = Array.isArray(r.json.items) ? r.json.items : [];
   const cmp = comicsScan.compare(items, comicsState.rows);
@@ -3594,9 +3602,11 @@ ipcMain.handle('music-info', async () => {
   return r.ok ? { ok: true, totals: r.json.totals || null } : r;
 });
 
-ipcMain.handle('music-compare', async () => {
+ipcMain.handle('music-compare', async (event, folder) => {
+  folder = String(folder || '');
+  if (folder && !isSafeLibraryFolder(folder)) return { ok: false, error: 'Unknown folder.' };
   if (!musicState.rows) return { ok: false, error: 'Scan your folder first.' };
-  const r = await musicGet('/api/music/catalog');
+  const r = await musicGet('/api/music/catalog' + (folder ? '?folder=' + encodeURIComponent(folder) : ''));
   if (!r.ok) return r;
   const items = Array.isArray(r.json.items) ? r.json.items : [];
   const cmp = musicScan.compare(items, musicState.rows);
