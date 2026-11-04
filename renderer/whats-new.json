@@ -1,4 +1,12 @@
 {
+  "5.15.0": {
+    "title": "Downloads Check Themselves",
+    "highlights": [
+      "\"Check files after download\" is now on. Each download is compared with the original's checksums before anything is unpacked, and a damaged file is named. It reads each file once, so a big game adds a few minutes. It's switched on once for everyone; if you turn it off in Settings, it stays off.",
+      "Fixed a rare download problem. If the connection dropped while the disk was slow to save, a retry could write over part of the file. The file ended up the right size but failed to extract.",
+      "When an extracted file turns out damaged, the Companion now says which file failed its check and points you to Check files, instead of showing \"wrong password\"."
+    ]
+  },
   "5.14.0": {
     "title": "Only What I'm Missing, Folder by Folder",
     "highlights": [

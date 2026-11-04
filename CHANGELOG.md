@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.15.0] - 2026-11-04
+
+### Changed
+- "Check files after download" is on by default. It is switched on once for everyone (the old default was off); after that the member's own choice is kept, including off.
+
+### Fixed
+- A dropped connection could start the retry while the last disk write was still running (a slow disk or antivirus scanning), and the retry could write over part of the file: the right size, but failing to extract. Every write now waits for the one before it. A stress test that cuts connections and restarts downloads at random moments now covers this.
+- A damaged file inside a protected archive was reported as "wrong password or encrypted archive". It now names the file that failed its CRC check and points to Check files.
+
 ## [5.14.0] - 2026-11-04
 
 ### Added
