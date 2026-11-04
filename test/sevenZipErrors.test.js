@@ -10,6 +10,7 @@ test('a CRC failure in a protected archive is reported as damage, not as a wrong
   const msg = describe7zFailure(CRC, 2);
   assert.match(msg, /data\.bin is damaged/);
   assert.match(msg, /Check files/);
+  assert.doesNotMatch(msg, /download (it )?again|re-?download/i);
   assert.doesNotMatch(msg, /wrong password/i);
 });
 

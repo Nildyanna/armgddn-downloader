@@ -24,7 +24,7 @@ function describe7zFailure(text, code) {
   const kind = classify7zFailure(text);
   if (kind === 'damaged') {
     const f = blamedFile(text);
-    return `7z extraction failed: ${f ? `${f} is damaged` : 'the archive is damaged or incomplete'} (it failed its own CRC check). The download may not have finished correctly: use Check files, and if a file does not match, download it again.`;
+    return `7z extraction failed: ${f ? `${f} is damaged` : 'the archive is damaged or incomplete'} (it failed its own CRC check). Use Check files to see whether the download matches the original.`;
   }
   if (kind === 'password') return '7z extraction failed: wrong password or encrypted archive';
   return null;      // the caller keeps its own generic message
