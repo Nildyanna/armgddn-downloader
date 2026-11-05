@@ -2555,7 +2555,7 @@ function handleDeepLink(url) {
       // Opens the "only what I'm missing" panel for a reading order. The token minted by the site is kept in memory only (never saved
       // as the Companion's own sign-in) and is used for the catalog and the downloads of this session.
       const tok = String(u.searchParams.get('token') || '');
-      if (tok) comicsState.token = tok;
+      if (tok) { comicsState.token = tok; try { saveSession(tok); } catch (e) { /* keep the in-memory copy */ } }
       logToFile(`[deeplink] comics opened, site token ${tok ? 'received' : 'missing'}`);
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
       const open = () => sendToMain('comics-open', { listId: String(u.searchParams.get('list') || 'all'), folder: String(u.searchParams.get('folder') || '') });
@@ -2565,7 +2565,7 @@ function handleDeepLink(url) {
     if (u.hostname === 'music') {
       // Same as comics: opens the "only what I'm missing" panel; the site's token is kept in memory for this session only.
       const tok = String(u.searchParams.get('token') || '');
-      if (tok) musicState.token = tok;
+      if (tok) { musicState.token = tok; try { saveSession(tok); } catch (e) { /* keep the in-memory copy */ } }
       logToFile(`[deeplink] music opened, site token ${tok ? 'received' : 'missing'}`);
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
       const open = () => sendToMain('music-open', { folder: String(u.searchParams.get('folder') || '') });
@@ -3473,15 +3473,32 @@ function saveComicsCache(root, files) {
   try { const tmp = comicsCacheFile() + '.tmp'; fs.writeFileSync(tmp, JSON.stringify({ root, files })); fs.renameSync(tmp, comicsCacheFile()); } catch (e) { /* ignore */ }
 }
 
+// Every app sign-in the Companion holds, newest source first: the token the site's button handed over for this page, the other
+// page's, and the saved one. Any of them is a normal app session, so a catalog request tries each until one is accepted.
+function catalogTokens(first) {
+  const out = [];
+  for (const t of [first, comicsState.token, musicState.token, loadSession()]) { if (t && !out.includes(t)) out.push(t); }
+  return out;
+}
+
 async function comicsGet(pathAndQuery, page, sessionToken) {
   page = page || 'Comics';
-  const fromSite = !!(sessionToken || comicsState.token);
-  const token = sessionToken || comicsState.token || loadSession();
-  if (!token) return { ok: false, error: `Sign in first: open the ${page} page on the site and press "Only what I'm missing".` };
+  const tokens = catalogTokens(sessionToken);
+  if (!tokens.length) return { ok: false, error: `Sign in first: open the ${page} page on the site and press "Only what I'm missing".` };
   try {
-    const r = await fetchJsonWithBearer(`https://www.armgddnbrowser.com${pathAndQuery}`, 'GET', token);
-    if (r.statusCode === 401) logToFile(`[catalog] ${page} request refused (401); token was ${fromSite ? 'the one from the site button' : 'the saved sign-in'}`);
-    if (r.statusCode === 401) return { ok: false, error: `Your sign-in expired. Open the ${page} page on the site and press "Only what I'm missing" again.` };
+    let r = null;
+    for (const token of tokens) {
+      r = await fetchJsonWithBearer(`https://www.armgddnbrowser.com${pathAndQuery}`, 'GET', token);
+      if (r.statusCode !== 401) {
+        if (token !== tokens[0]) logToFile(`[catalog] ${page}: sign-in #${tokens.indexOf(token) + 1} of ${tokens.length} was accepted`);
+        comicsState.token = token; musicState.token = token;     // downloads for this session use the one that works
+        break;
+      }
+    }
+    if (r.statusCode === 401) {
+      logToFile(`[catalog] ${page} request refused (401) with all ${tokens.length} sign-in(s) held`);
+      return { ok: false, error: `Your sign-in expired. Open the ${page} page on the site and press "Only what I'm missing" again.` };
+    }
     if (r.statusCode !== 200 || !r.json || r.json.success === false) return { ok: false, error: (r.json && r.json.error) || `The site answered ${r.statusCode}.` };
     return { ok: true, json: r.json };
   } catch (e) {
