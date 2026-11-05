@@ -229,6 +229,8 @@ async function showAlertDialog(title, message) {
     if (setupCheckBtn) setupCheckBtn.addEventListener('click', runSetupCheck);
     const setupReportBtn = document.getElementById('setup-report-btn');
     if (setupReportBtn) setupReportBtn.addEventListener('click', copySetupReport);
+    const sendLogBtn = document.getElementById('send-log-btn');
+    if (sendLogBtn) sendLogBtn.addEventListener('click', sendSupportLog);
     const help7zBtn = document.getElementById('help-7z-btn');
     if (help7zBtn) {
       help7zBtn.addEventListener('click', openHelp7z);
@@ -1390,6 +1392,26 @@ async function showAlertDialog(title, message) {
       catch (e) { note.textContent = 'Could not copy automatically. Paste this code in the ARMGDDN Games Welcome & Support chat: ' + res.code; }
     } catch (e) {
       note.textContent = 'Could not build the report.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // "Send log to staff": the cleaned log goes to the site and a short code comes back to paste in the support chat.
+  async function sendSupportLog() {
+    const note = document.getElementById('send-log-note');
+    const btn = document.getElementById('send-log-btn');
+    if (!note || !btn) return;
+    btn.disabled = true;
+    note.textContent = 'Sending the log...';
+    try {
+      const res = await api.sendSupportLog();
+      if (!res || !res.ok) { note.textContent = (res && res.error) || 'Could not send the log.'; return; }
+      let copied = false;
+      try { await navigator.clipboard.writeText(res.code); copied = true; } catch (e) { /* shown below instead */ }
+      note.textContent = (copied ? 'Sent, and the code is copied: ' : 'Sent. Your code: ') + res.code + '. Paste it in the ARMGDDN Games Welcome & Support chat. The log is kept for 7 days.';
+    } catch (e) {
+      note.textContent = 'Could not send the log.';
     } finally {
       btn.disabled = false;
     }

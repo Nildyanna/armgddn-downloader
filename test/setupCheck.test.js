@@ -103,3 +103,12 @@ test('the comics folder: a slow read, a network or cloud folder warn; a quick lo
   assert.strictEqual(comicsKind('/mnt/nas/comics', { mounts: [{ mount: '/mnt/nas', fs: 'cifs', opts: [] }] }), 'network');
   assert.strictEqual(comicsKind('/home/a/comics', { mounts: [{ mount: '/', fs: 'ext4', opts: [] }] }), null);
 });
+
+test('the whole-log cleaner removes personal details and keeps the newest lines within the size', () => {
+  const { cleanLog } = require('../setupReport');
+  const text = ['old line', 'C:\\Users\\George\\AppData\\x failed for a@b.co token=abcdef123456', 'GET https://x.y/z?key=secret 10.0.0.5'].join('\n');
+  const out = cleanLog(text);
+  assert.ok(!/George|a@b\.co|abcdef123456|key=secret|10\.0\.0\.5/.test(out));
+  assert.ok(/<user>/.test(out) && /old line/.test(out));
+  assert.deepStrictEqual(cleanLog('aaaa\nbbbb\ncccc', 12).split('\n'), ['bbbb', 'cccc']);
+});

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   checkDiskSpace: (targetPath) => ipcRenderer.invoke('check-disk-space', targetPath),
   runSetupCheck: () => ipcRenderer.invoke('run-setup-check'),
   buildSetupReport: () => ipcRenderer.invoke('build-setup-report'),
+  sendSupportLog: () => ipcRenderer.invoke('send-support-log'),
 
   // Downloads
   fetchManifest: (url, token) => ipcRenderer.invoke('fetch-manifest', url, token),

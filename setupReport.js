@@ -27,6 +27,19 @@ function recentProblems(logText) {
   return lines.slice(-MAX_LOG_LINES).map(l => sanitize(l).slice(0, MAX_LINE));
 }
 
+// The whole recent log for "Send log to staff": every line cleaned the same way, the newest part kept, long lines cut.
+function cleanLog(logText, maxBytes = 900 * 1024) {
+  const lines = String(logText || '').split(/\r?\n/).map(l => sanitize(l).slice(0, 600));
+  const out = [];
+  let size = 0;
+  for (let i = lines.length - 1; i >= 0; i--) {
+    size += lines[i].length + 1;
+    if (size > maxBytes) break;
+    out.push(lines[i]);
+  }
+  return out.reverse().join('\n');
+}
+
 // The format of the download drive on Linux / macOS (just its type, never a path).
 function posixFs(facts) {
   try {
@@ -74,4 +87,4 @@ function decodeReport(code) {
   return JSON.parse(zlib.inflateSync(Buffer.from(text.slice(PREFIX.length), 'base64url')).toString('utf8'));
 }
 
-module.exports = { buildReport, decodeReport, sanitize, recentProblems, PREFIX };
+module.exports = { buildReport, decodeReport, sanitize, recentProblems, cleanLog, PREFIX };

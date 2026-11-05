@@ -3733,6 +3733,34 @@ ipcMain.handle('build-setup-report', async () => {
   }
 });
 
+// "Send log to staff": the debug log with personal details removed goes to the ARMGDDN site, which answers a short code
+// (LOG-ABCD-2345). The member pastes the code in the support chat and Tulip reads the log from it.
+ipcMain.handle('send-support-log', async () => {
+  try {
+    const token = sessionToken || loadSession();
+    if (!token) return { ok: false, error: 'Sign in first, then try again.' };
+    const logPath = getDebugLogPath();
+    let size;
+    try { size = fs.statSync(logPath).size; } catch (e) { return { ok: false, error: 'There is no log yet. Use the app for a bit and try again.' }; }
+    const len = Math.min(size, 1536 * 1024);
+    const buf = Buffer.alloc(len);
+    const fd = fs.openSync(logPath, 'r');
+    try { fs.readSync(fd, buf, 0, len, size - len); } finally { fs.closeSync(fd); }
+    const log = require('./setupReport').cleanLog(buf.toString('utf8'));
+    const res = await postJsonWithBearer('https://www.armgddnbrowser.com/api/support-log',
+      { log, app: app.getVersion(), os: `${process.platform} ${os.release()} ${process.arch}` }, token);
+    if (res.statusCode === 429) return { ok: false, error: 'You have already sent several logs today. Use the last code, or try again tomorrow.' };
+    if (res.statusCode !== 200 || !res.json || !res.json.code) {
+      logToFile(`[support-log] failed: HTTP ${res.statusCode}`);
+      return { ok: false, error: 'The site could not take the log right now. Try again in a minute.' };
+    }
+    return { ok: true, code: res.json.code };
+  } catch (e) {
+    logToFile(`[support-log] failed: ${e.message}`);
+    return { ok: false, error: 'Could not send the log. Check your connection and try again.' };
+  }
+});
+
 // Show native message box (Yes/No)
 ipcMain.handle('show-message-box', async (event, options) => {
   let parent = getDialogParentWindow();

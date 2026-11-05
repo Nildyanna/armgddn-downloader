@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Settings > Setup Check > Send log to staff.** Sends the recent `debug.log` (up to about 900 KB) with user names in paths, URL query strings, e-mail addresses, IP addresses and anything that looks like a token or password removed, and gives the member a short code (`LOG-ABCD-2345`) to paste in the support chat. The site keeps the log for 7 days and a member can send five a day. Tulip reads the log from the code.
+
 ## [5.15.2] - 2026-11-05
 
 ### Fixed
