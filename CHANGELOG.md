@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.16.3] - 2026-11-05
+
+### Fixed
+- **Music and Comics "Only what I'm missing" said "Your sign-in expired" after a restart.** The token the site's button hands over was kept in memory only, so a restart lost it and the app fell back to an old saved sign-in. The token is now also saved as the app's sign-in, and a catalog request tries every sign-in the app holds (the button's token for this page, the other page's, the saved one) before reporting that it expired.
+- The log now records whether the site's token arrived and which sign-in a refused catalog request used.
+
+### Changed
+- The site now keeps an app sign-in for 30 days of idleness instead of 24 hours (every use renews it, and group membership is still checked hourly), so an app that sat unused for a few days no longer needs the site's button again.
+
 ## [5.16.2] - 2026-11-05
 
 _5.16.1 was tagged but its build failed the packaged-app test (the new `updateRunner.js` was missing from the package list), so it was never published. Nothing else changed._
