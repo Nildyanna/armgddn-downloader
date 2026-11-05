@@ -7,7 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.16.1] - 2026-11-05
+## [5.16.2] - 2026-11-05
+
+_5.16.1 was tagged but its build failed the packaged-app test (the new `updateRunner.js` was missing from the package list), so it was never published. Nothing else changed._
 
 ### Fixed
 - **Updating could fail the first time or two.** The silent installer takes 20 to 80 seconds with the app closed and nothing on screen, so members opened the app again. That copy started a second installer on top of the first (exit code 2) and relaunched the old version, and the startup check mistook the running install for a failed one. The app now writes an "installing" marker before it closes; a copy that starts while an install is running says so and closes itself, and no second install is started. The marker is ignored after 5 minutes.

@@ -1,5 +1,5 @@
 {
-  "5.16.1": {
+  "5.16.2": {
     "title": "Smoother Updates",
     "highlights": [
       "Updating no longer fails or restarts on top of itself if you open the app while it installs. The download bar now fills while the update downloads. A small window now shows while the update installs, and the app reopens by itself."

@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "5.16.1",
+  "version": "5.16.2",
   "description": "ARMGDDN Companion - Fast rclone-powered download manager",
   "homepage": "https://www.armgddnbrowser.com",
   "main": "main.js",
@@ -32,6 +32,7 @@
       "main.js",
       "setupCheck.js",
       "setupReport.js",
+      "updateRunner.js",
       "preload.js",
       "preload-update.js",
       "preload-komga.js",
