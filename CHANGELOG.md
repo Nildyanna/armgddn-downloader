@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- **Updating could fail the first time or two.** The silent installer takes 20 to 80 seconds with the app closed and nothing on screen, so members opened the app again. That copy started a second installer on top of the first (exit code 2) and relaunched the old version, and the startup check mistook the running install for a failed one. The app now writes an "installing" marker before it closes; a copy that starts while an install is running says so and closes itself, and no second install is started. The marker is ignored after 5 minutes.
+- **The update download bar stayed empty.** GitHub's download servers sometimes send no `Content-Length`, so the percentage stayed at 0 while only the speed moved. The size from the release listing is used instead, and with neither the window shows megabytes downloaded.
+
+### Changed
+- While the update installs, a small always-on-top "Installing the update" window with a moving bar stays on screen until the installer finishes, then the app reopens by itself.
+
 ## [5.16.0] - 2026-11-05
 
 ### Added

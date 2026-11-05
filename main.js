@@ -992,6 +992,7 @@ function isAllowedUpdateHost(hostname) {
   return false;
 }
 
+const updateRunner = require('./updateRunner');
 const hashCheck = require('./hashCheck');
 const exitGuard = require('./exitGuard');
 const { describe7zFailure } = require('./sevenZipErrors');
@@ -3221,6 +3222,17 @@ app.whenReady().then(() => {
       }
 
       const state = String(parsed.state || '').toLowerCase();
+      if (state === 'installing') {
+        if (updateRunner.installIsRunning(raw, fs.statSync(resultPath).mtimeMs)) {
+          // The member opened the app again while the update is still being installed. Starting now would collide with it.
+          logToFile('Startup: an update is still installing; closing this copy so the installer can finish');
+          await withDialogFocus(() => dialog.showMessageBox({ type: 'info', buttons: ['OK'], title: 'Updating', message: 'ARMGDDN Companion is installing an update', detail: 'It will reopen by itself in a minute. There is nothing you need to do.' }));
+          app.exit(0);
+          return;
+        }
+        try { fs.unlinkSync(resultPath); } catch (e) { }       // stale marker from an install that never reported back
+        return;
+      }
       const exitCode = Number.isFinite(Number(parsed.exitCode)) ? Number(parsed.exitCode) : null;
       const logPath = parsed.logPath ? String(parsed.logPath) : '';
 
@@ -8325,11 +8337,14 @@ function fetchLatestReleaseInfo() {
             }
           }
 
+          let installerSize = 0;
+          try { const a = (release.assets || []).find(x => x && x.browser_download_url === installerUrl); installerSize = a && Number(a.size) > 0 ? Number(a.size) : 0; } catch (e) { }
           resolve({
             hasUpdate,
             version: currentVersion,
             latestVersion,
             osTooOld,
+            installerSize,
             notice: osTooOld ? `Version ${latestVersion} needs macOS 13 or newer, so it isn't offered on this Mac. You can keep using v${currentVersion}.` : '',
             releaseUrl: release.html_url || 'https://github.com/Nildyanna/armgddn-downloader/releases',
             installerUrl,  // Only used internally; stripped before sending to renderer
@@ -8381,6 +8396,13 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
     logToFile('install-update: another install is already in progress — ignoring duplicate call');
     return { success: false, error: 'Another update install is already in progress' };
   }
+  try {
+    const rp = path.join(app.getPath('userData'), 'update-result.json');
+    if (fs.existsSync(rp) && updateRunner.installIsRunning(fs.readFileSync(rp, 'utf8'), fs.statSync(rp).mtimeMs)) {
+      logToFile('install-update: an installer from an earlier start is still running -- not starting another');
+      return { success: false, error: 'An update is already installing' };
+    }
+  } catch (e) { }
   _installUpdateInProgress = true;
 
   const opts = (options && typeof options === 'object') ? options : {};
@@ -8389,9 +8411,11 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
 
   // Derive the installer URL internally — never trust the renderer-supplied value
   let installerUrl;
+  let installerSize = 0;
   try {
     const releaseInfo = await fetchLatestReleaseInfo();
     installerUrl = releaseInfo.installerUrl || null;
+    installerSize = releaseInfo.installerSize || 0;
     if (!installerUrl) {
       _installUpdateInProgress = false;
       return { success: false, error: 'No installer available for this platform' };
@@ -8703,22 +8727,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
             return;
           }
           if (progressWin && !progressWin.isDestroyed()) {
-            const percent = totalBytes ? (receivedBytes / totalBytes) * 100 : 0;
-            const elapsed = (Date.now() - startTime) / 1000;
-            const speed = elapsed > 0 ? (receivedBytes / elapsed) : 0; // bytes/sec
-
-            // Simple formatting for speed
-            let speedStr = '';
-            if (speed > 1024 * 1024) speedStr = (speed / (1024 * 1024)).toFixed(1) + ' MB/s';
-            else speedStr = (speed / 1024).toFixed(1) + ' KB/s';
-
-            safeSendUpdateEvent('update-progress', {
-              percent,
-              transferred: receivedBytes,
-              total: totalBytes,
-              speed: speedStr,
-              status: 'Downloading update...'
-            });
+            safeSendUpdateEvent('update-progress', updateRunner.progressPayload(receivedBytes, totalBytes, installerSize, (Date.now() - startTime) / 1000));
           }
         });
 
@@ -8874,43 +8883,11 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                     // only does that for updates); without it every update recreated the Start
                     // Menu shortcut, even after the user moved or deleted it.
                     const silentArg = silent ? '/S --updated' : '--updated';
-                    const runner = [
-                      '# ARMGDDN Companion update runner — auto-generated, do not edit',
-                      `$pid_to_wait = ${pid}`,
-                      `$installer = ${escapePsPath(filePath)}`,
-                      `$appExe = ${escapePsPath(process.execPath)}`,
-                      `$logPath = ${escapePsPath(wrapperLogPath)}`,
-                      `$resultPath = ${escapePsPath(resultPath)}`,
-                      `$silentArg = '${silentArg}'`,
-                      `$shouldRelaunch = $${shouldRelaunch ? 'true' : 'false'}`,
-                      `$shortcut = ${escapePsPath(startMenuShortcut)}`,
-                      '',
-                      'Add-Content -Path $logPath -Value ("[{0}] runner start pid=$pid_to_wait" -f (Get-Date -Format o))',
-                      '',
-                      '# Wait for parent process to exit',
-                      'while (Get-Process -Id $pid_to_wait -ErrorAction SilentlyContinue) { Start-Sleep -Milliseconds 500 }',
-                      'Add-Content -Path $logPath -Value ("[{0}] parent exited" -f (Get-Date -Format o))',
-                      '',
-                      '# Run installer',
-                      'Set-Content -Path $resultPath -Value (\'{"state":"installing"}\')',
-                      '$proc = Start-Process -FilePath $installer -ArgumentList $silentArg -Wait -PassThru',
-                      '$rc = $proc.ExitCode',
-                      'Add-Content -Path $logPath -Value ("[{0}] installer finished rc=$rc" -f (Get-Date -Format o))',
-                      '',
-                      '# RC=0: success. RC=2: NSIS UAC elevation — treat as success.',
-                      'if ($rc -eq 0 -or $rc -eq 2) {',
-                      '  Set-Content -Path $resultPath -Value (\'{"state":"success","exitCode":0}\')',
-                      '  if ($shouldRelaunch) {',
-                      '    if ($shortcut -and (Test-Path $shortcut)) { Start-Process -FilePath $shortcut }',
-                      '    else { Start-Process -FilePath $appExe -ArgumentList \'--updated\' }',
-                      '  }',
-                      '} else {',
-                      '  Set-Content -Path $resultPath -Value (\'{"state":"failed","exitCode":\' + $rc + \'}\')',
-                      '  Add-Content -Path $logPath -Value ("[{0}] installer failed rc=$rc, skipping relaunch" -f (Get-Date -Format o))',
-                      '}',
-                      'Add-Content -Path $logPath -Value ("[{0}] runner done" -f (Get-Date -Format o))',
-                      'Remove-Item -Path $MyInvocation.MyCommand.Path -Force -ErrorAction SilentlyContinue'
-                    ].join("\r\n");
+                    const runner = updateRunner.buildRunner({
+                      pid, filePath, appExe: process.execPath, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut: startMenuShortcut
+                    });
+                    // Tell any app that starts while the installer works (the member opens it again) not to start a second install.
+                    try { fs.writeFileSync(resultPath, JSON.stringify({ state: 'installing', ts: Date.now() })); } catch (e) { }
 
                     try {
                       fs.writeFileSync(runnerPath, runner, { encoding: 'utf8' });
