@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.15.2] - 2026-11-05
+
+### Fixed
+- A failed download no longer reads "the link looks invalid or expired" when the output merely contained the words "not found" somewhere. A real 404 is still recognised, from the error line or the CopyURL wording.
+- A connection closed by the other side, including Windows socket errors in any language (`wsarecv`, `wsasend`), now shows "The connection dropped mid-download" and is no longer reported to Sentry as a new issue for every PC.
+- A crash of the download engine's Go runtime (`fatal error: runtime: ...`, `mcall called on m->g0 stack`) is reported as an engine crash, not an expired link.
+- "server gave HTTP response to HTTPS client" gets its own message about a VPN, proxy or security program.
+- The 401, 403 and 429 checks matched digits inside port numbers; they now match whole numbers only.
+
+### Changed
+- Electron 44.10.2, @sentry/electron 7.20.2, electron-builder 26.18.0.
+
 ## [5.15.1] - 2026-11-04
 
 ### Fixed

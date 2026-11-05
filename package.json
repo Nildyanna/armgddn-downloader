@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "5.15.1",
+  "version": "5.15.2",
   "description": "ARMGDDN Companion - Fast rclone-powered download manager",
   "homepage": "https://www.armgddnbrowser.com",
   "main": "main.js",
@@ -42,6 +42,7 @@
       "hashCheck.js",
       "sevenZipErrors.js",
       "exitGuard.js",
+      "downloadErrors.js",
       "comicsScan.js",
       "comicsScanWorker.js",
       "musicScan.js",
@@ -138,8 +139,8 @@
   },
   "devDependencies": {
     "7zip-bin": "^5.2.0",
-    "electron": "^44.9.1",
-    "electron-builder": "^26.15.3"
+    "electron": "^44.10.2",
+    "electron-builder": "^26.18.0"
   },
   "overrides": {
     "glob": "^13.0.0",
@@ -155,6 +156,6 @@
     "fast-uri": "^3.1.9"
   },
   "dependencies": {
-    "@sentry/electron": "^7.20.0"
+    "@sentry/electron": "^7.20.2"
   }
 }

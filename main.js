@@ -77,7 +77,7 @@ if (SENTRY_DSN) {
 // Windows ending the download process itself (PC shutting down or signing out, the app being closed): 3221225794 is
 // 0xC0000142, 1073807364 is 0x40010004 and 3221225786 is 0xC000013A. They arrive together, for every running download at
 // the same second, so they are the system closing things and not a fault (Sentry COMPANION-1N and 1P).
-const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error|Can't create the download folder|\(code (?:3221225794|1073807364|3221225786)\))/i;
+const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error|Can't create the download folder|connection dropped mid-download|interfering with the secure connection|\(code (?:3221225794|1073807364|3221225786)\))/i;
 function isExpectedDownloadFailure(errorText) {
   return EXPECTED_FAILURE_RE.test(String(errorText || '').split('\n')[0]);
 }
@@ -995,6 +995,7 @@ function isAllowedUpdateHost(hostname) {
 const hashCheck = require('./hashCheck');
 const exitGuard = require('./exitGuard');
 const { describe7zFailure } = require('./sevenZipErrors');
+const downloadErrors = require('./downloadErrors');
 
 function sanitizeRelativePath(input) {
   if (input == null || input === '') return null;
@@ -1791,19 +1792,25 @@ function formatDownloadFailedMessage(code, errorOutput) {
         'Delete/rename the existing file or choose a different folder, then retry.'
       );
     }
-    if (/(404|not found)/i.test(detail) || lower.includes('404') || lower.includes('not found')) {
+    if (downloadErrors.isHttpOnHttps(detail, errorOutput)) {
+      return withSupportFooter(
+        `Something on this PC is interfering with the secure connection to the download server. (${detail})`,
+        'A VPN, proxy or security program is answering in plain HTTP. Pause the VPN or proxy, or add the Companion to the security program\'s exclusions, then retry.'
+      );
+    }
+    if (downloadErrors.isNotFound(detail, errorOutput)) {
       return withSupportFooter(
         `The download link looks invalid or expired (file not found). (${detail})`,
         'Go back to the website and start the download again to generate a fresh link.'
       );
     }
-    if (/(401|403|unauthorized|forbidden)/i.test(detail) || lower.includes('unauthorized') || lower.includes('forbidden')) {
+    if (/(\b401\b|\b403\b|unauthorized|forbidden)/i.test(detail) || lower.includes('unauthorized') || lower.includes('forbidden')) {
       return withSupportFooter(
         `Authorization failed (the link may be expired). (${detail})`,
         'Go back to the website and start the download again to generate a fresh link.'
       );
     }
-    if (/(429|too many requests|rate limit)/i.test(detail) || lower.includes('too many requests')) {
+    if (/(\b429\b|too many requests|rate limit)/i.test(detail) || lower.includes('too many requests')) {
       return withSupportFooter(
         `The server is rate-limiting the download right now. (${detail})`,
         'Wait a few minutes and retry. Avoid running multiple downloads at once.'
@@ -1815,7 +1822,7 @@ function formatDownloadFailedMessage(code, errorOutput) {
         'Retry the download. If it keeps timing out, try a different network or lower concurrency.'
       );
     }
-    if (/(connection reset|broken pipe|unexpected eof|received from peer|econnreset|rst_stream|http2)/i.test(detail) || lower.includes('connection reset')) {
+    if (downloadErrors.isConnectionDrop(detail, errorOutput)) {
       return withSupportFooter(
         `The connection dropped mid-download. (${detail})`,
         'Retry the download. If it repeats, try a different network or lower concurrency.'
@@ -5010,7 +5017,7 @@ function isLikelySignedExpiringUrl(urlString) {
 // SIGSEGV, panic) its stderr holds a goroutine dump full of words like "lookup"
 // and "not found" that used to be misread as DNS or expired-link errors.
 function isRcloneCrashOutput(output) {
-  return /fatal error: (fault|unexpected signal)|\bsigsegv\b|panic: runtime error|\bgoroutine \d+ \[/i.test(String(output || ''));
+  return downloadErrors.isCrashOutput(output);
 }
 
 function isTokenExpiredError(output, fileUrl) {

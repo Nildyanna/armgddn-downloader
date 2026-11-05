@@ -1,4 +1,12 @@
 {
+  "5.15.2": {
+    "title": "Clearer Download Errors",
+    "highlights": [
+      "When a download fails, the Companion now says what really happened. A dropped connection no longer shows as an expired link, and a crash of the download engine is called a crash.",
+      "If a VPN, proxy or security program interferes with the secure connection to the download server, the Companion now says so and what to try.",
+      "Includes the latest Electron security updates."
+    ]
+  },
   "5.15.1": {
     "title": "Steadier on Linux",
     "highlights": [
