@@ -2556,6 +2556,7 @@ function handleDeepLink(url) {
       // as the Companion's own sign-in) and is used for the catalog and the downloads of this session.
       const tok = String(u.searchParams.get('token') || '');
       if (tok) comicsState.token = tok;
+      logToFile(`[deeplink] comics opened, site token ${tok ? 'received' : 'missing'}`);
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
       const open = () => sendToMain('comics-open', { listId: String(u.searchParams.get('list') || 'all'), folder: String(u.searchParams.get('folder') || '') });
       if (mainWindowDidFinishLoad) open(); else setTimeout(open, 2500);
@@ -2565,6 +2566,7 @@ function handleDeepLink(url) {
       // Same as comics: opens the "only what I'm missing" panel; the site's token is kept in memory for this session only.
       const tok = String(u.searchParams.get('token') || '');
       if (tok) musicState.token = tok;
+      logToFile(`[deeplink] music opened, site token ${tok ? 'received' : 'missing'}`);
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
       const open = () => sendToMain('music-open', { folder: String(u.searchParams.get('folder') || '') });
       if (mainWindowDidFinishLoad) open(); else setTimeout(open, 2500);
@@ -3473,10 +3475,12 @@ function saveComicsCache(root, files) {
 
 async function comicsGet(pathAndQuery, page, sessionToken) {
   page = page || 'Comics';
+  const fromSite = !!(sessionToken || comicsState.token);
   const token = sessionToken || comicsState.token || loadSession();
   if (!token) return { ok: false, error: `Sign in first: open the ${page} page on the site and press "Only what I'm missing".` };
   try {
     const r = await fetchJsonWithBearer(`https://www.armgddnbrowser.com${pathAndQuery}`, 'GET', token);
+    if (r.statusCode === 401) logToFile(`[catalog] ${page} request refused (401); token was ${fromSite ? 'the one from the site button' : 'the saved sign-in'}`);
     if (r.statusCode === 401) return { ok: false, error: `Your sign-in expired. Open the ${page} page on the site and press "Only what I'm missing" again.` };
     if (r.statusCode !== 200 || !r.json || r.json.success === false) return { ok: false, error: (r.json && r.json.error) || `The site answered ${r.statusCode}.` };
     return { ok: true, json: r.json };
