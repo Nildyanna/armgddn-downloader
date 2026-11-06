@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "5.16.3",
+  "version": "5.16.4",
   "description": "ARMGDDN Companion - Fast rclone-powered download manager",
   "homepage": "https://www.armgddnbrowser.com",
   "main": "main.js",

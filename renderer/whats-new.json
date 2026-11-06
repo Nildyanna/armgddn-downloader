@@ -1,4 +1,10 @@
 {
+  "5.16.4": {
+    "title": "Send Log Works Signed Out",
+    "highlights": [
+      "\"Send log to staff\" no longer fails if your sign-in has expired, and if it can't send, it now tells you what went wrong."
+    ]
+  },
   "5.16.3": {
     "title": "Music and Comics Keep You Signed In",
     "highlights": [

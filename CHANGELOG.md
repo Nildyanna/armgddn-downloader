@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.16.4] - 2026-11-06
+
 ### Fixed
 - **"Send log to staff" did nothing for members whose sign-in had expired.** The site refused the upload without a valid sign-in, and the app's message for that was vague. The site now accepts a cleaned log with or without a sign-in (limited to 5 a day per member or address), and the app sends it either way. If the site still refuses, the message now includes the error number, and `debug.log` records each attempt (`[support-log]` lines).
 
