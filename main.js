@@ -901,7 +901,7 @@ function postJsonWithBearer(urlString, bodyObj, bearerToken) {
     const body = JSON.stringify(bodyObj || {});
     const req = https.request({
       hostname: u.hostname, port: u.port ? Number(u.port) : 443, path: u.pathname + (u.search || ''), method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(), 'Authorization': 'Bearer ' + bearerToken },
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(), ...(bearerToken ? { 'Authorization': 'Bearer ' + bearerToken } : {}) },
       timeout: 30000
     }, (res) => {
       let data = '';
@@ -3770,8 +3770,7 @@ ipcMain.handle('build-setup-report', async () => {
 // (LOG-ABCD-2345). The member pastes the code in the support chat and Tulip reads the log from it.
 ipcMain.handle('send-support-log', async () => {
   try {
-    const token = sessionToken || loadSession();
-    if (!token) return { ok: false, error: 'Sign in first, then try again.' };
+    const token = sessionToken || loadSession();                // may be empty or expired: the site takes a cleaned log either way
     const logPath = getDebugLogPath();
     let size;
     try { size = fs.statSync(logPath).size; } catch (e) { return { ok: false, error: 'There is no log yet. Use the app for a bit and try again.' }; }
@@ -3780,13 +3779,15 @@ ipcMain.handle('send-support-log', async () => {
     const fd = fs.openSync(logPath, 'r');
     try { fs.readSync(fd, buf, 0, len, size - len); } finally { fs.closeSync(fd); }
     const log = require('./setupReport').cleanLog(buf.toString('utf8'));
+    logToFile(`[support-log] sending ${Math.round(log.length / 1024)} KB, ${token ? 'with a saved sign-in' : 'without a sign-in'}`);
     const res = await postJsonWithBearer('https://www.armgddnbrowser.com/api/support-log',
       { log, app: app.getVersion(), os: `${process.platform} ${os.release()} ${process.arch}` }, token);
     if (res.statusCode === 429) return { ok: false, error: 'You have already sent several logs today. Use the last code, or try again tomorrow.' };
     if (res.statusCode !== 200 || !res.json || !res.json.code) {
       logToFile(`[support-log] failed: HTTP ${res.statusCode}`);
-      return { ok: false, error: 'The site could not take the log right now. Try again in a minute.' };
+      return { ok: false, error: `The site could not take the log right now (error ${res.statusCode || 'no answer'}). Try again in a minute.` };
     }
+    logToFile(`[support-log] sent, code ${res.json.code}`);
     return { ok: true, code: res.json.code };
   } catch (e) {
     logToFile(`[support-log] failed: ${e.message}`);
