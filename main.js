@@ -1367,8 +1367,20 @@ function acquireGlobalPoolSlot() {
   });
 }
 
+// Electron throws "Failed to get 'downloads' path" when Windows has no Downloads folder for the account (removed or redirected to a drive that
+// is not there). That error at startup stopped the app from opening at all, so fall back to Documents, then the home folder.
+function defaultDownloadsBase() {
+  for (const name of ['downloads', 'documents', 'home']) {
+    try {
+      const dir = app.getPath(name);
+      if (dir) return dir;
+    } catch (e) { /* try the next folder */ }
+  }
+  return os.homedir();
+}
+
 let settings = {
-  downloadPath: path.join(app.getPath('downloads'), 'ARMGDDN'),
+  downloadPath: path.join(defaultDownloadsBase(), 'ARMGDDN'),
   maxConcurrentDownloads: 2,
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
@@ -1450,7 +1462,7 @@ function normalizeSettings() {
     settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 6) : 2;
 
     const rawDownloadPath = settings.downloadPath;
-    const defaultDownloadPath = path.join(app.getPath('downloads'), 'ARMGDDN');
+    const defaultDownloadPath = path.join(defaultDownloadsBase(), 'ARMGDDN');
     if (typeof rawDownloadPath !== 'string' || !rawDownloadPath.trim()) {
       settings.downloadPath = defaultDownloadPath;
     } else {
