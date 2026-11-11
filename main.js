@@ -3330,11 +3330,12 @@ ipcMain.handle('retry-download', async (event, downloadId) => {
 
 // Auto-retry: most failures are the member's connection dropping (Sentry
 // COMPANION-2/-3/-5/-6). Once a download has failed on one of those, wait for
-// the network and resume it once by itself, as if they'd clicked Retry.
+// the network and resume it by itself, as if they'd clicked Retry. A connection that keeps dropping
+// (satellite internet) gets up to AUTO_RETRY_MAX resumes, each after a longer pause.
 // Errors a retry can't fix (disk space, quota, clock, folder) are left alone.
 const AUTO_RETRY_TRANSIENT_RE = /(stalled|link expired|network\/dns|timed out|connection dropped|gateway error|could not be resumed|download failed\.)/i;
 const AUTO_RETRY_BLOCK_RE = /(disk space|quota|date\/time|download folder|security error)/i;
-const AUTO_RETRY_MAX = 1;
+const AUTO_RETRY_MAX = 5;
 function scheduleAutoRetry(downloadId, download) {
   try {
     if (!download || download.__autoRetryPending) return;
@@ -3347,7 +3348,7 @@ function scheduleAutoRetry(downloadId, download) {
       try {
         // Let the other workers finish failing so the download settles on 'error'.
         const settleDeadline = Date.now() + 30 * 60 * 1000;
-        await new Promise(r => setTimeout(r, 60 * 1000));
+        await new Promise(r => setTimeout(r, 60 * 1000 * (1 + (Number(download.__autoRetries) || 0))));
         while (Date.now() < settleDeadline) {
           if (isDownloadAbandoned(download) || activeDownloads.get(downloadId) !== download) return;
           if (download.status === 'error') break;

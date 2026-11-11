@@ -1,4 +1,10 @@
 {
+  "5.16.6": {
+    "title": "Downloads Keep Going Through Dropouts",
+    "highlights": [
+      "If your internet cuts out more than once during a download, the app now picks it back up each time, instead of giving up after the first resume. Handy on connections that drop now and then, like satellite internet."
+    ]
+  },
   "5.16.5": {
     "title": "Starts Without a Downloads Folder",
     "highlights": [

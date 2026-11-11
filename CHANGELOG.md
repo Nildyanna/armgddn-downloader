@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.16.6] - 2026-11-11
+
+### Fixed
+- **A download gave up after its first automatic resume.** When a failure looked like a dropped connection, the app waited for the network and resumed once, then showed the error if the connection dropped again. It now resumes up to 5 times per download, with a longer pause before each new attempt, and every attempt continues from the part already on disk. Errors a retry cannot fix (full disk, quota, wrong date and time, download folder, security error) are still not retried.
+
 ## [5.16.5] - 2026-11-11
 
 ### Fixed
