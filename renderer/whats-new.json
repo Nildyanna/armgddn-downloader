@@ -1,4 +1,10 @@
 {
+  "5.16.5": {
+    "title": "Starts Without a Downloads Folder",
+    "highlights": [
+      "The app no longer refuses to open if your Windows account has no Downloads folder. It now falls back to your Documents folder, then your home folder, to put the ARMGDDN downloads folder in."
+    ]
+  },
   "5.16.4": {
     "title": "Send Log Works Signed Out",
     "highlights": [

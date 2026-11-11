@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.16.5] - 2026-11-11
+
+### Fixed
+- **The app would not open on a PC with no Downloads folder.** Electron failed with "Failed to get 'downloads' path" when Windows had no Downloads folder for the account, for example if it was removed or redirected to a drive that is not there, and that stopped startup. The default download location now falls back to Documents, then the home folder (Sentry COMPANION-57).
+
 ## [5.16.4] - 2026-11-06
 
 ### Fixed
