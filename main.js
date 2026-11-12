@@ -147,6 +147,7 @@ const crypto = require('crypto');
 const https = require('https');
 const { resumeDownload, ResumeProc } = require('./resumeDownload');
 const { segmentedDownload, probeRanges } = require('./segmentedDownload');
+const directEndpoint = require('./directEndpoint');
 const { pathToFileURL } = require('url');
 
 function getDialogParentWindow() {
@@ -597,6 +598,7 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
         refreshGlobalPoolLimit();
       } catch (e2) { }
       notice = (loadInfo.concurrency.notice ? String(loadInfo.concurrency.notice) : '') || '';
+      try { if (directEndpoint.configure(loadInfo.directDownload)) logToFile(`[Direct] endpoint ${directEndpoint.describe()}`); } catch (e2) { }
       download.serverOverhead = loadInfo;
       try {
         logToFile(`[Concurrency] app-load ok requested=${requestedWorkers} serverEffective=${eff} appliedEffective=${effective} manifestHost=${(() => { try { return manifestUrl ? new URL(String(manifestUrl)).hostname : ''; } catch (e2) { return ''; } })()}`);
@@ -5431,6 +5433,20 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
     } catch (e) {
     }
 
+    // The hosting provider caps the managed link at about 100 connections for the whole slot. When the site has switched the direct
+    // endpoint on and it answers, use it; otherwise (off, unreachable, paused after a failure) nothing changes.
+    try {
+      const direct = directEndpoint.rewrite(String(file.url));
+      if (direct !== String(file.url) && await directEndpoint.reachable()) {
+        file.managedUrl = String(file.url);
+        file.url = direct;
+        logToFile(`[Direct] using ${directEndpoint.describe()} for ${file && file.name ? String(file.name) : ''}`);
+      } else if (direct !== String(file.url)) {
+        directEndpoint.noteFailure();
+        logToFile('[Direct] endpoint did not answer; using the managed link for now');
+      }
+    } catch (e) { }
+
       if (download.cancelled) {
         done();
         return;
@@ -5635,6 +5651,13 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       '--header', 'Accept: */*'
     ];
 
+    try {
+      if (directEndpoint.isDirectUrl(file.url)) {
+        const caFile = directEndpoint.certFile(app.getPath('userData'));
+        if (caFile) args.push('--ca-cert', caFile);
+      }
+    } catch (e) { }
+
     if (multiThreadStreams > 0) {
       args.push('--multi-thread-streams', String(multiThreadStreams));
       args.push('--multi-thread-cutoff', String(multiThreadCutoff));
@@ -5693,7 +5716,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       const hasRecord = fs.existsSync(outputPath + '.armseg') && fs.existsSync(outputPath + '.armdl');
       if (!hasRecord) {
         let probe = { ok: false };
-        try { probe = await probeRanges(String(file.url), segmentHeaders); } catch (e) { }
+        try { probe = await probeRanges(String(file.url), segmentHeaders, undefined, directEndpoint.tlsOptions()); } catch (e) { }
         if (!probe.ok || (probe.total && probe.total !== fileSize)) {
           useSegmented = false;
           logToFile(`[Segmented] not used for ${file && file.name ? String(file.name) : ''}: server did not confirm Range for ${fileSize} bytes (status ${probe.status || 0}, total ${probe.total || 0}${probe.error ? `, ${probe.error}` : ''}); using rclone`);
@@ -5722,8 +5745,8 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       };
       const limitBytes = appliedBwLimit ? (parseFloat(appliedBwLimit) || 0) * 1048576 : 0;   // same per-worker limit rclone would get
       const engine = useSegmented
-        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, onEvent: (m) => logToFile(`[Segmented] ${fileName}: ${m}`) })
-        : resumeDownload;
+        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: (m) => logToFile(`[Segmented] ${fileName}: ${m}`) })
+        : (o) => resumeDownload({ ...o, tlsOptions: directEndpoint.tlsOptions() });
       const ctl = engine({
         url: String(file.url),
         outputPath,
@@ -5789,6 +5812,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         done();
         return;
       }
+      try { if (directEndpoint.isDirectUrl(file.url)) { directEndpoint.noteFailure(); logToFile('[Direct] failed; the retry will use the managed link'); } } catch (e) { }
       logToFile(`[Resume] gave up on ${fileName}: ${failure && failure.message ? failure.message : String(failure)} (kept ${lastResumeBytes} bytes)`);
       download.status = 'error';
       if (!Array.isArray(download.failedFiles)) download.failedFiles = [];
@@ -6372,6 +6396,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
           const tail = trimmed.length > 12000 ? trimmed.slice(-12000) : trimmed;
           const redacted = redactUrlQueryStrings(tail);
           logToFile(`[rclone] copyurl failed code=${code} file=${file && file.name ? String(file.name) : ''} outputPath=${outputPath} stderr=${redacted}`);
+          try { if (directEndpoint.isDirectUrl(file.url)) { directEndpoint.noteFailure(); logToFile('[Direct] failed; the retry will use the managed link'); } } catch (e3) { }
         } catch (e) {
           try {
             logToFile(`[rclone] copyurl failed code=${code} file=${file && file.name ? String(file.name) : ''} (failed to log stderr)`);

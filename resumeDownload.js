@@ -22,19 +22,19 @@ class ResumeError extends Error {
   }
 }
 
-function openStream(urlString, headers, stallMs, hops = 0) {
+function openStream(urlString, headers, stallMs, hops = 0, tlsOptions) {
   return new Promise((resolve, reject) => {
     let u;
     try { u = new URL(urlString); } catch (e) { return reject(new ResumeError('bad url', 'fatal')); }
     const lib = u.protocol === 'http:' ? http : https;
-    const req = lib.get(u, { headers }, (res) => {
+    const req = lib.get(u, { headers, ...(u.protocol === 'https:' ? (tlsOptions || {}) : {}) }, (res) => {
       const code = res.statusCode || 0;
       if (code >= 300 && code < 400 && res.headers.location) {
         res.resume();
         if (hops >= MAX_REDIRECTS) return reject(new ResumeError('too many redirects', 'network'));
         let next;
         try { next = new URL(res.headers.location, u).toString(); } catch (e) { return reject(new ResumeError('bad redirect', 'network')); }
-        return openStream(next, headers, stallMs, hops + 1).then(resolve, reject);
+        return openStream(next, headers, stallMs, hops + 1, tlsOptions).then(resolve, reject);
       }
       resolve({ req, res });
     });
@@ -49,7 +49,7 @@ function openStream(urlString, headers, stallMs, hops = 0) {
 //   onProgress     (bytesOnDisk, totalOrZero) => void
 //   expectedSize   bytes, 0 if unknown
 function resumeDownload(opts) {
-  const { outputPath, expectedSize = 0, getFreshUrl, onProgress, headers = {}, stallMs = 60 * 1000, maxAttempts = 12, retryDelayMs = 2000 } = opts;
+  const { outputPath, expectedSize = 0, getFreshUrl, onProgress, headers = {}, stallMs = 60 * 1000, maxAttempts = 12, retryDelayMs = 2000, tlsOptions } = opts;
   const markerPath = outputPath + MARKER_SUFFIX;
   let aborted = null;
   let currentReq = null;
@@ -85,7 +85,7 @@ function resumeDownload(opts) {
       try {
         const h = { ...headers, 'Accept-Encoding': 'identity' };
         if (offset > 0) h.Range = `bytes=${offset}-`;
-        const { req, res } = await openStream(url, h, stallMs);
+        const { req, res } = await openStream(url, h, stallMs, 0, tlsOptions);
         currentReq = req; currentRes = res;
         const code = res.statusCode;
         if (code === 416 && total > 0 && offset >= total) { res.resume(); break; }

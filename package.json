@@ -39,6 +39,7 @@
       "komga.js",
       "resumeDownload.js",
       "segmentedDownload.js",
+      "directEndpoint.js",
       "httpOpen.js",
       "hashCheck.js",
       "sevenZipErrors.js",
