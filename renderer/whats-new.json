@@ -1,4 +1,10 @@
 {
+  "5.17.0": {
+    "title": "Faster, Steadier Downloads",
+    "highlights": [
+      "Downloads can now connect to a second, dedicated download address, which avoids the connection limits that were occasionally resetting downloads. If that address can't be reached, the app uses the usual one automatically. Nothing changes for you to set up."
+    ]
+  },
   "5.16.6": {
     "title": "Downloads Keep Going Through Dropouts",
     "highlights": [

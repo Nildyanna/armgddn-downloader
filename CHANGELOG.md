@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.17.0] - 2026-11-12
+
+### Added
+- **A second, dedicated download address.** The hosting provider caps the managed download link at about 100 simultaneous connections for everyone together, and resets new ones past that, which showed up as brief outages and "connection forcibly closed" errors. The same download server is now also reachable on its own port with its own certificate. The app trusts exactly that certificate (and the normal system certificates), so it still refuses any other server. The site switches this on; when it is off, unreachable, or after a failure, the app uses the usual link as before, and a failure pauses the new address for ten minutes.
+
 ## [5.16.6] - 2026-11-11
 
 ### Fixed
