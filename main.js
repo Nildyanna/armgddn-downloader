@@ -999,6 +999,7 @@ const hashCheck = require('./hashCheck');
 const exitGuard = require('./exitGuard');
 const { describe7zFailure } = require('./sevenZipErrors');
 const downloadErrors = require('./downloadErrors');
+let ignoreProxyEnv = false;   // set when the PC's proxy settings point at a dead proxy: rclone then runs without them
 
 function sanitizeRelativePath(input) {
   if (input == null || input === '') return null;
@@ -1805,6 +1806,15 @@ function formatDownloadFailedMessage(code, errorOutput) {
       return withSupportFooter(
         `A file with the same name already exists. (${detail})`,
         'Delete/rename the existing file or choose a different folder, then retry.'
+      );
+    }
+    if (downloadErrors.isDeadProxy(detail, errorOutput)) {
+      // The PC's proxy settings point at a program that is not running (a VPN or proxy tool that was closed). The automatic retry
+      // (and every download after it) runs rclone without those settings.
+      ignoreProxyEnv = true;
+      return withSupportFooter(
+        `This PC is set to use a proxy that is not running. (${detail})`,
+        'The Companion will retry without the proxy. If it keeps failing, start your VPN or proxy program again, or remove its proxy setting in Windows.'
       );
     }
     if (downloadErrors.isHttpOnHttps(detail, errorOutput)) {
@@ -5835,7 +5845,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
 
     let proc;
     try {
-      proc = spawn(rclonePath, args);
+      proc = ignoreProxyEnv ? spawn(rclonePath, args, { env: downloadErrors.withoutProxyEnv(process.env) }) : spawn(rclonePath, args);
     } catch (e) {
       // spawn() can throw synchronously (e.g. ENOENT, EACCES). In that case we would
       // otherwise leak the global concurrency slot and leave the download stuck.

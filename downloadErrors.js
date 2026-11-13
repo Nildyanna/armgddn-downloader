@@ -10,6 +10,10 @@ const CONNECTION_DROP_RE = /(connection reset|connection was forcibly closed|for
 // A web proxy, VPN or security software answering the secure request in plain HTTP.
 const HTTP_ON_HTTPS_RE = /server gave http response to https client/i;
 
+// The PC's proxy settings (HTTPS_PROXY and friends, often set by a VPN or proxy program) point at a program that is not running.
+const DEAD_PROXY_RE = /proxyconnect tcp/i;
+const DEAD_PROXY_REFUSED_RE = /(connectex|actively refused|connection refused|econnrefused|no connection could be made|i\/o timeout)/i;
+
 // A real "not found" from the server: only the error line counts, and the CopyURL wording.
 // (Matching the whole output turned unrelated failures into "the link looks expired".)
 const NOT_FOUND_DETAIL_RE = /(\b404\b|not found)/i;
@@ -27,9 +31,25 @@ function isHttpOnHttps(detail, output) {
   return HTTP_ON_HTTPS_RE.test(String(detail || '')) || HTTP_ON_HTTPS_RE.test(String(output || ''));
 }
 
+function isDeadProxy(detail, output) {
+  const t = `${detail || ''}\n${output || ''}`;
+  return DEAD_PROXY_RE.test(t) && DEAD_PROXY_REFUSED_RE.test(t);
+}
+
 function isNotFound(detail, output) {
-  if (isHttpOnHttps(detail, output) || isConnectionDrop(detail, '')) return false;
+  if (isHttpOnHttps(detail, output) || isDeadProxy(detail, output) || isConnectionDrop(detail, '')) return false;
   return NOT_FOUND_DETAIL_RE.test(String(detail || '')) || NOT_FOUND_OUTPUT_RE.test(String(output || ''));
 }
 
-module.exports = { isCrashOutput, isConnectionDrop, isHttpOnHttps, isNotFound };
+// Proxy variables rclone would pick up from the environment.
+const PROXY_ENV_RE = /^(https?_proxy|all_proxy)$/i;
+function withoutProxyEnv(env) {
+  const out = {};
+  for (const k of Object.keys(env || {})) if (!PROXY_ENV_RE.test(k)) out[k] = env[k];
+  return out;
+}
+function hasProxyEnv(env) {
+  return Object.keys(env || {}).some(k => PROXY_ENV_RE.test(k) && env[k]);
+}
+
+module.exports = { isCrashOutput, isConnectionDrop, isHttpOnHttps, isNotFound, isDeadProxy, withoutProxyEnv, hasProxyEnv };

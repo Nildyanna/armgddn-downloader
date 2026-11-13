@@ -34,3 +34,17 @@ test('a plain HTTP answer to a secure request is its own case', () => {
   assert.ok(d.isHttpOnHttps(m, ''));
   assert.ok(!d.isNotFound(m, m));
 });
+
+test('a dead local proxy is recognised and is not "not found"', () => {
+  const m = 'Failed to copyurl: Get "https://endeavour.whatbox.ca:44443/dl?…": proxyconnect tcp: dial tcp4 0.0.0.0:0->127.0.0.1:18092: connectex: No connection could be made because the target machine actively refused it.';
+  assert.ok(d.isDeadProxy(m, ''));
+  assert.ok(!d.isNotFound(m, ''));
+  assert.ok(!d.isDeadProxy('Failed to copyurl: read tcp: connectex: refused', ''));
+});
+
+test('withoutProxyEnv drops proxy variables only', () => {
+  const out = d.withoutProxyEnv({ HTTPS_PROXY: 'http://127.0.0.1:18092', http_proxy: 'x', ALL_PROXY: 'y', PATH: 'p', NO_PROXY: 'z' });
+  assert.deepStrictEqual(out, { PATH: 'p', NO_PROXY: 'z' });
+  assert.ok(d.hasProxyEnv({ https_proxy: 'x' }));
+  assert.ok(!d.hasProxyEnv({ PATH: 'p' }));
+});
