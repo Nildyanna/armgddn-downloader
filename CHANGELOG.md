@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.17.1] - 2026-11-13
+
+### Fixed
+- **Downloads failed repeatedly when the PC's proxy settings pointed at a proxy that was not running.** A VPN or proxy program can set a proxy address (such as 127.0.0.1:18092) in the PC's environment; when the program was closed, every attempt and every automatic retry failed with "proxyconnect ... connection refused". The failure now says the PC is set to use a proxy that is not running and what to do, and the automatic retry (and later downloads) run the downloader without those proxy settings.
+
 ## [5.17.0] - 2026-11-12
 
 ### Added

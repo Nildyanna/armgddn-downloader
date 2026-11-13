@@ -1,4 +1,10 @@
 {
+  "5.17.1": {
+    "title": "Clearer Proxy Problems",
+    "highlights": [
+      "If your PC is set to use a proxy or VPN program that isn't running, downloads now say so clearly and retry without it, instead of failing."
+    ]
+  },
   "5.17.0": {
     "title": "Faster, Steadier Downloads",
     "highlights": [
