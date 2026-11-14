@@ -141,7 +141,7 @@
   },
   "devDependencies": {
     "7zip-bin": "^5.2.0",
-    "electron": "^44.10.2",
+    "electron": "^44.11.3",
     "electron-builder": "^26.18.0"
   },
   "overrides": {
