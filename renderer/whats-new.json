@@ -1,4 +1,13 @@
 {
+  "5.18.0": {
+    "title": "Downloads Work Through a Proxy",
+    "highlights": [
+      "Large downloads now work through an HTTP proxy. Before, big files ignored your proxy and could fail or hang on PCs that can only reach the internet through one.",
+      "To turn it on, set the HTTPS_PROXY setting on your PC, then close the Companion completely and open it again. On Windows: press Start, type \"environment variables\" and open \"Edit environment variables for your account\". Under User variables press New, type HTTPS_PROXY as the name and your proxy address as the value, for example http://127.0.0.1:8080, then press OK. (Or open Command Prompt and run: setx HTTPS_PROXY \"http://127.0.0.1:8080\")",
+      "If your proxy needs a login, put it in the address: http://username:password@127.0.0.1:8080. To keep certain sites off the proxy, add a NO_PROXY setting listing them, separated by commas. To turn the proxy off, delete the HTTPS_PROXY setting. Some VPN and proxy programs already set it for you. SOCKS proxies are not supported.",
+      "On Mac, open Terminal and run: HTTPS_PROXY=http://127.0.0.1:8080 \"/Applications/ARMGDDN Companion.app/Contents/MacOS/ARMGDDN Companion\". On Linux, run the AppImage the same way: HTTPS_PROXY=http://127.0.0.1:8080 ./ARMGDDN.Companion-5.18.0-x86_64.AppImage (use the file name you downloaded)."
+    ]
+  },
   "5.17.1": {
     "title": "Clearer Proxy Problems",
     "highlights": [

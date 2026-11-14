@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.18.0] - 2026-11-14
+
+### Added
+- **The built-in downloader now works through an HTTP proxy.** Large files use the Companion's own downloader, which ignored the PC's proxy settings (only rclone honoured them). It now reads `HTTPS_PROXY`, `HTTP_PROXY`, `ALL_PROXY` and `NO_PROXY`, tunnels through the proxy (CONNECT, with a username and password if the proxy address includes them) and still uses one HTTP/2 connection when the server offers it. SOCKS proxies are not supported. The direct-download port and the app's own site calls are unchanged.
+
 ## [5.17.1] - 2026-11-13
 
 ### Fixed

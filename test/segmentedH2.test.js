@@ -110,3 +110,82 @@ test('a Resume waits for the run it replaces: one writer, correct file', { skip 
   assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
   assert.ok(!fs.existsSync(out + TEMP_SUFFIX));
 });
+
+// ---- through an HTTP proxy (CONNECT) ----
+const httpMod = require('http');
+const net = require('net');
+const { proxyFor } = require('../proxy');
+
+function connectProxy(opts = {}) {
+  const st = { connects: [], auth: [] };
+  const srv = httpMod.createServer((q, s) => { s.writeHead(405); s.end(); });
+  srv.on('connect', (q, sock, head) => {
+    st.connects.push(q.url); st.auth.push(q.headers['proxy-authorization'] || '');
+    if (opts.password && q.headers['proxy-authorization'] !== 'Basic ' + Buffer.from('user:' + opts.password).toString('base64')) { sock.end('HTTP/1.1 407 Proxy Authentication Required\r\nProxy-Authenticate: Basic\r\n\r\n'); return; }
+    const [h, p] = q.url.split(':');
+    const up = net.connect(+p, h, () => { sock.write('HTTP/1.1 200 Connection Established\r\n\r\n'); if (head.length) up.write(head); up.pipe(sock); sock.pipe(up); });
+    up.on('error', () => sock.destroy()); sock.on('error', () => up.destroy());
+  });
+  return new Promise((res) => srv.listen(0, () => res({ srv, st, port: srv.address().port })));
+}
+function withEnv(vars, fn) {
+  const keep = {}; for (const k of Object.keys(vars)) { keep[k] = process.env[k]; if (vars[k] == null) delete process.env[k]; else process.env[k] = vars[k]; }
+  return Promise.resolve(fn()).finally(() => { for (const k of Object.keys(keep)) { if (keep[k] == null) delete process.env[k]; else process.env[k] = keep[k]; } });
+}
+
+test('proxyFor reads the proxy variables and NO_PROXY', () => {
+  const env = { HTTPS_PROXY: 'user:p%40ss@proxy.lan:8080', NO_PROXY: 'internal.example, .corp.test:443' };
+  const p = proxyFor('https://dl.example.com/f', env);
+  assert.strictEqual(p.hostname, 'proxy.lan'); assert.strictEqual(p.port, '8080');
+  assert.strictEqual(proxyFor('https://internal.example/f', env), null);
+  assert.strictEqual(proxyFor('https://a.corp.test/f', env), null);
+  assert.strictEqual(proxyFor('https://a.corp.test:8443/f', env).hostname, 'proxy.lan');
+  assert.strictEqual(proxyFor('https://x.test/f', { https_proxy: 'socks5://p:1080' }), null);
+  assert.strictEqual(proxyFor('https://x.test/f', {}), null);
+  assert.strictEqual(proxyFor('https://x.test/f', { NO_PROXY: '*', HTTPS_PROXY: 'p:1' }), null);
+});
+
+test('through an HTTP proxy the file is intact and still shares one HTTP/2 connection', { skip }, async () => {
+  const { srv, st, base } = await h2server();
+  const px = await connectProxy();
+  const out = tmp();
+  await withEnv({ HTTPS_PROXY: `http://127.0.0.1:${px.port}`, NO_PROXY: null }, () => segmentedDownload(opts({ url: base + '/f', outputPath: out })).promise);
+  srv.close(); px.srv.close(); closeAllSessions();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.strictEqual(px.st.connects.length, 1, `${px.st.connects.length} tunnels`);
+  assert.strictEqual(st.connections, 1);
+});
+
+test('through a proxy that needs a login: credentials in the proxy URL are sent', { skip }, async () => {
+  const { srv, base } = await h2server();
+  const px = await connectProxy({ password: 'secret' });
+  const out = tmp();
+  await withEnv({ HTTPS_PROXY: `http://user:secret@127.0.0.1:${px.port}`, NO_PROXY: null }, () => segmentedDownload(opts({ url: base + '/f', outputPath: out })).promise);
+  srv.close(); px.srv.close(); closeAllSessions();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(px.st.auth[0].startsWith('Basic '));
+});
+
+test('NO_PROXY keeps a host off the proxy', { skip }, async () => {
+  const { srv, base } = await h2server();
+  const px = await connectProxy();
+  const out = tmp();
+  await withEnv({ HTTPS_PROXY: `http://127.0.0.1:${px.port}`, NO_PROXY: 'localhost' }, () => segmentedDownload(opts({ url: base + '/f', outputPath: out })).promise);
+  srv.close(); px.srv.close(); closeAllSessions();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.strictEqual(px.st.connects.length, 0);
+});
+
+test('a host that only speaks HTTP/1.1 works through the proxy too', { skip }, async () => {
+  const srv = https.createServer(cert, (q, s) => {
+    const r = range(q.headers.range); const part = DATA.subarray(r[0], r[1] + 1);
+    s.writeHead(206, { 'content-length': part.length, 'content-range': `bytes ${r[0]}-${r[1]}/${SIZE}` }); s.end(part);
+  });
+  await new Promise((res) => srv.listen(0, res));
+  const px = await connectProxy();
+  const out = tmp();
+  await withEnv({ HTTPS_PROXY: `http://127.0.0.1:${px.port}`, NO_PROXY: null }, () => segmentedDownload(opts({ url: `https://localhost:${srv.address().port}/f`, outputPath: out })).promise);
+  srv.close(); px.srv.close(); closeAllSessions();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(px.st.connects.length >= 1);
+});

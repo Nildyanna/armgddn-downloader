@@ -9,6 +9,7 @@ const http = require('http');
 const https = require('https');
 const http2 = require('http2');
 const { ResumeError } = require('./resumeDownload');
+const proxy = require('./proxy');
 
 const MAX_REDIRECTS = 5;
 const IDLE_CLOSE_MS = 15 * 1000;
@@ -26,17 +27,30 @@ function dropSession(origin, session) {
 function getSession(origin, tls) {
   const have = sessions.get(origin);
   if (have && !have.session.closed && !have.session.destroyed) return have.ready;
-  const session = http2.connect(origin, { ...(tls || {}), settings: { initialWindowSize: 16 * 1024 * 1024, enablePush: false } });
-  const entry = { session, active: 0, timer: null, ready: null };
-  entry.ready = new Promise((resolve) => {
-    session.once('connect', () => { try { session.setLocalWindowSize(64 * 1024 * 1024); } catch (e) { } resolve(entry); });
-    session.once('error', () => { h1Only.set(origin, Date.now() + H1_ONLY_MS); dropSession(origin, session); resolve(null); });
-    session.once('close', () => { dropSession(origin, session); resolve(null); });
-  });
-  session.on('error', () => { });
-  session.on('goaway', () => dropSession(origin, session));
-  session.on('close', () => dropSession(origin, session));
+  if (have && have.pending) return have.ready;
+  const px = proxy.proxyFor(origin);
+  const entry = { session: null, active: 0, timer: null, ready: null, pending: !!px };
+  const wire = (session) => {
+    entry.session = session; entry.pending = false;
+    session.once('connect', () => { try { session.setLocalWindowSize(64 * 1024 * 1024); } catch (e) { } entry.resolve(entry); });
+    session.once('error', () => { h1Only.set(origin, Date.now() + H1_ONLY_MS); dropSession(origin, session); entry.resolve(null); });
+    session.once('close', () => { dropSession(origin, session); entry.resolve(null); });
+    session.on('error', () => { });
+    session.on('goaway', () => dropSession(origin, session));
+    session.on('close', () => dropSession(origin, session));
+  };
+  entry.ready = new Promise((resolve) => { entry.resolve = resolve; });
   sessions.set(origin, entry);
+  const settings = { initialWindowSize: 16 * 1024 * 1024, enablePush: false };
+  if (!px) { wire(http2.connect(origin, { ...(tls || {}), settings })); return entry.ready; }
+  // through a proxy: CONNECT tunnel, TLS with h2 offered, then HTTP/2 over that socket (a proxy or host without h2 falls back to HTTP/1.1)
+  proxy.tlsOverTunnel(px, new URL(origin), tls, ['h2'], (err, sock) => {
+    if (err || sock.alpnProtocol !== 'h2') {
+      if (sock) sock.destroy();
+      h1Only.set(origin, Date.now() + H1_ONLY_MS); sessions.delete(origin); return entry.resolve(null);
+    }
+    wire(http2.connect(origin, { createConnection: () => sock, settings }));
+  });
   return entry.ready;
 }
 
@@ -82,7 +96,15 @@ function openH1(u, headers, stallMs, opts, hops) {
   return new Promise((resolve, reject) => {
     const lib = u.protocol === 'http:' ? http : https;
     const gone = closedBy(opts.signal); if (gone) return reject(gone);
-    const req = lib.get(u, { headers, signal: opts.signal, ...(u.protocol === 'https:' ? (opts.tls || {}) : {}) }, (res) => {
+    const px = proxy.proxyFor(u);
+    let target = u, extra = {};
+    if (px && u.protocol === 'https:') extra = { agent: new proxy.TunnelAgent(px, opts.tls) };
+    else if (px) {            // plain http through a proxy: ask the proxy for the full URL
+      const a = proxy.authHeader(px);
+      target = new URL(`http://${px.hostname}:${px.port || 80}/`);
+      extra = { path: u.href, headers: { ...headers, Host: u.host, ...(a ? { 'Proxy-Authorization': a } : {}) } };
+    }
+    const req = lib.get(target, { headers, signal: opts.signal, ...(u.protocol === 'https:' ? (opts.tls || {}) : {}), ...extra }, (res) => {
       const code = res.statusCode || 0;
       if (code >= 300 && code < 400 && res.headers.location) {
         res.resume();
