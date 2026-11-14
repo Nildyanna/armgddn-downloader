@@ -1,4 +1,5 @@
-const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, safeStorage, Notification } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, Menu, nativeImage, shell, Notification } = require('electron');
+const secureStore = require('./secureStore');   // safeStorage, with the asynchronous methods Electron 46 needs (see secureStore.js)
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
@@ -2182,11 +2183,14 @@ function loadSession() {
       const data = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
       if (data.token && data.expiresAt && new Date(data.expiresAt) > new Date()) {
         // Decrypt if encrypted, otherwise use plain (migration path for older sessions)
-        if (data.encrypted && safeStorage.isEncryptionAvailable()) {
+        if (data.encrypted && !secureStore.syncAvailable) {
+          return !!sessionToken;                      // newer Electron: loadSessionAsync() decrypts it at startup
+        }
+        if (data.encrypted && secureStore.isAvailableSync()) {
           const encryptedBuffer = Buffer.from(data.token, 'base64');
-          sessionToken = safeStorage.decryptString(encryptedBuffer);
+          sessionToken = secureStore.decryptSync(encryptedBuffer);
         } else {
-          if (!safeStorage.isEncryptionAvailable()) {
+          if (!secureStore.isAvailableSync()) {
             logToFile('WARNING: safeStorage unavailable — session token stored in plaintext. Upgrade OS keychain support to enable encryption.');
           }
           sessionToken = data.token;
@@ -2201,6 +2205,29 @@ function loadSession() {
   return false;
 }
 
+// Same as loadSession, for Electron versions without the synchronous safeStorage methods (called once at startup).
+async function loadSessionAsync() {
+  try {
+    const sessionPath = getSessionPath();
+    if (!fs.existsSync(sessionPath)) return false;
+    const data = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
+    if (!(data.token && data.expiresAt && new Date(data.expiresAt) > new Date())) return false;
+    if (data.encrypted && await secureStore.isAvailable()) {
+      sessionToken = await secureStore.decrypt(Buffer.from(data.token, 'base64'));
+    } else {
+      if (!(await secureStore.isAvailable())) {
+        logToFile('WARNING: safeStorage unavailable — session token stored in plaintext. Upgrade OS keychain support to enable encryption.');
+      }
+      sessionToken = data.token;
+    }
+    logToFile('Session loaded from file');
+    return true;
+  } catch (e) {
+    logToFile('Failed to load session: ' + e.message);
+    return false;
+  }
+}
+
 // Save app session token to file (encrypted)
 function saveSession(token) {
   try {
@@ -2211,9 +2238,23 @@ function saveSession(token) {
     let storedToken = token;
     let encrypted = false;
 
+    if (!secureStore.syncAvailable) {
+      // Newer Electron: encrypt asynchronously. The token is usable in memory right away; the file follows a moment later.
+      sessionToken = token;
+      (async () => {
+        try {
+          let tok = token, enc = false;
+          if (await secureStore.isAvailable()) { tok = (await secureStore.encrypt(token)).toString('base64'); enc = true; }
+          fs.writeFileSync(sessionPath, JSON.stringify({ token: tok, expiresAt, encrypted: enc }, null, 2));
+          logToFile('Session saved to file (encrypted: ' + enc + ')');
+        } catch (e) { logToFile('Failed to save session: ' + e.message); }
+      })();
+      return;
+    }
+
     // Encrypt if available
-    if (safeStorage.isEncryptionAvailable()) {
-      const encryptedBuffer = safeStorage.encryptString(token);
+    if (secureStore.isAvailableSync()) {
+      const encryptedBuffer = secureStore.encryptSync(token);
       storedToken = encryptedBuffer.toString('base64');
       encrypted = true;
     }
@@ -2455,18 +2496,18 @@ let komgaPromptResolve = null;
 
 function komgaConfigPath() { return path.join(app.getPath('userData'), 'komga.json'); }
 
-function loadKomgaConfig() {
+async function loadKomgaConfig() {
   try {
     const d = JSON.parse(fs.readFileSync(komgaConfigPath(), 'utf8'));
     if (!d || !d.url || !d.key) return null;
-    const key = d.enc ? safeStorage.decryptString(Buffer.from(d.key, 'base64')) : d.key;
+    const key = d.enc ? await secureStore.decrypt(Buffer.from(d.key, 'base64')) : d.key;
     return { url: d.url, key };
   } catch (e) { return null; }
 }
 
-function saveKomgaConfig(cfg) {
-  const enc = safeStorage.isEncryptionAvailable();
-  const data = { url: cfg.url, enc, key: enc ? safeStorage.encryptString(cfg.key).toString('base64') : cfg.key };
+async function saveKomgaConfig(cfg) {
+  const enc = await secureStore.isAvailable();
+  const data = { url: cfg.url, enc, key: enc ? (await secureStore.encrypt(cfg.key)).toString('base64') : cfg.key };
   fs.writeFileSync(komgaConfigPath(), JSON.stringify(data), { mode: 0o600 });
 }
 
@@ -2517,11 +2558,11 @@ async function addReadListToKomga(listId) {
       await komgaMessage('info', 'Log in to the Companion first', 'Open the Companion, log in, then click Add to My Komga on the site again.');
       return;
     }
-    let cfg = loadKomgaConfig();
+    let cfg = await loadKomgaConfig();
     if (!cfg) {
       cfg = await promptKomgaSettings();
       if (!cfg) return;
-      saveKomgaConfig(cfg);
+      await saveKomgaConfig(cfg);
     }
 
     let xml;
@@ -3236,6 +3277,7 @@ app.whenReady().then(() => {
   loadHistory();
   loadOrphanedDownloads();
   loadSession();
+  if (!secureStore.syncAvailable) loadSessionAsync().catch(() => { });
   (async () => {
     try {
       const resultPath = path.join(app.getPath('userData'), 'update-result.json');

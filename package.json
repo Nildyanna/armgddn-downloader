@@ -30,6 +30,7 @@
     },
     "files": [
       "main.js",
+      "secureStore.js",
       "setupCheck.js",
       "setupReport.js",
       "updateRunner.js",
