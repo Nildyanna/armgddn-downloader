@@ -147,6 +147,10 @@ const crypto = require('crypto');
 const https = require('https');
 const { resumeDownload, ResumeProc } = require('./resumeDownload');
 const { segmentedDownload, probeRanges } = require('./segmentedDownload');
+const hostLimitStore = {                                    // connections each host has been seen to allow (the folder is looked up per call: smoke-test mode moves it)
+  get: (url) => { try { return require('./hostLimits').create(app.getPath('userData')).get(url); } catch (e) { return 0; } },
+  learn: (url, n) => { try { require('./hostLimits').create(app.getPath('userData')).learn(url, n); } catch (e) { } },
+};
 const directEndpoint = require('./directEndpoint');
 const { pathToFileURL } = require('url');
 
@@ -5755,7 +5759,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       };
       const limitBytes = appliedBwLimit ? (parseFloat(appliedBwLimit) || 0) * 1048576 : 0;   // same per-worker limit rclone would get
       const engine = useSegmented
-        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: (m) => logToFile(`[Segmented] ${fileName}: ${m}`) })
+        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: (m) => logToFile(`[Segmented] ${fileName}: ${m}`),
+            hostLimit: hostLimitStore.get(file.url),
+            onHostLimit: (n) => { hostLimitStore.learn(file.url, n); logToFile(`[Segmented] ${fileName}: this server allows about ${n} connections; remembered for next time`); } })
         : (o) => resumeDownload({ ...o, tlsOptions: directEndpoint.tlsOptions() });
       const ctl = engine({
         url: String(file.url),

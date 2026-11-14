@@ -30,6 +30,7 @@
     },
     "files": [
       "main.js",
+      "hostLimits.js",
       "setupCheck.js",
       "setupReport.js",
       "updateRunner.js",

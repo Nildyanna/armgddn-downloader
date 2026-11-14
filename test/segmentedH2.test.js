@@ -89,8 +89,9 @@ test('Pause cancels connections that are still waiting for the server, and stops
   assert.ok(Date.now() - t0 < 700, `stopped after ${Date.now() - t0} ms`);
   await new Promise((r) => setTimeout(r, 1800));         // the delayed answers arrive; nothing may be written any more
   srv.close(); closeAllSessions();
-  const size = fs.existsSync(out + TEMP_SUFFIX) ? fs.statSync(out + TEMP_SUFFIX).size : 0;
-  assert.strictEqual(size, 0, `${size} bytes written after Pause`);
+  // The temp file is reserved at full size up front, so "nothing written" means every byte is still zero.
+  const written = fs.existsSync(out + TEMP_SUFFIX) ? fs.readFileSync(out + TEMP_SUFFIX).reduce((n, b) => n + (b !== 0 ? 1 : 0), 0) : 0;
+  assert.strictEqual(written, 0, `${written} bytes written after Pause`);
   assert.strictEqual(fs.existsSync(out), false);
   assert.ok(st.requests >= 1);
 });

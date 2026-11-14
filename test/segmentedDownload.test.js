@@ -69,7 +69,7 @@ test('stopping and starting again fetches only what is missing', async () => {
   slow.srv.close();
   assert.ok(fs.existsSync(out + TEMP_SUFFIX) && fs.existsSync(out + STATE_SUFFIX), 'progress is kept');
   assert.ok(!fs.existsSync(out), 'a half-done file never carries the final name');
-  const kept = JSON.parse(fs.readFileSync(out + STATE_SUFFIX, 'utf8')).done.reduce((a, b) => a + b, 0);
+  const kept = JSON.parse(fs.readFileSync(out + STATE_SUFFIX, 'utf8')).segs.reduce((a, g) => a + g[2], 0);
   assert.ok(kept > 0 && kept < SIZE, `kept ${kept} bytes`);
 
   const again = await server();
@@ -140,7 +140,7 @@ test('a resume keeps the chunk plan of the earlier run even when the stream coun
   await segmentedDownload({ url: again.base + '/f', outputPath: out, expectedSize: SIZE, streams: 3, retryDelayMs: 10 }).promise;
   again.srv.close();
   assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
-  assert.strictEqual(before.chunk, CHUNK);
+  assert.ok(before.segs.slice(0, -1).every((g) => g[1] - g[0] + 1 === CHUNK), 'every segment but the last is the recorded 2 MiB');
   assert.ok(again.served() < SIZE, 'only the missing part was fetched');
 });
 
@@ -151,4 +151,144 @@ test('by default each stream gets one long request instead of many short ones', 
   srv.close();
   assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
   assert.ok(seen.length <= 4, `${seen.length} requests`);
+});
+
+// ---- work stealing, resume safety, learned connection limit, reserved file ----------------------------------------------------------
+
+// A server whose data, ETag and concurrency can be set. cfg.etag: sends ETag (and honours If-Range: a mismatch answers 200 with the whole
+// body, as HTTP says). cfg.max: connections allowed at once (extra ones get 503). cfg.perChunkMs: pause between 64 KiB pieces.
+function server2(cfg = {}) {
+  const data = cfg.data || DATA;
+  const seen = []; let open = 0; let peak = 0;
+  const srv = http.createServer((q, s) => {
+    const m = /bytes=(\d+)-(\d+)?/.exec(q.headers.range || '');
+    seen.push({ range: q.headers.range || null, ifRange: q.headers['if-range'] || null });
+    if (cfg.max && open >= cfg.max) { s.writeHead(503); return s.end(); }
+    open++; peak = Math.max(peak, open);
+    const finish = () => { open--; };
+    s.on('close', finish);
+    const headers = {};
+    if (cfg.etag) headers.ETag = cfg.etag;
+    let a = 0; let b = data.length - 1; let code = 200;
+    const ifRange = q.headers['if-range'];
+    const honour = m && (!ifRange || ifRange === cfg.etag);
+    if (honour) { a = +m[1]; b = Math.min(m[2] ? +m[2] : data.length - 1, data.length - 1); code = 206; headers['Content-Range'] = `bytes ${a}-${b}/${data.length}`; }
+    const part = data.subarray(a, b + 1);
+    headers['Content-Length'] = part.length;
+    s.writeHead(code, headers);
+    let at = 0;
+    const pump = () => {
+      if (s.destroyed) return;
+      const piece = part.subarray(at, at + 64 * 1024); at += piece.length;
+      s.write(piece);
+      if (at >= part.length) return s.end();
+      if (cfg.perChunkMs) setTimeout(pump, cfg.perChunkMs); else setImmediate(pump);
+    };
+    pump();
+  });
+  return new Promise((r) => srv.listen(0, () => r({ srv, seen, peak: () => peak, base: `http://127.0.0.1:${srv.address().port}` })));
+}
+
+test('work stealing: streams that run out of work take over the far part of a slower segment', async () => {
+  const { srv, seen, base: b } = await server2({ perChunkMs: 5 });
+  const out = tmp();
+  // one big segment (the default plan for a file this small), four streams: the idle ones must split it
+  await segmentedDownload({ url: b + '/f', outputPath: out, expectedSize: SIZE, streams: 4, retryDelayMs: 10, saveEveryMs: 20, stealMinBytes: 256 * 1024 }).promise;
+  srv.close();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(seen.length > 1, `${seen.length} requests: the one segment was never split`);
+  const starts = seen.map((r) => +/bytes=(\d+)/.exec(r.range)[1]);
+  assert.ok(new Set(starts).size === starts.length, 'no two requests began at the same byte');
+});
+
+test('work stealing never writes the same bytes twice or leaves a gap, even with slow, uneven streams', async () => {
+  for (let round = 0; round < 3; round++) {
+    const { srv, base: b } = await server2({ perChunkMs: 1 + round * 3 });
+    const out = tmp();
+    await segmentedDownload({ url: b + '/f', outputPath: out, expectedSize: SIZE, streams: 6, chunkSize: 3 * 1024 * 1024, retryDelayMs: 10, saveEveryMs: 20, stealMinBytes: 128 * 1024 }).promise;
+    srv.close();
+    assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA), `round ${round}`);
+  }
+});
+
+test('a resume that finds a different file on the server (new ETag) starts over instead of mixing versions', async () => {
+  const out = tmp();
+  const v1 = await server2({ etag: '"v1"', perChunkMs: 15 });
+  const c1 = segmentedDownload({ url: v1.base + '/f', outputPath: out, expectedSize: SIZE, streams: 2, chunkSize: CHUNK, retryDelayMs: 10, saveEveryMs: 20 });
+  await new Promise((r) => setTimeout(r, 250));
+  c1.abort('paused');
+  await assert.rejects(c1.promise, (e) => e.kind === 'aborted');
+  v1.srv.close();
+  const rec = JSON.parse(fs.readFileSync(out + STATE_SUFFIX, 'utf8'));
+  assert.strictEqual(rec.validator && rec.validator.etag, '"v1"', 'the record keeps the server ETag');
+  assert.ok(rec.segs.some((g) => g[2] > 0), 'some of version 1 is on disk');
+
+  const DATA2 = crypto.randomBytes(SIZE);                  // same size, different content: the dangerous case
+  const v2 = await server2({ etag: '"v2"', data: DATA2 });
+  await segmentedDownload({ url: v2.base + '/f', outputPath: out, expectedSize: SIZE, streams: 2, chunkSize: CHUNK, retryDelayMs: 10, saveEveryMs: 20 }).promise;
+  v2.srv.close();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA2), 'the file is version 2 from start to end');
+  assert.ok(v2.seen.some((r) => r.ifRange === '"v1"'), 'the resume asked with If-Range');
+});
+
+test('a server that sends a different ETag on every request does not restart the download in a loop', async () => {
+  let n = 0;
+  const srv = http.createServer((q, s) => {
+    const m = /bytes=(\d+)-(\d+)?/.exec(q.headers.range || '');
+    const a = +m[1]; const b = Math.min(m[2] ? +m[2] : SIZE - 1, SIZE - 1);
+    const part = DATA.subarray(a, b + 1);
+    s.writeHead(206, { 'Content-Length': part.length, 'Content-Range': `bytes ${a}-${b}/${SIZE}`, ETag: `"e${n++}"` });   // new every time, ignores If-Range
+    s.end(part);
+  });
+  await new Promise((r) => srv.listen(0, r));
+  const out = tmp();
+  await segmentedDownload({ url: `http://127.0.0.1:${srv.address().port}/f`, outputPath: out, expectedSize: SIZE, streams: 3, chunkSize: CHUNK, retryDelayMs: 10, saveEveryMs: 20 }).promise;
+  srv.close();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+});
+
+test('a server that allows only 2 connections: the stream count drops to 2, the file is intact, and the limit is reported', async () => {
+  const { srv, peak, base: b } = await server2({ max: 2, perChunkMs: 3 });
+  const out = tmp();
+  const learned = [];
+  await segmentedDownload({ url: b + '/f', outputPath: out, expectedSize: SIZE, streams: 6, chunkSize: CHUNK, retryDelayMs: 10, saveEveryMs: 20, onHostLimit: (n) => learned.push(n) }).promise;
+  srv.close();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(learned.length >= 1 && learned.every((n) => n >= 1 && n <= 2), `reported ${JSON.stringify(learned)}`);
+  assert.ok(peak() <= 2, `peak ${peak()} connections`);
+});
+
+test('a remembered host limit is used from the start', async () => {
+  const { srv, peak, base: b } = await server2({ perChunkMs: 3 });
+  const out = tmp();
+  await segmentedDownload({ url: b + '/f', outputPath: out, expectedSize: SIZE, streams: 8, hostLimit: 2, chunkSize: CHUNK, retryDelayMs: 10, saveEveryMs: 20, stealMinBytes: 128 * 1024 }).promise;
+  srv.close();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(peak() <= 2, `peak ${peak()} connections with a limit of 2`);
+});
+
+test('the temp file is reserved at the full size right away', async () => {
+  const { srv, base: b } = await server2({ perChunkMs: 20 });
+  const out = tmp();
+  const c = segmentedDownload({ url: b + '/f', outputPath: out, expectedSize: SIZE, streams: 1, chunkSize: CHUNK, retryDelayMs: 10, saveEveryMs: 20 });
+  await new Promise((r) => setTimeout(r, 150));
+  assert.strictEqual(fs.statSync(out + TEMP_SUFFIX).size, SIZE);
+  c.abort('stop');
+  await assert.rejects(c.promise);
+  srv.close();
+});
+
+test('progress saved by the earlier version (equal chunks, state v1) still resumes', async () => {
+  const out = tmp();
+  const partial = Buffer.alloc(SIZE);
+  DATA.copy(partial, 0, 0, CHUNK);                           // chunk 0 complete
+  DATA.copy(partial, CHUNK, CHUNK, CHUNK + 500 * 1024);      // chunk 1 half done
+  fs.writeFileSync(out + TEMP_SUFFIX, partial);
+  const done = new Array(Math.ceil(SIZE / CHUNK)).fill(0); done[0] = CHUNK; done[1] = 500 * 1024;
+  fs.writeFileSync(out + STATE_SUFFIX, JSON.stringify({ v: 1, total: SIZE, chunk: CHUNK, done }));
+  const { srv, seen, base: b } = await server2();
+  await segmentedDownload({ url: b + '/f', outputPath: out, expectedSize: SIZE, streams: 2, retryDelayMs: 10, saveEveryMs: 20 }).promise;
+  srv.close();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(!seen.some((r) => +/bytes=(\d+)/.exec(r.range)[1] < CHUNK), 'nothing of chunk 0 was fetched again');
 });
