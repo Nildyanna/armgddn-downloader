@@ -171,6 +171,19 @@
             </div>
           </div>
           <div class="form-group">
+            <label for="connections-per-file">Connections per file</label>
+            <select id="connections-per-file">
+              <option value="0">Auto (recommended)</option>
+              <option value="8">8</option>
+              <option value="4">4</option>
+              <option value="2">2</option>
+              <option value="1">1</option>
+            </select>
+            <div class="setting-help-text">
+              How many connections each big file opens. If downloads keep pausing for a moment, especially on Wi-Fi, try a lower number.
+            </div>
+          </div>
+          <div class="form-group">
             <label for="max-speed-mbps">Download Speed Limit (MB/s)</label>
             <input type="number" id="max-speed-mbps" min="0" step="1" placeholder="0 = unlimited">
           </div>

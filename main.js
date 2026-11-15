@@ -1385,6 +1385,7 @@ function defaultDownloadsBase() {
 let settings = {
   downloadPath: path.join(defaultDownloadsBase(), 'ARMGDDN'),
   maxConcurrentDownloads: 2,
+  connectionsPerFile: 0,
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
   autoHashCheck: true,
@@ -1463,6 +1464,9 @@ function normalizeSettings() {
     const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
     // Enforce cap of 8 for stability
     settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 6) : 2;
+    // 0 = Auto (the app picks); otherwise the most connections one file may open.
+    const cpf = parseInt(String(settings.connectionsPerFile), 10);
+    settings.connectionsPerFile = [1, 2, 4, 8, 16].includes(cpf) ? cpf : 0;
 
     const rawDownloadPath = settings.downloadPath;
     const defaultDownloadPath = path.join(defaultDownloadsBase(), 'ARMGDDN');
@@ -3439,6 +3443,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
   const allowedKeys = new Set([
     'downloadPath',
     'maxConcurrentDownloads',
+    'connectionsPerFile',
     'maxDownloadSpeedMBps',
     'autoExtract7z',
     'autoHashCheck',
@@ -5629,6 +5634,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         // Direct/Whatbox: High thread count for maximum throughput (targeting 2Gbps+)
         multiThreadStreams = globalActiveProcs < 20 ? 16 : 8;
       }
+      // The member's own cap (Settings > Connections per file) can only lower the automatic choice.
+      const cpfCap = Number(settings && settings.connectionsPerFile);
+      if (cpfCap > 0 && cpfCap < multiThreadStreams) multiThreadStreams = cpfCap;
     }
 
     // Point rclone at an empty config so it never loads (or prompts for the

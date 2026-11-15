@@ -1443,6 +1443,8 @@ async function showAlertDialog(title, message) {
     document.getElementById('download-path').value = settings.downloadPath || '';
     refreshFreeSpaceIndicator(settings.downloadPath);
     document.getElementById('max-concurrent').value = settings.maxConcurrentDownloads || 2;
+    const cpfEl = document.getElementById('connections-per-file');
+    if (cpfEl) cpfEl.value = String([1, 2, 4, 8].includes(Number(settings.connectionsPerFile)) ? Number(settings.connectionsPerFile) : 0);
     const maxSpeedEl = document.getElementById('max-speed-mbps');
     if (maxSpeedEl) {
       const v = Number(settings.maxDownloadSpeedMBps);
@@ -1498,6 +1500,8 @@ async function showAlertDialog(title, message) {
   async function saveSettings() {
     settings.downloadPath = document.getElementById('download-path').value;
     settings.maxConcurrentDownloads = parseInt(document.getElementById('max-concurrent').value);
+    const cpfSaveEl = document.getElementById('connections-per-file');
+    if (cpfSaveEl) settings.connectionsPerFile = parseInt(cpfSaveEl.value, 10) || 0;
     const maxSpeedEl = document.getElementById('max-speed-mbps');
     if (maxSpeedEl) {
       const raw = String(maxSpeedEl.value || '').trim();

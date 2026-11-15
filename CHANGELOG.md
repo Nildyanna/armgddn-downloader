@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.19.0] - 2026-11-15
+
+### Added
+- **Connections per file setting (Auto, 8, 4, 2, 1).** Caps how many parallel connections each large download opens. It only lowers the automatic choice (16, 8 under heavy load, 2 on the proxy route). Default Auto, so nothing changes unless chosen. Helps routers and Wi-Fi that stall when a file opens many connections.
+
 ## [5.18.1] - 2026-11-15
 
 ### Changed

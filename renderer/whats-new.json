@@ -1,4 +1,11 @@
 {
+  "5.19.0": {
+    "title": "Connections per File",
+    "highlights": [
+      "A new setting, Connections per file, lets you choose how many connections each big file opens. If your downloads keep pausing for a moment and then carrying on, especially on Wi-Fi, try a lower number such as 4 or 2.",
+      "It's under Settings, below Max Concurrent Downloads. It's set to Auto by default, so nothing changes unless you pick a number."
+    ]
+  },
   "5.18.1": {
     "title": "Stability Update",
     "highlights": [
