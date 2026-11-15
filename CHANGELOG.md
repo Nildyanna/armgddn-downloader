@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.18.1] - 2026-11-15
+
+### Changed
+- **Updated the app's built-in engine (Electron 44.11.3 to 45.3.2).** This brings the newer Chromium and Node versions with their security fixes. It is aimed at rare native crashes in the engine's memory management (garbage collection) that Sentry showed on Linux (ARMGDDN-COMPANION-5X, 5Y and 5W). No settings or behavior change.
+
 ## [5.18.0] - 2026-11-14
 
 ### Added

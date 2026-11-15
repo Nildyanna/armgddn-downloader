@@ -1,4 +1,12 @@
 {
+  "5.18.1": {
+    "title": "Stability Update",
+    "highlights": [
+      "The app's built-in engine is updated to a newer version, with the latest security fixes.",
+      "This is meant to fix a rare crash that could close the app by surprise, mostly seen on Linux.",
+      "Nothing else changes: your settings and downloads work as before."
+    ]
+  },
   "5.18.0": {
     "title": "Downloads Work Through a Proxy",
     "highlights": [
