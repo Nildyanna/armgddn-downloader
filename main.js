@@ -1560,6 +1560,12 @@ function showDownloadNotification(title, body) {
       return;
     }
 
+    // Linux: never call Electron's own Notification (libnotify can abort the whole app on some desktops); notify-send runs in a child process
+    if (process.platform === 'linux') {
+      require('./notify').linuxNotify(title, body);
+      return;
+    }
+
     // Fallback to Electron Notification (OS toast where supported)
     if (Notification && Notification.isSupported && Notification.isSupported()) {
       const notif = new Notification({ title, body });

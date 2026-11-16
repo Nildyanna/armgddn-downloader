@@ -43,6 +43,7 @@
       "httpOpen.js",
       "connectionTest.js",
       "schedule.js",
+      "notify.js",
       "proxy.js",
       "hashCheck.js",
       "sevenZipErrors.js",
