@@ -1,4 +1,11 @@
 {
+  "5.20.0": {
+    "title": "Test Your Connection",
+    "highlights": [
+      "A new Test my connection button in Settings checks your connection to the download server and suggests the best Connections per file setting. It takes about a minute, uses your internet briefly, and saves nothing.",
+      "Logs you send to staff now include a short summary of your download settings, so problems are quicker to diagnose."
+    ]
+  },
   "5.19.1": {
     "title": "Steadier Downloads",
     "highlights": [

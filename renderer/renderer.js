@@ -229,6 +229,8 @@ async function showAlertDialog(title, message) {
     if (setupCheckBtn) setupCheckBtn.addEventListener('click', runSetupCheck);
     const setupReportBtn = document.getElementById('setup-report-btn');
     if (setupReportBtn) setupReportBtn.addEventListener('click', copySetupReport);
+    const connTestBtn = document.getElementById('connection-test-btn');
+    if (connTestBtn) connTestBtn.addEventListener('click', runConnectionTest);
     const sendLogBtn = document.getElementById('send-log-btn');
     if (sendLogBtn) sendLogBtn.addEventListener('click', sendSupportLog);
     const help7zBtn = document.getElementById('help-7z-btn');
@@ -1392,6 +1394,41 @@ async function showAlertDialog(title, message) {
       catch (e) { note.textContent = 'Could not copy automatically. Paste this code in the ARMGDDN Games Welcome & Support chat: ' + res.code; }
     } catch (e) {
       note.textContent = 'Could not build the report.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // "Test my connection": tries 16, 8, 4 and 1 connections, then offers the best "Connections per file" value.
+  async function runConnectionTest() {
+    const note = document.getElementById('connection-test-note');
+    const btn = document.getElementById('connection-test-btn');
+    if (!note || !btn) return;
+    btn.disabled = true;
+    note.textContent = 'Starting the test...';
+    try { api.onConnectionTestProgress((p) => { note.textContent = `Testing ${p.streams} connection${p.streams === 1 ? '' : 's'} (step ${p.phase} of ${p.of})...`; }); } catch (e) { }
+    try {
+      const res = await api.runConnectionTest();
+      if (!res || !res.ok) { note.textContent = (res && res.error) || 'The test could not run.'; return; }
+      const lines = res.results.map((r) => `${r.streams} connection${r.streams === 1 ? '' : 's'}: ${r.mbps} MB/s${r.stalls ? `, ${r.stalls} pause${r.stalls === 1 ? '' : 's'}` : ''}`);
+      const rec = res.recommendation || {};
+      let advice;
+      if (!rec.streams) advice = 'The test could not measure your speed. Try again in a few minutes.';
+      else if (rec.wifiHint) advice = `Best for you: ${rec.streams} connection${rec.streams === 1 ? '' : 's'} per file. Your connection paused with the higher settings, which is common on Wi-Fi and some routers. A network cable usually helps too.`;
+      else if (rec.value === 0) advice = 'Your connection handled every setting well. Leave Connections per file on Auto.';
+      else advice = `Best for you: ${rec.value} connection${rec.value === 1 ? '' : 's'} per file.`;
+      note.textContent = lines.join(' | ') + '. ' + advice;
+      const sel = document.getElementById('connections-per-file');
+      if (sel && rec.streams && [0, 1, 2, 4, 8].includes(rec.value)) {
+        if (String(sel.value) !== String(rec.value)) {
+          const apply = document.createElement('button');
+          apply.type = 'button'; apply.className = 'secondary-btn'; apply.textContent = rec.value === 0 ? 'Use Auto' : `Use ${rec.value}`;
+          apply.addEventListener('click', () => { sel.value = String(rec.value); apply.remove(); note.textContent += ' Press Save settings to keep it.'; });
+          note.appendChild(document.createElement('br')); note.appendChild(apply);
+        }
+      }
+    } catch (e) {
+      note.textContent = 'The test could not run.';
     } finally {
       btn.disabled = false;
     }

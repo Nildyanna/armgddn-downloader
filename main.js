@@ -896,6 +896,25 @@ function fetchJsonWithBearer(urlString, method, bearerToken) {
 }
 
 // POST a JSON body to the ARMGDDN site with the member's app-session token.
+function getJsonWithBearer(urlString, bearerToken) {
+  return new Promise((resolve, reject) => {
+    const u = new URL(urlString);
+    if (u.protocol !== 'https:' || !isAllowedServiceHost(u.hostname)) { reject(new Error('Security error: not the ARMGDDN site')); return; }
+    const req = https.request({
+      hostname: u.hostname, port: u.port ? Number(u.port) : 443, path: u.pathname + (u.search || ''), method: 'GET',
+      headers: { 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(), ...(bearerToken ? { 'Authorization': 'Bearer ' + bearerToken } : {}) },
+      timeout: 20000
+    }, (res) => {
+      let data = '';
+      res.on('data', (c) => { data += c; });
+      res.on('end', () => { let json = null; try { json = JSON.parse(data); } catch (e) { /* ignore */ } resolve({ statusCode: res.statusCode, json }); });
+    });
+    req.on('error', reject);
+    req.on('timeout', () => { try { req.destroy(new Error('Request timeout')); } catch (e) { } });
+    req.end();
+  });
+}
+
 function postJsonWithBearer(urlString, bodyObj, bearerToken) {
   return new Promise((resolve, reject) => {
     const u = new URL(urlString);
@@ -3796,6 +3815,62 @@ ipcMain.handle('build-setup-report', async () => {
   }
 });
 
+// "Test my connection": reads ranges of one big file from the download server with 16, 8, 4 and 1 connections for a few seconds each
+// (nothing is saved), and recommends a "Connections per file" value. The result is also remembered for the support log.
+let lastConnectionTest = null;
+let connectionTestRunning = false;
+ipcMain.handle('run-connection-test', async (event) => {
+  if (connectionTestRunning) return { ok: false, error: 'A test is already running.' };
+  connectionTestRunning = true;
+  try {
+    const token = sessionToken || loadSession();
+    if (!token) return { ok: false, error: 'Sign in to the app first, then try again.' };
+    const { runTest } = require('./connectionTest');
+    const tlsOpts = directEndpoint.tlsOptions();
+    const getTarget = async () => {
+      const r = await getJsonWithBearer('https://www.armgddnbrowser.com/api/connection-test', token);
+      if (r.statusCode === 429) throw new Error('Please wait a few minutes before testing again.');
+      if (r.statusCode === 401) throw new Error('Sign in to the app again, then try again.');
+      if (!r.json || !Array.isArray(r.json.candidates) || !r.json.candidates.length) throw new Error((r.json && r.json.error) || 'No test file is available right now.');
+      for (const c of r.json.candidates) {
+        const url = directEndpoint.rewrite(c);
+        const probe = await probeRanges(url, {}, 8000, tlsOpts);
+        if (probe.ok && probe.total > 64 * 1024 * 1024) return { url, total: probe.total };
+      }
+      throw new Error('The download server did not answer the test. Try again in a few minutes.');
+    };
+    const out = await runTest({
+      getTarget, tls: tlsOpts, phaseMs: 12000,
+      onProgress: (p) => { try { event.sender.send('connection-test-progress', p); } catch (e) { } },
+    });
+    lastConnectionTest = { at: Date.now(), results: out.results, recommendation: out.recommendation };
+    logToFile(`[connection-test] ${out.results.map((r) => `${r.streams}x: ${r.mbps} MB/s, ${r.stalls} stalls, ${r.errors} errors`).join(' | ')} => ${out.recommendation.value || 'auto'}`);
+    return { ok: true, ...out };
+  } catch (e) {
+    logToFile(`[connection-test] failed: ${e.message}`);
+    return { ok: false, error: e.message || 'The test could not run.' };
+  } finally {
+    connectionTestRunning = false;
+  }
+});
+
+// A few lines about the member's setup that make a log easier to read (no paths, no addresses, no proxy values).
+function supportDiagnostics() {
+  try {
+    const px = ['HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy'].some((k) => process.env[k]);
+    const lines = [
+      '# --- setup ---',
+      `# connections per file: ${settings.connectionsPerFile > 0 ? settings.connectionsPerFile : 'auto'}; downloads at once: ${settings.maxConcurrentDownloads}; speed limit: ${settings.maxDownloadSpeedMBps > 0 ? settings.maxDownloadSpeedMBps + ' MB/s' : 'none'}`,
+      `# own downloader: ${settings.segmentedDownloads === false ? 'off' : 'on'}; direct endpoint: ${directEndpoint.describe()}; proxy variable set: ${px ? 'yes' : 'no'}`,
+      `# app ${app.getVersion()}, Electron ${process.versions.electron}, ${process.platform} ${os.release()} ${process.arch}`,
+      ...(lastConnectionTest ? [`# last connection test ${new Date(lastConnectionTest.at).toISOString()}: ${lastConnectionTest.results.map((r) => `${r.streams}x ${r.mbps} MB/s ${r.stalls} stalls`).join(', ')}; recommended ${lastConnectionTest.recommendation.value || 'auto'}`] : []),
+      '# --- log ---',
+      '',
+    ];
+    return lines.join('\n');
+  } catch (e) { return ''; }
+}
+
 // "Send log to staff": the debug log with personal details removed goes to the ARMGDDN site, which answers a short code
 // (LOG-ABCD-2345). The member pastes the code in the support chat and Tulip reads the log from it.
 ipcMain.handle('send-support-log', async () => {
@@ -3808,7 +3883,7 @@ ipcMain.handle('send-support-log', async () => {
     const buf = Buffer.alloc(len);
     const fd = fs.openSync(logPath, 'r');
     try { fs.readSync(fd, buf, 0, len, size - len); } finally { fs.closeSync(fd); }
-    const log = require('./setupReport').cleanLog(buf.toString('utf8'));
+    const log = supportDiagnostics() + require('./setupReport').cleanLog(buf.toString('utf8'));
     logToFile(`[support-log] sending ${Math.round(log.length / 1024)} KB, ${token ? 'with a saved sign-in' : 'without a sign-in'}`);
     const res = await postJsonWithBearer('https://www.armgddnbrowser.com/api/support-log',
       { log, app: app.getVersion(), os: `${process.platform} ${os.release()} ${process.arch}` }, token);

@@ -10,6 +10,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
   runSetupCheck: () => ipcRenderer.invoke('run-setup-check'),
   buildSetupReport: () => ipcRenderer.invoke('build-setup-report'),
   sendSupportLog: () => ipcRenderer.invoke('send-support-log'),
+  runConnectionTest: () => ipcRenderer.invoke('run-connection-test'),
+  onConnectionTestProgress: (cb) => ipcRenderer.on('connection-test-progress', (_e, p) => cb(p)),
 
   // Downloads
   fetchManifest: (url, token) => ipcRenderer.invoke('fetch-manifest', url, token),

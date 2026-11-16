@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.20.0] - 2026-11-16
+
+### Added
+- **Test my connection (Settings).** Reads ranges of a recently downloaded archive for 12 seconds each at 16, 8, 4 and 1 connections, discards the data, and recommends a Connections per file value (with a Wi-Fi/router hint when the higher settings paused and a one-click apply). Uses the new site route `/api/connection-test`, which needs the app sign-in.
+- **Setup summary in logs sent to staff:** connections per file, downloads at once, speed limit, own-downloader and direct-endpoint state, whether a proxy variable is set (never its value), versions, and the last connection-test result.
+
 ## [5.19.1] - 2026-11-16
 
 ### Changed
