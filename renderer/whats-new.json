@@ -1,4 +1,12 @@
 {
+  "5.21.0": {
+    "title": "Smarter Downloads",
+    "highlights": [
+      "Connections per file on Auto now adjusts by itself. If your connection freezes, the next files start with fewer connections, and it goes back to normal an hour after the last freeze.",
+      "New Quiet hours in Settings: choose days and times to pause downloads or slow them to a speed you pick. Paused downloads carry on by themselves when the window ends.",
+      "New Check for game updates in Download History: lists games you've downloaded that have a newer version in the library."
+    ]
+  },
   "5.20.0": {
     "title": "Test Your Connection",
     "highlights": [

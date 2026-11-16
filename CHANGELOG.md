@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.21.0] - 2026-11-16
+
+### Added
+- **Adaptive connections.** With Connections per file on Auto, each time a whole shared connection is found frozen (the 5.19.1 detector) the next files start with fewer connections: 8 after one freeze in the last hour, 4 after two, 2 after three or more. An hour after the last freeze it returns to the full number. Logged as `[adaptive]`.
+- **Quiet hours (Settings).** A weekly window (days, start, end, past midnight allowed) that pauses downloads or limits their speed. A 15-second ticker applies it, shows a banner, resumes what it paused, and restarts running downloads when a limit window begins or ends. Downloads the member paused are left alone.
+- **Check for game updates (Download History).** Sends the folder names of finished downloads to the new site route `/api/library-updates`, which answers the games with a newer version in the library (Steam build number, or dotted version; never compared across kinds).
+
 ## [5.20.0] - 2026-11-16
 
 ### Added
