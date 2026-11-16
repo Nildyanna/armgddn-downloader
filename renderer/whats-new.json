@@ -1,4 +1,10 @@
 {
+  "5.21.2": {
+    "title": "Faster Recovery",
+    "highlights": [
+      "Downloads now recover from a frozen connection in about 20 seconds instead of a minute. A server that is just making you wait is left alone."
+    ]
+  },
   "5.21.1": {
     "title": "Fixes",
     "highlights": [

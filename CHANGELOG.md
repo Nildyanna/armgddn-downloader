@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.21.2] - 2026-11-16
+
+### Changed
+- **Frozen shared HTTP/2 connections are found in about 20 seconds, not 60.** A connection with no bytes for 15 s while requests are open gets an HTTP/2 PING; no answer within 5 s replaces the connection. A server that only holds requests (a queue) answers the PING and is left alone. The HTTP/1.1 fallback keeps the 60-second recovery.
+
 ## [5.21.1] - 2026-11-16
 
 ### Fixed
