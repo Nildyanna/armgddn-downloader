@@ -8,7 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const { segmentedDownload, probeRanges, TEMP_SUFFIX } = require('../segmentedDownload');
-const { closeAllSessions, _closeSession, _setGraceMs, adaptiveStreamCap, recentStalls, _noteStall, _clearStalls } = require('../httpOpen');
+const { closeAllSessions, _closeSession, _setGraceMs, _setProbeMs, adaptiveStreamCap, recentStalls, _noteStall, _clearStalls } = require('../httpOpen');
 
 const SIZE = 12 * 1024 * 1024 + 777;
 const CHUNK = 2 * 1024 * 1024;
@@ -255,5 +255,54 @@ test('the stall test also records the freeze for the adaptive count', { skip }, 
   srv.close(); closeAllSessions();
   assert.ok(recentStalls() >= 1, 'the freeze was not recorded');
   assert.strictEqual(adaptiveStreamCap(), recentStalls() === 1 ? 8 : recentStalls() === 2 ? 4 : 2);
+  _clearStalls();
+});
+
+
+// A path that goes completely silent (not even PINGs get answered) is replaced after the probe, long before the 60-second stream timeout.
+test('a frozen connection is replaced within seconds, not after the stream timeout', { skip }, async () => {
+  _clearStalls(); _setProbeMs(150, 150);
+  const st = { connections: 0 };
+  let first = null;
+  const srv = http2.createSecureServer({ ...cert, allowHTTP1: true });
+  srv.on('session', (s) => { st.connections++; if (!first) first = s; });
+  srv.on('request', (q, s) => {
+    if (q.stream.session === first) { try { first.socket.pause(); } catch (e) { } return; }     // the path freezes: nothing is read or answered any more
+    const r = range(q.headers.range);
+    const part = DATA.subarray(r[0], r[1] + 1);
+    s.writeHead(206, { 'content-length': part.length, 'content-range': `bytes ${r[0]}-${r[1]}/${SIZE}` }); s.end(part);
+  });
+  await new Promise((res) => srv.listen(0, res));
+  const out = tmp();
+  const t0 = Date.now();
+  await segmentedDownload(opts({ url: `https://localhost:${srv.address().port}/f`, outputPath: out, streams: 3, stallMs: 20000, maxAttempts: 6 })).promise;
+  const took = Date.now() - t0;
+  _setProbeMs(15000, 5000);
+  srv.close(); closeAllSessions();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(took < 8000, `took ${took} ms: the frozen connection was not replaced early`);
+  assert.ok(st.connections >= 2 && recentStalls() >= 1);
+  _clearStalls();
+});
+
+// A server that is only holding the requests (queue) still answers PINGs, so its connection is kept.
+test('a server that holds requests but answers PINGs is not mistaken for a freeze', { skip }, async () => {
+  _clearStalls(); _setProbeMs(150, 300);
+  const st = { connections: 0 };
+  const srv = http2.createSecureServer({ ...cert, allowHTTP1: true });
+  srv.on('session', () => { st.connections++; });
+  srv.on('request', (q, s) => {
+    const r = range(q.headers.range);
+    const part = DATA.subarray(r[0], r[1] + 1);
+    setTimeout(() => { s.writeHead(206, { 'content-length': part.length, 'content-range': `bytes ${r[0]}-${r[1]}/${SIZE}` }); s.end(part); }, 1200);   // holds every request for 1.2 s
+  });
+  await new Promise((res) => srv.listen(0, res));
+  const out = tmp();
+  await segmentedDownload(opts({ url: `https://localhost:${srv.address().port}/f`, outputPath: out, streams: 3, stallMs: 20000, maxAttempts: 6 })).promise;
+  _setProbeMs(15000, 5000);
+  srv.close(); closeAllSessions();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.strictEqual(st.connections, 1, `${st.connections} connections: the held requests were taken for a freeze`);
+  assert.strictEqual(recentStalls(), 0);
   _clearStalls();
 });

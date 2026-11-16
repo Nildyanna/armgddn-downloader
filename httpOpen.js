@@ -14,7 +14,12 @@ const proxy = require('./proxy');
 const MAX_REDIRECTS = 5;
 const IDLE_CLOSE_MS = 15 * 1000;
 const H1_ONLY_MS = 10 * 60 * 1000;
-let SESSION_GRACE_MS = 5 * 1000;     // a session asked to close politely is destroyed after this if the other side never answers
+let SESSION_GRACE_MS = 5 * 1000;
+// A shared connection that has had no bytes at all for SILENCE_PROBE_MS while requests are open gets an HTTP/2 PING. A server that is only
+// holding requests in a queue answers a PING at once, so that connection is left alone; one that does not answer within PING_WAIT_MS is stuck
+// and is replaced (about 20 seconds in all, instead of waiting for the 60-second stream timeout).
+let SILENCE_PROBE_MS = 15 * 1000;
+let PING_WAIT_MS = 5 * 1000;     // a session asked to close politely is destroyed after this if the other side never answers
 const sessions = new Map();      // origin -> { session, active, timer, ready }
 const h1Only = new Map();        // origin -> until (ms): h2 did not work, use HTTP/1.1 for a while
 
@@ -53,8 +58,34 @@ function watchProgress(entry, stallMs) {
   if (entry.watch) return;
   const bytes = () => { try { return entry.session.socket.bytesRead || 0; } catch (e) { return 0; } };
   entry.lastBytes = bytes(); entry.progressAt = Date.now();
-  entry.watch = setInterval(() => { const b = bytes(); if (b !== entry.lastBytes) { entry.lastBytes = b; entry.progressAt = Date.now(); } }, Math.max(20, Math.min(1000, Math.floor(stallMs / 10))));
+  entry.watch = setInterval(() => {
+    const b = bytes();
+    if (b !== entry.lastBytes) { entry.lastBytes = b; entry.progressAt = Date.now(); return; }
+    if (entry.active > 0 && !entry.probing && Date.now() - entry.progressAt >= SILENCE_PROBE_MS) probeConnection(entry);
+  }, Math.max(20, Math.min(1000, Math.floor(Math.min(stallMs, SILENCE_PROBE_MS) / 10))));
   if (entry.watch.unref) entry.watch.unref();
+}
+function probeConnection(entry) {
+  const session = entry.session;
+  if (!session || session.closed || session.destroyed) return;
+  entry.probing = true;
+  let done = false;
+  const stuck = () => {
+    if (done) return; done = true; entry.probing = false;
+    noteStall();
+    dropSession(entry.origin, session);
+    try { session.destroy(); } catch (e) { }
+  };
+  const timer = setTimeout(stuck, PING_WAIT_MS);
+  if (timer.unref) timer.unref();
+  try {
+    session.ping((err) => {
+      if (done) return;
+      clearTimeout(timer); done = true; entry.probing = false;
+      if (err) { dropSession(entry.origin, session); try { session.destroy(); } catch (e) { } return; }
+      entry.progressAt = Date.now();                    // it answered: the server is just holding requests, not frozen
+    });
+  } catch (e) { clearTimeout(timer); stuck(); }
 }
 function stopWatch(entry) { if (entry.watch) { clearInterval(entry.watch); entry.watch = null; } }
 const connectionStalled = (entry, stallMs) => !!entry.watch && Date.now() - entry.progressAt >= stallMs - Math.min(2000, stallMs / 4);
@@ -64,7 +95,7 @@ function getSession(origin, tls) {
   if (have && !have.session.closed && !have.session.destroyed) return have.ready;
   if (have && have.pending) return have.ready;
   const px = proxy.proxyFor(origin);
-  const entry = { session: null, active: 0, timer: null, ready: null, pending: !!px };
+  const entry = { origin, session: null, active: 0, timer: null, ready: null, pending: !!px, probing: false };
   const wire = (session) => {
     entry.session = session; entry.pending = false;
     session.once('connect', () => { try { session.setLocalWindowSize(64 * 1024 * 1024); } catch (e) { } entry.resolve(entry); });
@@ -182,4 +213,4 @@ function closeAllSessions() {
   h1Only.clear();
 }
 
-module.exports = { openAuto, closeAllSessions, recentStalls, adaptiveStreamCap, _noteStall: noteStall, _clearStalls: () => { stallLog.length = 0; }, _closeSession: closeSession, _setGraceMs: (ms) => { SESSION_GRACE_MS = ms; } };
+module.exports = { openAuto, closeAllSessions, recentStalls, adaptiveStreamCap, _noteStall: noteStall, _clearStalls: () => { stallLog.length = 0; }, _closeSession: closeSession, _setGraceMs: (ms) => { SESSION_GRACE_MS = ms; }, _setProbeMs: (silence, wait) => { SILENCE_PROBE_MS = silence; PING_WAIT_MS = wait; } };
