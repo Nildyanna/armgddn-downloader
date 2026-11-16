@@ -259,31 +259,40 @@ test('the stall test also records the freeze for the adaptive count', { skip }, 
 });
 
 
-// A path that goes completely silent (not even PINGs get answered) is replaced after the probe, long before the 60-second stream timeout.
+// A path that goes completely silent (not even PINGs get through) is replaced after the probe, long before the 60-second stream timeout.
+// The silence is made by a small TCP proxy that stops forwarding on the first connection once a request has arrived.
 test('a frozen connection is replaced within seconds, not after the stream timeout', { skip }, async () => {
+  const net = require('net');
   _clearStalls(); _setProbeMs(150, 150);
-  const st = { connections: 0 };
+  const st = { connections: 0, freeze: false };
   let first = null;
   const srv = http2.createSecureServer({ ...cert, allowHTTP1: true });
-  const raws = [];
-  srv.on('secureConnection', (sock) => { raws.push(sock); });
   srv.on('session', (s) => { st.connections++; if (!first) first = s; });
   srv.on('request', (q, s) => {
-    if (q.stream.session === first) { raws[0].pause(); return; }     // the path freezes: the raw TCP socket stops reading, so nothing is answered, not even PINGs
+    if (q.stream.session === first) { st.freeze = true; return; }       // the first connection never answers, and from now on nothing gets through it
     const r = range(q.headers.range);
     const part = DATA.subarray(r[0], r[1] + 1);
     s.writeHead(206, { 'content-length': part.length, 'content-range': `bytes ${r[0]}-${r[1]}/${SIZE}` }); s.end(part);
   });
   await new Promise((res) => srv.listen(0, res));
+  let n = 0;
+  const proxy = net.createServer((c) => {
+    const id = ++n;
+    const up = net.connect(srv.address().port, '127.0.0.1');
+    const fwd = (from, to) => from.on('data', (d) => { if (id === 1 && st.freeze) return; to.write(d); });
+    fwd(c, up); fwd(up, c);
+    c.on('close', () => up.destroy()); up.on('close', () => c.destroy()); c.on('error', () => { }); up.on('error', () => { });
+  });
+  await new Promise((res) => proxy.listen(0, '127.0.0.1', res));
   const out = tmp();
   const t0 = Date.now();
-  await segmentedDownload(opts({ url: `https://localhost:${srv.address().port}/f`, outputPath: out, streams: 3, stallMs: 20000, maxAttempts: 6 })).promise;
+  await segmentedDownload(opts({ url: `https://localhost:${proxy.address().port}/f`, outputPath: out, streams: 3, stallMs: 20000, maxAttempts: 6 })).promise;
   const took = Date.now() - t0;
   _setProbeMs(15000, 5000);
-  srv.close(); closeAllSessions();
+  proxy.close(); srv.close(); closeAllSessions();
   assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
   assert.ok(took < 8000, `took ${took} ms: the frozen connection was not replaced early`);
-  assert.ok(st.connections >= 2 && recentStalls() >= 1);
+  assert.ok(st.connections >= 2 && recentStalls() >= 1, `connections ${st.connections}, freezes ${recentStalls()}`);
   _clearStalls();
 });
 
