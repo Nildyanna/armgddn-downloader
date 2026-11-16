@@ -270,8 +270,8 @@ async function showAlertDialog(title, message) {
     initMusicPanel();
     document.getElementById('close-history-btn').addEventListener('click', closeHistory);
     document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
-    const checkUpdatesBtn = document.getElementById('check-updates-btn');
-    if (checkUpdatesBtn) checkUpdatesBtn.addEventListener('click', checkGameUpdates);
+    const checkGameUpdatesBtn = document.getElementById('check-game-updates-btn');
+    if (checkGameUpdatesBtn) checkGameUpdatesBtn.addEventListener('click', checkGameUpdates);
 
     // Updates
     document.getElementById('check-updates-btn').addEventListener('click', checkForUpdates);
@@ -1629,8 +1629,8 @@ async function showAlertDialog(title, message) {
   // History
   // "Check for game updates": which games in the history have a newer version in the library.
   async function checkGameUpdates() {
-    const out = document.getElementById('updates-result');
-    const btn = document.getElementById('check-updates-btn');
+    const out = document.getElementById('game-updates-result');
+    const btn = document.getElementById('check-game-updates-btn');
     if (!out || !btn) return;
     btn.disabled = true;
     out.textContent = 'Checking...';
