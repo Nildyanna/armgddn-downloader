@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.21.1] - 2026-11-16
+
+### Fixed
+- **History: Check for game updates did nothing.** The button reused the id of the app-update button, so the click handler was attached to the other one. Renamed, and a test now fails on any duplicate id in the page.
+- **Install progress window:** the bar is a Marquee bar, which Windows draws frozen unless visual styles are enabled. They are now enabled before the window is created, and the animation speed is set.
+
 ## [5.21.0] - 2026-11-16
 
 ### Added

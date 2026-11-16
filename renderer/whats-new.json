@@ -1,4 +1,11 @@
 {
+  "5.21.1": {
+    "title": "Fixes",
+    "highlights": [
+      "Fixed the Check for game updates button in Download History, which did nothing.",
+      "The progress bar in the Installing the update window now moves while an update installs."
+    ]
+  },
   "5.21.0": {
     "title": "Smarter Downloads",
     "highlights": [
