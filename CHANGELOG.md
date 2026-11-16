@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.19.1] - 2026-11-16
+
+### Changed
+- **Stalled shared HTTP/2 connections are thrown away.** When a stream times out and no bytes have arrived on the whole connection for about the stall time, the connection is destroyed so the retry dials a fresh one instead of queueing behind the dead one. One slow stream on a healthy connection only loses that stream.
+- **Idle HTTP/2 sessions are destroyed 5 seconds after `close()` if the peer does not answer.** Keeps TLS sockets with queued writes out of garbage collection, the path where Sentry ARMGDDN-COMPANION-5Z crashed.
+
 ## [5.19.0] - 2026-11-15
 
 ### Added

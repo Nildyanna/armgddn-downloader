@@ -8,7 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const { segmentedDownload, probeRanges, TEMP_SUFFIX } = require('../segmentedDownload');
-const { closeAllSessions } = require('../httpOpen');
+const { closeAllSessions, _closeSession, _setGraceMs } = require('../httpOpen');
 
 const SIZE = 12 * 1024 * 1024 + 777;
 const CHUNK = 2 * 1024 * 1024;
@@ -188,4 +188,37 @@ test('a host that only speaks HTTP/1.1 works through the proxy too', { skip }, a
   srv.close(); px.srv.close(); closeAllSessions();
   assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
   assert.ok(px.st.connects.length >= 1);
+});
+
+
+test('a connection that stops answering is thrown away and the retry uses a fresh one', { skip }, async () => {
+  const st = { connections: 0, requests: 0 };
+  let firstSession = null;
+  const srv = http2.createSecureServer({ ...cert, allowHTTP1: true });
+  srv.on('session', (s) => { st.connections++; if (!firstSession) firstSession = s; });
+  srv.on('request', (q, s) => {
+    st.requests++;
+    if (q.stream.session === firstSession) return;       // the first connection never answers, as if the path had stalled
+    const r = range(q.headers.range);
+    const part = DATA.subarray(r[0], r[1] + 1);
+    s.writeHead(206, { 'content-length': part.length, 'content-range': `bytes ${r[0]}-${r[1]}/${SIZE}` }); s.end(part);
+  });
+  await new Promise((res) => srv.listen(0, res));
+  const out = tmp();
+  await segmentedDownload(opts({ url: `https://localhost:${srv.address().port}/f`, outputPath: out, streams: 3, stallMs: 400, maxAttempts: 6 })).promise;
+  srv.close(); closeAllSessions();
+  assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(st.connections >= 2, `only ${st.connections} connection(s): the stalled one was reused`);
+});
+
+test('a session that ignores close() is destroyed after the grace time', () => {
+  const { EventEmitter } = require('events');
+  const fake = new EventEmitter(); fake.destroyed = false; fake.closeCalls = 0;
+  fake.close = () => { fake.closeCalls++; };
+  fake.destroy = () => { fake.destroyed = true; fake.emit('close'); };
+  _setGraceMs(60);
+  _closeSession(fake);
+  assert.strictEqual(fake.closeCalls, 1);
+  assert.strictEqual(fake.destroyed, false);
+  return new Promise((resolve) => setTimeout(() => { _setGraceMs(5000); assert.strictEqual(fake.destroyed, true); resolve(); }, 200));
 });

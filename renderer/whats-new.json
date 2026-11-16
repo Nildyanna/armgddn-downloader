@@ -1,4 +1,11 @@
 {
+  "5.19.1": {
+    "title": "Steadier Downloads",
+    "highlights": [
+      "Downloads now recover faster when your connection stalls. If every connection to the server freezes at once, the app starts a fresh connection instead of waiting on the frozen one.",
+      "Connections that are no longer needed are now closed more reliably. This is meant to reduce a rare crash that could close the app by surprise."
+    ]
+  },
   "5.19.0": {
     "title": "Connections per File",
     "highlights": [
