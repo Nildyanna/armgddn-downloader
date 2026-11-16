@@ -265,9 +265,11 @@ test('a frozen connection is replaced within seconds, not after the stream timeo
   const st = { connections: 0 };
   let first = null;
   const srv = http2.createSecureServer({ ...cert, allowHTTP1: true });
+  const raws = [];
+  srv.on('secureConnection', (sock) => { raws.push(sock); });
   srv.on('session', (s) => { st.connections++; if (!first) first = s; });
   srv.on('request', (q, s) => {
-    if (q.stream.session === first) { try { first.socket.pause(); } catch (e) { } return; }     // the path freezes: nothing is read or answered any more
+    if (q.stream.session === first) { raws[0].pause(); return; }     // the path freezes: the raw TCP socket stops reading, so nothing is answered, not even PINGs
     const r = range(q.headers.range);
     const part = DATA.subarray(r[0], r[1] + 1);
     s.writeHead(206, { 'content-length': part.length, 'content-range': `bytes ${r[0]}-${r[1]}/${SIZE}` }); s.end(part);
