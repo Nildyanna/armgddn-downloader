@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.21.3] - 2026-11-16
+
+### Fixed
+- **Linux: a desktop notification could abort the whole app.** Electron's Notification calls libnotify inside the app, and on some desktops (Nobara/Fedora 44 with KDE Plasma) libnotify aborts the process with SIGABRT when a notification is shown (Sentry ARMGDDN-COMPANION-60 and -61). Linux notifications now go through `notify-send` in a child process, with the AppImage library paths removed; if it is missing nothing is shown. Windows and Mac are unchanged.
+
 ## [5.21.2] - 2026-11-16
 
 ### Changed

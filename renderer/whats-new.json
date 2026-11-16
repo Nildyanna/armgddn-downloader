@@ -1,4 +1,10 @@
 {
+  "5.21.3": {
+    "title": "Linux Fix",
+    "highlights": [
+      "Fixed a crash on some Linux desktops when a download finished and a notification was shown."
+    ]
+  },
   "5.21.2": {
     "title": "Faster Recovery",
     "highlights": [
