@@ -8,7 +8,7 @@ const path = require('path');
 const crypto = require('crypto');
 const { execFileSync } = require('child_process');
 const { segmentedDownload, probeRanges, TEMP_SUFFIX } = require('../segmentedDownload');
-const { closeAllSessions, _closeSession, _setGraceMs } = require('../httpOpen');
+const { closeAllSessions, _closeSession, _setGraceMs, adaptiveStreamCap, recentStalls, _noteStall, _clearStalls } = require('../httpOpen');
 
 const SIZE = 12 * 1024 * 1024 + 777;
 const CHUNK = 2 * 1024 * 1024;
@@ -221,4 +221,39 @@ test('a session that ignores close() is destroyed after the grace time', () => {
   assert.strictEqual(fake.closeCalls, 1);
   assert.strictEqual(fake.destroyed, false);
   return new Promise((resolve) => setTimeout(() => { _setGraceMs(5000); assert.strictEqual(fake.destroyed, true); resolve(); }, 200));
+});
+
+
+test('freezes lower the connection count for the next files, and an hour without one restores it', () => {
+  _clearStalls();
+  const t0 = 1_000_000_000_000;
+  assert.strictEqual(adaptiveStreamCap(t0), null);
+  _noteStall(t0);
+  assert.strictEqual(adaptiveStreamCap(t0 + 1000), 8);
+  _noteStall(t0 + 60_000);
+  assert.strictEqual(adaptiveStreamCap(t0 + 61_000), 4);
+  _noteStall(t0 + 120_000);
+  assert.strictEqual(adaptiveStreamCap(t0 + 121_000), 2);
+  assert.strictEqual(recentStalls(3600_000, t0 + 121_000), 3);
+  assert.strictEqual(adaptiveStreamCap(t0 + 120_000 + 3600_000 + 1), null);          // an hour after the last freeze
+  _clearStalls();
+});
+
+test('the stall test also records the freeze for the adaptive count', { skip }, async () => {
+  _clearStalls();
+  const srv = http2.createSecureServer({ ...cert, allowHTTP1: true });
+  let first = null;
+  srv.on('session', (s) => { if (!first) first = s; });
+  srv.on('request', (q, s) => {
+    if (q.stream.session === first) return;
+    const r = range(q.headers.range);
+    const part = DATA.subarray(r[0], r[1] + 1);
+    s.writeHead(206, { 'content-length': part.length, 'content-range': `bytes ${r[0]}-${r[1]}/${SIZE}` }); s.end(part);
+  });
+  await new Promise((res) => srv.listen(0, res));
+  await segmentedDownload(opts({ url: `https://localhost:${srv.address().port}/f`, outputPath: tmp(), streams: 3, stallMs: 400, maxAttempts: 6 })).promise;
+  srv.close(); closeAllSessions();
+  assert.ok(recentStalls() >= 1, 'the freeze was not recorded');
+  assert.strictEqual(adaptiveStreamCap(), recentStalls() === 1 ? 8 : recentStalls() === 2 ? 4 : 2);
+  _clearStalls();
 });

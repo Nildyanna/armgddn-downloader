@@ -11,6 +11,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   buildSetupReport: () => ipcRenderer.invoke('build-setup-report'),
   sendSupportLog: () => ipcRenderer.invoke('send-support-log'),
   runConnectionTest: () => ipcRenderer.invoke('run-connection-test'),
+  getScheduleBanner: () => ipcRenderer.invoke('get-schedule-banner'),
+  checkGameUpdates: () => ipcRenderer.invoke('check-game-updates'),
+  onScheduleBanner: (cb) => ipcRenderer.on('schedule-banner', (_e, t) => cb(t)),
   onConnectionTestProgress: (cb) => ipcRenderer.on('connection-test-progress', (_e, p) => cb(p)),
 
   // Downloads

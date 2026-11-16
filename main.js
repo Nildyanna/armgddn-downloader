@@ -147,6 +147,7 @@ const crypto = require('crypto');
 const https = require('https');
 const { resumeDownload, ResumeProc } = require('./resumeDownload');
 const { segmentedDownload, probeRanges } = require('./segmentedDownload');
+const scheduleLib = require('./schedule');
 const directEndpoint = require('./directEndpoint');
 const { pathToFileURL } = require('url');
 
@@ -1405,6 +1406,7 @@ let settings = {
   downloadPath: path.join(defaultDownloadsBase(), 'ARMGDDN'),
   maxConcurrentDownloads: 2,
   connectionsPerFile: 0,
+  schedule: scheduleLib.normalize(null),
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
   autoHashCheck: true,
@@ -1484,6 +1486,7 @@ function normalizeSettings() {
     // Enforce cap of 8 for stability
     settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 6) : 2;
     // 0 = Auto (the app picks); otherwise the most connections one file may open.
+    settings.schedule = scheduleLib.normalize(settings.schedule);
     const cpf = parseInt(String(settings.connectionsPerFile), 10);
     settings.connectionsPerFile = [1, 2, 4, 8, 16].includes(cpf) ? cpf : 0;
 
@@ -3231,6 +3234,7 @@ function runSmokeTest() {
 }
 
 app.whenReady().then(() => {
+  try { startScheduleTicker(); } catch (e) { }
   try {
     logToFile(`[Startup] version: ${app.getVersion()}`);
   } catch (e) { }
@@ -3463,6 +3467,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'downloadPath',
     'maxConcurrentDownloads',
     'connectionsPerFile',
+    'schedule',
     'maxDownloadSpeedMBps',
     'autoExtract7z',
     'autoHashCheck',
@@ -3812,6 +3817,26 @@ ipcMain.handle('build-setup-report', async () => {
   } catch (e) {
     logToFile(`[setup-report] failed: ${e.message}`);
     return { ok: false, code: '' };
+  }
+});
+
+// "Check for updates": the folder names of the games in the download history go to the site, which answers the ones that have a newer
+// version in the library (Steam build number, or a dotted version for other games). Nothing else is sent.
+ipcMain.handle('check-game-updates', async () => {
+  try {
+    const token = sessionToken || loadSession();
+    if (!token) return { ok: false, error: 'Sign in to the app first, then try again.' };
+    const names = [...new Set((Array.isArray(downloadHistory) ? downloadHistory : []).filter((h) => h && h.status === 'completed' && h.name).map((h) => String(h.name)))].slice(0, 300);
+    if (!names.length) return { ok: true, updates: [], checked: 0 };
+    const res = await postJsonWithBearer('https://www.armgddnbrowser.com/api/library-updates', { names }, token);
+    if (res.statusCode === 429) return { ok: false, error: 'Please wait a minute and try again.' };
+    if (res.statusCode === 401) return { ok: false, error: 'Sign in to the app again, then try again.' };
+    if (res.statusCode !== 200 || !res.json || !Array.isArray(res.json.updates)) return { ok: false, error: 'The site could not check right now. Try again in a few minutes.' };
+    logToFile(`[updates] ${names.length} downloaded game(s) checked, ${res.json.updates.length} with a newer version`);
+    return { ok: true, updates: res.json.updates, checked: names.length };
+  } catch (e) {
+    logToFile(`[updates] failed: ${e.message}`);
+    return { ok: false, error: 'Could not check for updates. Check your connection and try again.' };
   }
 });
 
@@ -5712,6 +5737,15 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       // The member's own cap (Settings > Connections per file) can only lower the automatic choice.
       const cpfCap = Number(settings && settings.connectionsPerFile);
       if (cpfCap > 0 && cpfCap < multiThreadStreams) multiThreadStreams = cpfCap;
+      // On Auto, a connection that froze recently means this PC or router struggles with many connections: start the next files with fewer
+      // (8 after one freeze in the last hour, 4 after two, 2 after three), and go back to the full number an hour after the last freeze.
+      if (!(cpfCap > 0)) {
+        const adaptCap = require('./httpOpen').adaptiveStreamCap();
+        if (adaptCap && adaptCap < multiThreadStreams) {
+          logToFile(`[adaptive] ${require('./httpOpen').recentStalls()} frozen connection(s) in the last hour: ${(file && file.name) ? file.name : "a file"} starts with ${adaptCap} connections instead of ${multiThreadStreams}`);
+          multiThreadStreams = adaptCap;
+        }
+      }
     }
 
     // Point rclone at an empty config so it never loads (or prompts for the
@@ -5756,7 +5790,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       args.push('--multi-thread-cutoff', String(multiThreadCutoff));
     }
 
-    const maxMb = Number(settings && settings.maxDownloadSpeedMBps);
+    const maxMb = scheduleLib.effectiveLimitMBps(settings && settings.maxDownloadSpeedMBps, settings && settings.schedule);
     let appliedBwLimit = '';
     if (Number.isFinite(maxMb) && maxMb > 0) {
       const workersSetting = Number(settings && settings.maxConcurrentDownloads);
@@ -7615,7 +7649,64 @@ ipcMain.handle('reorder-downloads', (event, orderedIds) => {
   return true;
 });
 
-ipcMain.handle('pause-download', (event, downloadId) => {
+// ---- Quiet hours (Settings): downloads pause or slow down inside a weekly window. A tick every 15 s applies the change; downloads that
+// the schedule paused are resumed when the window ends, downloads the member paused themselves are left alone.
+let lastScheduleLimit = null;
+let lastScheduleBanner = '';
+function scheduleActiveStates() { return ['downloading', 'in_progress']; }
+function pushScheduleState() {
+  try {
+    const w = scheduleLib.activeWindow(settings.schedule);
+    const text = !w ? '' : (w.action === 'pause'
+      ? `Downloads are paused by your quiet hours until ${scheduleLib.formatTime(w.endsAt)}.`
+      : `Downloads are limited to ${w.limitMBps} MB/s by your quiet hours until ${scheduleLib.formatTime(w.endsAt)}.`);
+    if (text !== lastScheduleBanner) {
+      lastScheduleBanner = text;
+      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('schedule-banner', text);
+    }
+  } catch (e) { }
+}
+function scheduleTick() {
+  try {
+    const w = scheduleLib.activeWindow(settings.schedule);
+    pushScheduleState();
+    if (w && w.action === 'pause') {
+      for (const [id, d] of activeDownloads) {
+        if (!d.paused && scheduleActiveStates().includes(d.status)) {
+          d.pausedBySchedule = true;
+          logToFile(`[schedule] pausing ${id} for quiet hours until ${scheduleLib.formatTime(w.endsAt)}`);
+          pauseDownloadById(id);
+        }
+      }
+    } else {
+      for (const [id, d] of activeDownloads) {
+        if (!d.pausedBySchedule) continue;
+        d.pausedBySchedule = false;
+        if (d.paused) {
+          logToFile(`[schedule] quiet hours ended: resuming ${id}`);
+          resumeDownloadFiles(id).catch((e) => logToFile(`[schedule] resume of ${id} failed: ${e && e.message}`));
+        }
+      }
+    }
+    // a limit window began or ended: restart running downloads so they pick it up
+    const lim = (w && w.action === 'limit') ? w.limitMBps : 0;      // only a limit window beginning or ending restarts running downloads
+    if (lastScheduleLimit !== null && lim !== lastScheduleLimit && !(w && w.action === 'pause')) {
+      for (const [id, d] of activeDownloads) {
+        if (d.paused || !scheduleActiveStates().includes(d.status)) continue;
+        logToFile(`[schedule] speed limit now ${lim || 'none'}: restarting ${id} to apply it`);
+        d.pausedBySchedule = true;               // the next tick resumes it
+        pauseDownloadById(id);
+      }
+    }
+    lastScheduleLimit = lim;
+  } catch (e) { logToFile(`[schedule] tick failed: ${e && e.message}`); }
+}
+function startScheduleTicker() { setInterval(scheduleTick, 15 * 1000); setTimeout(scheduleTick, 3000); }
+ipcMain.handle('get-schedule-banner', () => lastScheduleBanner);
+
+ipcMain.handle('pause-download', (event, downloadId) => pauseDownloadById(downloadId));
+
+function pauseDownloadById(downloadId) {
   if (!isValidDownloadId(downloadId)) return false;
   const download = activeDownloads.get(downloadId);
   if (!download) return false;
@@ -7642,7 +7733,7 @@ ipcMain.handle('pause-download', (event, downloadId) => {
 
   updateProgress(downloadId);
   return true;
-});
+}
 
 async function resumeDownloadFiles(downloadId) {
   const download = activeDownloads.get(downloadId);

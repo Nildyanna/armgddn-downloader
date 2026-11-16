@@ -229,6 +229,11 @@ async function showAlertDialog(title, message) {
     if (setupCheckBtn) setupCheckBtn.addEventListener('click', runSetupCheck);
     const setupReportBtn = document.getElementById('setup-report-btn');
     if (setupReportBtn) setupReportBtn.addEventListener('click', copySetupReport);
+    try {
+      const showBanner = (t) => { const el = document.getElementById('schedule-banner'); if (el) { el.textContent = t || ''; el.style.display = t ? '' : 'none'; } };
+      api.onScheduleBanner(showBanner);
+      api.getScheduleBanner().then(showBanner).catch(() => { });
+    } catch (e) { }
     const connTestBtn = document.getElementById('connection-test-btn');
     if (connTestBtn) connTestBtn.addEventListener('click', runConnectionTest);
     const sendLogBtn = document.getElementById('send-log-btn');
@@ -265,6 +270,8 @@ async function showAlertDialog(title, message) {
     initMusicPanel();
     document.getElementById('close-history-btn').addEventListener('click', closeHistory);
     document.getElementById('clear-history-btn').addEventListener('click', clearHistory);
+    const checkUpdatesBtn = document.getElementById('check-updates-btn');
+    if (checkUpdatesBtn) checkUpdatesBtn.addEventListener('click', checkGameUpdates);
 
     // Updates
     document.getElementById('check-updates-btn').addEventListener('click', checkForUpdates);
@@ -1480,6 +1487,17 @@ async function showAlertDialog(title, message) {
     document.getElementById('download-path').value = settings.downloadPath || '';
     refreshFreeSpaceIndicator(settings.downloadPath);
     document.getElementById('max-concurrent').value = settings.maxConcurrentDownloads || 2;
+    const sch = settings.schedule || {};
+    const schEn = document.getElementById('schedule-enabled');
+    if (schEn) {
+      schEn.checked = !!sch.enabled;
+      document.getElementById('schedule-start').value = sch.start || '23:00';
+      document.getElementById('schedule-end').value = sch.end || '07:00';
+      document.getElementById('schedule-action').value = sch.action === 'limit' ? 'limit' : 'pause';
+      document.getElementById('schedule-limit').value = sch.limitMBps || 5;
+      const days = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6];
+      document.querySelectorAll('#schedule-days input[data-day]').forEach((c) => { c.checked = days.includes(Number(c.dataset.day)); });
+    }
     const cpfEl = document.getElementById('connections-per-file');
     if (cpfEl) cpfEl.value = String([1, 2, 4, 8].includes(Number(settings.connectionsPerFile)) ? Number(settings.connectionsPerFile) : 0);
     const maxSpeedEl = document.getElementById('max-speed-mbps');
@@ -1537,6 +1555,17 @@ async function showAlertDialog(title, message) {
   async function saveSettings() {
     settings.downloadPath = document.getElementById('download-path').value;
     settings.maxConcurrentDownloads = parseInt(document.getElementById('max-concurrent').value);
+    const schSaveEl = document.getElementById('schedule-enabled');
+    if (schSaveEl) {
+      settings.schedule = {
+        enabled: !!schSaveEl.checked,
+        start: document.getElementById('schedule-start').value || '23:00',
+        end: document.getElementById('schedule-end').value || '07:00',
+        action: document.getElementById('schedule-action').value === 'limit' ? 'limit' : 'pause',
+        limitMBps: parseInt(document.getElementById('schedule-limit').value, 10) || 5,
+        days: Array.from(document.querySelectorAll('#schedule-days input[data-day]')).filter((c) => c.checked).map((c) => Number(c.dataset.day)),
+      };
+    }
     const cpfSaveEl = document.getElementById('connections-per-file');
     if (cpfSaveEl) settings.connectionsPerFile = parseInt(cpfSaveEl.value, 10) || 0;
     const maxSpeedEl = document.getElementById('max-speed-mbps');
@@ -1598,6 +1627,36 @@ async function showAlertDialog(title, message) {
   }
 
   // History
+  // "Check for game updates": which games in the history have a newer version in the library.
+  async function checkGameUpdates() {
+    const out = document.getElementById('updates-result');
+    const btn = document.getElementById('check-updates-btn');
+    if (!out || !btn) return;
+    btn.disabled = true;
+    out.textContent = 'Checking...';
+    try {
+      const res = await api.checkGameUpdates();
+      if (!res || !res.ok) { out.textContent = (res && res.error) || 'Could not check for updates.'; return; }
+      if (!res.checked) { out.textContent = 'There are no finished downloads in your history to check.'; return; }
+      if (!res.updates.length) { out.textContent = `Checked ${res.checked} game${res.checked === 1 ? '' : 's'}: all are on the newest version in the library.`; return; }
+      out.textContent = '';
+      const head = document.createElement('div');
+      head.textContent = `${res.updates.length} game${res.updates.length === 1 ? ' has' : 's have'} a newer version in the library. Find them on the website to download the update:`;
+      out.appendChild(head);
+      const ul = document.createElement('ul');
+      for (const u of res.updates) {
+        const li = document.createElement('li');
+        li.textContent = `${u.latestFolder}  (you have ${u.current}, newest is ${u.latest})`;
+        ul.appendChild(li);
+      }
+      out.appendChild(ul);
+    } catch (e) {
+      out.textContent = 'Could not check for updates.';
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   function openHistory() {
     lastFocusedBeforeModal = document.activeElement;
     const panel = document.getElementById('history-panel');

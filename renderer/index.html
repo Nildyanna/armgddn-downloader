@@ -123,6 +123,7 @@
         <h2>Downloads</h2>
         <span id="global-free-space" class="free-space-readout"></span>
       </div>
+      <div id="schedule-banner" class="setting-help-text" style="display:none;margin:6px 0" aria-live="polite"></div>
       <div id="downloads-list" class="downloads-list">
         <div class="empty-state">
           <img src="../assets/skull-logo.png" alt="" class="empty-state-icon">
@@ -181,6 +182,30 @@
             </select>
             <div class="setting-help-text">
               How many connections each big file opens. If downloads keep pausing for a moment, especially on Wi-Fi, try a lower number.
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="toggle-switch">
+              <input type="checkbox" id="schedule-enabled" class="toggle-input">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span>Quiet hours: pause or slow downloads at set times</span>
+            </label>
+            <div id="schedule-fields" style="margin-top:8px">
+              <div>
+                From <input type="time" id="schedule-start"> to <input type="time" id="schedule-end">
+                <select id="schedule-action"><option value="pause">Pause downloads</option><option value="limit">Limit speed to</option></select>
+                <input type="number" id="schedule-limit" min="1" step="1" style="width:70px"> MB/s
+              </div>
+              <div id="schedule-days" style="margin-top:6px">
+                <label><input type="checkbox" data-day="1"> Mon</label>
+                <label><input type="checkbox" data-day="2"> Tue</label>
+                <label><input type="checkbox" data-day="3"> Wed</label>
+                <label><input type="checkbox" data-day="4"> Thu</label>
+                <label><input type="checkbox" data-day="5"> Fri</label>
+                <label><input type="checkbox" data-day="6"> Sat</label>
+                <label><input type="checkbox" data-day="0"> Sun</label>
+              </div>
+              <div class="setting-help-text">Uses this PC's clock. A window that ends earlier than it starts runs past midnight, and the days are the days it starts on. Paused downloads carry on by themselves when the window ends.</div>
             </div>
           </div>
           <div class="form-group">
@@ -290,7 +315,11 @@
       </div>
       <div class="history-content">
         <div class="history-actions">
+          <button id="check-updates-btn" class="secondary-btn">Check for game updates</button>
           <button id="clear-history-btn" class="secondary-btn">Clear History</button>
+        </div>
+        <div id="updates-result" class="setting-help-text" aria-live="polite" style="margin:6px 0">
+
         </div>
         <div id="history-list" class="history-list">
           <div class="empty-state">

@@ -42,6 +42,7 @@
       "directEndpoint.js",
       "httpOpen.js",
       "connectionTest.js",
+      "schedule.js",
       "proxy.js",
       "hashCheck.js",
       "sevenZipErrors.js",

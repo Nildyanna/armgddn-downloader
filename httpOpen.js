@@ -18,6 +18,18 @@ let SESSION_GRACE_MS = 5 * 1000;     // a session asked to close politely is des
 const sessions = new Map();      // origin -> { session, active, timer, ready }
 const h1Only = new Map();        // origin -> until (ms): h2 did not work, use HTTP/1.1 for a while
 
+// Every time a whole shared connection is found stuck (see openH2) the moment is remembered here, so the downloader can start the next
+// files with fewer connections when Connections per file is on Auto.
+const stallLog = [];
+const STALL_MEMORY_MS = 60 * 60 * 1000;
+function noteStall(now = Date.now()) { stallLog.push(now); while (stallLog.length > 50) stallLog.shift(); }
+function recentStalls(ms = STALL_MEMORY_MS, now = Date.now()) { return stallLog.filter((t) => now - t < ms).length; }
+// null = no limit; otherwise the most connections one file should open: 1 stall in the last hour -> 8, 2 -> 4, 3 or more -> 2.
+function adaptiveStreamCap(now = Date.now()) {
+  const n = recentStalls(STALL_MEMORY_MS, now);
+  return n <= 0 ? null : n === 1 ? 8 : n === 2 ? 4 : 2;
+}
+
 const closedBy = (signal) => (signal && signal.aborted) ? new ResumeError('stopped', 'aborted') : null;
 
 function dropSession(origin, session) {
@@ -106,7 +118,7 @@ async function openH2(u, headers, stallMs, opts, hops) {
       // only loses that stream.
       const stuck = connectionStalled(entry, stallMs);
       req.destroy(new ResumeError('connection timed out', 'network'));
-      if (stuck) { dropSession(u.origin, entry.session); try { entry.session.destroy(); } catch (e) { } }
+      if (stuck) { noteStall(); dropSession(u.origin, entry.session); try { entry.session.destroy(); } catch (e) { } }
     });
     req.on('error', (e) => { if (!settled) { settled = true; reject(e instanceof ResumeError ? e : new ResumeError(e && e.message ? e.message : String(e), 'network')); } });
     req.on('close', () => { if (!settled) { settled = true; reject(closedBy(opts.signal) || new ResumeError('connection closed', 'network')); } });
@@ -170,4 +182,4 @@ function closeAllSessions() {
   h1Only.clear();
 }
 
-module.exports = { openAuto, closeAllSessions, _closeSession: closeSession, _setGraceMs: (ms) => { SESSION_GRACE_MS = ms; } };
+module.exports = { openAuto, closeAllSessions, recentStalls, adaptiveStreamCap, _noteStall: noteStall, _clearStalls: () => { stallLog.length = 0; }, _closeSession: closeSession, _setGraceMs: (ms) => { SESSION_GRACE_MS = ms; } };
