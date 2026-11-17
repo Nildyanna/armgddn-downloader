@@ -1,4 +1,13 @@
 {
+  "5.22.0": {
+    "title": "Comics Keep Their Folders",
+    "highlights": [
+      "Comics now download with their collection and series folders, so Komga sees each series as its own series.",
+      "Downloading several collections at once is now named \"Comics\" instead of after the first comic in the list.",
+      "\"Only what I'm missing\" puts new comics back into the right collection folder inside your comics folder.",
+      "Comics you downloaded before this update are unchanged. Delete the folder and download again to get the new layout."
+    ]
+  },
   "5.21.3": {
     "title": "Linux Fix",
     "highlights": [

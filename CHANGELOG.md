@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.22.0] - 2026-11-17
+
+### Changed
+- **Comics downloads keep their collection and series folders.** A download that spanned several collections was named after its first comic (Marvel came out as "Fantastic Four Collection", DC as "Batman Collection") and every file was saved flat in that one folder, so Komga treated everything as one series. The site now names each file by its path below the shared parent of the chosen items, and the Companion keeps those folders. A batch spanning several collections is named "Comics"; one within a single collection is named after that collection.
+- **"Only what I'm missing" keeps the library layout.** New comics are saved under their collection folder inside your comics folder (the site sends the shared base folder and the Companion puts it back in front of each file).
+
 ## [5.21.3] - 2026-11-16
 
 ### Fixed
