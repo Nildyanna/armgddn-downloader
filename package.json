@@ -41,6 +41,7 @@
       "segmentedDownload.js",
       "directEndpoint.js",
       "httpOpen.js",
+      "engineReason.js",
       "connectionTest.js",
       "schedule.js",
       "notify.js",

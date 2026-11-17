@@ -5886,9 +5886,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         return u;
       };
       const limitBytes = appliedBwLimit ? (parseFloat(appliedBwLimit) || 0) * 1048576 : 0;   // same per-worker limit rclone would get
-      const engStats = { startedAt: Date.now(), retries: {} };   // why this attempt ended, sent to the site (see reportEngineToServer)
+      const engStats = { startedAt: Date.now(), retries: {}, reasons: {} };   // why this attempt ended, sent to the site (see reportEngineToServer)
       const engine = useSegmented
-        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: (m) => { logToFile(`[Segmented] ${fileName}: ${m}`); const rk = /chunk \d+ retry \d+: ([a-z_]+)/.exec(String(m)); if (rk) engStats.retries[rk[1]] = (engStats.retries[rk[1]] || 0) + 1; } })
+        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: (m) => { logToFile(`[Segmented] ${fileName}: ${m}`); const rk = /chunk \d+ retry \d+: ([a-z_]+) ?(.*)$/.exec(String(m)); if (rk) { engStats.retries[rk[1]] = (engStats.retries[rk[1]] || 0) + 1; const why = require('./engineReason').engineReason(rk[2]); if (Object.keys(engStats.reasons).length < 8 || engStats.reasons[why]) engStats.reasons[why] = (engStats.reasons[why] || 0) + 1; } } })
         : (o) => resumeDownload({ ...o, tlsOptions: directEndpoint.tlsOptions() });
       const ctl = engine({
         url: String(file.url),
@@ -5936,7 +5936,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         if (outcome !== 'completed' || Object.keys(engStats.retries).length) {
           const sec = (Date.now() - engStats.startedAt) / 1000;
           reportEngineToServer(download, {
-            outcome, endedBy, failKind: failure && failure.kind ? String(failure.kind) : '', retries: engStats.retries,
+            outcome, endedBy, failKind: failure && failure.kind ? String(failure.kind) : '', retries: engStats.retries, reasons: engStats.reasons,
             streams: useSegmented ? multiThreadStreams : 1, seconds: sec, bytes: lastResumeBytes || 0, engine: useSegmented ? 'segmented' : 'single',
             mbit: sec > 0 ? ((lastResumeBytes || 0) * 8 / sec / 1e6) : 0, direct: !!directEndpoint.isDirectUrl(file.url), sizeMb: normalizeFileSize(file.size) / 1e6
           });
