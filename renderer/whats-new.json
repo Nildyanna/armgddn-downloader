@@ -1,4 +1,10 @@
 {
+  "5.22.2": {
+    "title": "Download Diagnostics",
+    "highlights": [
+      "Download reports now include a short cause for each retry (for example a reset connection), so the reason a download slows or drops can be pinned down."
+    ]
+  },
   "5.22.1": {
     "title": "Download Diagnostics",
     "highlights": [

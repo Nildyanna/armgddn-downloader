@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.22.2] - 2026-11-17
+
+### Added
+- **Retry causes in download reports.** Each retry now carries a short label (for example econnreset, dropped, timed out, http 503). Hosts, addresses and paths are never included.
+
 ## [5.22.1] - 2026-11-17
 
 ### Added
