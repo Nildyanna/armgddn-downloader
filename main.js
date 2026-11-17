@@ -5886,8 +5886,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         return u;
       };
       const limitBytes = appliedBwLimit ? (parseFloat(appliedBwLimit) || 0) * 1048576 : 0;   // same per-worker limit rclone would get
+      const engStats = { startedAt: Date.now(), retries: {} };   // why this attempt ended, sent to the site (see reportEngineToServer)
       const engine = useSegmented
-        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: (m) => logToFile(`[Segmented] ${fileName}: ${m}`) })
+        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: (m) => { logToFile(`[Segmented] ${fileName}: ${m}`); const rk = /chunk \d+ retry \d+: ([a-z_]+)/.exec(String(m)); if (rk) engStats.retries[rk[1]] = (engStats.retries[rk[1]] || 0) + 1; } })
         : (o) => resumeDownload({ ...o, tlsOptions: directEndpoint.tlsOptions() });
       const ctl = engine({
         url: String(file.url),
@@ -5928,6 +5929,19 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       const ridx = download.activeProcesses.indexOf(rproc);
       if (ridx !== -1) download.activeProcesses.splice(ridx, 1);
       rproc.finish(failure ? 1 : 0);
+      try {
+        const superseded = !!(failure && failure.kind === 'aborted' && /supersed/i.test(String(failure.message || '')));
+        const outcome = download.cancelled ? 'cancelled' : superseded ? 'superseded' : (download.paused || (failure && failure.kind === 'aborted')) ? 'paused' : failure ? 'failed' : 'completed';
+        const endedBy = outcome === 'completed' ? '' : (outcome === 'cancelled' || outcome === 'paused') ? 'user' : outcome === 'superseded' ? 'app' : ((engStats.retries.stall || 0) > 0 ? 'stall' : 'error');
+        if (outcome !== 'completed' || Object.keys(engStats.retries).length) {
+          const sec = (Date.now() - engStats.startedAt) / 1000;
+          reportEngineToServer(download, {
+            outcome, endedBy, failKind: failure && failure.kind ? String(failure.kind) : '', retries: engStats.retries,
+            streams: useSegmented ? multiThreadStreams : 1, seconds: sec, bytes: lastResumeBytes || 0, engine: useSegmented ? 'segmented' : 'single',
+            mbit: sec > 0 ? ((lastResumeBytes || 0) * 8 / sec / 1e6) : 0, direct: !!directEndpoint.isDirectUrl(file.url), sizeMb: normalizeFileSize(file.size) / 1e6
+          });
+        }
+      } catch (eRep) { }
 
       if (download.cancelled) {
         if (download.activeFiles[fileKey]) { download.activeFiles[fileKey].status = 'cancelled'; delete download.activeFiles[fileKey]; }
@@ -8150,6 +8164,25 @@ async function maybeShowHashGateNotice() {
   } finally {
     hashGateNoticeOpen = false;
   }
+}
+
+// Tells the site why a download attempt ended and which retries it needed: counts and kinds only, no file names (site: services/engine-reports.js).
+function reportEngineToServer(download, info) {
+  try {
+    const token = (download && download.token) || null;
+    if (!download || !token) return;
+    const host = download.progressHost || 'www.armgddnbrowser.com';
+    if (!isAllowedServiceHost(host)) return;
+    const body = JSON.stringify({ ...info, version: app.getVersion() });
+    const req = https.request({
+      hostname: host, port: download.progressPort || 443, path: '/api/app-engine-report', method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': `Bearer ${token}`, 'User-Agent': `ARMGDDN-Companion/${app.getVersion()}` }
+    }, (res) => { res.resume(); });
+    req.on('error', () => { });
+    req.setTimeout(15000, () => { try { req.destroy(); } catch (e) { } });
+    req.write(body);
+    req.end();
+  } catch (e) { }
 }
 
 function reportHashUnavailableToServer(download) {
