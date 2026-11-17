@@ -4761,6 +4761,8 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
     } catch (e) { }
     // Extract folder name from path (e.g., "PC1/Game Name" -> "Game Name")
     name = remotePath.split('/').pop() || 'Download';
+    // A comics batch spanning several collections is named by the site ("Comics"), not after its first item.
+    if (manifest.batch && typeof manifest.name === 'string' && manifest.name.trim()) name = manifest.name.trim();
     totalSize = manifest.totalSize || files.reduce((sum, f) => sum + (f.size || 0), 0);
   } else if (manifest.url) {
     // Single file format: { url: "...", name: "...", size: ... }
@@ -4811,6 +4813,13 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
   const destFolder = dest === 'music' ? settings.musicFolder : dest === 'comics' ? settings.comicsFolder : '';
   const toComics = (dest === 'music' || dest === 'comics') && typeof destFolder === 'string' && destFolder.trim() !== '' && path.isAbsolute(destFolder) && fs.existsSync(destFolder);
   if ((dest === 'music' || dest === 'comics') && !toComics) throw new Error(dest === 'music' ? 'Choose your music folder in the Music panel first.' : 'Choose your comics folder in the Comics panel first.');
+
+  // Into the member's own comics folder the files keep the library's layout: the site names them below the batch's shared folder
+  // (baseDir, for example a collection), so that folder goes back on the front.
+  if (toComics && dest === 'comics' && typeof manifest.baseDir === 'string' && manifest.baseDir) {
+    const base = sanitizeRelativePath(manifest.baseDir);
+    if (base) files = files.map((f) => (f && f.name ? { ...f, name: base + '/' + f.name } : f));
+  }
 
   const safeFolderName = sanitizeRelativePath(String(name || ''));
   if (safeFolderName) {
