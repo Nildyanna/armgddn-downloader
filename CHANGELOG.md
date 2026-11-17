@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.22.1] - 2026-11-17
+
+### Added
+- **Download diagnostics.** When a download attempt is paused, cancelled, fails, or needs retries, the Companion reports to the site why it ended: outcome, retry reasons and counts, streams, duration, average speed, and whether the direct endpoint was used. No file names or paths are sent.
+
 ## [5.22.0] - 2026-11-17
 
 ### Changed

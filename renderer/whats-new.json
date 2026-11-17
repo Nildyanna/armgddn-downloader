@@ -1,4 +1,10 @@
 {
+  "5.22.1": {
+    "title": "Download Diagnostics",
+    "highlights": [
+      "When a download is interrupted or has to retry, the Companion now tells the site why (for example a stalled connection) so slow downloads can be found and fixed. No file names or paths are included."
+    ]
+  },
   "5.22.0": {
     "title": "Comics Keep Their Folders",
     "highlights": [
