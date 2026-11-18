@@ -12,21 +12,21 @@ built into the app. It opens only when the app starts with `--native`; without t
 - `native/vendor/`: Preact, htm, hls.js (no build step). Licenses beside them.
 - `renderer/native/`: `app.mjs` (screens), `format.mjs` (pure helpers, all tested), `native.css`, `wiki.json` (copied from the site by `scripts/extract_wiki.py`).
 - `preload-native.js`: the only things the page can call.
-- Tests: `test/native*.test.js` (18 pass). Run: `node --test test/native*.test.js`.
+- Tests: `test/native*.test.js` (19 pass). Run: `node --test test/native*.test.js`.
 
 ## Built
 Browse (PC, PCVR, Testing, Apps, 3D, Comics, Music) with landscape / square / portrait cards, covers, A-Z jump, sort, category/genre filter, search this list and
 search everywhere. Card buttons: heart, Browse, Details, Download. Cover click = trailer (direct video, Steam streaming, YouTube) or the full cover.
 Details window (cover, facts, categories, Steam links, trailer, README). Downloads: README notice, bandwidth notice (once a day), PC Apps notice, update-patch
 question, Starfield prompt, batch download without patches, Downloads tab with pause/resume/cancel/retry. Requests (My Requests, comments, new Music/Comics
-request), `armgddn://request/<id>` deep link. My List (kept on this device). Wiki. Settings button (opens the classic window).
+request), `armgddn://request/<id>` deep link. My List (kept on this device). Wiki. Export list (CSV or Excel, saved through a save dialog; the site builds the file). Settings button (opens the classic window).
 Hidden like on the website: stray `.json` files, folder echoes, Testing strays, dot-folders.
 
 ## Not built / not proven
 - **Writes to the live site are unproven.** Request comments are blocked by CSRF for the Companion, and a Companion login has no username, until the staged
   site change (branch `native-companion` in `ArmgddnBrowser-native`, commit `9af58aae`) is deployed. Reads work today.
 - Members' website My Lists do not carry over (the site keeps them in the browser).
-- Not copied: Export list, Komga "only what I'm missing" and the other classic-window tools (reachable through Settings), themes, the public status page,
+- Not copied: Komga "only what I'm missing" and the other classic-window tools (reachable through Settings), themes, the public status page,
   game requests (closed), mobile.
 - Wiki text is the website's. Sections 2, 8, 11, 12, 13 describe the website flow and need rewriting for the app (Wiki edits need approval).
 - A pause/cancel/large-download test has not been run from this window. Steam HLS trailers are untested (direct video and YouTube were).
