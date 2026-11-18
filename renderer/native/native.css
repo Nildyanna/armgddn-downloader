@@ -273,3 +273,80 @@ header select + select { margin-left: 0; }
 @keyframes fireworkSparkle { 0% { transform: translate(0,0) scale(1) rotate(0deg); opacity: 1; } 50% { opacity: .8; } 100% { transform: translate(var(--burst-x, 20px), var(--burst-y, 20px)) scale(0) rotate(180deg); opacity: 0; } }
 @keyframes fireworkTrail { 0% { transform: translate(0,0) scale(1); opacity: .8; } 100% { transform: translate(var(--burst-x, 40px), calc(var(--burst-y, 40px) + 20px)) scale(0); opacity: 0; } }
 [data-anim="0"] .fireworks { display: none; }
+
+/* Login lightning reveal (from the website) */
+@keyframes loginLightningEmberPulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 0.85; } }
+
+#loginLightningStage {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+    overflow: hidden;
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    z-index: 99999;
+}
+
+#loginLightningStage .login-lightning-ember {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+}
+
+#loginLightningStage .login-lightning-ember-glow {
+    width: min(90vmin, 900px);
+    height: min(90vmin, 900px);
+    border-radius: 50%;
+    background: radial-gradient(circle, rgba(255,90,54,0.22) 0%, rgba(255,90,54,0.08) 45%, rgba(0,0,0,0) 72%);
+    animation: loginLightningEmberPulse 3.6s ease-in-out infinite;
+}
+
+#loginLightningCanvasBehind, #loginLightningCanvasFront {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+#loginLightningCanvasBehind { z-index: 1; }
+#loginLightningCanvasFront { z-index: 3; }
+
+#loginLightningLogo {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: min(70vmin, 680px);
+    height: min(70vmin, 680px);
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    object-fit: cover;
+    opacity: 0;
+    z-index: 2;
+    pointer-events: none;
+}
+
+#loginLightningOverlay {
+    position: absolute;
+    inset: 0;
+    z-index: 10;
+    background: #000;
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Hard kill-switch: applied the instant teardown begins, on top of any JS opacity
+   state, so the logo/canvases/ember glow cannot flash back into view even if a
+   timing edge case leaves an opacity property stale. This is belt-and-suspenders —
+   the JS also fully removes the stage from the DOM once the overlay fade-out
+   finishes, but this class guarantees nothing is paintable in the interim. */
+#loginLightningStage.login-lightning-teardown .login-lightning-ember,
+#loginLightningStage.login-lightning-teardown #loginLightningCanvasBehind,
+#loginLightningStage.login-lightning-teardown #loginLightningCanvasFront,
+#loginLightningStage.login-lightning-teardown #loginLightningLogo {
+    display: none !important;
+    opacity: 0 !important;
+}

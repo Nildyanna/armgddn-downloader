@@ -1,6 +1,7 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
 import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
 
+import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
 
 const api = window.nativeAPI;
@@ -19,6 +20,11 @@ function applyTheme(choice) {
   const set = (k, v) => { if (v) root.setProperty(k, v); else root.removeProperty(k); };
   set('--bg', t.bg); set('--panel', t.panel); set('--fg', t.fg); set('--dim', t.dim); set('--line', t.line); set('--accent', t.accent); set('--accent2', t.accent2);
   set('--on-accent', t.onAccent); set('--rc', t.radius || '10px'); set('--page', t.page); set('--page-color', t.pageColor);
+  // The theme's own variables (the website's names, used by its rules) and its name, so the translated theme rules in themes.css apply.
+  for (const k of (applyTheme.lastVars || [])) root.removeProperty(k);
+  applyTheme.lastVars = Object.keys(t.vars || {});
+  for (const [k, v] of Object.entries(t.vars || {})) root.setProperty(k, v);
+  document.documentElement.dataset.theme = useId;
   root.setProperty('color-scheme', t.mode === 'light' ? 'light' : 'dark');
 }
 const storedTheme = () => { try { return localStorage.getItem('native.theme') || 'dark'; } catch (e) { return 'dark'; } };
@@ -322,6 +328,8 @@ function SettingsView({ say, onPrefs }) {
     <div class="srow"><span class="slabel">Import my website preferences (My List, theme, hidden sections, recent searches)</span><button class="dbtn" onClick=${() => setPrefsOpen(true)}>Import</button></div>
     ${prefsOpen ? html`<${PrefsImport} onClose=${() => setPrefsOpen(false)} onApply=${onPrefs} say=${say} />` : ''}
     <${SupportTools} say=${say} onApplyConnections=${(v) => save({ connectionsPerFile: v })} />
+    <div class="srow"><span class="slabel">Login animation (lightning and thunder, loud)</span><button class="dbtn" onClick=${() => mountLoginLightning()}>Replay</button></div>
+    <label class="srow"><input type="checkbox" checked=${localStorage.getItem('native.lightningOff') !== '1'} onChange=${(e) => { try { localStorage.setItem('native.lightningOff', e.target.checked ? '0' : '1'); } catch (er) { } }} /> <span class="slabel">Play the login animation on a first sign-in</span></label>
     <div class="srow"><span class="slabel">Download history, schedule, Komga and library scans</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
   </main>`;
 }
@@ -683,6 +691,8 @@ function App() {
     const r = await api.remotes();
     if (!r.ok) return fail(r.error);
     const t = tabsFrom(r.data.remotes); setTabs(t); if (t.length) setRemote(t[0]);
+    // The website's lightning reveal plays once for a member, after their first sign-in (and not in a screenshot run).
+    try { if (!api.quiet && localStorage.getItem('native.lightningSeen') !== '1' && localStorage.getItem('native.lightningOff') !== '1') { localStorage.setItem('native.lightningSeen', '1'); mountLoginLightning(); } } catch (e) { }
     // The website copies each member's preferences to the server; the first time here they come over by themselves, and later visits only add
     // new My List entries. Nothing for the member to do.
     try {
