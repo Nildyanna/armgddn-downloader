@@ -66,6 +66,14 @@ function planChunk(total, streams) {
 //   streams      parallel connections
 //   getFreshUrl  async () => url, called when a link has expired
 //   onProgress   (bytesOnDisk, total) => void
+// Seconds until a signed link expires, or null when it carries no expiry.
+const EXPIRY_MARGIN_S = 90;
+function linkSecondsLeft(link, now = Date.now()) {
+  try {
+    const exp = Number(new URL(String(link)).searchParams.get('exp'));
+    return Number.isFinite(exp) && exp > 1e9 ? exp - now / 1000 : null;
+  } catch (e) { return null; }
+}
 const activeByPath = new Map();     // outputPath -> controller of the run that owns that file right now
 
 function segmentedDownload(opts) {
@@ -124,6 +132,18 @@ function segmentedDownload(opts) {
     let url = opts.url;
     let urlVersion = 0;
     let refreshing = null;
+    // Signed links carry their own expiry (exp, in seconds). Renew one shortly before it runs out instead of waiting for the server to
+    // refuse it, which used to cost a burst of failed requests from every stream. A wrong PC clock cannot cause a loop: renewing is
+    // skipped when the link was renewed in the last 30 seconds.
+    let lastRenewAt = 0;
+    const renewBeforeExpiry = async () => {
+      if (typeof getFreshUrl !== 'function') return;
+      const left = linkSecondsLeft(url);
+      if (left === null || left > EXPIRY_MARGIN_S || Date.now() - lastRenewAt < 30000) return;
+      lastRenewAt = Date.now();
+      emit(`link renewed ${Math.max(0, Math.round(left))}s before it expires`);
+      await refreshUrl(urlVersion);
+    };
     const refreshUrl = (seenVersion) => {
       // One refresh at a time; a stream that failed on an old link just picks up the newer one.
       if (seenVersion !== urlVersion) return Promise.resolve();
@@ -148,6 +168,7 @@ function segmentedDownload(opts) {
         if (failure) return;
         const start = i * chunk + done[i];
         const end = i * chunk + lenOf(i) - 1;
+        try { await renewBeforeExpiry(); } catch (e) { }
         const ver = urlVersion;
         attempt++;
         try {
@@ -266,4 +287,4 @@ function segmentedDownload(opts) {
   return me;
 }
 
-module.exports = { segmentedDownload, probeRanges, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };
+module.exports = { segmentedDownload, probeRanges, linkSecondsLeft, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };
