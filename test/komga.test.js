@@ -214,3 +214,11 @@ test('adding from the catalog: a wrong key, no matching comics, and a dead serve
   const r3 = await addCatalogReadList({ baseUrl: 'http://127.0.0.1:1', apiKey: 'k', name: 'L', items: [['a/b.cbz', 1, 1, '1', '2000']] });
   assert.strictEqual(r3.reason, 'unreachable');
 });
+
+test('the classic window says which issues were left out because they could mean more than one series, and which are not in the library', () => {
+  const fs = require('fs'); const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const i = src.indexOf('issues are in the read list');
+  const body = src.slice(i, i + 700);
+  assert.ok(body.includes('r.ambiguous') && body.includes('could belong to more than one series') && body.includes('r.missing - (r.ambiguous || 0)'));
+});

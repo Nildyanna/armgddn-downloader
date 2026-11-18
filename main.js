@@ -2725,7 +2725,9 @@ async function addReadListToKomga(listId) {
     if (r.ok) {
       logToFile(`Komga: ${r.replaced ? 'updated' : 'added'} "${listName || listId}" (${r.count} issues, ${r.missing} not in library)`);
       await komgaMessage('info', `${r.replaced ? 'Updated' : 'Added'} "${listName || listId}" ${r.replaced ? 'in' : 'to'} your Komga`,
-        `${r.count} issues are in the read list.` + (r.missing ? ` ${r.missing} are not in your Komga library yet, so they were left out.` : ''));
+        `${r.count} issues are in the read list.`
+          + (r.ambiguous ? ` ${r.ambiguous} could belong to more than one series in your Komga, so they were left out instead of guessed.` : '')
+          + ((r.missing - (r.ambiguous || 0)) > 0 ? ` ${r.missing - (r.ambiguous || 0)} are not in your Komga library yet, so they were left out.` : ''));
       return;
     }
     logToFile('Komga: add failed (' + r.reason + ')');
