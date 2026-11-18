@@ -15,7 +15,19 @@ export function releaseYear(item) {
 export function cleanTitle(name) {
   return String(name || '').replace(/\s*-ARMGDDN\b.*$/i, '').replace(/\s+v\d[\w.()\-]*\s*$/i, '').trim() || String(name || '');
 }
+// Housekeeping files the collections carry (updatePCVR-FTP.txt and its siblings) are never listed.
+export function isHiddenItem(item) { return !!item && !item.isDir && /^update.*\.(txt|ftp)$/i.test(String(item.name || '').trim()); }
+// Whether the art should fill its tile (crop) or sit whole over the blurred backdrop, as on the website: game art close to the 616:353 tile fills it
+// (aspect 1.4 to 1.95), Music and Comics art fills when it has the section's usual shape (square, or 2:3) within 15 percent. Anything else is shown whole.
+export function coverFills(w, h, shape) {
+  if (!(w > 0 && h > 0)) return false;
+  const a = w / h;
+  if (shape === 'square') return Math.abs(a / 1 - 1) <= 0.15;
+  if (shape === 'tall') return Math.abs(a / (2 / 3) - 1) <= 0.15;
+  return a >= 1.4 && a <= 1.95;
+}
 export function filterAndSort(items, { query = '', sort = 'name', reverse = false } = {}) {
+  items = (items || []).filter((x) => !isHiddenItem(x));
   const q = String(query).trim().toLowerCase();
   let out = (items || []).filter((x) => x && (!q || String(x.name || '').toLowerCase().includes(q)));
   const by = {

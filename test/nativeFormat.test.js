@@ -218,3 +218,20 @@ test('the native window starts the intro only after a sign-in made in it, reads 
   for (const key of ['minimizeToTrayOnMinimize', 'startWithOsMinimized', 'minimizeToTrayOnClose', 'startWithOsStartup', 'autoUpdate', 'showNotifications', 'autoExtract7z', 'autoHashCheck', 'errorReporting'])
     assert.ok(app.includes("'" + key + "'"), key + ' is in the native Settings');
 });
+
+test('update housekeeping files are never listed, and cover art fills the tile only when its shape matches (like the website)', async () => {
+  const { isHiddenItem, coverFills, filterAndSort } = await import('../renderer/native/format.mjs');
+  assert.equal(isHiddenItem({ name: 'updatePCVR-FTP.txt', isDir: false }), true);
+  assert.equal(isHiddenItem({ name: 'updatePC-FTP.txt', isDir: false }), true);
+  assert.equal(isHiddenItem({ name: 'Update Game', isDir: true }), false);
+  assert.equal(isHiddenItem({ name: 'Epic Fun', isDir: true }), false);
+  assert.deepEqual(filterAndSort([{ name: 'updatePCVR-FTP.txt', isDir: false }, { name: 'Epic Fun', isDir: true }]).map((x) => x.name), ['Epic Fun']);
+  assert.equal(coverFills(616, 353, 'wide'), true);      // Steam capsule: fills
+  assert.equal(coverFills(460, 215, 'wide'), false);  // 2.14:1 is wider than the website's limit, so it stays whole
+  assert.equal(coverFills(1000, 1000, 'wide'), false);   // square art stays whole
+  assert.equal(coverFills(900, 300, 'wide'), false);     // very wide banner stays whole
+  assert.equal(coverFills(600, 900, 'tall'), true);
+  assert.equal(coverFills(900, 600, 'tall'), false);
+  assert.equal(coverFills(500, 500, 'square'), true);
+  assert.equal(coverFills(0, 0, 'wide'), false);
+});
