@@ -37,4 +37,12 @@ test('grid helpers', async () => {
   assert.equal(collectionCoverPath('PC Games', '', { name: 'A', isDir: true }), '');
   assert.equal(collectionCoverPath('Music', '', { name: 'notes.txt', isDir: false }), '');
   assert.equal(visibleItems('Music', '', [{ name: '.trash-2026-11-05', isDir: true }, { name: 'Abba', isDir: true }]).length, 1);
+  const { canDownload } = await import('../renderer/native/format.mjs');
+  assert.equal(canDownload('3D Printer Models', 'Bambu', { name: 'X1C', isDir: true }), false);
+  assert.equal(canDownload('3D Printer Models', 'Bambu/X1C', { name: 'Tool Caddy.stl', isDir: false }), true);
+  assert.equal(canDownload('Testing', '', { name: 'PC', isDir: true }), false);
+  assert.equal(canDownload('Testing', 'PC', { name: 'Some Game', isDir: true }), true);
+  assert.equal(canDownload('PC Games', 'PC1', { name: 'Game', isDir: true }), true);
+  assert.equal(canDownload('Music', '', { name: 'Abba', isDir: true }), true);
+  assert.equal(canDownload('Comics', '', { name: 'Marvel', isDir: true }), true);
 });

@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload } from './format.mjs';
 import { useRef } from '../../native/vendor/ui.mjs';
 
 const api = window.nativeAPI;
@@ -24,7 +24,7 @@ function Card({ item, onOpen, remote, folder, onDownload }) {
     <div class="cover">${cover ? html`<img loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
       <div class="sub">${[year, formatSize(item.size)].filter(Boolean).join(' · ')}</div>
-      ${item.isDir ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div>
+      ${canDownload(remote, folder, item) ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div>
   </div>`;
 }
 

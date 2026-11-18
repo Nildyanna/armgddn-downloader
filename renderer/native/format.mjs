@@ -91,3 +91,14 @@ export function formatSpeed(bytesPerSec) {
 }
 // Statuses the Companion uses for a download that is still running.
 export function isActiveDownload(d) { return !!d && !['completed', 'cancelled', 'error', 'failed'].includes(String(d.status || '').toLowerCase()); }
+
+// Where a Download button belongs. Files always get one. A folder gets one only when it is something you download as a whole (a game, an
+// album or artist, a comic series): the grouping folders in 3D Printer Models (Bambu / X1C ...) and the PC / PCVR buckets at the top of
+// Testing only lead to the things inside them.
+export function canDownload(remote, folder, item) {
+  if (!item) return false;
+  if (!item.isDir) return true;
+  if (remote === '3D Printer Models') return false;
+  if (remote === 'Testing' && !String(folder || '') && (item.name === 'PC' || item.name === 'PCVR')) return false;
+  return true;
+}
