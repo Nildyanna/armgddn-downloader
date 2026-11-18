@@ -250,6 +250,7 @@ const SETTING_ROWS = [
   ['select', 'connectionsPerFile', 'Connections per file', [[0, 'Automatic'], [1, '1'], [2, '2'], [4, '4'], [8, '8'], [16, '16']]],
   ['number', 'maxDownloadSpeedMBps', 'Speed limit in MB/s (0 = no limit)', 0, 10000],
   ['check', 'autoHashCheck', 'Check files after downloading'],
+  ['check', 'useNativeWindow', 'Open this native window when the app starts (turn off to use the classic window; applies next time the app starts)'],
   ['check', 'autoExtract7z', 'Extract .7z files automatically'],
   ['check', 'showNotifications', 'Show notifications'],
   ['check', 'minimizeToTrayOnClose', 'Keep running in the tray when the window is closed'],

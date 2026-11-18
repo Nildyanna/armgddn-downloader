@@ -522,8 +522,10 @@ function isNetworkStreamError(output) {
 // Handle deep links
 let protocolClientRegistered = false;
 let protocolClientRegisterError = '';
-// The native preview (--native) must never take over armgddn:// links from the installed Companion.
-if (process.argv.includes('--native')) {
+// The native preview (--native), and any unpackaged copy run with a profile of its own (--user-data-dir, as every test copy is), must never take
+// over armgddn:// links from the installed Companion. A native window opened by the site's gate inside the installed app keeps them.
+const isolatedDevRun = !app.isPackaged && process.argv.some((a) => String(a).startsWith('--user-data-dir'));
+if (process.argv.includes('--native') || isolatedDevRun) {
   protocolClientRegisterError = 'skipped (native preview)';
 } else if (process.defaultApp) {
   if (process.argv.length >= 2) {
@@ -659,7 +661,10 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
 }
 
 // Native browser preview (staging only): `--native` opens the new browse window next to the normal one. Nothing happens without the flag.
-const NATIVE_PREVIEW = process.argv.includes('--native');
+const nativeGate = require('./nativeGate');
+// Which window this launch opens: --native (development) or --classic on the command line, otherwise the site's saved answer for this member (see
+// nativeGate.js): the native window opens only for members the site lists, and only if they have not turned it off.
+const NATIVE_PREVIEW = nativeGate.wantsNative({ argv: process.argv, config: nativeGate.readEarlyConfig(path.join(app.getPath('userData'), 'config.json'), fs) });
 let nativeWindow = null;   // the native preview window, once it is open
 if (NATIVE_PREVIEW) { try { require('./native/bridge').registerSchemes(require('electron').protocol); } catch (e) { } }
 
@@ -1432,6 +1437,8 @@ let settings = {
   startWithOsStartup: false,
   startWithOsMinimized: false,
   errorReporting: true,
+  nativeAllowed: false,     // the site's answer: is the native window meant for this member (set by the app, never by the page)
+  useNativeWindow: true,    // the member's own switch, only used when nativeAllowed
   lastSeenVersion: ''
 };
 
@@ -2284,6 +2291,7 @@ async function loadSessionAsync() {
 
 // Save app session token to file (encrypted)
 function saveSession(token) {
+  try { scheduleNativeGateCheck(4000); } catch (e) { }
   try {
     const sessionPath = getSessionPath();
     // Session expires in 30 days
@@ -3123,8 +3131,16 @@ function createTray() {
     }
   };
 
-  const contextMenu = Menu.buildFromTemplate([
+  const buildTrayMenu = () => Menu.buildFromTemplate([
     { label: 'Show', click: showMainWindow },
+    ...((settings.nativeAllowed === true && !process.argv.includes('--native') && !process.argv.includes('--classic')) ? [{
+      label: NATIVE_PREVIEW ? 'Switch to the classic window' : 'Switch to the native window',
+      click: () => {
+        if (anyDownloadRunning()) { try { dialog.showMessageBox({ type: 'info', message: 'A download is running', detail: 'Switch windows after it finishes, or pause it first.', buttons: ['OK'] }); } catch (e) { } return; }
+        settings.useNativeWindow = !NATIVE_PREVIEW; saveSettings();
+        relaunchInto('the member switched windows');
+      }
+    }] : []),
     {
       label: 'Open Log Folder', click: () => {
         try {
@@ -3138,7 +3154,8 @@ function createTray() {
   ]);
 
   tray.setToolTip('ARMGDDN Companion');
-  tray.setContextMenu(contextMenu);
+  tray.setContextMenu(buildTrayMenu());
+  rebuildTrayMenu = () => { try { tray.setContextMenu(buildTrayMenu()); } catch (e) { } };
 
   tray.on('click', showMainWindow);
   // KDE Plasma may route tray activation as double-click depending on system settings
@@ -3443,6 +3460,7 @@ app.whenReady().then(() => {
   }
 
   applyStartupRegistration();
+  try { scheduleNativeGateCheck(5000); const gateTimer = setInterval(() => { nativeGateCheck(false); }, 10 * 60 * 1000); if (gateTimer.unref) gateTimer.unref(); } catch (e) { }
   loadHistory();
   loadOrphanedDownloads();
   loadSession();
@@ -3559,6 +3577,40 @@ ipcMain.handle('retry-download', async (event, downloadId) => {
 const AUTO_RETRY_TRANSIENT_RE = /(stalled|link expired|network\/dns|timed out|connection dropped|gateway error|could not be resumed|download failed\.)/i;
 const AUTO_RETRY_BLOCK_RE = /(disk space|quota|date\/time|download folder|security error)/i;
 const AUTO_RETRY_MAX = 5;
+// ---- Native window gate (see nativeGate.js): ask the site whether this member should have the native window, remember the answer, and relaunch
+// into the right window when it changed. Never while a download is running; a relaunch marks itself so it cannot loop.
+let lastNativeGateCheck = 0, rebuildTrayMenu = null;
+function anyDownloadRunning() {
+  try { return Array.from(activeDownloads.values()).some((d) => d && ['in_progress', 'downloading', 'starting'].includes(d.status)); } catch (e) { return false; }
+}
+function relaunchInto(why) {
+  logToFile('[Native] relaunching: ' + why);
+  app.isQuitting = true;
+  app.relaunch({ args: process.argv.slice(1).filter((a) => a !== '--gate-relaunched').concat(['--gate-relaunched']) });
+  app.exit(0);
+}
+async function nativeGateCheck(force) {
+  try {
+    if (SMOKE_TEST) return;
+    if (!force && Date.now() - lastNativeGateCheck < 60 * 1000) return;
+    const token = savedSessionToken();
+    if (!token) return;
+    lastNativeGateCheck = Date.now();
+    const answer = await nativeGate.checkAllowed(token);
+    const d = nativeGate.decide({ answer, config: settings, argv: process.argv, runningNative: NATIVE_PREVIEW });
+    if (d.update) {
+      Object.assign(settings, d.update); saveSettings();
+      logToFile('[Native] the site says the native window is ' + (d.update.nativeAllowed ? 'meant for this member' : 'not meant for this member'));
+      try { if (rebuildTrayMenu) rebuildTrayMenu(); } catch (e) { }
+    }
+    if (d.relaunch) {
+      if (anyDownloadRunning()) { logToFile('[Native] a download is running; the window switch waits for the next check'); lastNativeGateCheck = 0; return; }
+      relaunchInto(d.update && d.update.nativeAllowed ? 'opening the native window' : 'back to the classic window');
+    }
+  } catch (e) { logToFile('[Native] gate check failed: ' + (e && e.message ? e.message : e)); }
+}
+function scheduleNativeGateCheck(delayMs) { try { const t = setTimeout(() => { nativeGateCheck(false); }, delayMs || 3000); if (t.unref) t.unref(); } catch (e) { } }
+
 // A download that has finally failed (no automatic retry waiting) tells the site how much of its direct-from-Drive grant was not downloaded, so
 // the member's daily allowance is credited back. A paused download sends nothing: it can resume, and the allowance window rolls on its own.
 function reportDirectGrantEnd(download) {
@@ -3676,6 +3728,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'startWithOsStartup',
     'startWithOsMinimized',
     'errorReporting',
+    'useNativeWindow',
     'lastSeenVersion'
   ]);
 

@@ -41,6 +41,7 @@
       "preload-komga.js",
       "komga.js",
       "komgaImport.js",
+      "nativeGate.js",
       "driveDirectClient.js",
       "resumeDownload.js",
       "segmentedDownload.js",
