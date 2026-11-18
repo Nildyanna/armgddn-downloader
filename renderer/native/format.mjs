@@ -272,7 +272,8 @@ export function homeItem(e) {
   const name = parts.pop();
   if (!name) return null;
   const cover = e.coverUrl ? { cover: { url: e.coverUrl } } : undefined;
-  return { name, size: Number(e.sizeBytes) || 0, isDir: true, _remote: e.remote, _folder: parts.join('/'), coverArt: cover, downloadCount: Number(e.total != null ? e.total : e.downloads) || 0, _title: e.title || '' };
+  const group = /^PC-\d$/.test(e.remote) ? 'PC Games' : /^PCVR-\d$/.test(e.remote) ? 'PCVR Games' : e.remote;   // the tabs are the groups; the folder names keep PC2 / PCVR2
+  return { name, size: Number(e.sizeBytes) || 0, isDir: true, _remote: group, _folder: parts.join('/'), coverArt: cover, downloadCount: Number(e.total != null ? e.total : e.downloads) || 0, _title: e.title || '' };
 }
 // "Picks for you": trending titles that are not already in My List, in an order that changes each day.
 export function picksFrom(entries, myListNames, day, count = 12) {
@@ -341,4 +342,20 @@ export function batchEligible(remote, crumbDepth, visibleCount) {
 export function batchPaths(paths) {
   const clean = Array.from(new Set((paths || []).map((p) => String(p || '').replace(/^\/+|\/+$/g, '')).filter(Boolean)));
   return clean.filter((p) => !clean.some((q) => q !== p && p.startsWith(q + '/')));
+}
+
+// The website's trending ticker: for each window (7 days, 30 days) and platform (PC, PCVR) the five most downloaded titles, shown one set after another.
+export const TRENDING_SETS = [['week', 'pc'], ['week', 'pcvr'], ['month', 'pc'], ['month', 'pcvr']];
+export const TRENDING_WINDOW_LABELS = { week: 'LAST 7 DAYS', month: 'LAST 30 DAYS' };
+export function trendingSets(windows) {
+  const out = [];
+  for (const [win, platform] of TRENDING_SETS) {
+    const items = (Array.isArray(windows && windows[win]) ? windows[win] : [])
+      .map((x) => ({ ...x, count: platform === 'pc' ? Number(x.pc) || 0 : Number(x.pcvr) || 0 }))
+      .filter((x) => x.count > 0 && (x.platform == null || x.platform === platform))
+      .sort((a, b) => b.count - a.count || (Number(b.lastDownloadTs) || 0) - (Number(a.lastDownloadTs) || 0))
+      .slice(0, 5);
+    if (items.length) out.push({ win, platform, label: (platform === 'pc' ? 'PC' : 'PCVR') + ' \u00B7 ' + TRENDING_WINDOW_LABELS[win], items });
+  }
+  return out;
 }

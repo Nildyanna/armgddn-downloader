@@ -163,3 +163,18 @@ header select + select { margin-left: 0; }
 .bsel { position: absolute; top: 8px; left: 8px; z-index: 3; background: rgba(8,12,24,.78); border: 1px solid var(--line); border-radius: 6px; padding: 3px 5px; display: flex; }
 .bsel input { width: 16px; height: 16px; margin: 0; cursor: pointer; }
 .card.picked { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+
+/* Trending ticker, like the website's */
+.ticker { position: relative; overflow: hidden; height: 84px; border-radius: 10px; background: #0b1426; border: 1px solid var(--line); }
+.ticker-track { position: absolute; left: 0; top: 0; height: 100%; display: flex; gap: 14px; align-items: center; padding: 0 12px; will-change: transform; transform: translateX(-3000px); }
+.tpill { flex: 0 0 340px; width: 340px; height: 64px; display: flex; gap: 10px; align-items: center; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 5px 10px 5px 5px; cursor: pointer; }
+.tpill:hover { border-color: var(--accent2); }
+.tcover { flex: 0 0 114px; height: 54px; border-radius: 7px; overflow: hidden; background: #060b16; display: flex; align-items: center; justify-content: center; }
+.tcover img { width: 100%; height: 100%; object-fit: cover; }
+.ttext { min-width: 0; }
+.ttitle { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tmeta { display: flex; gap: 8px; color: var(--dim); font-size: 11px; margin-top: 3px; white-space: nowrap; }
+.tbadge { position: absolute; right: 10px; top: 6px; font-size: 10px; letter-spacing: .06em; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: rgba(8,12,24,.85); border: 1px solid var(--line); z-index: 2; }
+.tbadge.week { color: #22d3ee; border-color: #155e75; }
+.tbadge.month { color: #c084fc; border-color: #6b21a8; }
+.nocover.small { font-size: 10px; color: var(--dim); text-align: center; padding: 4px; }

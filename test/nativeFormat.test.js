@@ -108,7 +108,7 @@ test('sort by popularity and release, reversed, and the flame label', async () =
 test('home strip entries become list items, and picks skip what is already on My List', async () => {
   const { homeItem, picksFrom } = await import('../renderer/native/format.mjs');
   const it = homeItem({ title: 'Half-Life Alyx', remote: 'PCVR-2', path: 'PCVR2/Half-Life Alyx v1 -ARMGDDN', sizeBytes: 5e9, coverUrl: '/api/art-proxy?url=x', total: 12 });
-  assert.deepEqual([it.name, it._remote, it._folder, it.size, it.downloadCount, it.isDir], ['Half-Life Alyx v1 -ARMGDDN', 'PCVR-2', 'PCVR2', 5e9, 12, true]);
+  assert.deepEqual([it.name, it._remote, it._folder, it.size, it.downloadCount, it.isDir], ['Half-Life Alyx v1 -ARMGDDN', 'PCVR Games', 'PCVR2', 5e9, 12, true]);
   assert.equal(it.coverArt.cover.url, '/api/art-proxy?url=x');
   assert.equal(homeItem({ title: 'x' }), null);
   const e = ['A', 'B', 'C', 'D'].map((t) => ({ title: t, remote: 'PC-2', path: 'PC2/' + t }));
@@ -147,4 +147,14 @@ test('batch mode only inside a folder with several things, and nested picks are 
   assert.equal(batchEligible('PC-1', 2, 5), true); assert.equal(batchEligible('PC-1', 1, 5), false); assert.equal(batchEligible('PC-1', 2, 1), false);
   assert.equal(batchEligible('Testing', 1, 3), true); assert.equal(batchEligible('Comics', 0, 3), false);
   assert.deepEqual(batchPaths(['A/B', 'A/B/c', 'A/B/', '/A/D', 'A/Bx', '']), ['A/B', 'A/D', 'A/Bx']);
+});
+
+test('trending sets follow the website: four sets, five titles each, most downloaded first', async () => {
+  const { trendingSets } = await import('../renderer/native/format.mjs');
+  const mk = (n, pc, pcvr, platform) => ({ title: 'T' + n, pc, pcvr, platform, lastDownloadTs: n });
+  const week = [...[1, 2, 3, 4, 5, 6, 7].map((n) => mk(n, n, 0, 'pc')), mk(8, 0, 9, 'pcvr')];
+  const sets = trendingSets({ week, month: [mk(1, 3, 0, 'pc')] });
+  assert.deepEqual(sets.map((s) => s.label), ['PC \u00B7 LAST 7 DAYS', 'PCVR \u00B7 LAST 7 DAYS', 'PC \u00B7 LAST 30 DAYS']);
+  assert.deepEqual(sets[0].items.map((x) => x.title), ['T7', 'T6', 'T5', 'T4', 'T3']);
+  assert.equal(sets[1].items[0].title, 'T8'); assert.deepEqual(trendingSets({}), []);
 });

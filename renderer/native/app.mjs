@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -305,34 +305,64 @@ function SettingsView({ say, onPrefs }) {
   </main>`;
 }
 
-// Home: the three strips the website's landing page has. Trending scrolls like the website's marquee and stops when the mouse is over it.
+function TrendingStrip({ windows, onOpen }) {
+  const sets = useMemo(() => trendingSets(windows), [windows]);
+  const [idx, setIdx] = useState(0);
+  const [cycle, setCycle] = useState(0);
+  const view = useRef(null); const track = useRef(null); const anim = useRef(null);
+  const cur = sets.length ? sets[idx % sets.length] : null;
+  useEffect(() => {
+    const v = view.current, t = track.current;
+    if (!cur || !v || !t || typeof t.animate !== 'function') return;
+    const pad = 24, w = t.scrollWidth, vw = v.clientWidth;
+    const start = -(w + pad), end = vw + pad;
+    const a = t.animate([{ transform: 'translateX(' + start + 'px)' }, { transform: 'translateX(' + end + 'px)' }], { duration: Math.max(4, (end - start) / 115) * 1000, easing: 'linear', fill: 'forwards' });
+    anim.current = a;
+    a.onfinish = () => { setIdx((n) => (sets.length ? (n + 1) % sets.length : 0)); setCycle((n) => n + 1); };
+    return () => { try { a.cancel(); } catch (e) { } };
+  }, [idx, cycle, sets.length]);
+  if (!cur) return html`<div class="loading">Nothing is trending yet.</div>`;
+  return html`<div class="ticker" ref=${view} onMouseEnter=${() => { try { anim.current && anim.current.pause(); } catch (e) { } }} onMouseLeave=${() => { try { anim.current && anim.current.play(); } catch (e) { } }}>
+    <div class="ticker-track" ref=${track} key=${idx + '-' + cycle}>${cur.items.map((e) => html`<div class="tpill" key=${e.norm + e.platform} onClick=${() => onOpen(e)}>
+      <div class="tcover">${e.coverUrl ? html`<img src=${coverSrc(e.coverUrl)} alt="" />` : html`<div class="nocover small">Non-Steam Game</div>`}</div>
+      <div class="ttext"><div class="ttitle">${cleanTitle(e.title)}</div>
+        <div class="tmeta"><span>\u{1F525} ${Number(e.count).toLocaleString('en-US')} downloads</span>${e.sizeBytes ? html`<span>${formatSize(e.sizeBytes)}</span>` : ''}${e.lastDownloadTs ? html`<span>${shortDate(e.lastDownloadTs)}</span>` : ''}</div></div>
+    </div>`)}</div>
+    <span class=${'tbadge ' + cur.win} title="Which set is showing">${cur.label}</span>
+  </div>`;
+}
+
+// Home: the three strips the website's landing page has.
 function Strip({ id, title, sub, right, children }) {
   const [hidden, setHidden] = useState(() => { try { return localStorage.getItem('native.strip.' + id) === '1'; } catch (e) { return false; } });
   const toggle = () => { const v = !hidden; setHidden(v); try { localStorage.setItem('native.strip.' + id, v ? '1' : '0'); } catch (e) { } };
   return html`<section class="strip"><div class="strip-head"><span class="strip-title">${title}</span>${sub ? html`<span class="strip-sub">${sub}</span>` : ''}<span class="strip-right">${right || ''}<button class="dbtn" onClick=${toggle}>${hidden ? 'Show' : 'Hide'}</button></span></div>${hidden ? '' : children}</section>`;
 }
-function HomeView({ myList, render }) {
+function HomeView({ myList, render, onOpenTrend }) {
   const [trend, setTrend] = useState(null);
   const [gems, setGems] = useState(null);
-  const [mode, setMode] = useState('week');
   useEffect(() => {
     api.trending().then((r) => setTrend(r.ok && r.data && r.data.windows ? r.data.windows : {}));
-    api.gems().then((r) => setGems(r.ok && r.data && Array.isArray(r.data.items) ? r.data.items : []));
+    // Hidden gems arrive without art, so each one's cover comes from the same listing the library shows (one cached call per folder).
+    api.gems().then(async (r) => {
+      const list = r.ok && r.data && Array.isArray(r.data.items) ? r.data.items.map((g) => homeItem({ ...g, total: g.downloads })).filter(Boolean) : [];
+      const folders = [...new Set(list.map((it) => it._remote + '|' + it._folder))];
+      const art = new Map();
+      await Promise.all(folders.map(async (k) => { const [rem, fol] = k.split('|'); const b = await api.browse(rem, fol); if (b.ok) for (const f of (b.data.files || [])) if (f && f.coverArt) art.set(k + '|' + f.name, f); }));
+      setGems(list.map((it) => { const hit = art.get(it._remote + '|' + it._folder + '|' + it.name); return hit ? { ...it, coverArt: hit.coverArt, size: it.size || hit.size, releaseDate: hit.releaseDate } : it; }));
+    });
   }, []);
-  const list = trend ? (trend[mode] || []).map(homeItem).filter(Boolean).slice(0, 20) : null;
   const picks = trend ? picksFrom([...(trend.month || []), ...(trend.week || [])], (myList || []).map((i) => cleanTitle(i.name)), new Date().toISOString().slice(0, 10), 12).map(homeItem).filter(Boolean) : null;
-  const gemItems = gems ? gems.map((g) => homeItem({ ...g, total: g.downloads })).filter(Boolean) : null;
   return html`<main class="home">
-    <${Strip} id="trending" title="\u{1F525} Trending Downloads" sub=${mode === 'week' ? 'last 7 days' : 'last 30 days'} right=${html`<button class="dbtn" onClick=${() => setMode(mode === 'week' ? 'month' : 'week')}>${mode === 'week' ? 'Show 30 days' : 'Show 7 days'}</button>`}>
-      ${list === null ? html`<div class="loading">Loading…</div>` : !list.length ? html`<div class="loading">Nothing is trending yet.</div>`
-        : html`<div class="marquee"><div class="marquee-track" style=${'animation-duration:' + Math.max(40, list.length * 6) + 's'}>${list.map((it) => render(it, 'a'))}${list.map((it) => render(it, 'b'))}</div></div>`}
+    <${Strip} id="trending" title="\u{1F525} Trending Downloads">
+      ${trend === null ? html`<div class="loading">Loading…</div>` : html`<${TrendingStrip} windows=${trend} onOpen=${onOpenTrend} />`}
       <div class="strip-note">Download counts are from the last 7 or 30 days, not all-time totals.</div>
     </${Strip}>
-    <${Strip} id="picks" title="Picks for you" sub="Trending titles that are not on your list yet">
+    <${Strip} id="picks" title="Game Radar" sub="Personalized picks: trending titles that are not on your list yet">
       ${picks === null ? html`<div class="loading">Loading…</div>` : !picks.length ? html`<div class="loading">No picks yet.</div>` : html`<div class="hrow">${picks.map((it) => render(it, 'p'))}</div>`}
     </${Strip}>
     <${Strip} id="gems" title="Hidden Gems" sub="In the library a while, hardly downloaded. A different handful each day.">
-      ${gemItems === null ? html`<div class="loading">Loading…</div>` : !gemItems.length ? html`<div class="loading">No gems today.</div>` : html`<div class="hrow">${gemItems.map((it) => render(it, 'g'))}</div>`}
+      ${gems === null ? html`<div class="loading">Loading…</div>` : !gems.length ? html`<div class="loading">No gems today.</div>` : html`<div class="hrow">${gems.map((it) => render(it, 'g'))}</div>`}
     </${Strip}>
   </main>`;
 }
@@ -353,7 +383,12 @@ function App() {
   const [tabs, setTabs] = useState([]);
   const [remote, setRemote] = useState('');
   const [folder, setFolder] = useState('');
-  const [items, setItems] = useState(null);
+  // The list belongs to the section and folder it was loaded for. Without that tag, the first draw after opening a folder shows the old
+  // list under the new folder name and asks the site for covers that do not exist, which holds up the real ones.
+  const [itemsState, setItemsState] = useState({ key: '', list: null });
+  const itemsKeyNow = remote + '|' + folder;
+  const items = itemsState.key === itemsKeyNow ? itemsState.list : null;
+  const setItems = (list, key) => setItemsState({ key: key == null ? itemsKeyNow : key, list });
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('name');
@@ -411,6 +446,8 @@ function App() {
     say(myListHas(next, ctxRemote(it), itemPath(it)) ? 'Added to My List' : 'Removed from My List');
   };
   const inMyList = (it) => myListHas(myList, ctxRemote(it), itemPath(it));
+  const pendingScroll = useRef('');
+  const openTrend = (e) => { const it = homeItem(e); if (!it) return; pendingScroll.current = it.name; goTo(it._remote, it._folder); };
   const goTo = (rem, path) => { setView('library'); autoOk.current = false; setQuery(''); setCategory(''); setRemote(rem); setFolder(path); };
   const [patchQ, setPatchQ] = useState(null);
   const askPatch = (oldLabel, patch) => new Promise((resolve) => setPatchQ({ oldLabel, patch, resolve: (v) => { setPatchQ(null); resolve(v); } }));
@@ -502,14 +539,15 @@ function App() {
   useEffect(() => { boot(); }, []);
   useEffect(() => {
     if (!remote) return;
-    let live = true; setItems(null); setError(null);
+    let live = true; const myKey = remote + '|' + folder; setError(null);
     api.browse(remote, folder).then((r) => {
       if (!live) return;
-      if (!r.ok) return fail(r.error);
+      if (!r.ok) { setError(r.error || { message: 'Something went wrong' }); setItems([], myKey); return; }
       const files = r.data.files || [];
       const into = folder === '' && autoOk.current ? autoEnter(remote, files) : null;
       if (into) { setFolder(into); return; }
-      setItems(visibleItems(remote, folder, files));
+      setItems(visibleItems(remote, folder, files), myKey);
+      if (pendingScroll.current) { const n = pendingScroll.current; pendingScroll.current = ''; setTimeout(() => { const el = [...document.querySelectorAll('.card')].find((c) => c.getAttribute('title') === n); if (el) el.scrollIntoView({ block: 'center' }); }, 400); }
     });
     return () => { live = false; };
   }, [remote, folder]);
@@ -561,7 +599,7 @@ function App() {
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
     </header>
-    ${view === 'home' ? html`<${HomeView} myList=${myList} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} myList=${myList} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="credit">Created by Old Man of the Hills v${(status && status.version) || ''}</span><span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
