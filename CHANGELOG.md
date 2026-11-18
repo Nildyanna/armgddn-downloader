@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.24.2] - 2026-11-18
+
+### Fixed
+- **Native window from the tray and a second launch.** In native mode, opening the Companion again or clicking the tray icon showed the hidden classic window. It now shows the native window, and closing the native window keeps the app in the tray when that setting is on.
+
 ## [5.24.1] - 2026-11-18
 
 ### Fixed

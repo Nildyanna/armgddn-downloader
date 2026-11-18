@@ -1,4 +1,10 @@
 {
+  "5.24.2": {
+    "title": "Opens The Right Window",
+    "highlights": [
+      "Opening the Companion again, or clicking its tray icon, now brings up the new built-in window for members who use it, instead of the old one."
+    ]
+  },
   "5.24.1": {
     "title": "Better Game Art",
     "highlights": [
