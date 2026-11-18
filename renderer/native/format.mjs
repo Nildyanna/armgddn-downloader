@@ -152,7 +152,6 @@ export function steamLinks(item) {
   const id = item && item.coverArt && item.coverArt.steamAppId;
   return id ? [['Steam', `https://store.steampowered.com/app/${encodeURIComponent(id)}/`], ['SteamDB', `https://steamdb.info/app/${encodeURIComponent(id)}/`]] : [];
 }
-export const PATCH_FOLDER = /(update|patch|hotfix)/i;
 // The notice shown before a download, once a day unless the member ticks "don't show again today".
 export function dayKey(d = new Date()) { return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
 
@@ -172,3 +171,28 @@ export function youtubeEmbed(raw) {
   const m = /(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/.exec(s) || (/^[A-Za-z0-9_-]{11}$/.test(s) ? [null, s] : null);
   return m ? `https://www.youtube-nocookie.com/embed/${m[1]}?autoplay=1&rel=0` : '';
 }
+
+// An update patch folder: the name has the exact phrase "update patch" (underscores count as spaces). "update" or "patch" alone do not qualify.
+export function isPatchFolder(name) {
+  if (!name || typeof name !== 'string') return false;
+  return name.toLowerCase().replace(/_/g, ' ').includes('update patch');
+}
+// "Game v1.5 -ARMGDDN" + patch "1.0-1.5 Update Patch" -> "Game v1.0 -ARMGDDN": the older repack this patch is for (null when the patch name does not say).
+export function patchOldRepackLabel(gameFolderName, patchName) {
+  const base = String(patchName || '').replace(/\.[A-Za-z0-9]{2,4}$/, '').replace(/_/g, ' ');
+  const m = base.match(/(\d[\d.]*(?:\([^)]*\))?)\s*-\s*v?(\d[\d.]*(?:\([^)]*\))?)/);
+  if (!m) return null;
+  const oldTok = m[1], newTok = m[2];
+  const game = String(gameFolderName || '');
+  const at = game.lastIndexOf(newTok);
+  if (at >= 0) return game.slice(0, at) + oldTok + game.slice(at + newTok.length);
+  const lead = (newTok.match(/^\d+/) || [''])[0];
+  const oldLead = (oldTok.match(/^\d+/) || [''])[0];
+  if (lead && oldLead && game.includes(lead)) {
+    const oldParen = (oldTok.match(/\(([^)]*)\)/) || [])[1];
+    return game.replace(new RegExp(lead + '(?:\\((v?)[^)]*\\))?'), (all, v) => oldLead + (oldParen ? '(' + (v || '') + oldParen.replace(/^v/i, '') + ')' : ''));
+  }
+  return null;
+}
+// Does this game folder get the update-patch question? A repack folder (name ends with the group tag), not itself a patch.
+export function mayHavePatchQuestion(name) { return /-ARMGDDN/i.test(String(name || '')) && !isPatchFolder(name); }

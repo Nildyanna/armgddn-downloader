@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -26,7 +26,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview }
     <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
       <div class="sub">${[year, formatSize(item.size)].filter(Boolean).join(' · ')}</div>
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
-      ${item.isDir && canDownload(remote, folder, item) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
+      ${item.isDir && canDownload(remote, folder, item) && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
       ${canDownload(remote, folder, item) ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div>
   </div>`;
 }
@@ -76,6 +76,17 @@ function PreviewModal({ item, onClose }) {
     <div class="notice-info">No trailer is available for this game yet.</div>
     ${cover ? html`<img class="gateimg" src=${coverSrc(cover)} alt="" />` : ''}
   </${Modal}>`;
+}
+
+// "Do you already have the old repack?" - yes: only the patch; no: the full repack without the patch; cancel: nothing.
+function PatchModal({ q }) {
+  return html`<${Modal} title="This game has an update patch" onClose=${() => q.resolve(null)}>
+    <p>Do you already have the old repack installed: <strong>${q.oldLabel || ('the version this patch updates (' + q.patch + ')')}</strong>?</p>
+    <div class="patchbtns">
+      <button class="primary" onClick=${() => q.resolve('yes')}><strong>Yes, I have it</strong><br /><span>Download only the patch.</span></button>
+      <button class="dbtn" onClick=${() => q.resolve('no')}><strong>No, I don't</strong><br /><span>Download the full repack. You do not need the patch.</span></button>
+      <button class="dbtn" onClick=${() => q.resolve(null)}><strong>Cancel</strong><br /><span>Do not download anything.</span></button>
+    </div></${Modal}>`;
 }
 
 function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse }) {
@@ -190,6 +201,8 @@ function App() {
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
   const [details, setDetails] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [patchQ, setPatchQ] = useState(null);
+  const askPatch = (oldLabel, patch) => new Promise((resolve) => setPatchQ({ oldLabel, patch, resolve: (v) => { setPatchQ(null); resolve(v); } }));
   const [gate, setGate] = useState(null);
   const acked = useRef(new Set());
   const ask = (spec) => new Promise((resolve) => { const g = { spec, skip: false, resolve: (v) => { setGate(null); if (v && spec.skipKey && g.skip) { try { localStorage.setItem(spec.skipKey, dayKey()); } catch (e) { } } resolve(v); } }; setGate(g); });
@@ -211,8 +224,25 @@ function App() {
   const browseInto = (item) => { setView('library'); autoOk.current = false; setFolder(folder ? folder + '/' + item.name : item.name); setQuery(''); };
   const startDownload = async (item) => {
     const path = [folder, item.name].filter(Boolean).join('/');
+    let patchSkip = null;
+    if (item.isDir && mayHavePatchQuestion(item.name)) {
+      const kids = await api.browse(remote, path);
+      const patches = kids.ok ? (kids.data.files || []).map((f) => String(f.name || '')).filter(isPatchFolder) : [];
+      for (const patch of patches) {
+        const answer = await askPatch(patchOldRepackLabel(item.name, patch), patch);
+        if (answer === null) { say('Download cancelled'); return; }
+        if (answer === 'yes') {
+          const pp = path + '/' + patch;
+          if (!(await passGates(pp))) { say('Download cancelled'); return; }
+          const r2 = await api.download(remote, pp);
+          if (r2.ok) { say('Download started: ' + cleanTitle(patch)); setView('downloads'); } else say(r2.error.message || 'Could not start the download');
+          return;
+        }
+      }
+      if (patches.length) patchSkip = patches;   // "no" to every patch: the whole game folder, minus the patches
+    }
     if (!(await passGates(path))) { say('Download cancelled'); return; }
-    const r = await api.download(remote, path);
+    const r = patchSkip ? await api.downloadBatch(remote, [path], patchSkip) : await api.download(remote, path);
     if (r.ok) { say('Download started: ' + cleanTitle(item.name)); setView('downloads'); }
     else say(r.error.kind === 'auth' ? 'Sign in again to download.' : (r.error.message || 'Could not start the download'));
   };
@@ -281,6 +311,7 @@ function App() {
     </${Fragment}>`}
     ${details ? html`<${DetailsModal} item=${details} remote=${remote} folder=${folder} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
+    ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}
     ${toast ? html`<div class="toast">${toast}</div>` : ''}
   </div>`;

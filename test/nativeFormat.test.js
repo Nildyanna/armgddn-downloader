@@ -72,4 +72,9 @@ test('grid helpers', async () => {
   assert.equal(trailerSource({ youtube: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }).url, 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0');
   assert.equal(youtubeEmbed('https://youtu.be/dQw4w9WgXcQ'), 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0');
   assert.equal(trailerSource({ mp4: { max: 'http://insecure/a.mp4' } }), null); assert.equal(trailerSource(null), null); assert.equal(youtubeEmbed('javascript:alert(1)'), '');
+  const { isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion } = await import('../renderer/native/format.mjs');
+  assert.equal(isPatchFolder('Game 1.0-1.5 Update Patch'), true); assert.equal(isPatchFolder('Game_Update_Patch_v2'), true); assert.equal(isPatchFolder('Hotfix 2'), false); assert.equal(isPatchFolder('Patch Notes'), false);
+  assert.equal(patchOldRepackLabel('Cool Game v1.5 -ARMGDDN', 'Cool Game 1.0-1.5 Update Patch'), 'Cool Game v1.0 -ARMGDDN');
+  assert.equal(patchOldRepackLabel('Cool Game v1.5 -ARMGDDN', 'Update Patch'), null);
+  assert.equal(mayHavePatchQuestion('Cool Game v1.5 -ARMGDDN'), true); assert.equal(mayHavePatchQuestion('Cool Game 1.0-1.5 Update Patch -ARMGDDN'), false); assert.equal(mayHavePatchQuestion('Some Folder'), false);
 });

@@ -16,7 +16,7 @@ header select { flex: none; }
 .crumbs { padding: 8px 18px; color: var(--dim); display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
 .crumbs button { background: none; border: 0; color: var(--accent); padding: 0; }
 .count { margin-left: auto; }
-.grid { flex: 1; overflow: auto; padding: 8px 18px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; align-content: start; grid-auto-rows: max-content; }
+.grid { flex: 1; overflow: auto; padding: 8px 46px 24px 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; align-content: start; grid-auto-rows: max-content; }
 .card { cursor: pointer; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0; overflow: hidden; display: block; width: 100%; }
 .card:hover { border-color: var(--accent2); transform: translateY(-1px); }
 .cover { background: #0b1426; position: relative; overflow: hidden; aspect-ratio: 460 / 215; }
@@ -55,7 +55,7 @@ header select { flex: none; }
 .dbtn { background: transparent; border: 1px solid var(--line); color: var(--fg); border-radius: 8px; padding: 4px 12px; font-size: 12px; }
 .dbtn:hover { border-color: var(--accent); color: var(--accent); }
 
-.alpha { position: fixed; right: 4px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; background: rgba(17, 26, 46, .85); border: 1px solid var(--line); border-radius: 10px; padding: 4px 0; z-index: 5; }
+.alpha { position: fixed; right: 22px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; background: rgba(17, 26, 46, .85); border: 1px solid var(--line); border-radius: 10px; padding: 4px 0; z-index: 5; }
 .alpha button { background: none; border: 0; color: var(--dim); font-size: 11px; line-height: 1; padding: 3px 7px; }
 .alpha button:hover { color: var(--accent); }
 
@@ -98,3 +98,7 @@ header select { flex: none; }
 .cover.clickable:hover::after { content: "\25B6"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; color: #fff; background: rgba(0, 0, 0, .35); }
 .notice-info { color: var(--dim); margin: 0 0 10px; }
 .meta .dl { margin-right: 4px; }
+
+.patchbtns { display: flex; flex-direction: column; gap: 8px; }
+.patchbtns button { text-align: left; border-radius: 8px; padding: 10px 14px; }
+.patchbtns span { font-size: 12px; opacity: .85; }

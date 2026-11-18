@@ -22,3 +22,8 @@ test('only a short list of https hosts can be opened from the window', () => {
   for (const h of ['store.steampowered.com', 'steamdb.info', '7-zip.org', 't.me']) assert.ok(LINK_HOSTS.has(h), h);
   for (const h of ['evil.example', 'steampowered.com.evil.example', 'localhost']) assert.ok(!LINK_HOSTS.has(h), h);
 });
+test('a batch download refuses odd paths before the site sees them', async () => {
+  const { browsePath } = require('../native/bridge');
+  assert.throws(() => browsePath('PC Games', '../x'));
+  assert.equal(browsePath('PC Games', 'PC1/Game'), '/api/browse/PC%20Games?path=PC1%2FGame');
+});
