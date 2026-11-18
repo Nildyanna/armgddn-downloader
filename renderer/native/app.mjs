@@ -767,6 +767,12 @@ function App() {
   const setViewMode = (m) => { setViewModeState(m); try { localStorage.setItem('native.viewMode', m); } catch (e) { } };
   const [noticeOff, setNoticeOff] = useState(false);
   const [view, setView] = useState('home');
+  // Back: the screens you came from, newest last. Alt+Left or the mouse's back button does the same. A step the app takes by itself (opening the
+  // mirror's root folder) is not a screen of its own, so Back skips it.
+  const navStack = useRef([]);
+  const navNow = useRef(null);
+  const navRestoring = useRef(false);
+  const [canBack, setCanBack] = useState(false);
   const [openRequest, setOpenRequest] = useState(null);
   useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setView('requests'); setOpenRequest(m.id); } }); }, []);
   const [downloads, setDownloads] = useState([]);
@@ -866,6 +872,37 @@ function App() {
     setMyList(next); try { localStorage.setItem(MY_LIST_KEY, JSON.stringify(next)); } catch (e) { }
     say('Added to My List');
   };
+  useEffect(() => {
+    const lib = view === 'library';
+    const state = { view, remote: lib ? remote : '', folder: lib ? folder : '', everywhere: lib ? everywhere : false };
+    const key = JSON.stringify(state);
+    const prev = navNow.current;
+    if (prev && prev.key !== key && !navRestoring.current) {
+      navStack.current.push(prev.state);
+      if (navStack.current.length > 60) navStack.current.shift();
+    }
+    navRestoring.current = false;
+    navNow.current = { key, state };
+    setCanBack(navStack.current.length > 0);
+  }, [view, remote, folder, everywhere]);
+  const goBack = () => {
+    const cur = navNow.current && navNow.current.state;
+    let prev = navStack.current.pop();
+    // skip the app's own step into a game group's root folder ("PC Games" -> "PC1")
+    while (prev && cur && prev.view === 'library' && cur.view === 'library' && prev.remote === cur.remote && prev.folder === '' && /^PC(VR)?\d$/.test(cur.folder || '') && navStack.current.length) prev = navStack.current.pop();
+    setCanBack(navStack.current.length > 0);
+    if (!prev) return;
+    navRestoring.current = true;
+    setEverywhere(prev.everywhere);
+    setView(prev.view);
+    if (prev.view === 'library') { autoOk.current = false; setCategory(''); setQuery(''); setRemote(prev.remote); setFolder(prev.folder); }
+  };
+  useEffect(() => {
+    const key = (e) => { if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); goBack(); } };
+    const mouse = (e) => { if (e.button === 3) { e.preventDefault(); goBack(); } };
+    window.addEventListener('keydown', key); window.addEventListener('mouseup', mouse);
+    return () => { window.removeEventListener('keydown', key); window.removeEventListener('mouseup', mouse); };
+  });
   const goTo = (rem, path) => { setView('library'); autoOk.current = false; setQuery(''); setCategory(''); setRemote(rem); setFolder(path); };
   const [patchQ, setPatchQ] = useState(null);
   const askPatch = (oldLabel, patch) => new Promise((resolve) => setPatchQ({ oldLabel, patch, resolve: (v) => { setPatchQ(null); resolve(v); } }));
@@ -1033,6 +1070,7 @@ function App() {
       <button class=${(view === 'downloads' ? 'tab on' : 'tab') + (pulse ? ' pulse' : '')} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
     </header>
     <div class="subbar">
+      <button class="tab backbtn" title="Go back (Alt+Left)" disabled=${!canBack} onClick=${goBack}>\u2190 Back</button>
       <span class="subtitle">${pageLabel}</span>
       ${view === 'library' ? html`<${Fragment}>
       <label class="everywhere" title="Search every section, not just this list"><input type="checkbox" checked=${everywhere} onChange=${(e) => { setEverywhere(e.target.checked); setView('library'); }} /> Everywhere</label>

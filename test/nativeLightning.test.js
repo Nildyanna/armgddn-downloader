@@ -117,3 +117,12 @@ test('a game found by "Check my games" is a link that opens it in the library (t
   assert.ok(app.includes('function GameUpdatesRow({ onOpenGame })') && app.includes('class="glink"') && app.includes("onOpenGame(u.remote || 'PC Games', u.latestFolder)"));
   assert.ok(app.includes("onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }}"));
 });
+
+test('every screen has a Back button (and Alt+Left / the mouse back button) that returns to the previous screen', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes('const navStack = useRef([]);') && app.includes('const goBack = () => {'));
+  const sub = app.slice(app.indexOf('<div class="subbar">'), app.indexOf('<div class="subbar">') + 400);
+  assert.ok(sub.includes('class="tab backbtn"') && sub.indexOf('backbtn') < sub.indexOf('class="subtitle"'), 'Back is first in the page bar, on every page');
+  assert.ok(app.includes("e.altKey && e.key === 'ArrowLeft'") && app.includes('e.button === 3'));
+  assert.ok(app.includes('skip the app\'s own step into a game group'), 'the automatic step into the mirror root is not a screen');
+});

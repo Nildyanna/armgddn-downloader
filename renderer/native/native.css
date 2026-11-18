@@ -405,3 +405,6 @@ header select + select { margin-left: 0; }
 .empty { padding: 40px; text-align: center; color: var(--dim); }
 
 .glink { color: var(--accent); text-decoration: underline; cursor: pointer; }
+
+.backbtn { border-color: var(--line); color: var(--fg); }
+.backbtn:disabled { opacity: .35; cursor: default; }
