@@ -467,6 +467,7 @@ function UpdateRow({ say }) {
       if (r && r.hasUpdate) { try { window.dispatchEvent(new CustomEvent('native-update-found', { detail: r })); } catch (e) { } }
     } catch (e) { setState({ busy: false, text: 'Could not check for updates.' }); }
   };
+  useEffect(() => { const run = () => check(); window.addEventListener('native-run-update-check', run); return () => window.removeEventListener('native-run-update-check', run); }, []);
   return html`<div class="srow"><span class="slabel">ARMGDDN Browser updates <span class="sval">${state.text || 'It checks once an hour by itself.'}</span></span><button class="dbtn" disabled=${state.busy} onClick=${check}>Check for updates</button></div>`;
 }
 
@@ -786,7 +787,7 @@ function App() {
   const navRestoring = useRef(false);
   const [canBack, setCanBack] = useState(false);
   const [openRequest, setOpenRequest] = useState(null);
-  useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setView('requests'); setOpenRequest(m.id); } }); }, []);
+  useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setView('requests'); setOpenRequest(m.id); } else if (m && m.view === 'settings') { setView('settings'); if (m.check) setTimeout(() => { try { window.dispatchEvent(new Event('native-run-update-check')); } catch (e) { } }, 500); } }); }, []);
   const [downloads, setDownloads] = useState([]);
   const [toast, setToast] = useState('');
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };

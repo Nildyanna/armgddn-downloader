@@ -136,3 +136,20 @@ test('the Requests page no longer throws (a notice that used the library page\'s
   assert.ok(app.includes('class PageGuard extends Component') && app.includes('<${PageGuard} key=${view} onBack=${goBack}>') && app.includes('</${PageGuard}>'));
   assert.ok(fs.readFileSync(path.join(__dirname, '..', 'native', 'vendor', 'ui.mjs'), 'utf8').includes('Component'));
 });
+
+test('the File and Help menus reach Settings, the update check and the window switch in either window', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const menu = main.slice(main.indexOf('function createAppMenu()'), main.indexOf('Menu.setApplicationMenu(menu)'));
+  for (const piece of ["label: 'Settings'", "label: 'Check for updates'", "'Switch to the classic window' : 'Switch to the new window'", 'Open the log folder']) assert.ok(menu.includes(piece), piece);
+  assert.ok(main.includes("function openSettingsWindow()") && main.includes("'native:open', { view: 'settings' }") && main.includes("getElementById('settings-btn')"));
+  assert.ok(main.includes("'native:open', { view: 'settings', check: true }") && main.includes("getElementById('check-updates-btn')"));
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes("m.view === 'settings'") && app.includes("'native-run-update-check'"));
+});
+
+test('File > Exit really exits: it marks the app as quitting so the keep-running-in-the-tray close handlers do not swallow it', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes("label: 'Exit', accelerator: 'CmdOrCtrl+Q', click: () => { app.isQuitting = true; app.quit(); }"));
+  assert.ok(main.includes("app.on('before-quit', () => { app.isQuitting = true; });"));
+  assert.ok(!/label: 'File',\s*submenu: \[[^\]]*role: 'quit'/.test(main), 'the File menu no longer uses the plain quit role');
+});

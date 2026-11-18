@@ -3230,7 +3230,11 @@ function createAppMenu() {
     {
       label: 'File',
       submenu: [
-        ...(process.platform === 'darwin' ? [{ role: 'close' }] : [{ role: 'quit' }])
+        { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => openSettingsWindow() },
+        { label: 'Check for updates', click: () => checkForUpdatesFromMenu() },
+        { label: NATIVE_PREVIEW ? 'Switch to the classic window' : 'Switch to the new window', click: () => switchWindowMode() },
+        { type: 'separator' },
+        ...(process.platform === 'darwin' ? [{ role: 'close' }] : [{ label: 'Exit', accelerator: 'CmdOrCtrl+Q', click: () => { app.isQuitting = true; app.quit(); } }])
       ]
     },
     {
@@ -3254,7 +3258,8 @@ function createAppMenu() {
           click: async () => {
             await shell.openExternal('https://t.me/+xuCOd3HqpGdmZjFh');
           }
-        }
+        },
+        { label: 'Open the log folder', click: () => { try { shell.openPath(path.dirname(getDebugLogPath())); } catch (e) { } } }
       ]
     }
   ];
@@ -3450,6 +3455,9 @@ function runSmokeTest() {
   })().catch((e) => { failures.push(`smoke runner crashed: ${e && e.message}`); finish(); });
 }
 
+// Whatever asked the app to quit (the menu, Cmd+Q, the OS), it really quits: the close handlers that keep the app in the tray step aside.
+app.on('before-quit', () => { app.isQuitting = true; });
+
 app.whenReady().then(() => {
   startUpdatePoller();
   try { startScheduleTicker(); } catch (e) { }
@@ -3642,6 +3650,49 @@ function relaunchInto(why) {
   app.isQuitting = true;
   app.relaunch({ args: process.argv.slice(1).filter((a) => a !== '--gate-relaunched').concat(['--gate-relaunched']) });
   app.exit(0);
+}
+// Menu actions (File / Help) that work the same whichever window is open: the app's own Settings, an update check, and the switch between the
+// classic and the native window. A Companion whose window had no way to reach its Settings left a member stuck in the wrong window.
+function openSettingsWindow() {
+  try {
+    if (NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()) {
+      if (nativeWindow.isMinimized()) nativeWindow.restore();
+      nativeWindow.show(); nativeWindow.focus();
+      nativeWindow.webContents.send('native:open', { view: 'settings' });
+      return;
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show(); mainWindow.focus();
+      mainWindow.webContents.executeJavaScript("(function(){var b=document.getElementById('settings-btn');if(b)b.click();})()").catch(() => { });
+    }
+  } catch (e) { logToFile('openSettingsWindow failed: ' + e.message); }
+}
+function checkForUpdatesFromMenu() {
+  try {
+    if (NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()) {
+      if (nativeWindow.isMinimized()) nativeWindow.restore();
+      nativeWindow.show(); nativeWindow.focus();
+      nativeWindow.webContents.send('native:open', { view: 'settings', check: true });
+      return;
+    }
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.show(); mainWindow.focus();
+      mainWindow.webContents.executeJavaScript("(function(){var b=document.getElementById('check-updates-btn');if(b)b.click();})()").catch(() => { });
+    }
+  } catch (e) { logToFile('checkForUpdatesFromMenu failed: ' + e.message); }
+}
+function switchWindowMode() {
+  try {
+    if (settings.nativeAllowed !== true) {
+      dialog.showMessageBox({ type: 'info', message: 'The new window is not available for this account yet.', buttons: ['OK'] }).catch(() => { });
+      return;
+    }
+    if (anyDownloadRunning()) { dialog.showMessageBox({ type: 'info', message: 'A download is running', detail: 'Switch windows after it finishes, or pause it first.', buttons: ['OK'] }).catch(() => { }); return; }
+    settings.useNativeWindow = !NATIVE_PREVIEW; saveSettings();
+    relaunchInto('the member switched windows (menu)');
+  } catch (e) { logToFile('switchWindowMode failed: ' + e.message); }
 }
 async function nativeGateCheck(force) {
   try {
