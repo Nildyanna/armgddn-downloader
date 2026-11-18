@@ -65,4 +65,11 @@ test('grid helpers', async () => {
   assert.deepEqual(steamLinks(item).map((x) => x[0]), ['Steam', 'SteamDB']); assert.deepEqual(steamLinks({}), []);
   assert.equal(dayKey(new Date(2026, 10, 18)), '2026-11-18');
   assert.equal(detailLines('Music', { size: 10, crossRemoteSize: 5000 }).some((l) => l.startsWith('Size: 4.9 KB')), true);   // a stub folder shows the real size
+  const { trailerSource, youtubeEmbed } = await import('../renderer/native/format.mjs');
+  assert.deepEqual(trailerSource({ mp4: { max: 'https://video.akamai.steamstatic.com/a.mp4' }, youtube: 'dQw4w9WgXcQ' }), { kind: 'video', url: 'https://video.akamai.steamstatic.com/a.mp4' });
+  assert.deepEqual(trailerSource({ webm: { 480: 'https://v.example/a.webm' } }), { kind: 'video', url: 'https://v.example/a.webm' });
+  assert.deepEqual(trailerSource({ hls: 'https://video.fastly.steamstatic.com/x/master.m3u8' }), { kind: 'hls', url: 'https://video.fastly.steamstatic.com/x/master.m3u8' });
+  assert.equal(trailerSource({ youtube: 'https://www.youtube.com/watch?v=dQw4w9WgXcQ' }).url, 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0');
+  assert.equal(youtubeEmbed('https://youtu.be/dQw4w9WgXcQ'), 'https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ?autoplay=1&rel=0');
+  assert.equal(trailerSource({ mp4: { max: 'http://insecure/a.mp4' } }), null); assert.equal(trailerSource(null), null); assert.equal(youtubeEmbed('javascript:alert(1)'), '');
 });

@@ -155,3 +155,20 @@ export function steamLinks(item) {
 export const PATCH_FOLDER = /(update|patch|hotfix)/i;
 // The notice shown before a download, once a day unless the member ticks "don't show again today".
 export function dayKey(d = new Date()) { return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
+
+// Which trailer to play, in the website's order of preference: a direct video, then Steam's streaming format, then YouTube.
+export function trailerSource(trailer) {
+  const t = trailer && typeof trailer === 'object' ? trailer : null;
+  if (!t) return null;
+  const direct = (t.mp4 && (t.mp4.max || t.mp4['480'])) || (t.webm && (t.webm.max || t.webm['480']));
+  if (direct && /^https:\/\//i.test(direct)) return { kind: 'video', url: direct };
+  if (t.hls && /^https:\/\//i.test(t.hls)) return { kind: 'hls', url: t.hls };
+  const yt = youtubeEmbed(t.youtube);
+  return yt ? { kind: 'youtube', url: yt } : null;
+}
+export function youtubeEmbed(raw) {
+  const s = String(raw || '').trim();
+  if (!s) return '';
+  const m = /(?:youtube\.com\/(?:watch\?(?:[^#]*&)?v=|embed\/|shorts\/)|youtu\.be\/)([A-Za-z0-9_-]{11})/.exec(s) || (/^[A-Za-z0-9_-]{11}$/.test(s) ? [null, s] : null);
+  return m ? `https://www.youtube-nocookie.com/embed/${m[1]}?autoplay=1&rel=0` : '';
+}

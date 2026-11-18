@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -41,7 +41,32 @@ function Modal({ title, onClose, children, wide }) {
     <div class="mhead"><div class="mtitle">${title}</div><button class="dbtn" onClick=${onClose}>Close</button></div>${children}</div></div>`;
 }
 
+function TrailerModal({ title, src, onClose }) {
+  const ref = useRef(null);
+  const [problem, setProblem] = useState('');
+  useEffect(() => {
+    const v = ref.current; if (!v || src.kind === 'youtube') return;
+    let hls = null;
+    if (src.kind === 'hls') {
+      if (window.Hls && window.Hls.isSupported()) {
+        hls = new window.Hls(); hls.loadSource(src.url); hls.attachMedia(v);
+        hls.on(window.Hls.Events.ERROR, (_e, d) => { if (d && d.fatal) setProblem('The trailer could not be played.'); });
+      } else setProblem('This trailer format is not supported here.');
+    } else { v.src = src.url; }
+    v.play().catch(() => { });
+    return () => { try { if (hls) hls.destroy(); v.pause(); v.removeAttribute('src'); v.load(); } catch (e) { } };
+  }, []);
+  return html`<${Modal} title=${'Trailer - ' + title} onClose=${onClose} wide=${true}>
+    ${src.kind === 'youtube'
+      ? html`<iframe class="trailer" src=${src.url} title="Trailer" allow="autoplay; encrypted-media; picture-in-picture" allowfullscreen></iframe>`
+      : html`<video class="trailer" ref=${ref} controls playsinline onError=${() => setProblem('The trailer could not be played.')}></video>`}
+    ${problem ? html`<div class="notice">${problem}</div>` : ''}
+  </${Modal}>`;
+}
+
 function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse }) {
+  const [playing, setPlaying] = useState(false);
+  const trailer = trailerSource((item.coverArt || {}).trailer);
   const art = item.coverArt || {};
   const cover = art.cover && art.cover.url;
   const [readme, setReadme] = useState(null);   // null = checking, false = none, object = found
@@ -49,6 +74,7 @@ function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse }) {
   const path = [folder, item.name].filter(Boolean).join('/');
   useEffect(() => { api.readme(remote, path).then((r) => setReadme(r.ok && r.data && r.data.found && r.data.contentHash ? r.data : false)); }, []);
   const cats = Array.isArray(art.categories) ? art.categories.filter(Boolean).slice(0, 10) : [];
+  if (playing && trailer) return html`<${TrailerModal} title=${cleanTitle(item.name)} src=${trailer} onClose=${() => setPlaying(false)} />`;
   if (showReadme && readme) return html`<${Modal} title=${'README - ' + cleanTitle(item.name)} onClose=${() => setShowReadme(false)} wide=${true}><pre class="readme">${readme.content}${readme.truncated ? '\n\n[README PREVIEW TRUNCATED]' : ''}</pre></${Modal}>`;
   return html`<${Modal} title=${cleanTitle(item.name)} onClose=${onClose} wide=${true}>
     <div class="dhead">
@@ -59,6 +85,7 @@ function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse }) {
         ${steamLinks(item).length ? html`<div class="links">${steamLinks(item).map(([n, u]) => html`<a href="#" onClick=${(e) => { e.preventDefault(); api.openLink(u); }}>${n}</a>`)}</div>` : ''}
         <div class="dbtns">
           <button class="primary" onClick=${() => { onClose(); onDownload(item); }}>Download</button>
+          ${trailer ? html`<button class="dbtn" onClick=${() => setPlaying(true)}>Watch trailer</button>` : ''}
           <button class="dbtn" onClick=${() => { onClose(); onBrowse(item); }}>Browse files</button>
           <button class="dbtn" disabled=${!readme} onClick=${() => setShowReadme(true)}>${readme === null ? 'Checking README...' : 'Read README'}</button>
         </div>

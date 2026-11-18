@@ -91,3 +91,5 @@ header select { flex: none; }
 .gateimg { max-width: 100%; border-radius: 8px; display: block; margin: 0 auto; }
 .skip { color: var(--dim); font-size: 12px; display: flex; align-items: center; gap: 6px; margin-left: auto; }
 .notice-body h3 { margin: 0 0 8px; } .notice-body li { margin: 4px 0; }
+
+.trailer { width: 100%; aspect-ratio: 16 / 9; background: #000; border: 0; border-radius: 8px; display: block; }
