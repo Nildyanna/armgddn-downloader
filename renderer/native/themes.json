@@ -9,6 +9,8 @@
   "accent": "#2ef2ff",
   "accent2": "#ff3bd4",
   "onAccent": "#04121a",
+  "page": "linear-gradient(to bottom, rgba(5,4,12,.55) 0%, rgba(5,4,12,.78) 55%, rgba(5,4,12,.96) 100%), url('themes/pirate-bg.jpg') center top / cover no-repeat fixed",
+  "pageColor": "#05040c",
   "label": "Default",
   "icon": "🎨"
  },
@@ -23,6 +25,8 @@
   "accent2": "#5f9a3a",
   "onAccent": "#04121a",
   "radius": "18px",
+  "page": "linear-gradient(180deg, rgba(10, 15, 10, 0.88) 0%, rgba(10, 15, 10, 0.90) 100%), url('themes/pirate-bg.jpg') center top / cover no-repeat fixed",
+  "pageColor": "#0a0f0a",
   "label": "8-Bit",
   "icon": "👾"
  },
@@ -37,6 +41,8 @@
   "accent2": "#ff2060",
   "onAccent": "#04121a",
   "radius": "18px",
+  "page": "radial-gradient(ellipse at 20% 25%, rgba(0, 200, 140, 0.06) 0%, transparent 50%), radial-gradient(ellipse at 78% 18%, rgba(255, 30, 90, 0.05) 0%, transparent 48%), url('themes/fatninja-bg.jpg') center top / cover no-repeat fixed",
+  "pageColor": "#010814",
   "label": "FatNinja420",
   "icon": "🌌"
  },
@@ -51,6 +57,8 @@
   "accent2": "#cc0040",
   "onAccent": "#ffffff",
   "radius": "12px 22px 12px 22px",
+  "page": "url(\"themes/bloodmoon.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#0a0004",
   "label": "Blood Moon",
   "icon": "🩸"
  },
@@ -65,6 +73,8 @@
   "accent2": "#0b7a6b",
   "onAccent": "#ffffff",
   "radius": "24px",
+  "page": "url('themes/bubblegum.svg') center top / cover fixed no-repeat",
+  "pageColor": "#fff1f7",
   "label": "Bubblegum",
   "icon": "🍬"
  },
@@ -79,6 +89,8 @@
   "accent2": "#c9a24a",
   "onAccent": "#04121a",
   "radius": "6px",
+  "page": "url(\"themes/copperforge.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#100c09",
   "label": "Copper Forge",
   "icon": "🛠️"
  },
@@ -93,6 +105,8 @@
   "accent2": "#f2c078",
   "onAccent": "#04121a",
   "radius": "18px",
+  "page": "url('themes/desertdusk.svg') center top / cover fixed no-repeat",
+  "pageColor": "#1a1020",
   "label": "Desert Dusk",
   "icon": "🏜️"
  },
@@ -107,6 +121,8 @@
   "accent2": "#00aa55",
   "onAccent": "#04121a",
   "radius": "22px 10px 22px 10px",
+  "page": "url(\"themes/forestghost.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#020a04",
   "label": "Forest Ghost",
   "icon": "🌿"
  },
@@ -121,6 +137,8 @@
   "accent2": "#00788a",
   "onAccent": "#ffffff",
   "radius": "22px",
+  "page": "url('themes/glacier.svg') center top / cover fixed no-repeat",
+  "pageColor": "#eef4f9",
   "label": "Glacier",
   "icon": "❄️"
  },
@@ -135,6 +153,8 @@
   "accent2": "#c8cad0",
   "onAccent": "#04121a",
   "radius": "0px",
+  "page": "url('themes/graphite.svg') center top / cover fixed no-repeat",
+  "pageColor": "#121315",
   "label": "Graphite",
   "icon": "📐"
  },
@@ -163,6 +183,8 @@
   "accent2": "#4c9bff",
   "onAccent": "#04121a",
   "radius": "14px",
+  "page": "url(\"themes/midnightocean.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#03101c",
   "label": "Midnight Ocean",
   "icon": "🌊"
  },
@@ -177,6 +199,8 @@
   "accent2": "#d9a679",
   "onAccent": "#04121a",
   "radius": "14px",
+  "page": "url(\"themes/mochamint.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#120d0b",
   "label": "Mocha Mint",
   "icon": "☕"
  },
@@ -191,6 +215,8 @@
   "accent2": "#ff2e93",
   "onAccent": "#04121a",
   "radius": "2px",
+  "page": "url('themes/neonalley.svg') center top / cover fixed no-repeat",
+  "pageColor": "#0b0b10",
   "label": "Neon Alley",
   "icon": "🌃"
  },
@@ -205,6 +231,8 @@
   "accent2": "#ebcb8b",
   "onAccent": "#04121a",
   "radius": "8px",
+  "page": "url('themes/nordicfrost.svg') center top / cover fixed no-repeat",
+  "pageColor": "#1e2430",
   "label": "Nordic Frost",
   "icon": "🏔️"
  },
@@ -219,6 +247,8 @@
   "accent2": "#3399ff",
   "onAccent": "#ffffff",
   "radius": "0px",
+  "page": "#f0f0f0",
+  "pageColor": "#f8fafc",
   "label": "OldSkool",
   "icon": "🗂️"
  },
@@ -233,6 +263,8 @@
   "accent2": "#2f5d62",
   "onAccent": "#ffffff",
   "radius": "4px",
+  "page": "url('themes/parchment.svg') center top / cover fixed no-repeat",
+  "pageColor": "#f3ead7",
   "label": "Parchment",
   "icon": "📜"
  },
@@ -247,6 +279,8 @@
   "accent2": "#7dffb0",
   "onAccent": "#04121a",
   "radius": "0px",
+  "page": "url('themes/phosphor.svg') center top / cover fixed no-repeat",
+  "pageColor": "#020a04",
   "label": "Phosphor",
   "icon": "🖥️"
  },
@@ -261,6 +295,8 @@
   "accent2": "#8b7bff",
   "onAccent": "#04121a",
   "radius": "10px",
+  "page": "url(\"themes/royalgold.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#0a0720",
   "label": "Royal Gold",
   "icon": "👑"
  },
@@ -275,6 +311,8 @@
   "accent2": "#9a5b1e",
   "onAccent": "#ffffff",
   "radius": "30px",
+  "page": "url('themes/sage.svg') center top / cover fixed no-repeat",
+  "pageColor": "#eef2ea",
   "label": "Sage",
   "icon": "🌿"
  },
@@ -289,6 +327,8 @@
   "accent2": "#e0679a",
   "onAccent": "#04121a",
   "radius": "24px",
+  "page": "url(\"themes/sakuranight.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#12060d",
   "label": "Sakura Night",
   "icon": "🌸"
  },
@@ -303,6 +343,8 @@
   "accent2": "#ff6600",
   "onAccent": "#04121a",
   "radius": "6px 18px 6px 18px",
+  "page": "url(\"themes/solarflare.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#080400",
   "label": "Solar Flare",
   "icon": "🔥"
  },
@@ -317,6 +359,8 @@
   "accent2": "#3de0c8",
   "onAccent": "#04121a",
   "radius": "30px",
+  "page": "url('themes/tropic.svg') center top / cover fixed no-repeat",
+  "pageColor": "#04201f",
   "label": "Tropic",
   "icon": "🌴"
  },
@@ -331,6 +375,8 @@
   "accent2": "#b967ff",
   "onAccent": "#04121a",
   "radius": "24px 24px 10px 24px",
+  "page": "url(\"themes/vaporwave.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#0d0016",
   "label": "Vaporwave",
   "icon": "🌸"
  },
@@ -344,6 +390,8 @@
   "accent": "#ffffff",
   "accent2": "#888888",
   "onAccent": "#04121a",
+  "page": "url(\"themes/void.svg\") center top / cover fixed no-repeat",
+  "pageColor": "#030303",
   "label": "Void",
   "icon": "⬛"
  }

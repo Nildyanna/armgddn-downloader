@@ -61,14 +61,29 @@ for tid in ids:
     t['onAccent'] = '#04121a' if (l is None or l > 0.45) else '#ffffff'
     rc = g('--radius-card')
     if rc and re.fullmatch(r'[\d.]+px( [\d.]+px){0,3}', rc.strip()): t['radius'] = rc.strip()
-    body = ''.join(blocks(css, r'\[data-theme="' + tid + r'"\]\s+body'))
-    m = re.search(r'background(?:-color)?\s*:\s*([^;]+);', body, re.S)
-    if m and 'url(' not in m.group(1): t['page'] = re.sub(r'\s+', ' ', m.group(1)).strip()
+    # The page background: the last `body` rule for the theme wins (the redesign file comes after app.css). Paths point at the copies in renderer/native/themes.
+    bg_rules = blocks(css, r'(?:html)?\[data-theme="' + tid + r'"\]\s+body')
+    page = bgcolor = None
+    for rule in bg_rules:
+        m = re.search(r'(?<![\w-])background\s*:\s*([^;]+(?:\([^)]*\)[^;]*)*);', rule, re.S)
+        if m: page = m.group(1)
+        m2 = re.search(r'background-color\s*:\s*([^;]+);', rule)
+        if m2: bgcolor = re.sub(r'\s*!important', '', m2.group(1)).strip()
+    if page:
+        page = re.sub(r'\s*!important', '', page)
+        page = re.sub(r'\s+', ' ', page).strip()
+        page = page.replace("/static/themes/", "themes/").replace("'/Pirate-Background.jpg'", "'themes/pirate-bg.jpg'").replace('"/Pirate-Background.jpg"', "'themes/pirate-bg.jpg'").replace("'/FatNinja_Background.jpg'", "'themes/fatninja-bg.jpg'")
+        page = re.sub(r"(top center|center top) / 100% auto repeat-y scroll", "center top / cover no-repeat fixed", page)
+        if 'url(' in page and 'url(\'themes/' not in page and 'url("themes/' not in page: page = None
+    if page: t['page'] = page
+    if bgcolor: t['pageColor'] = bgcolor
     t.update(labels.get(tid, {}))
     themes[tid] = t
 
 # The default (dark) comes from :root
 dark = {'mode': 'dark', 'bg': root['--bg-primary'], 'panel': root['--bg-secondary'], 'fg': root['--text-primary'], 'dim': root['--text-secondary'], 'line': 'rgba(46, 242, 255, 0.38)', 'accent': resolve(root['--accent-primary'], root), 'accent2': resolve(root['--accent-secondary'], root), 'onAccent': '#04121a'}
+dark['page'] = "linear-gradient(to bottom, rgba(5,4,12,.55) 0%, rgba(5,4,12,.78) 55%, rgba(5,4,12,.96) 100%), url('themes/pirate-bg.jpg') center top / cover no-repeat fixed"
+dark['pageColor'] = '#05040c'
 dark.update(labels.get('dark', {}))
 themes = {'dark': dark, **themes}
 json.dump(themes, open(OUT, 'w'), indent=1, ensure_ascii=False)

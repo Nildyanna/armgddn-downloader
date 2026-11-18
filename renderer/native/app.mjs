@@ -18,7 +18,7 @@ function applyTheme(choice) {
   const root = document.documentElement.style;
   const set = (k, v) => { if (v) root.setProperty(k, v); else root.removeProperty(k); };
   set('--bg', t.bg); set('--panel', t.panel); set('--fg', t.fg); set('--dim', t.dim); set('--line', t.line); set('--accent', t.accent); set('--accent2', t.accent2);
-  set('--on-accent', t.onAccent); set('--rc', t.radius || '10px');
+  set('--on-accent', t.onAccent); set('--rc', t.radius || '10px'); set('--page', t.page); set('--page-color', t.pageColor);
   root.setProperty('color-scheme', t.mode === 'light' ? 'light' : 'dark');
 }
 const storedTheme = () => { try { return localStorage.getItem('native.theme') || 'dark'; } catch (e) { return 'dark'; } };
@@ -326,8 +326,54 @@ function SettingsView({ say, onPrefs }) {
   </main>`;
 }
 
+// Fireworks for the #1 game finale, ported from the website: rockets climb, burst into coloured particles and sparkles.
+function startFireworks(container) {
+  const colors = ['#ffd700', '#ff6b6b', '#4ecdc4', '#45b7d1', '#ff8c00', '#e056fd', '#00ff88', '#ff3366', '#7c4dff', '#00e5ff'];
+  const timers = new Set();
+  const later = (fn, ms) => { const id = setTimeout(() => { timers.delete(id); fn(); }, ms); timers.add(id); };
+  const burst = (x, y, primary) => {
+    const count = 12 + Math.floor(Math.random() * 8); const useSecond = Math.random() > 0.6; const second = colors[Math.floor(Math.random() * colors.length)];
+    for (let i = 0; i < count; i++) {
+      const p = document.createElement('div'); const sparkle = Math.random() > 0.6; const trail = !sparkle && Math.random() > 0.7;
+      p.className = 'firework-particle' + (sparkle ? ' sparkle' : '') + (trail ? ' trail' : '');
+      p.style.left = x + '%'; p.style.top = y + '%';
+      const color = useSecond && Math.random() > 0.5 ? second : primary; p.style.backgroundColor = color; p.style.color = color;
+      const angle = (Math.PI * 2 / count) * i + (Math.random() - 0.5) * 0.8; const dist = 30 + Math.random() * 50; const dur = 0.6 + Math.random() * 0.6;
+      p.style.setProperty('--burst-x', Math.cos(angle) * dist + 'px'); p.style.setProperty('--burst-y', Math.sin(angle) * dist + 'px'); p.style.setProperty('--burst-duration', dur + 's');
+      container.appendChild(p); later(() => p.remove(), dur * 1000 + 100);
+    }
+    for (let i = 0; i < 6; i++) later(() => {
+      const sp = document.createElement('div'); sp.className = 'firework-particle sparkle'; sp.style.left = x + '%'; sp.style.top = y + '%'; sp.style.backgroundColor = '#fff'; sp.style.color = '#fff';
+      const a = Math.random() * Math.PI * 2; const d = 10 + Math.random() * 20; sp.style.setProperty('--burst-x', Math.cos(a) * d + 'px'); sp.style.setProperty('--burst-y', Math.sin(a) * d + 'px'); sp.style.setProperty('--burst-duration', '0.4s');
+      container.appendChild(sp); later(() => sp.remove(), 500);
+    }, i * 50);
+  };
+  const rocket = () => {
+    const fw = document.createElement('div'); fw.className = 'firework';
+    const x = 10 + Math.random() * 80, y = 80 + Math.random() * 20, color = colors[Math.floor(Math.random() * colors.length)];
+    fw.style.left = x + '%'; fw.style.top = y + '%'; fw.style.backgroundColor = color; fw.style.color = color;
+    const travel = -(60 + Math.random() * 80), dur = 0.5 + Math.random() * 0.3;
+    fw.style.setProperty('--fw-travel', travel + 'px'); fw.style.setProperty('--fw-duration', dur + 's');
+    container.appendChild(fw);
+    later(() => { burst(x, y + travel / 2, color); fw.remove(); }, dur * 1000 * 0.85);
+  };
+  for (let i = 0; i < 3; i++) later(rocket, i * 150);
+  const every = setInterval(() => { const n = 2 + Math.floor(Math.random() * 3); for (let i = 0; i < n; i++) later(rocket, i * 120); }, 350);
+  return () => { clearInterval(every); timers.forEach(clearTimeout); timers.clear(); try { container.innerHTML = ''; } catch (e) { } };
+}
+
+// The website's ticker: one set of five titles at a time (PC then PCVR, 7 days then 30 days) slides across once, then the next set comes in.
 function TrendingStrip({ windows, onOpen }) {
-  const sets = useMemo(() => trendingSets(windows), [windows]);
+  const sets = useMemo(() => {
+    const list = trendingSets(windows);
+    // After the last set comes the #1 game of the last 30 days (7 if there is no 30 day list), for ten seconds with fireworks, then it starts over.
+    const win = (windows && Array.isArray(windows.month) && windows.month.length) ? 'month' : 'week';
+    let top = null, best = 0;
+    for (const e of (windows && Array.isArray(windows[win]) ? windows[win] : [])) { const c = (Number(e.pc) || 0) + (Number(e.pcvr) || 0); if (c > best) { best = c; top = e; } }
+    if (top && list.length) list.push({ win, platform: 'goat', goat: true, label: win === 'week' ? '#1 GAME \u00B7 LAST 7 DAYS' : '#1 GAME \u00B7 LAST 30 DAYS', items: [{ ...top, count: best }] });
+    return list;
+  }, [windows]);
+  const fwBox = useRef(null);
   const [idx, setIdx] = useState(0);
   const [cycle, setCycle] = useState(0);
   const view = useRef(null); const track = useRef(null); const anim = useRef(null);
@@ -335,6 +381,12 @@ function TrendingStrip({ windows, onOpen }) {
   useEffect(() => {
     const v = view.current, t = track.current;
     if (!cur || !v || !t || typeof t.animate !== 'function') return;
+    if (cur.goat) {
+      let stop = null;
+      if (document.documentElement.dataset.anim !== '0' && fwBox.current) stop = startFireworks(fwBox.current);
+      const id = setTimeout(() => { setIdx((n) => (sets.length ? (n + 1) % sets.length : 0)); setCycle((n) => n + 1); }, 10000);
+      return () => { clearTimeout(id); if (stop) stop(); };
+    }
     if (document.documentElement.dataset.anim === '0') { t.style.transform = 'translateX(12px)'; const id = setTimeout(() => { setIdx((n) => (sets.length ? (n + 1) % sets.length : 0)); setCycle((n) => n + 1); }, 9000); return () => clearTimeout(id); }
     const pad = 24, w = t.scrollWidth, vw = v.clientWidth;
     const start = -(w + pad), end = vw + pad;
@@ -344,13 +396,14 @@ function TrendingStrip({ windows, onOpen }) {
     return () => { try { a.cancel(); } catch (e) { } };
   }, [idx, cycle, sets.length]);
   if (!cur) return html`<div class="loading">Nothing is trending yet.</div>`;
-  return html`<${Fragment}><div class="tbar"><span class=${'tbadge ' + cur.win} title="Which set is showing">${cur.label}</span></div>
-  <div class="ticker" ref=${view} onMouseEnter=${() => { try { anim.current && anim.current.pause(); } catch (e) { } }} onMouseLeave=${() => { try { anim.current && anim.current.play(); } catch (e) { } }}>
+  return html`<${Fragment}><div class="tbar"><span class=${'tbadge ' + (cur.goat ? 'goat' : cur.win)} title="Which set is showing">${cur.label}</span></div>
+  <div class=${'ticker' + (cur.goat ? ' goatmode' : '')} ref=${view} onMouseEnter=${() => { try { anim.current && anim.current.pause(); } catch (e) { } }} onMouseLeave=${() => { try { anim.current && anim.current.play(); } catch (e) { } }}>
     <div class="ticker-track" ref=${track} key=${idx + '-' + cycle}>${cur.items.map((e) => html`<div class="tpill" key=${e.norm + e.platform} onClick=${() => onOpen(e)}>
       <div class="tcover">${e.coverUrl ? html`<img src=${coverSrc(e.coverUrl)} alt="" />` : html`<div class="nocover small">Non-Steam Game</div>`}</div>
       <div class="ttext"><div class="ttitle">${cleanTitle(e.title)}</div>
         <div class="tmeta"><span>\u{1F525} ${Number(e.count).toLocaleString('en-US')} downloads</span>${e.sizeBytes ? html`<span>${formatSize(e.sizeBytes)}</span>` : ''}${e.lastDownloadTs ? html`<span>${shortDate(e.lastDownloadTs)}</span>` : ''}</div></div>
     </div>`)}</div>
+    ${cur.goat ? html`<div class="fireworks" ref=${fwBox}></div>` : ''}
   </div></${Fragment}>`;
 }
 
@@ -616,6 +669,8 @@ function App() {
     return () => { live = false; clearInterval(t); };
   }, []);
   const activeCount = downloads.filter(isActiveDownload).length;
+  const prevActive = useRef(0); const [pulse, setPulse] = useState(false);
+  useEffect(() => { if (activeCount > prevActive.current) { setPulse(true); const id = setTimeout(() => setPulse(false), 1700); prevActive.current = activeCount; return () => clearTimeout(id); } prevActive.current = activeCount; }, [activeCount]);
   const autoOk = useRef(true);   // step into the library folder when a tab is opened, but not when the member clicks back to the top
 
   const fail = (e) => { setError(e || { message: 'Something went wrong' }); setItems([]); };
@@ -702,7 +757,7 @@ function App() {
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
       <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>
       <button class=${view === 'requests' ? 'tab on' : 'tab'} onClick=${() => setView('requests')}>Requests</button>
-      <button class=${view === 'downloads' ? 'tab on' : 'tab'} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
+      <button class=${(view === 'downloads' ? 'tab on' : 'tab') + (pulse ? ' pulse' : '')} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
       ${view === 'library' ? html`<${Fragment}>
       <label class="everywhere" title="Search every section, not just this list"><input type="checkbox" checked=${everywhere} onChange=${(e) => { setEverywhere(e.target.checked); setView('library'); }} /> Everywhere</label>
       <input class="search" type="search" placeholder=${everywhere ? "Search every section" : "Search this list"} value=${query} onInput=${(e) => setQuery(e.target.value)} />
