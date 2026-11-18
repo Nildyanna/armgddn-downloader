@@ -19,7 +19,7 @@ Browse (PC, PCVR, Testing, Apps, 3D, Comics, Music) with landscape / square / po
 search everywhere. Card buttons: heart, Browse, Details, Download. Cover click = trailer (direct video, Steam streaming, YouTube) or the full cover.
 Details window (cover, facts, categories, Steam links, trailer, README). Downloads: README notice, bandwidth notice (once a day), PC Apps notice, update-patch
 question, Starfield prompt, batch download without patches, Downloads tab with pause/resume/cancel/retry. Requests (My Requests, comments, new Music/Comics
-request), `armgddn://request/<id>` deep link. My List (kept on this device). Wiki. Export list (CSV or Excel, saved through a save dialog; the site builds the file). Settings button (opens the classic window).
+request), `armgddn://request/<id>` deep link. My List (kept on this device). Wiki. Export list (CSV or Excel, saved through a save dialog; the site builds the file). Settings screen (folders, simultaneous downloads, connections, speed limit, check/extract, tray, updates; the rest opens the classic window).
 Hidden like on the website: stray `.json` files, folder echoes, Testing strays, dot-folders.
 
 ## Not built / not proven
@@ -29,7 +29,7 @@ Hidden like on the website: stray `.json` files, folder echoes, Testing strays, 
 - Not copied: Komga "only what I'm missing" and the other classic-window tools (reachable through Settings), themes, the public status page,
   game requests (closed), mobile.
 - Wiki text is the website's. Sections 2, 8, 11, 12, 13 describe the website flow and need rewriting for the app (Wiki edits need approval).
-- A pause/cancel/large-download test has not been run from this window. Steam HLS trailers are untested (direct video and YouTube were).
+- Tested from this window on 2026-11-18 (Windows): pause holds the byte count and resume finishes with every file checked; cancel removes the partial files (an empty folder is left); a download paused for 11 minutes, past the 10 minute link life, resumed with fresh links and finished checked. Not yet tested: a very large (tens of GB) download, closing the app mid-download, Linux and macOS. Steam HLS trailers are untested (direct video and YouTube were).
 - The Companion's own test suite cannot run on the build server (it cannot open a local test port); CI runs it on tag.
 
 ## Running the preview on the PC (dev)
