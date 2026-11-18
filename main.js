@@ -659,6 +659,7 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
 
 // Native browser preview (staging only): `--native` opens the new browse window next to the normal one. Nothing happens without the flag.
 const NATIVE_PREVIEW = process.argv.includes('--native');
+let nativeWindow = null;   // the native preview window, once it is open
 if (NATIVE_PREVIEW) { try { require('./native/bridge').registerSchemes(require('electron').protocol); } catch (e) { } }
 
 // CI smoke test (ARMGDDN_SMOKE_TEST=1): run against a throwaway profile so it
@@ -2391,7 +2392,7 @@ function validateDeepLink(url) {
     if (parsed.protocol !== 'armgddn:') return null;
 
     // Whitelist allowed actions
-    const allowedHosts = ['download', 'open', 'komga', 'verify', 'comics', 'music'];
+    const allowedHosts = ['download', 'open', 'komga', 'verify', 'comics', 'music', 'request'];
     if (!allowedHosts.includes(parsed.hostname)) {
       logToFile(`Deep link rejected - invalid host: ${parsed.hostname}`);
       return null;
@@ -2613,6 +2614,14 @@ function handleDeepLink(url) {
       const vid = String(u.searchParams.get('id') || '');
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } else { mainWindow.focus(); } sendToMain('hash-check-requested', { id: vid }); } } catch (e) { }
       runHashCheck(vid).catch(() => { });
+      return;
+    }
+    if (u.hostname === 'request') {
+      // armgddn://request/<id>: the link in a Telegram request notice. Opens that request in the native window.
+      const rid = Number(String(u.pathname || '').replace(/^\/+/, ''));
+      if (Number.isInteger(rid) && rid > 0 && nativeWindow && !nativeWindow.isDestroyed()) {
+        try { if (nativeWindow.isMinimized()) nativeWindow.restore(); nativeWindow.show(); nativeWindow.focus(); nativeWindow.webContents.send('native:open', { view: 'requests', id: rid }); } catch (e) { }
+      }
       return;
     }
     if (u.hostname === 'comics') {
@@ -3259,7 +3268,7 @@ app.whenReady().then(() => {
   if (NATIVE_PREVIEW) {
     try {
       loadSession();
-      require('./native/bridge').start({
+      nativeWindow = require('./native/bridge').start({
         BrowserWindow, ipcMain, shell, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
         openLogin: () => openAuthWindow(), log: logToFile,
         showClassic: () => { try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e) { } } else { mainWindow.focus(); } } } catch (e) { } },

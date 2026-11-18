@@ -131,7 +131,7 @@ function GateModal({ gate }) {
     </div></${Modal}>`;
 }
 
-function RequestsView({ say }) {
+function RequestsView({ say, openId }) {
   const [list, setList] = useState(null);
   const [error, setError] = useState(null);
   const [open, setOpen] = useState(null);       // request being read
@@ -140,6 +140,7 @@ function RequestsView({ say }) {
   const [form, setForm] = useState(null);       // { category, title, notes } while the new-request form is open
   const load = async () => { const r = await api.requests(); if (r.ok) { setList(r.data.requests || []); setError(null); } else { setError(r.error); setList([]); } };
   useEffect(() => { load(); }, []);
+  useEffect(() => { if (openId && list) { const hit = list.find((r) => r.id === openId || r.linkedTo === openId); if (hit) openThread(hit); } }, [openId, list]);
   const openThread = async (req) => { setOpen(req); setThread(null); const r = await api.thread(req.linkedTo || req.id); setThread(r.ok ? (r.data.comments || []) : []); if (!r.ok) say(r.error.message); };
   const send = async () => {
     const r = await api.comment(open.linkedTo || open.id, text);
@@ -235,6 +236,8 @@ function App() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('name');
   const [view, setView] = useState('library');
+  const [openRequest, setOpenRequest] = useState(null);
+  useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setView('requests'); setOpenRequest(m.id); } }); }, []);
   const [downloads, setDownloads] = useState([]);
   const [toast, setToast] = useState('');
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
@@ -381,7 +384,7 @@ function App() {
       ${cats.length ? html`<select value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All categories</option>${cats.slice(0, 80).map((c) => html`<option value=${c.name}>${c.name} (${c.count})</option>`)}</select>` : ''}
       <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="newest">Newest</option><option value="size">Largest</option></select>
     </header>
-    ${view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
