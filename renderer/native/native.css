@@ -178,3 +178,23 @@ header select + select { margin-left: 0; }
 .tbadge.week { color: #22d3ee; border-color: #155e75; }
 .tbadge.month { color: #c084fc; border-color: #6b21a8; }
 .nocover.small { font-size: 10px; color: var(--dim); text-align: center; padding: 4px; }
+
+/* Game Radar */
+.radar-actions { display: flex; gap: 8px; margin: 0 0 10px; }
+.rslots { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1100px) { .rslots { grid-template-columns: 1fr; } }
+.rcard { display: flex; background: #0b1426; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; min-height: 210px; transition: opacity .45s ease; }
+.rcard.fade { opacity: 0; }
+.rcover { position: relative; flex: 0 0 42%; overflow: hidden; background: #060b16; display: flex; align-items: center; justify-content: center; }
+.rcover .rbg { position: absolute; inset: -12%; width: 124%; height: 124%; object-fit: cover; filter: blur(18px) brightness(.55); }
+.rcover .rfg { position: relative; max-width: 100%; max-height: 100%; object-fit: contain; }
+.rcopy { padding: 10px 12px; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+.rtitle { font-weight: 700; font-size: 15px; }
+.rwhy { font-size: 12px; color: var(--dim); display: flex; flex-direction: column; }
+.rwhy-label { color: var(--accent); font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.rbadges { display: flex; gap: 5px; }
+.rbadge { font-size: 10px; padding: 1px 7px; border-radius: 999px; border: 1px solid var(--line); color: var(--dim); }
+.rbadge.saved { color: #f43f5e; border-color: #f43f5e; } .rbadge.history { color: #fbbf24; border-color: #92400e; } .rbadge.trending { color: #22d3ee; border-color: #155e75; }
+.rreason { font-size: 12px; font-weight: 600; }
+.rmeta { display: flex; flex-wrap: wrap; gap: 4px 10px; color: var(--dim); font-size: 11px; }
+.ractions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }

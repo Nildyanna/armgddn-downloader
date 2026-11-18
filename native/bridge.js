@@ -128,6 +128,8 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, fs = require(
   }));
   // The preferences the website copied to the server for this member (My List, theme, hidden sections, recent searches).
   ipcMain.handle('native:prefs', wrap(() => api.get('/api/user-prefs', { ttlMs: 0, fresh: true })));
+  // The member's own download history and the related titles the site works out from it (Game Radar).
+  ipcMain.handle('native:appProgress', wrap(() => api.get('/api/app-progress', { ttlMs: 60 * 1000 })));
   ipcMain.handle('native:exportList', wrap(async (remote, format) => {
     const { path: p, fmt } = exportPath(remote, format);
     const f = await api.file(p);

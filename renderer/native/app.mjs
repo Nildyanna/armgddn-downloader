@@ -1,6 +1,8 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
 import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
 
+import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
+
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
 const coverSrc = (url) => (url ? 'armgddn-img://c/?u=' + encodeURIComponent(url) : '');
@@ -338,11 +340,68 @@ function Strip({ id, title, sub, right, children }) {
   const toggle = () => { const v = !hidden; setHidden(v); try { localStorage.setItem('native.strip.' + id, v ? '1' : '0'); } catch (e) { } };
   return html`<section class="strip"><div class="strip-head"><span class="strip-title">${title}</span>${sub ? html`<span class="strip-sub">${sub}</span>` : ''}<span class="strip-right">${right || ''}<button class="dbtn" onClick=${toggle}>${hidden ? 'Show' : 'Hide'}</button></span></div>${hidden ? '' : children}</section>`;
 }
-function HomeView({ myList, render, onOpenTrend }) {
+// Game Radar: three cards at a time, each swapping to a new pick every so often, from what you opened, saved and downloaded and what is trending.
+const RADAR_INTERVALS = [11000, 16500, 13800];
+const lsGet = (k, d) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { } };
+function RadarCard({ item, fade, inList, onOpen, onSave, onDismiss }) {
+  const cover = item.coverArt && item.coverArt.cover && item.coverArt.cover.url;
+  const meta = [item.downloadCount > 0 ? '\u{1F525} ' + item.downloadCount.toLocaleString('en-US') + ' (30d)' : '', item.remote, item.releaseDate ? shortDate(item.releaseDate) : ''].filter(Boolean);
+  const has = (b) => (item.badges || []).includes(b);
+  return html`<div class=${'rcard' + (fade ? ' fade' : '')}>
+    <div class="rcover">${cover ? html`<${Fragment}><img class="rbg" src=${coverSrc(cover)} alt="" aria-hidden="true" /><img class="rfg" src=${coverSrc(cover)} alt="" /></${Fragment}>` : html`<div class="nocover">Non-Steam Game</div>`}</div>
+    <div class="rcopy">
+      <div class="rtitle">${cleanTitle(radarTitle(item)) || 'Untitled'}</div>
+      <div class="rwhy"><span class="rwhy-label">Why this is here</span><span>${item.why || item.reason}</span></div>
+      <div class="rbadges">${has('saved') ? html`<span class="rbadge saved">Saved</span>` : ''}${has('history') ? html`<span class="rbadge history">Recent</span>` : ''}${has('trending') ? html`<span class="rbadge trending">Trending</span>` : ''}</div>
+      <div class="rreason">${item.reason}</div>
+      <div class="rmeta">${meta.length ? meta.map((m) => html`<span>${m}</span>`) : html`<span>Ready to browse</span>`}</div>
+      <div class="ractions"><button class="primary" onClick=${() => onOpen(item)}>Open</button>${inList ? '' : html`<button class="dbtn" onClick=${() => onSave(item)}>Save</button>`}<button class="dbtn" onClick=${() => onDismiss(item)}>Not interested</button></div>
+    </div>
+  </div>`;
+}
+function RadarStrip({ trend, progress, myList, history, onOpen, onSave, onResume }) {
+  const [dismissed, setDismissed] = useState(() => lsGet('native.radarDismissed', []));
+  const [seen, setSeen] = useState(() => new Set());
+  const [offset, setOffset] = useState(0);
+  const [seed, setSeed] = useState(() => Math.random());
+  const [slots, setSlots] = useState([]);
+  const [fades, setFades] = useState([false, false, false]);
+  const deck = useRef({ list: [], idx: 0 });
+  const noise = useMemo(() => { const cache = new Map(); return (k, w) => { const id = k + '|' + w; if (!cache.has(id)) { let h = 0; const str = seed + id; for (let i = 0; i < str.length; i++) h = (h * 31 + str.charCodeAt(i)) | 0; cache.set(id, ((h >>> 0) % 10007) / 10007); } return cache.get(id); }; }, [seed]);
+  const picks = useMemo(() => (trend ? radarPicks({ trending: trend, history, myList, related: progress && progress.relatedCandidates, downloads: progress && progress.downloads, dismissed, seen, offset, noise }) : []), [trend, progress, myList, history, dismissed, seen, offset, noise]);
+  useEffect(() => {
+    const list = picks.slice();
+    for (let i = list.length - 1; i > RADAR_CARDS; i--) { const j = RADAR_CARDS + Math.floor(Math.random() * (i - RADAR_CARDS + 1)); [list[i], list[j]] = [list[j], list[i]]; }   // the rest of the deck, shuffled
+    deck.current = { list, idx: RADAR_CARDS };
+    setSlots(list.slice(0, RADAR_CARDS));
+  }, [picks]);
+  const next = () => { const d = deck.current; if (d.list.length <= RADAR_CARDS) return null; if (d.idx >= d.list.length) { for (let i = d.list.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [d.list[i], d.list[j]] = [d.list[j], d.list[i]]; } d.idx = 0; } return d.list[d.idx++]; };
+  useEffect(() => {
+    const timers = RADAR_INTERVALS.slice(0, slots.length).map((ms, slot) => setInterval(() => {
+      const item = next(); if (!item) return;
+      setFades((f) => f.map((v, i) => (i === slot ? true : v)));
+      setTimeout(() => { setSlots((s) => s.map((x, i) => (i === slot ? item : x))); setFades((f) => f.map((v, i) => (i === slot ? false : v))); }, 450);
+    }, ms));
+    return () => timers.forEach(clearInterval);
+  }, [slots.length > 0, picks]);
+  const dismiss = (it) => { const k = radarKey(it.remote, it.path, it.name || it.title); const nextList = [...new Set([...dismissed, k])].slice(-80); setDismissed(nextList); lsSet('native.radarDismissed', nextList); };
+  const refresh = () => { const n = new Set(seen); for (const c of slots) n.add(radarKey(c.remote, c.path, c.name || c.title)); setSeen(n); setOffset(offset + RADAR_CARDS); setSeed(Math.random()); };
+  const reset = () => { setDismissed([]); lsSet('native.radarDismissed', []); setSeen(new Set()); setOffset(0); setSeed(Math.random()); };
+  const inList = (it) => (myList || []).some((m) => radarGroup(m.remote) === it.remote && radarPath(m.path) === radarPath(it.path));
+  return html`<${Fragment}>
+    <div class="radar-actions"><button class="dbtn" onClick=${refresh}>Refresh</button><button class="dbtn" onClick=${reset}>Show dismissed cards again</button>${history && history[0] ? html`<button class="dbtn" onClick=${onResume}>Resume last visit</button>` : ''}</div>
+    ${!slots.length ? html`<div class="loading">No new cards left yet. Use “Show dismissed cards again” to reset the stack.</div>` : html`<div class="rslots">${slots.map((it, i) => html`<${RadarCard} key=${i} item=${it} fade=${fades[i]} inList=${inList(it)} onOpen=${onOpen} onSave=${onSave} onDismiss=${dismiss} />`)}</div>`}
+  </${Fragment}>`;
+}
+
+function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSave, onResume }) {
   const [trend, setTrend] = useState(null);
   const [gems, setGems] = useState(null);
+  const [progress, setProgress] = useState(null);
   useEffect(() => {
     api.trending().then((r) => setTrend(r.ok && r.data && r.data.windows ? r.data.windows : {}));
+    api.appProgress().then((r) => setProgress(r.ok && r.data ? r.data : {}));
     // Hidden gems arrive without art, so each one's cover comes from the same listing the library shows (one cached call per folder).
     api.gems().then(async (r) => {
       const list = r.ok && r.data && Array.isArray(r.data.items) ? r.data.items.map((g) => homeItem({ ...g, total: g.downloads })).filter(Boolean) : [];
@@ -353,14 +412,13 @@ function HomeView({ myList, render, onOpenTrend }) {
       setGems(list.map((it) => { const hit = art.get(it._remote + '|' + it._folder + '|' + it.name); return hit ? { ...it, coverArt: hit.coverArt, size: it.size || hit.size, releaseDate: hit.releaseDate } : it; }));
     });
   }, []);
-  const picks = trend ? picksFrom([...(trend.month || []), ...(trend.week || [])], (myList || []).map((i) => cleanTitle(i.name)), new Date().toISOString().slice(0, 10), 12).map(homeItem).filter(Boolean) : null;
   return html`<main class="home">
     <${Strip} id="trending" title="\u{1F525} Trending Downloads">
       ${trend === null ? html`<div class="loading">Loading…</div>` : html`<${TrendingStrip} windows=${trend} onOpen=${onOpenTrend} />`}
       <div class="strip-note">Download counts are from the last 7 or 30 days, not all-time totals.</div>
     </${Strip}>
-    <${Strip} id="picks" title="Game Radar" sub="Personalized picks: trending titles that are not on your list yet">
-      ${picks === null ? html`<div class="loading">Loading…</div>` : !picks.length ? html`<div class="loading">No picks yet.</div>` : html`<div class="hrow">${picks.map((it) => render(it, 'p'))}</div>`}
+    <${Strip} id="picks" title="Game Radar" sub="Personalized picks">
+      ${trend === null || progress === null ? html`<div class="loading">Loading…</div>` : html`<${RadarStrip} trend=${trend} progress=${progress} myList=${myList} history=${history} onOpen=${onRadarOpen} onSave=${onRadarSave} onResume=${onResume} />`}
     </${Strip}>
     <${Strip} id="gems" title="Hidden Gems" sub="In the library a while, hardly downloaded. A different handful each day.">
       ${gems === null ? html`<div class="loading">Loading…</div>` : !gems.length ? html`<div class="loading">No gems today.</div>` : html`<div class="hrow">${gems.map((it) => render(it, 'g'))}</div>`}
@@ -449,6 +507,25 @@ function App() {
   const inMyList = (it) => myListHas(myList, ctxRemote(it), itemPath(it));
   const pendingScroll = useRef('');
   const openTrend = (e) => { const it = homeItem(e); if (!it) return; pendingScroll.current = it.name; goTo(it._remote, it._folder); };
+  const [radarHistory, setRadarHistory] = useState(() => lsGet('native.radarHistory', []));
+  // Opening a game folder is remembered (newest first) so Game Radar can say "Continue browsing" and offer "Resume last visit".
+  const recordVisit = (item, rem, base) => {
+    const group = radarGroup(rem);
+    const path = [base, item.name].filter(Boolean).join('/');
+    if (!isRadarRemote(group) || radarPath(path).split('/').filter(Boolean).length < 2) return;
+    const e = { remote: group, path, name: item.name, title: cleanTitle(item.name), downloadCount: Number(item.downloadCount) || 0, releaseDate: item.releaseDate || null, coverArt: item.coverArt || null, dateAdded: new Date().toISOString() };
+    const next = [e, ...radarHistory.filter((x) => radarKey(x.remote, x.path, x.name) !== radarKey(e.remote, e.path, e.name))].slice(0, RADAR_HISTORY_MAX);
+    setRadarHistory(next); lsSet('native.radarHistory', next);
+  };
+  const openRadar = (it) => {
+    if (it.source === 'trending') { const parts = radarPath(it.path).split('/').filter(Boolean); const name = parts.pop(); pendingScroll.current = name || ''; goTo(it.remote, parts.join('/')); return; }
+    goTo(it.remote, radarPath(it.path));
+  };
+  const saveRadar = (it) => {
+    const next = myListToggle(myList, { name: it.name || it.title, remote: it.remote, path: radarPath(it.path), size: 0, downloadCount: it.downloadCount, releaseDate: it.releaseDate, coverArt: it.coverArt });
+    setMyList(next); try { localStorage.setItem(MY_LIST_KEY, JSON.stringify(next)); } catch (e) { }
+    say('Added to My List');
+  };
   const goTo = (rem, path) => { setView('library'); autoOk.current = false; setQuery(''); setCategory(''); setRemote(rem); setFolder(path); };
   const [patchQ, setPatchQ] = useState(null);
   const askPatch = (oldLabel, patch) => new Promise((resolve) => setPatchQ({ oldLabel, patch, resolve: (v) => { setPatchQ(null); resolve(v); } }));
@@ -470,7 +547,7 @@ function App() {
     }
     return true;
   };
-  const browseInto = (item) => goTo(ctxRemote(item), itemPath(item));
+  const browseInto = (item) => { recordVisit(item, ctxRemote(item), ctxFolder(item)); goTo(ctxRemote(item), itemPath(item)); };
   const startDownload = async (item) => {
     const remote = ctxRemote(item);
     const path = itemPath(item);
@@ -600,13 +677,13 @@ function App() {
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
     </header>
-    ${view === 'home' ? html`<${HomeView} myList=${myList} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="credit">Created by Old Man of the Hills v${(status && status.version) || ''}</span><span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
     ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} render=${(it) => html`<${Card} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}
-    ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
+    ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { recordVisit(x, remote, folder); setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
     ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
