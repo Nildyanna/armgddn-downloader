@@ -30,3 +30,13 @@ test('an unpackaged copy never runs an installer (a test copy once updated the r
   assert.ok(guard > -1 && guard < handler.indexOf('_installUpdateInProgress'), 'the guard comes first');
   assert.ok(handler.includes('Updates are only installed by the packaged app'));
 });
+
+test('opening the Companion again or using the tray brings up the native window when the app runs in native mode, and closing it can keep the app in the tray', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes('function showAppWindow()') && main.includes('NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()'));
+  const second = main.slice(main.indexOf("app.on('second-instance'"), main.indexOf("app.on('second-instance'") + 400);
+  assert.ok(second.indexOf('showAppWindow()') > -1, 'a second launch shows the native window first');
+  const tray = main.slice(main.indexOf('const showMainWindow = () => {'), main.indexOf('const showMainWindow = () => {') + 200);
+  assert.ok(tray.includes('showAppWindow()'), 'the tray shows the native window first');
+  assert.ok(main.includes("nativeWindow.on('close'") && main.includes('settings.minimizeToTrayOnClose) { event.preventDefault(); nativeWindow.hide(); }'));
+});

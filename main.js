@@ -666,6 +666,19 @@ const nativeGate = require('./nativeGate');
 // nativeGate.js): the native window opens only for members the site lists, and only if they have not turned it off.
 const NATIVE_PREVIEW = nativeGate.wantsNative({ argv: process.argv, config: nativeGate.readEarlyConfig(path.join(app.getPath('userData'), 'config.json'), fs) });
 let nativeWindow = null;   // the native preview window, once it is open
+// Bring up the app's window: the native window when the app is running in native mode, otherwise the classic one. (The tray and a second launch used
+// to show the hidden classic window even in native mode, so a member who opened the Companion again saw the old window.)
+function showAppWindow() {
+  try {
+    if (typeof NATIVE_PREVIEW !== 'undefined' && NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()) {
+      if (nativeWindow.isMinimized()) nativeWindow.restore();
+      nativeWindow.show();
+      if (process.platform === 'linux') { try { nativeWindow.moveTop(); } catch (e) { } } else { nativeWindow.focus(); }
+      return true;
+    }
+  } catch (e) { }
+  return false;
+}
 if (NATIVE_PREVIEW) { try { require('./native/bridge').registerSchemes(require('electron').protocol); } catch (e) { } }
 
 // CI smoke test (ARMGDDN_SMOKE_TEST=1): run against a throwaway profile so it
@@ -753,7 +766,9 @@ if (!gotTheLock) {
   app.on('second-instance', (event, commandLine, workingDirectory) => {
     // Someone tried to run a second instance, focus our window. The window
     // can already be destroyed while the app is quitting (Sentry COMPANION-B).
-    if (mainWindow && !mainWindow.isDestroyed()) {
+    if (showAppWindow()) {
+      // the native window is up; nothing more to show
+    } else if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
       // KDE Plasma enforces focus-stealing prevention; focus() is unreliable there.
@@ -3150,6 +3165,7 @@ function createTray() {
   tray = new Tray(icon.resize({ width: 16, height: 16 }));
 
   const showMainWindow = () => {
+    if (showAppWindow()) return;
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.show();
     // On KDE Plasma, moveTop() is needed to raise the window above other open apps.
@@ -3467,6 +3483,13 @@ app.whenReady().then(() => {
         showClassic: () => { try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e) { } } else { mainWindow.focus(); } } } catch (e) { } },
         startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer)
       });
+      // Closing the native window keeps the app in the tray when that setting is on (like the classic window), so opening the Companion again
+      // or clicking the tray icon brings this window back instead of the hidden classic one.
+      try {
+        if (nativeWindow && !nativeWindow.isDestroyed()) nativeWindow.on('close', (event) => {
+          if (!app.isQuitting && settings && settings.minimizeToTrayOnClose) { event.preventDefault(); nativeWindow.hide(); }
+        });
+      } catch (e) { }
     } catch (e) { logToFile('[Native] preview failed to start: ' + e.message); }
   }
 
