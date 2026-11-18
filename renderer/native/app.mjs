@@ -685,6 +685,7 @@ function App() {
   if (status && !status.signedIn) return html`<div class="center"><h1>ARMGDDN</h1><p>Sign in to browse the library.</p><button class="primary" onClick=${signIn}>Sign in with Telegram</button></div>`;
   return html`<div class="shell">
     <div class="banner">
+      <div class="header-stars"><div class="header-star header-star-1"></div><div class="header-star header-star-2"></div><div class="header-star header-star-3"></div></div>
       <div class="banner-actions">
         <button class="dbtn" title="Turn the moving effects on or off" onClick=${toggleAnim}>\u2728 Animations ${animOn ? 'on' : 'off'}</button>
       <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['dark', 'Default', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light').sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>

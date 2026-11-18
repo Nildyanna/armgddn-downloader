@@ -226,3 +226,21 @@ header select + select { margin-left: 0; }
 [data-anim="0"] .marquee-track { animation: none; }
 .brand { display: none; }
 @media (max-width: 900px) { .banner h1 { font-size: 1.3rem; } .banner-logo { width: 48px; height: 48px; } }
+
+/* The website header's moving light: three bright points cross the banner with a soft wash behind them, and a faint colour sweep over it. */
+.banner::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 0%, transparent), color-mix(in srgb, var(--accent) 22%, transparent), color-mix(in srgb, var(--accent2) 18%, transparent), color-mix(in srgb, var(--accent2) 0%, transparent)); opacity: .28; mix-blend-mode: screen; }
+.header-stars { position: absolute; inset: 0; pointer-events: none; z-index: 0; overflow: hidden; }
+.header-star { position: absolute; left: -120px; width: 6px; height: 6px; border-radius: 999px; opacity: 0; mix-blend-mode: screen; animation: headerStarStreaks 4s linear infinite;
+  background: radial-gradient(circle at center, #ffffff 0%, rgba(217,249,255,.95) 35%, color-mix(in srgb, var(--accent) 0%, transparent) 70%);
+  box-shadow: 0 0 28px rgba(217,249,255,.95), 0 0 52px color-mix(in srgb, var(--accent) 85%, transparent), 0 0 86px color-mix(in srgb, var(--accent2) 55%, transparent); }
+.header-star::before { content: ''; position: absolute; top: 50%; left: 0; transform: translate(-8%, -50%); width: 220px; height: 110px; border-radius: 999px; pointer-events: none; mix-blend-mode: screen; filter: blur(12px);
+  background: radial-gradient(ellipse at 16% 50%, color-mix(in srgb, var(--accent2) 35%, transparent) 0%, color-mix(in srgb, var(--accent) 22%, transparent) 32%, rgba(15,23,42,0) 80%); }
+.header-star::after { content: ''; position: absolute; top: 50%; right: 50%; transform: translateY(-50%); width: 80px; height: 2px; border-radius: 999px; pointer-events: none; mix-blend-mode: screen; filter: blur(1px);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 85%, transparent) 0%, color-mix(in srgb, var(--accent2) 0%, transparent) 100%); }
+.header-star-1 { top: 34%; animation-duration: 3s; animation-delay: -.7s; }
+.header-star-2 { top: 50%; animation-duration: 4.2s; animation-delay: -1.9s; }
+.header-star-3 { top: 66%; animation-duration: 5.6s; animation-delay: -3.4s; }
+@keyframes headerStarStreaks { 0% { left: -120px; opacity: 0; } 10% { opacity: 1; } 50% { left: 45%; opacity: 1; } 90% { opacity: 1; } 100% { left: 120%; opacity: 0; } }
+[data-anim="0"] .header-stars { display: none; }
+.banner > .banner-logo, .banner > .banner-text { position: relative; z-index: 1; }
+.banner > .banner-logo { position: absolute; }
