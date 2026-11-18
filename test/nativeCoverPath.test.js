@@ -16,3 +16,9 @@ test('the page-side address round-trips the original url', () => {
 test('collection covers are fetched from the site', () => {
   assert.equal(coverRoute('/api/collection-cover?remote=Music&path=Abba&w=480').kind, 'site');
 });
+
+test('the 3D model and PC app pictures from /api/item-art are fetched through the site like the other covers', () => {
+  const { coverRoute } = require('../native/coverPath');
+  assert.deepEqual(coverRoute('/api/item-art?remote=Pirated%20PC%20Apps&path=Soundpad'), { kind: 'site', path: '/api/item-art?remote=Pirated%20PC%20Apps&path=Soundpad' });
+  assert.equal(coverRoute('/api/somewhere-else?x=1'), null);
+});
