@@ -40,6 +40,8 @@
       "native/**/*",
       "preload-komga.js",
       "komga.js",
+      "komgaImport.js",
+      "driveDirectClient.js",
       "resumeDownload.js",
       "segmentedDownload.js",
       "directEndpoint.js",

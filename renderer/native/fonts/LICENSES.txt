@@ -1,0 +1,7 @@
+The fonts in this folder are the Google Fonts families that the website's themes use, bundled so the themes look the same offline.
+Each family is published by its authors under the SIL Open Font License 1.1 (https://openfontlicense.org), except where Google Fonts lists
+Apache License 2.0 (the same permissive terms for use and redistribution). Families: Audiowide, Barlow Condensed, Chakra Petch, Cinzel,
+Cormorant Garamond, DM Serif Display, EB Garamond, Figtree, Fredoka, IBM Plex Mono, JetBrains Mono, Karla, Lora, Manrope, Nunito, Orbitron,
+Outfit, Playfair Display, Press Start 2P, Quicksand, Rajdhani, Righteous, Share Tech Mono, Sora, Space Grotesk, Teko, VT323.
+Source of every file: https://fonts.google.com (latin subset, woff2), fetched by scripts/get_fonts.py. See each family's page there for its
+copyright line and license text.
