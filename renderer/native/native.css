@@ -174,9 +174,10 @@ header select + select { margin-left: 0; }
 .ttext { min-width: 0; }
 .ttitle { font-weight: 600; font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .tmeta { display: flex; gap: 8px; color: var(--dim); font-size: 11px; margin-top: 3px; white-space: nowrap; }
-.tbadge { position: absolute; right: 10px; top: 6px; font-size: 10px; letter-spacing: .06em; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 85%, transparent); border: 1px solid var(--line); z-index: 2; }
-.tbadge.week { color: #22d3ee; border-color: #155e75; }
-.tbadge.month { color: #c084fc; border-color: #6b21a8; }
+.tbadge { display: inline-block; font-size: 10px; letter-spacing: .06em; font-weight: 700; padding: 2px 8px; border-radius: 999px; background: color-mix(in srgb, var(--bg) 85%, transparent); border: 1px solid var(--line); z-index: 2; }
+.tbadge.week { color: var(--accent); border-color: var(--accent); }
+.tbadge.month { color: var(--accent2); border-color: var(--accent2); }
+.tbar { display: flex; justify-content: flex-start; margin: 0 0 6px; }
 .nocover.small { font-size: 10px; color: var(--dim); text-align: center; padding: 4px; }
 
 /* Game Radar */

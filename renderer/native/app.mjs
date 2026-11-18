@@ -343,14 +343,14 @@ function TrendingStrip({ windows, onOpen }) {
     return () => { try { a.cancel(); } catch (e) { } };
   }, [idx, cycle, sets.length]);
   if (!cur) return html`<div class="loading">Nothing is trending yet.</div>`;
-  return html`<div class="ticker" ref=${view} onMouseEnter=${() => { try { anim.current && anim.current.pause(); } catch (e) { } }} onMouseLeave=${() => { try { anim.current && anim.current.play(); } catch (e) { } }}>
+  return html`<${Fragment}><div class="tbar"><span class=${'tbadge ' + cur.win} title="Which set is showing">${cur.label}</span></div>
+  <div class="ticker" ref=${view} onMouseEnter=${() => { try { anim.current && anim.current.pause(); } catch (e) { } }} onMouseLeave=${() => { try { anim.current && anim.current.play(); } catch (e) { } }}>
     <div class="ticker-track" ref=${track} key=${idx + '-' + cycle}>${cur.items.map((e) => html`<div class="tpill" key=${e.norm + e.platform} onClick=${() => onOpen(e)}>
       <div class="tcover">${e.coverUrl ? html`<img src=${coverSrc(e.coverUrl)} alt="" />` : html`<div class="nocover small">Non-Steam Game</div>`}</div>
       <div class="ttext"><div class="ttitle">${cleanTitle(e.title)}</div>
         <div class="tmeta"><span>\u{1F525} ${Number(e.count).toLocaleString('en-US')} downloads</span>${e.sizeBytes ? html`<span>${formatSize(e.sizeBytes)}</span>` : ''}${e.lastDownloadTs ? html`<span>${shortDate(e.lastDownloadTs)}</span>` : ''}</div></div>
     </div>`)}</div>
-    <span class=${'tbadge ' + cur.win} title="Which set is showing">${cur.label}</span>
-  </div>`;
+  </div></${Fragment}>`;
 }
 
 // Home: the three strips the website's landing page has.
