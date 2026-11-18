@@ -145,3 +145,12 @@ header select + select { margin-left: 0; }
 .marquee:hover .marquee-track { animation-play-state: paused; }
 @keyframes marquee-scroll { from { transform: translateX(0); } to { transform: translateX(calc(-50% - 6px)); } }
 @media (prefers-reduced-motion: reduce) { .marquee { overflow-x: auto; } .marquee-track { animation: none; } }
+
+.support { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+.support h3 { margin: 6px 0 0; }
+.findings { display: flex; flex-direction: column; gap: 6px; }
+.finding { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; background: #0b1426; }
+.finding.warn { border-color: #b45309; }
+.ftitle { font-weight: 600; }
+.fdetail { color: var(--dim); font-size: 12px; margin-top: 2px; }
+.support-note { color: var(--dim); font-size: 12px; padding: 4px 2px; }

@@ -229,6 +229,37 @@ const SETTING_ROWS = [
   ['check', 'startWithOsStartup', 'Start with the computer'],
   ['check', 'errorReporting', 'Send error reports'],
 ];
+// Help with problems: the same four tools the classic Settings has. The codes are pasted in the ARMGDDN Games Welcome & Support chat for Tulip.
+function SupportTools({ say, onApplyConnections }) {
+  const [busy, setBusy] = useState('');
+  const [findings, setFindings] = useState(null);
+  const [note, setNote] = useState('');
+  const copy = async (text, what) => { const r = await api.copy(text); setNote(r.ok ? what + ' Copied. Paste it in the ARMGDDN Games Welcome & Support chat and ask Tulip for help. It holds no names, paths or passwords.' : 'Could not copy automatically. Your code: ' + text); };
+  const run = async (key, fn) => { setBusy(key); setNote(''); try { await fn(); } catch (e) { setNote('That did not work. Try again in a minute.'); } setBusy(''); };
+  const check = () => run('check', async () => { const r = await api.runSetupCheck(); setFindings(r && r.ok && Array.isArray(r.findings) && r.findings.length ? r.findings : []); if (!(r && r.ok)) setNote('The check could not run. Try again, or ask in the chat.'); });
+  const report = () => run('report', async () => { const r = await api.buildSetupReport(); if (!r || !r.ok || !r.code) { setNote('Could not build the report.'); return; } await copy(r.code, 'Report for Tulip.'); });
+  const sendLog = () => run('log', async () => { setNote('Sending the log...'); const r = await api.sendSupportLog(); if (!r || !r.ok) { setNote((r && r.error) || 'Could not send the log.'); return; } await copy(r.code, 'Log code ' + r.code + '.'); });
+  const test = () => run('test', async () => {
+    api.onConnectionTestProgress((p) => setNote('Testing ' + p.streams + ' connection' + (p.streams === 1 ? '' : 's') + ' (step ' + p.phase + ' of ' + p.of + ')...'));
+    const r = await api.runConnectionTest();
+    if (!r || !r.ok) { setNote((r && r.error) || 'The test could not run.'); return; }
+    const lines = r.results.map((x) => x.streams + ' connection' + (x.streams === 1 ? '' : 's') + ': ' + x.mbps + ' MB/s' + (x.stalls ? ', ' + x.stalls + ' pause' + (x.stalls === 1 ? '' : 's') : ''));
+    const rec = r.recommendation || {};
+    const advice = !rec.streams ? 'The test could not measure your speed. Try again in a few minutes.' : rec.value === 0 ? 'Your connection handled every setting well. Leave Connections per file on Automatic.' : 'Best for you: ' + rec.value + ' connection' + (rec.value === 1 ? '' : 's') + ' per file.';
+    setNote(lines.join(' | ') + '. ' + advice);
+    if (rec.streams && [0, 1, 2, 4, 8].includes(rec.value)) onApplyConnections(rec.value);
+  });
+  return html`<div class="support">
+    <h3>Help with problems</h3>
+    <div class="srow"><span class="slabel">Check my setup: disk space, folder location, antivirus and redistributables</span><button class="dbtn" disabled=${!!busy} onClick=${check}>${busy === 'check' ? 'Checking...' : 'Check'}</button></div>
+    ${findings ? html`<div class="findings">${findings.length ? findings.map((f) => html`<div class=${'finding ' + (f.status === 'warn' || f.status === 'info' ? f.status : 'ok')}><div class="ftitle">${(f.status === 'ok' ? '\u2713 ' : f.status === 'warn' ? '\u26A0 ' : '\u2139 ') + String(f.title || '')}</div>${f.detail ? html`<div class="fdetail">${String(f.detail)}</div>` : ''}</div>`) : html`<div class="fdetail">Nothing to report.</div>`}</div>` : ''}
+    <div class="srow"><span class="slabel">Copy report for Tulip: your setup check and recent problems as one code</span><button class="dbtn" disabled=${!!busy} onClick=${report}>Copy report</button></div>
+    <div class="srow"><span class="slabel">Send log to staff: the cleaned log goes to the site and you get a short code</span><button class="dbtn" disabled=${!!busy} onClick=${sendLog}>Send log</button></div>
+    <div class="srow"><span class="slabel">Test my connection: finds the best Connections per file for you</span><button class="dbtn" disabled=${!!busy} onClick=${test}>${busy === 'test' ? 'Testing...' : 'Test'}</button></div>
+    ${note ? html`<div class="support-note">${note}</div>` : ''}
+  </div>`;
+}
+
 function SettingsView({ say }) {
   const [s, setS] = useState(null);
   useEffect(() => { api.getSettings().then((r) => setS(r && typeof r === 'object' ? r : {})).catch(() => setS({})); }, []);
@@ -246,6 +277,7 @@ function SettingsView({ say }) {
       : kind === 'check'
       ? html`<label class="srow"><input type="checkbox" checked=${!!s[key]} onChange=${(e) => save({ [key]: e.target.checked })} /> <span class="slabel">${label}</span></label>`
       : html`<label class="srow"><span class="slabel">${label}</span><input type="number" min=${min} max=${max} value=${Number(s[key]) || 0} onChange=${(e) => { const n = Math.max(min, Math.min(max, Number(e.target.value) || 0)); save({ [key]: n }); }} /></label>`)}
+    <${SupportTools} say=${say} onApplyConnections=${(v) => save({ connectionsPerFile: v })} />
     <div class="srow"><span class="slabel">Download history, schedule, Komga and library scans</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
   </main>`;
 }

@@ -38,7 +38,7 @@ function registerSchemes(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'armgddn-img', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 }
 
-function start({ BrowserWindow, ipcMain, shell, dialog, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, showClassic }) {
+function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, showClassic }) {
   const api = createApiClient({ getToken, version });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
@@ -119,6 +119,13 @@ function start({ BrowserWindow, ipcMain, shell, dialog, fs = require('fs'), prot
   // Home page strips: the same data the website's Trending Downloads and Hidden Gems strips show.
   ipcMain.handle('native:trending', wrap(() => api.get('/api/trending-downloads', { ttlMs: 5 * 60 * 1000 })));
   ipcMain.handle('native:gems', wrap(() => api.get('/api/hidden-gems', { ttlMs: 10 * 60 * 1000 })));
+  // Copy a short code (a support report or log code) to the clipboard; the page cannot always reach the clipboard itself.
+  ipcMain.handle('native:copy', wrap(async (text) => {
+    const t = String(text == null ? '' : text);
+    if (!t || t.length > 20000) throw Object.assign(new Error('Nothing to copy'), { kind: 'http', status: 400 });
+    clipboard.writeText(t);
+    return { copied: true };
+  }));
   ipcMain.handle('native:exportList', wrap(async (remote, format) => {
     const { path: p, fmt } = exportPath(remote, format);
     const f = await api.file(p);
