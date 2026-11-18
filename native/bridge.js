@@ -67,6 +67,22 @@ function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version,
   ipcMain.handle('native:downloads', wrap(async () => (getDownloads ? getDownloads() : []).map((d) => ({
     id: d.id, name: d.name, status: d.status, progress: d.progress, speed: d.speed, eta: d.eta, totalSize: d.totalSize, downloadedSize: d.downloadedSize,
     error: d.error || '' }))));
+  // Requests (My Requests, comments, a new Music/Comics request). Writes clear the cached list so it refreshes.
+  const reqId = (id) => { const n = Number(id); if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error('Bad request id'), { kind: 'http', status: 400 }); return n; };
+  ipcMain.handle('native:requests', wrap(() => api.get('/api/requests/my', { ttlMs: 15000 })));
+  ipcMain.handle('native:thread', wrap((id) => api.get(`/api/requests/${reqId(id)}/thread?markSeen=1`, { ttlMs: 0, fresh: true })));
+  ipcMain.handle('native:comment', wrap((id, message) => {
+    const m = String(message || '').trim();
+    if (!m) throw Object.assign(new Error('Write a message first'), { kind: 'http', status: 400 });
+    if (m.length > 500) throw Object.assign(new Error('Message too long (max 500)'), { kind: 'http', status: 400 });
+    return api.post(`/api/requests/${reqId(id)}/thread`, { message: m }, { invalidate: ['/api/requests/my'] });
+  }));
+  ipcMain.handle('native:submitRequest', wrap((category, title, notes) => {
+    if (!['Music', 'Comics'].includes(category)) throw Object.assign(new Error('Only Music and Comics requests can be made right now'), { kind: 'http', status: 400 });
+    const t = String(title || '').trim();
+    if (t.length < 2 || t.length > 200) throw Object.assign(new Error('Type what you want (2 to 200 characters)'), { kind: 'http', status: 400 });
+    return api.post('/api/requests/submit', { gameTitle: t, category, notes: String(notes || '').trim().slice(0, 500) }, { invalidate: ['/api/requests/my'] });
+  }));
   ipcMain.handle('native:stats', wrap(async () => api.stats));
 
   protocol.handle('armgddn-img', async (request) => {

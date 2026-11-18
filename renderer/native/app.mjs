@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate } from './format.mjs';
 import { useRef } from '../../native/vendor/ui.mjs';
 
 const api = window.nativeAPI;
@@ -33,6 +33,51 @@ function AlphaBar({ letters }) {
   const jump = (l) => { const el = document.querySelector('.grid [data-letter="' + l + '"]'); if (el) el.scrollIntoView({ block: 'start' }); };
   if (letters.length < 2) return '';
   return html`<div class="alpha">${letters.map((l) => html`<button onClick=${() => jump(l)}>${l}</button>`)}</div>`;
+}
+
+function RequestsView({ say }) {
+  const [list, setList] = useState(null);
+  const [error, setError] = useState(null);
+  const [open, setOpen] = useState(null);       // request being read
+  const [thread, setThread] = useState(null);
+  const [text, setText] = useState('');
+  const [form, setForm] = useState(null);       // { category, title, notes } while the new-request form is open
+  const load = async () => { const r = await api.requests(); if (r.ok) { setList(r.data.requests || []); setError(null); } else { setError(r.error); setList([]); } };
+  useEffect(() => { load(); }, []);
+  const openThread = async (req) => { setOpen(req); setThread(null); const r = await api.thread(req.linkedTo || req.id); setThread(r.ok ? (r.data.comments || []) : []); if (!r.ok) say(r.error.message); };
+  const send = async () => {
+    const r = await api.comment(open.linkedTo || open.id, text);
+    if (r.ok) { setText(''); openThread(open); } else say(r.error.message || 'Could not send');
+  };
+  const submit = async () => {
+    const r = await api.submitRequest(form.category, form.title, form.notes);
+    if (r.ok) { setForm(null); say('Request sent'); load(); } else say(r.error.message || 'Could not send the request');
+  };
+  if (open) {
+    const [label, tone] = statusInfo(open.status);
+    return html`<div class="reqpane">
+      <button class="dbtn" onClick=${() => { setOpen(null); load(); }}>Back</button>
+      <h2>#${open.id} ${open.gameTitle} <span class=${'chip ' + tone}>${label}</span></h2>
+      <div class="sub">${open.category} · ${shortDate(open.createdAt)}</div>
+      ${open.decisionReason ? html`<div class="reason"><strong>Decision:</strong> ${open.decisionReason}</div>` : ''}
+      <div class="thread">${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'You')} · ${shortDate(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="loading">No messages yet.</div>`}</div>
+      <div class="compose"><input type="text" maxlength="500" placeholder="Write a message…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
+    </div>`;
+  }
+  return html`<div class="reqpane">
+    <div class="reqhead"><h2>My requests</h2><button class="primary" onClick=${() => setForm({ category: 'Music', title: '', notes: '' })}>New request</button></div>
+    ${error ? html`<div class="notice">${error.message}</div>` : ''}
+    ${form ? html`<div class="reqform">
+      <select value=${form.category} onChange=${(e) => setForm({ ...form, category: e.target.value })}><option>Music</option><option>Comics</option></select>
+      <input type="text" maxlength="200" placeholder="Artist and album, or comic series" value=${form.title} onInput=${(e) => setForm({ ...form, title: e.target.value })} />
+      <input type="text" maxlength="500" placeholder="Notes (optional)" value=${form.notes} onInput=${(e) => setForm({ ...form, notes: e.target.value })} />
+      <div class="dbtns"><button class="primary" onClick=${submit}>Send request</button><button class="dbtn" onClick=${() => setForm(null)}>Cancel</button></div>
+      <div class="sub">Game requests are closed for now.</div>
+    </div>` : ''}
+    ${list === null ? html`<div class="loading">Loading…</div>` : list.length ? html`<div class="dlist">${list.map((r) => { const [label, tone] = statusInfo(r.status); return html`<div class="drow clickable" key=${r.id} onClick=${() => openThread(r)}>
+      <div class="dname">#${r.id} ${r.gameTitle}<span><span class=${'chip ' + tone}>${label}</span>${r.unreadCount ? html` <span class="badge">${r.unreadCount}</span>` : ''}</span></div>
+      <div class="dmeta">${r.category} · ${shortDate(r.createdAt)}</div></div>`; })}</div>` : html`<div class="loading">You haven't made any requests.</div>`}
+  </div>`;
 }
 
 function DownloadsView({ list }) {
@@ -115,11 +160,12 @@ function App() {
     <header>
       <div class="brand">ARMGDDN</div>
       <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
+      <button class=${view === 'requests' ? 'tab on' : 'tab'} onClick=${() => setView('requests')}>Requests</button>
       <button class=${view === 'downloads' ? 'tab on' : 'tab'} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
       <input class="search" type="search" placeholder="Search this list" value=${query} onInput=${(e) => setQuery(e.target.value)} />
       <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="newest">Newest</option><option value="size">Largest</option></select>
     </header>
-    ${view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'requests' ? html`<${RequestsView} say=${say} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs"><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}

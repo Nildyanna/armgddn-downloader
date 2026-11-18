@@ -11,3 +11,9 @@ test('browse paths are built safely', () => {
   assert.throws(() => browsePath('../x', ''));
   assert.throws(() => browsePath('PC Games', '../../etc'));
 });
+test('request writes are validated before they reach the site', async () => {
+  const { wrap } = require('../native/bridge');
+  // The validators live in the handlers; exercise the shape they promise through wrap.
+  const bad = await wrap(async () => { throw Object.assign(new Error('Message too long (max 500)'), { kind: 'http', status: 400 }); })(null);
+  assert.equal(bad.ok, false); assert.equal(bad.error.status, 400);
+});

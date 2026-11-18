@@ -55,4 +55,7 @@ test('grid helpers', async () => {
   assert.equal(letterOf('(the) Gnorp Apologue'), '#');   /* sorts with the symbols, first in the list */ assert.equal(letterOf('7 Days to Die v1 -ARMGDDN'), '#');
   assert.equal(letterOf('\u00c9dith Piaf'), 'E'); assert.equal(letterOf('\u0421\u043a\u0440\u0438\u043f'), '#');
   assert.deepEqual(lettersPresent([{ name: 'Zelda' }, { name: '1942' }, { name: 'Abba' }]), ['#', 'A', 'Z']);
+  const { statusInfo, shortDate } = await import('../renderer/native/format.mjs');
+  assert.deepEqual(statusInfo('pending'), ['Pending', 'warn']); assert.deepEqual(statusInfo('REJECTED'), ['Rejected', 'bad']); assert.equal(statusInfo('weird')[0], 'Weird');
+  assert.equal(shortDate('not a date'), ''); assert.match(shortDate('2026-11-17T12:00:00Z'), /2026/);
 });

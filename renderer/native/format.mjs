@@ -123,3 +123,13 @@ export function lettersPresent(items) {
   const seen = new Set((items || []).map((x) => letterOf(x.name)));
   return ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].filter((l) => seen.has(l));
 }
+
+// Requests: status wording and chip colour, and a short date.
+export function statusInfo(status) {
+  const s = String(status || '').toLowerCase();
+  return { pending: ['Pending', 'warn'], approved: ['Approved', 'ok'], completed: ['Completed', 'ok'], rejected: ['Rejected', 'bad'] }[s] || [s ? s[0].toUpperCase() + s.slice(1) : 'Unknown', 'dim'];
+}
+export function shortDate(iso) {
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
