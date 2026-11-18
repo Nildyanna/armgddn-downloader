@@ -13,5 +13,6 @@ contextBridge.exposeInMainWorld('nativeAPI', {
   comicsState: call('comics-get-state'), comicsPickFolder: call('comics-pick-folder'), comicsScan: call('comics-scan'), comicsCancelScan: call('comics-cancel-scan'), comicsInfo: call('comics-info'), comicsCompare: call('comics-compare'), comicsDownloadMissing: call('comics-download-missing'),
   musicState: call('music-get-state'), musicPickFolder: call('music-pick-folder'), musicScan: call('music-scan'), musicCancelScan: call('music-cancel-scan'), musicInfo: call('music-info'), musicCompare: call('music-compare'), musicDownloadMissing: call('music-download-missing'),
   komgaState: call('native-komga-state'), komgaSave: call('native-komga-save'), komgaForget: call('native-komga-forget'), komgaImport: call('native-komga-import'), komgaAdd: call('native-komga-add'), komgaLists: call('native-komga-lists'),
+  openExternal: call('open-external'),
   requests: call('native:requests'), thread: call('native:thread'), comment: call('native:comment'), submitRequest: call('native:submitRequest'),
 });

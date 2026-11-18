@@ -364,3 +364,6 @@ header select + select { margin-left: 0; }
 .results { display: flex; flex-direction: column; gap: 6px; }
 .rline { padding: 8px 12px; border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; font-size: 13px; line-height: 1.45; }
 .rline.ok { border-left-color: #3cb371; } .rline.warn { border-left-color: #e0a030; } .rline.info { border-left-color: var(--accent); }
+
+.komgabox { margin: 8px 18px; padding: 12px 14px; border: 1px solid var(--line, rgba(255,255,255,.15)); border-radius: 10px; display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; }
+.komgabox .dbtns { display: flex; gap: 8px; flex-wrap: wrap; }

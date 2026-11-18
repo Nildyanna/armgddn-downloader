@@ -8742,6 +8742,7 @@ const ALLOWED_EXTERNAL_HOSTS = new Set([
   'github.com',
   'armgddnbrowser.com',
   'www.armgddnbrowser.com',
+  'komga.org',
 ]);
 
 // Open external URL in browser
