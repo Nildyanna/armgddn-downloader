@@ -23,7 +23,7 @@ function registerSchemes(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'armgddn-img', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 }
 
-function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version, log = () => { }, appDir }) {
+function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads }) {
   const api = createApiClient({ getToken, version });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
@@ -54,6 +54,19 @@ function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version,
   ipcMain.handle('native:login', wrap(async () => { await openLogin(); return { signedIn: !!getToken() }; }));
   ipcMain.handle('native:remotes', wrap(() => api.get('/api/remotes', { ttlMs: 5 * 60 * 1000 })));
   ipcMain.handle('native:browse', wrap((remote, folder) => api.get(browsePath(remote, folder), { ttlMs: 2 * 60 * 1000, headers: { 'X-User-Browse': 'true' } })));
+  // Download: the same path the website's "Download with App" takes (a download token from the site, then the Companion's own deep-link handler),
+  // so the existing download engine, checks and progress reporting all apply.
+  ipcMain.handle('native:download', wrap(async (remote, folderPath) => {
+    browsePath(remote, folderPath);   // validates both
+    if (!String(folderPath || '')) throw Object.assign(new Error('Nothing to download here'), { kind: 'http', status: 400 });
+    const t = await api.post('/api/external-download-token', { remote, path: folderPath });
+    if (!t || !t.downloadToken) throw Object.assign(new Error((t && t.error) || 'The site did not give a download token'), { kind: 'http', status: 502 });
+    startDeepLink('armgddn://download?' + new URLSearchParams({ downloadToken: t.downloadToken, token: getToken() }).toString());
+    return { started: true };
+  }));
+  ipcMain.handle('native:downloads', wrap(async () => (getDownloads ? getDownloads() : []).map((d) => ({
+    id: d.id, name: d.name, status: d.status, progress: d.progress, speed: d.speed, eta: d.eta, totalSize: d.totalSize, downloadedSize: d.downloadedSize,
+    error: d.error || '' }))));
   ipcMain.handle('native:stats', wrap(async () => api.stats));
 
   protocol.handle('armgddn-img', async (request) => {

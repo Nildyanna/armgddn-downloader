@@ -83,3 +83,11 @@ export function collectionCoverPath(remote, folder, item) {
   const rel = [folder, item.name].filter(Boolean).join('/');
   return `/api/collection-cover?remote=${encodeURIComponent(remote)}&path=${encodeURIComponent(rel)}&w=480`;
 }
+
+export function formatSpeed(bytesPerSec) {
+  const n = Number(bytesPerSec);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  return formatSize(n) + '/s';
+}
+// Statuses the Companion uses for a download that is still running.
+export function isActiveDownload(d) { return !!d && !['completed', 'cancelled', 'error', 'failed'].includes(String(d.status || '').toLowerCase()); }

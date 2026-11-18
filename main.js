@@ -3260,7 +3260,8 @@ app.whenReady().then(() => {
       loadSession();
       require('./native/bridge').start({
         BrowserWindow, ipcMain, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
-        openLogin: () => openAuthWindow(), log: logToFile
+        openLogin: () => openAuthWindow(), log: logToFile,
+        startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer)
       });
     } catch (e) { logToFile('[Native] preview failed to start: ' + e.message); }
   }
