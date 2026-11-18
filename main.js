@@ -3268,6 +3268,23 @@ app.whenReady().then(() => {
   if (NATIVE_PREVIEW) {
     try {
       loadSession();
+      // The preview keeps its own profile so it cannot disturb the installed Companion, which means it starts with default settings. Bring over
+      // the installed Companion's settings once (and on request). The shipped app uses the same settings file, so nothing needs importing then.
+      const importClassicSettings = (force) => {
+        const keys = ['downloadPath', 'maxConcurrentDownloads', 'connectionsPerFile', 'schedule', 'maxDownloadSpeedMBps', 'autoExtract7z', 'autoHashCheck', 'comicsFolder', 'musicFolder', 'showNotifications', 'minimizeToTrayOnMinimize', 'minimizeToTrayOnClose', 'autoUpdate', 'errorReporting'];
+        const src = path.join(app.getPath('appData'), 'armgddn-downloader', 'config.json');
+        if (path.resolve(src) === path.resolve(path.join(app.getPath('userData'), 'config.json'))) return { imported: 0, same: true };
+        if (!force && settings && settings.nativeSettingsImported) return { imported: 0, already: true };
+        let theirs; try { theirs = JSON.parse(fs.readFileSync(src, 'utf8')); } catch (e) { return { imported: 0, missing: true }; }
+        let n = 0;
+        for (const k of keys) if (theirs && Object.prototype.hasOwnProperty.call(theirs, k) && theirs[k] !== undefined) { settings[k] = theirs[k]; n++; }
+        settings.nativeSettingsImported = true;
+        normalizeSettings(); saveSettings();
+        logToFile('[Native] imported ' + n + ' settings from the installed Companion');
+        return { imported: n };
+      };
+      importClassicSettings(false);
+      ipcMain.handle('native-import-settings', () => importClassicSettings(true));
       nativeWindow = require('./native/bridge').start({
         BrowserWindow, ipcMain, shell, dialog, clipboard: require('electron').clipboard, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
         openLogin: () => openAuthWindow(), log: logToFile,
