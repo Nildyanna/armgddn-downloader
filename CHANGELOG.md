@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [5.23.0] - Unreleased
+## [5.23.0] - 2026-11-18
 
 ### Added
 - **A new built-in browser window, for members the site lists.** While it is being tested the Companion opens it only for those members (the site decides). They can switch back to the classic window in Settings or from the tray menu, and `--classic` / `--native` on the command line always win. Everyone else sees no change.
