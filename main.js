@@ -975,6 +975,7 @@ function flushPendingDeepLinks() {
       }
     }
 
+    if (NATIVE_PREVIEW) return;   // preview run: progress shows in the native window, the classic window stays hidden
     mainWindow.show();
     // KDE Plasma's focus-stealing prevention silently drops focus() calls from
     // background processes. Use moveTop() instead to raise the window reliably.

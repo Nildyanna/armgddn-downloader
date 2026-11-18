@@ -5,5 +5,5 @@ contextBridge.exposeInMainWorld('nativeAPI', {
   status: call('native:status'), login: call('native:login'), remotes: call('native:remotes'),
   browse: call('native:browse'), stats: call('native:stats'),
   download: call('native:download'), downloads: call('native:downloads'),
-  pause: call('pause-download'), resume: call('resume-download'), cancel: call('cancel-download'), retry: call('retry-download'), openFolder: call('open-folder'),
+  pause: call('pause-download'), resume: call('resume-download'), cancel: call('cancel-download'), retry: call('retry-download'), openFolder: call('open-folder'), history: call('get-history'),
 });

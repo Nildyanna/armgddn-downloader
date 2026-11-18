@@ -66,7 +66,15 @@ function App() {
   };
   useEffect(() => {
     let live = true;
-    const tick = async () => { const r = await api.downloads(); if (live && r.ok) setDownloads(r.data || []); };
+    const tick = async () => {
+      const [r, h] = await Promise.all([api.downloads(), api.history()]);
+      if (!live) return;
+      const active = r.ok ? (r.data || []) : [];
+      const ids = new Set(active.map((d) => d.id));
+      const done = (Array.isArray(h) ? h : []).filter((d) => d && !ids.has(d.id)).slice(0, 30)
+        .map((d) => ({ id: d.id, name: d.name, status: d.status || 'completed', progress: 100, totalSize: d.totalSize, downloadedSize: d.totalSize }));
+      setDownloads([...done.reverse(), ...active]);   // oldest first; the list is shown newest first
+    };
     tick(); const t = setInterval(tick, 1500);
     return () => { live = false; clearInterval(t); };
   }, []);
