@@ -2864,6 +2864,7 @@ function createWindow() {
   });
 
   mainWindow.once('ready-to-show', () => {
+    if (NATIVE_PREVIEW) return;   // preview run: only the native window is shown (the classic window stays hidden)
     // After an in-app update the runner relaunches us with --updated. Always bring the
     // window to the foreground in that case (ignore start-minimized), since the user
     // just initiated the update and expects the app back in front.
@@ -2957,7 +2958,7 @@ function createWindow() {
   });
 
   // Open DevTools automatically only in development builds
-  if (!app.isPackaged && isOwnerDevToolsAllowed) {
+  if (!app.isPackaged && isOwnerDevToolsAllowed && !NATIVE_PREVIEW) {
     mainWindow.webContents.openDevTools();
   }
 }
