@@ -1,4 +1,11 @@
 {
+  "5.23.0": {
+    "title": "Add to My Komga Works Again",
+    "highlights": [
+      "Add to My Komga now works with current Komga versions. Komga changed how it answers when a reading order is matched against your library, which made every add report that nothing matched.",
+      "Comics are now matched to your own files exactly (the same file name and size, then the Comic Vine issue), the way the ARMGDDN reading orders are built. A reading order comes out in the right order with the right editions, even when your Komga has several series with the same name. Anything you do not have is left out and counted in the message after the add."
+    ]
+  },
   "5.22.3": {
     "title": "Smoother Long Downloads",
     "highlights": [

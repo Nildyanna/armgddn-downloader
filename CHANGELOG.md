@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.23.0] - Unreleased
+
+### Added
+- **A new built-in browser window, for members the site lists.** While it is being tested the Companion opens it only for those members (the site decides). They can switch back to the classic window in Settings or from the tray menu, and `--classic` / `--native` on the command line always win. Everyone else sees no change.
+- **Per-file download sources.** A download can now carry its own sign-in header, renewal and fallback source. Nothing uses this yet.
+
+### Changed
+- **Add to My Komga matches your own files exactly.** A reading order is now built from the site's catalog: each comic is found by its exact file (same file name and size, with the folder as a tie-break), then by its Comic Vine issue, never by series name. The list comes out in reading order with the right editions even when your Komga has several series with the same name. A reading order the catalog does not know falls back to the reading-order file as before.
+
+### Fixed
+- **Add to My Komga with current Komga versions.** Komga now answers the match call with candidates for each issue instead of a ready request, which made every add report "none of the issues matched". Both answers are understood. A list that already exists is now found and replaced even when Komga's name search misses it.
+- **A byte-order mark in the settings file** no longer stops the Companion from starting.
+- **Copies of the app run from a test folder** can no longer take over `armgddn://` links from the installed Companion.
+
 ## [5.22.3] - 2026-11-18
 
 ### Changed

@@ -11,10 +11,10 @@ test('loadSession() returns a boolean, so it must not be used as a token in the 
     assert.ok(body.includes('savedSessionToken()'), h);
   }
   // the native Komga calls get their sign-in through comicsGet, which tries every token the app holds (catalogTokens above)
-  for (const h of ["ipcMain.handle('native-komga-lists'", "ipcMain.handle('native-komga-add'"]) {
-    const body = src.slice(src.indexOf(h), src.indexOf(h) + 1400);
-    assert.ok(body.includes('comicsGet('), h);
-  }
+  assert.ok(src.slice(src.indexOf("ipcMain.handle('native-komga-lists'"), src.indexOf("ipcMain.handle('native-komga-lists'") + 600).includes('comicsGet('));
+  const helper = src.slice(src.indexOf('async function komgaAddFromCatalog'), src.indexOf('// The reading orders a member can add'));
+  assert.ok(helper.includes('comicsGet('));
+  assert.ok(src.slice(src.indexOf("ipcMain.handle('native-komga-add'"), src.indexOf("ipcMain.handle('native-komga-add'") + 1500).includes('komgaAddFromCatalog('));
 });
 
 test('the settings loader ignores a byte-order mark (a PowerShell-written config once stopped the app from loading)', () => {

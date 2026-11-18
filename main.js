@@ -2641,6 +2641,26 @@ ipcMain.handle('native-komga-save', async (event, data) => {
   return { ok: true, url };
 });
 ipcMain.handle('native-komga-forget', () => { forgetKomgaKey(); return { ok: true }; });
+// Builds (or replaces) a read list in the member's own Komga from the site's catalog, the way the pipeline identifies comics: by the exact file,
+// then by Comic Vine id, never by series name (see komga.js). Shared by the classic window and the native window.
+// -> the result of komga.addCatalogReadList plus { name }, or { ok: false, catalogMissing: true, error } when the site has no such reading order.
+async function komgaAddFromCatalog(cfg, listId) {
+  const cat = await comicsGet('/api/comics/catalog?list=' + encodeURIComponent(listId));
+  if (!cat || !cat.ok || !cat.json || !Array.isArray(cat.json.items) || !cat.json.items.length) {
+    logToFile('Komga: no catalog list for "' + listId + '": ' + ((cat && cat.error) || 'no answer'));
+    return { ok: false, catalogMissing: true, error: (cat && cat.error) || 'Could not get the reading order from ARMGDDN. Try again in a moment.' };
+  }
+  const title = String((cat.json.list && cat.json.list.name) || (KOMGA_LISTS[listId] && KOMGA_LISTS[listId].title) || listId);
+  const name = `${title} - Suggested Reading Order`;
+  const r = await komga.addCatalogReadList({ baseUrl: cfg.url, apiKey: cfg.key, name, items: cat.json.items });
+  if (r.ok) {
+    logToFile(`Komga: ${r.replaced ? 'updated' : 'added'} "${name}" (${r.count} of ${r.total} comics: ${r.byFile} by file, ${r.byCv} by Comic Vine id; ${r.missing} not in this Komga)`);
+    return { ...r, name };
+  }
+  logToFile('Komga: add failed (' + r.reason + (r.step ? ' at ' + r.step + ', status ' + r.status : '') + ')');
+  return r;
+}
+
 // The reading orders a member can add: the site's catalog lists with more than 40 comics (the pipeline's own rule for a real reading order),
 // biggest first. Without a sign-in the six classic ones are offered, so the card is never empty.
 ipcMain.handle('native-komga-lists', async () => {
@@ -2664,19 +2684,9 @@ ipcMain.handle('native-komga-add', async (event, listId) => {
   try {
     const cfg = await loadKomgaConfig();
     if (!cfg) return { ok: false, needsSetup: true, error: 'Save your Komga address and API key first.' };
-    const cat = await comicsGet('/api/comics/catalog?list=' + encodeURIComponent(listId));
-    if (!cat || !cat.ok || !cat.json || !Array.isArray(cat.json.items) || !cat.json.items.length) {
-      logToFile('Komga (native): could not get the reading order from the site: ' + ((cat && cat.error) || 'no answer'));
-      return { ok: false, error: (cat && cat.error) || 'Could not get the reading order from ARMGDDN. Try again in a moment.' };
-    }
-    const title = String((cat.json.list && cat.json.list.name) || listId);
-    const name = `${title} - Suggested Reading Order`;
-    const r = await komga.addCatalogReadList({ baseUrl: cfg.url, apiKey: cfg.key, name, items: cat.json.items });
-    if (r.ok) {
-      logToFile(`Komga (native): ${r.replaced ? 'updated' : 'added'} "${name}" (${r.count} of ${r.total} comics: ${r.byFile} by file, ${r.byCv} by Comic Vine id; ${r.missing} not in this Komga)`);
-      return { ok: true, replaced: !!r.replaced, count: r.count, total: r.total, byFile: r.byFile, byCv: r.byCv, missing: r.missing, name };
-    }
-    logToFile('Komga (native): add failed (' + r.reason + (r.step ? ' at ' + r.step + ', status ' + r.status : '') + ')');
+    const r = await komgaAddFromCatalog(cfg, listId);
+    if (r.catalogMissing) return { ok: false, error: r.error };
+    if (r.ok) return { ok: true, replaced: !!r.replaced, count: r.count, total: r.total, byFile: r.byFile, byCv: r.byCv, missing: r.missing, name: r.name };
     if (r.reason === 'auth' || r.reason === 'unreachable') forgetKomgaKey();
     return { ok: false, reason: r.reason, error: r.message, needsSetup: r.reason === 'auth' || r.reason === 'unreachable' };
   } finally { komgaBusy = false; }
@@ -2702,6 +2712,22 @@ async function addReadListToKomga(listId) {
       cfg = await promptKomgaSettings();
       if (!cfg) return;
       await saveKomgaConfig(cfg);
+    }
+
+    // The site's catalog names every comic exactly, so the list matches the member's own files. A reading order the catalog does not know falls back
+    // to the reading-order file below (which only carries series, number and year).
+    const c = await komgaAddFromCatalog(cfg, listId);
+    if (!c.catalogMissing) {
+      if (c.ok) {
+        await komgaMessage('info', `${c.replaced ? 'Updated' : 'Added'} "${c.name}" ${c.replaced ? 'in' : 'to'} your Komga`,
+          `${c.count} of ${c.total} comics are in the read list, in reading order (${c.byFile} matched by file${c.byCv ? `, ${c.byCv} by Comic Vine id` : ''}).`
+            + (c.missing ? ` ${c.missing} are not in your Komga library yet, so they were left out.` : ''));
+        return;
+      }
+      if (c.reason === 'auth' || c.reason === 'unreachable') forgetKomgaKey();
+      await komgaMessage('error', c.message, c.reason === 'auth' || c.reason === 'unreachable'
+        ? 'Your saved Komga details were cleared. Click Add to My Komga again to enter them again.' : undefined);
+      return;
     }
 
     let xml;
