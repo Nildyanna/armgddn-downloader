@@ -125,7 +125,7 @@ header select + select { margin-left: 0; }
 .settings h2 { margin: 0 0 6px; }
 .srow { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--card, #0f1a2e); border: 1px solid var(--line); border-radius: 8px; }
 .srow .slabel { flex: 1; }
-.srow .sval { color: var(--dim); font-size: 12px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+.srow .sval { color: var(--dim); font-size: 12px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .srow input[type=number] { width: 90px; background: #0b1426; color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
 
 .credit { margin-left: auto; font-size: 11px; color: var(--dim); opacity: .75; margin-right: 14px; }
