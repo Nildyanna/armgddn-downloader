@@ -381,3 +381,24 @@ header select + select { margin-left: 0; }
 .help7z { width: min(720px, 92%); margin: 6px 18px 12px; border-radius: 8px; }
 .whatsnew ul { margin: 6px 0 8px 18px; }
 .dtools { display: flex; justify-content: flex-end; margin-bottom: 8px; }
+
+/* Two bars: the top one is the same on every page (where you can go, the current page lit); the one below holds what belongs to this page. */
+.topbar { border-bottom: 0; padding-bottom: 6px; }
+.topbar .tab.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.subbar { display: flex; align-items: center; gap: 10px; padding: 6px 18px 10px; background: var(--surface); border-bottom: 1px solid var(--line); flex-wrap: wrap; min-height: 44px; }
+.subbar .subtitle { color: var(--fg); font-weight: 600; margin-right: 6px; min-width: 90px; }
+.subbar select { flex: none; }
+.viewsel { margin-left: auto; display: flex; gap: 2px; flex: none; }
+.viewsel .tab.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+/* List view: titles only */
+.list { flex: 1; overflow: auto; padding: 8px 46px 24px 18px; display: flex; flex-direction: column; gap: 2px; align-content: start; }
+.lrow { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; }
+.lrow:hover { background: var(--surface); border-color: var(--line); }
+.lrow.picked { border-color: var(--accent); }
+.lrow .ltitle { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.lrow .lsub { color: var(--dim); font-size: 12px; white-space: nowrap; }
+.lrow .lbtns { display: flex; gap: 6px; flex: none; }
+.lrow .bsel { margin: 0; }
+
+/* An empty list says so in words; only a list that is really loading gets the spinner. */
+.empty { padding: 40px; text-align: center; color: var(--dim); }

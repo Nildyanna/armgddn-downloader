@@ -82,3 +82,23 @@ test('members on the native window see ARMGDDN Browser in the update window, not
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   assert.ok(main.includes("appName: NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion'") && main.includes("NATIVE_PREVIEW ? 'ARMGDDN Browser update available'"));
 });
+
+test('the native window has a fixed top bar (every page, the current one lit) and a page bar below it with the page controls and a Grid / List switch', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes('<header class="topbar">') && app.includes('<div class="subbar">') && app.includes('<span class="subtitle">${pageLabel}</span>'));
+  const top = app.slice(app.indexOf('<header class="topbar">'), app.indexOf('<div class="subbar">'));
+  for (const w of ['Home', 'Tools', 'Settings', 'Wiki', 'My List', 'Requests', 'Downloads']) assert.ok(top.includes(w), w + ' is in the top bar');
+  assert.ok(!top.includes('class="search"') && !top.includes('Everywhere'), 'the page controls are not in the top bar');
+  const sub = app.slice(app.indexOf('<div class="subbar">'), app.indexOf('<div class="subbar">') + 6000);
+  assert.ok(sub.includes('class="search"') && sub.includes('Everywhere') && sub.includes('class="viewsel"'));
+  assert.ok(app.includes("localStorage.setItem('native.viewMode', m)") && app.includes("listMode=${viewMode === 'list'}") && app.includes("class=${listMode ? 'list' : 'grid wide'}"));
+  assert.ok(app.includes("return html`<div class=${'lrow'"), 'a list row has no art');
+});
+
+test('an empty list says so in words; only a list that is really loading gets the spinner', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes('<div class="empty">No downloads yet.') && app.includes('<div class="empty">Your list is empty.'));
+  for (const m of app.matchAll(/<div class="loading">([^<]*)</g)) assert.ok(/^Loading/.test(m[1]), 'only loading messages use the spinner: ' + m[1]);
+  const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  assert.ok(css.includes('.empty {'));
+});

@@ -42,12 +42,24 @@ function tabsFrom(remotes) {
   return out;
 }
 
-function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, inList, onToggleList, batch }) {
+function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, inList, onToggleList, batch, listMode }) {
   const [broken, setBroken] = useState(false);
   const cover = !broken && ((item.coverArt && item.coverArt.cover && item.coverArt.cover.url) || collectionCoverPath(remote, folder, item));
   const year = releaseYear(item);
   const gameSection = ['PC Games', 'PCVR Games', 'Testing'].includes(remote);
   const coverClick = gameSection && cover && item.isDir ? () => onPreview(item) : (item.isDir ? () => onOpen(item) : null);
+  if (listMode) {
+    // The list view: one line per title, no art, like the legacy browser.
+    return html`<div class=${'lrow' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
+      ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
+      <span class="ltitle" onClick=${item.isDir ? () => onOpen(item) : undefined}>${cleanTitle(item.name)}</span>
+      <span class="lsub">${[year, formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}</span>
+      <span class="lbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
+      ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
+      ${item.isDir && canDownload(remote, folder, item) && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
+      ${canDownload(remote, folder, item) ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</span>
+    </div>`;
+  }
   return html`<div class=${'card' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
     ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
     <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img class="cbg" aria-hidden="true" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="cfg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onLoad=${(e) => { const im = e.target; im.classList.toggle('fill', coverFills(im.naturalWidth, im.naturalHeight, shapeFor(remote))); }} onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
@@ -185,7 +197,7 @@ function RequestsView({ say, openId }) {
       <h2>#${open.id} ${open.gameTitle} <span class=${'chip ' + tone}>${label}</span></h2>
       <div class="sub">${open.category} · ${shortDate(open.createdAt)}</div>
       ${open.decisionReason ? html`<div class="reason"><strong>Decision:</strong> ${open.decisionReason}</div>` : ''}
-      <div class="thread">${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'You')} · ${shortDate(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="loading">No messages yet.</div>`}</div>
+      <div class="thread">${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'You')} · ${shortDate(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="empty">No messages yet.</div>`}</div>
       <div class="compose"><input type="text" maxlength="500" placeholder="Write a message…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
     </div>`;
   }
@@ -202,13 +214,13 @@ function RequestsView({ say, openId }) {
     </div>` : ''}
     ${list === null ? html`<div class="loading">Loading…</div>` : list.length ? html`<div class="dlist">${list.map((r) => { const [label, tone] = statusInfo(r.status); return html`<div class="drow clickable" key=${r.id} onClick=${() => openThread(r)}>
       <div class="dname">#${r.id} ${r.gameTitle}<span><span class=${'chip ' + tone}>${label}</span>${r.unreadCount ? html` <span class="badge">${r.unreadCount}</span>` : ''}</span></div>
-      <div class="dmeta">${r.category} · ${shortDate(r.createdAt)}</div></div>`; })}</div>` : html`<div class="loading">You haven't made any requests.</div>`}
+      <div class="dmeta">${r.category} · ${shortDate(r.createdAt)}</div></div>`; })}</div>` : html`<div class="empty">You haven't made any requests.</div>`}
   </div>`;
 }
 
-function MyListView({ list, render }) {
-  if (!list.length) return html`<div class="loading">Your list is empty. Press the heart on a game, album or comic to save it here.</div>`;
-  return html`<main class="grid wide">${list.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
+function MyListView({ list, render, listMode }) {
+  if (!list.length) return html`<div class="empty">Your list is empty. Press the heart on a game, album or comic to save it here.</div>`;
+  return html`<main class=${listMode ? 'list' : 'grid wide'}>${list.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
 }
 
 function WikiView() {
@@ -220,7 +232,7 @@ function WikiView() {
   const cur = wikiSectionFor(sections, id);
   useEffect(() => { if (body.current) body.current.scrollTop = 0; }, [cur && cur.id]);
   if (!wiki) return html`<div class="loading">Loading...</div>`;
-  if (!cur) return html`<div class="loading">The Wiki is not available.</div>`;
+  if (!cur) return html`<div class="empty">The Wiki is not available.</div>`;
   const click = (e) => {
     const link = e.target.closest && e.target.closest('a');
     if (!link) return;
@@ -239,8 +251,8 @@ function WikiView() {
 function EverywhereResults({ index, query, render }) {
   const found = useMemo(() => (index ? searchEverywhere(index, query) : []), [index, query]);
   if (!index) return html`<div class="loading">Loading every section so it can be searched...</div>`;
-  if (!query.trim()) return html`<div class="loading">Type to search every section (PC, PCVR, Testing, Apps, 3D, Comics, Music).</div>`;
-  if (!found.length) return html`<div class="loading">Nothing matches that.</div>`;
+  if (!query.trim()) return html`<div class="empty">Type to search every section (PC, PCVR, Testing, Apps, 3D, Comics, Music).</div>`;
+  if (!found.length) return html`<div class="empty">Nothing matches that.</div>`;
   return html`<main class="grid wide"><div class="count" style="grid-column:1/-1">${found.length} found</div>${found.map(render)}</main>`;
 }
 
@@ -606,7 +618,7 @@ function TrendingStrip({ windows, onOpen }) {
     a.onfinish = () => { setIdx((n) => (sets.length ? (n + 1) % sets.length : 0)); setCycle((n) => n + 1); };
     return () => { try { a.cancel(); } catch (e) { } };
   }, [idx, cycle, sets.length]);
-  if (!cur) return html`<div class="loading">Nothing is trending yet.</div>`;
+  if (!cur) return html`<div class="empty">Nothing is trending yet.</div>`;
   return html`<${Fragment}><div class="tbar"><span class=${'tbadge ' + (cur.goat ? 'goat' : cur.win)} title="Which set is showing">${cur.label}</span></div>
   <div class=${'ticker' + (cur.goat ? ' goatmode' : '')} ref=${view} onMouseEnter=${() => { try { anim.current && anim.current.pause(); } catch (e) { } }} onMouseLeave=${() => { try { anim.current && anim.current.play(); } catch (e) { } }}>
     <div class="ticker-track" ref=${track} key=${idx + '-' + cycle}>${cur.items.map((e) => html`<div class="tpill" key=${e.norm + e.platform} onClick=${() => onOpen(e)}>
@@ -675,7 +687,7 @@ function RadarStrip({ trend, progress, myList, history, onOpen, onSave, onResume
   const inList = (it) => (myList || []).some((m) => radarGroup(m.remote) === it.remote && radarPath(m.path) === radarPath(it.path));
   return html`<${Fragment}>
     <div class="radar-actions"><button class="dbtn" onClick=${refresh}>Refresh</button><button class="dbtn" onClick=${reset}>Show dismissed cards again</button>${history && history[0] ? html`<button class="dbtn" onClick=${onResume}>Resume last visit</button>` : ''}</div>
-    ${!slots.length ? html`<div class="loading">No new cards left yet. Use “Show dismissed cards again” to reset the stack.</div>` : html`<div class="rslots">${slots.map((it, i) => html`<${RadarCard} key=${i} item=${it} fade=${fades[i]} inList=${inList(it)} onOpen=${onOpen} onSave=${onSave} onDismiss=${dismiss} />`)}</div>`}
+    ${!slots.length ? html`<div class="empty">No new cards left yet. Use “Show dismissed cards again” to reset the stack.</div>` : html`<div class="rslots">${slots.map((it, i) => html`<${RadarCard} key=${i} item=${it} fade=${fades[i]} inList=${inList(it)} onOpen=${onOpen} onSave=${onSave} onDismiss=${dismiss} />`)}</div>`}
   </${Fragment}>`;
 }
 
@@ -705,13 +717,13 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
       ${trend === null || progress === null ? html`<div class="loading">Loading…</div>` : html`<${RadarStrip} trend=${trend} progress=${progress} myList=${myList} history=${history} onOpen=${onRadarOpen} onSave=${onRadarSave} onResume=${onResume} />`}
     </${Strip}>
     <${Strip} id="gems" title="Hidden Gems" sub="In the library a while, hardly downloaded. A different handful each day.">
-      ${gems === null ? html`<div class="loading">Loading…</div>` : !gems.length ? html`<div class="loading">No gems today.</div>` : html`<div class="hrow">${gems.map((it) => render(it, 'g'))}</div>`}
+      ${gems === null ? html`<div class="loading">Loading…</div>` : !gems.length ? html`<div class="empty">No gems today.</div>` : html`<div class="hrow">${gems.map((it) => render(it, 'g'))}</div>`}
     </${Strip}>
   </main>`;
 }
 
 function DownloadsView({ list, onClear }) {
-  if (!list.length) return html`<div class="loading">No downloads yet. Press Download on any game, album or comic collection.</div>`;
+  if (!list.length) return html`<div class="empty">No downloads yet. Press Download on any game, album or comic collection.</div>`;
   return html`<div class="dlist"><div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
     <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
@@ -736,6 +748,9 @@ function App() {
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('name');
   const [reverse, setReverse] = useState(false);
+  // Grid (the cards with art) or list (titles only). Remembered on this PC; it applies to every page that lists titles.
+  const [viewMode, setViewModeState] = useState(() => { try { return localStorage.getItem('native.viewMode') === 'list' ? 'list' : 'grid'; } catch (e) { return 'grid'; } });
+  const setViewMode = (m) => { setViewModeState(m); try { localStorage.setItem('native.viewMode', m); } catch (e) { } };
   const [noticeOff, setNoticeOff] = useState(false);
   const [view, setView] = useState('home');
   const [openRequest, setOpenRequest] = useState(null);
@@ -900,6 +915,7 @@ function App() {
     return () => { live = false; clearInterval(t); };
   }, []);
   const activeCount = downloads.filter(isActiveDownload).length;
+  const pageLabel = view === 'library' ? (everywhere ? 'Search everywhere' : (remote || 'Library')) : ({ home: 'Home', tools: 'Tools', settings: 'Settings', wiki: 'Wiki', mylist: 'My List', requests: 'Requests', downloads: 'Downloads' }[view] || '');
   const prevActive = useRef(0); const [pulse, setPulse] = useState(false);
   useEffect(() => { if (activeCount > prevActive.current) { setPulse(true); const id = setTimeout(() => setPulse(false), 1700); prevActive.current = activeCount; return () => clearTimeout(id); } prevActive.current = activeCount; }, [activeCount]);
   const autoOk = useRef(true);   // step into the library folder when a tab is opened, but not when the member clicks back to the top
@@ -992,7 +1008,7 @@ function App() {
       <img class="banner-logo" src="skull-logo.png" alt="ARMGDDN" />
       <div class="banner-text"><h1>ARMGDDN BROWSER</h1><p>Secure Multi-Remote Game Browser</p></div>
     </div>
-    <header>
+    <header class="topbar">
       <button class=${view === 'home' ? 'tab on' : 'tab'} onClick=${() => setView('home')}>Home</button>
       <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
       <button class=${view === 'tools' ? 'tab on' : 'tab'} title="Only what I'm missing, Komga" onClick=${() => setView('tools')}>Tools</button>
@@ -1001,6 +1017,9 @@ function App() {
       <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>
       <button class=${view === 'requests' ? 'tab on' : 'tab'} onClick=${() => setView('requests')}>Requests</button>
       <button class=${(view === 'downloads' ? 'tab on' : 'tab') + (pulse ? ' pulse' : '')} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
+    </header>
+    <div class="subbar">
+      <span class="subtitle">${pageLabel}</span>
       ${view === 'library' ? html`<${Fragment}>
       <label class="everywhere" title="Search every section, not just this list"><input type="checkbox" checked=${everywhere} onChange=${(e) => { setEverywhere(e.target.checked); setView('library'); }} /> Everywhere</label>
       <input class="search" type="search" placeholder=${everywhere ? "Search every section" : "Search this list"} value=${query} onInput=${(e) => setQuery(e.target.value)} />
@@ -1011,15 +1030,16 @@ function App() {
       ${batchActive ? html`<label class="everywhere"><input type="checkbox" checked=${allPicked} onChange=${(e) => setPicked(e.target.checked ? new Set(shown.map(itemKeyOf)) : new Set())} /> Select all</label><button class="primary" disabled=${!picked.size} onClick=${startBatch}>Download ${picked.size || ''} selected</button>` : ''}
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
-    </header>
-    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
+      ${(view === 'library' || view === 'mylist') ? html`<span class="viewsel" title="How the titles are shown"><button class=${viewMode === 'grid' ? 'tab on' : 'tab'} onClick=${() => setViewMode('grid')}>Grid</button><button class=${viewMode === 'list' ? 'tab on' : 'tab'} onClick=${() => setViewMode('list')}>List</button></span>` : ''}
+    </div>
+    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
     ${view === 'library' && remote === 'Comics' && !everywhere && !folder && !query ? html`<section class="komgabox"><div><strong>Komga</strong> - free comic server and reader. It runs on your PC and reads the comics you download here, with covers, series and reading progress.</div><div class="dbtns"><button class="dbtn go" onClick=${() => api.openExternal('https://komga.org/docs/installation/desktop')}>Download Komga</button><button class="dbtn" onClick=${() => setView('wiki')}>Setup guide</button><button class="dbtn" onClick=${() => setView('tools')}>Add reading orders</button></div></section>` : ''}
-    ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} render=${(it) => html`<${Card} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}
-    ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { recordVisit(x, remote, folder); setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
+    ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}
+    ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${viewMode === 'list' ? 'list' : "grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { recordVisit(x, remote, folder); setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
     ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
