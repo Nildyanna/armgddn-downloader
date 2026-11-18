@@ -374,6 +374,7 @@ function TrendingStrip({ windows, onOpen }) {
     return list;
   }, [windows]);
   const fwBox = useRef(null);
+  useEffect(() => { window.__tickerGoat = () => { setIdx(sets.length - 1); setCycle((n) => n + 1); return sets.map((x) => x.label + (x.goat ? '*' : '')).join(' | '); }; return () => { delete window.__tickerGoat; }; }, [sets.length]);   // lets a screenshot script jump to the finale
   const [idx, setIdx] = useState(0);
   const [cycle, setCycle] = useState(0);
   const view = useRef(null); const track = useRef(null); const anim = useRef(null);
