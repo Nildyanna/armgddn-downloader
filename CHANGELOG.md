@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.26.2] - 2026-11-18
+
+### Added
+- **File menu:** Settings, Check for updates and a switch between the new and the classic window, in either window. **Help:** Open the log folder.
+
+### Fixed
+- **The Requests page froze the built-in window.** A notice that belongs to the library pages had been placed inside it and threw an error. A page that fails to draw now shows a message with Try again and Back instead of freezing the app.
+- **File > Exit** now really exits instead of hiding the app in the tray.
+- The Music and Comics "some items may be missing" notice now shows in those libraries.
+
 ## [5.26.1] - 2026-11-18
 
 ### Added

@@ -1,4 +1,14 @@
 {
+  "5.26.2": {
+    "title": "Fixes And A Proper Menu",
+    "highlights": [
+      "Fixes the Requests page, which froze the new built-in window.",
+      "A page that runs into a problem now shows a message with Try again and Back instead of freezing the app.",
+      "File > Exit now really exits.",
+      "The File menu now has Settings, Check for updates and a switch between the new and classic windows. Help has Open the log folder.",
+      "The Music and Comics \"some items may be missing\" notice now shows in those libraries."
+    ]
+  },
   "5.26.1": {
     "title": "Back And Forth",
     "highlights": [
