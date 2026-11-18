@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems } from './format.mjs';
 import { useRef } from '../../native/vendor/ui.mjs';
 
 const api = window.nativeAPI;
@@ -58,7 +58,7 @@ function App() {
       const files = r.data.files || [];
       const into = folder === '' && autoOk.current ? autoEnter(remote, files) : null;
       if (into) { setFolder(into); return; }
-      setItems(files);
+      setItems(visibleItems(remote, folder, files));
     });
     return () => { live = false; };
   }, [remote, folder]);

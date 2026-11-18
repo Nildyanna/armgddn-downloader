@@ -25,4 +25,10 @@ test('grid helpers', async () => {
   assert.deepEqual(crumbsFor('PC Games', 'PC1/Game v1/Update'), { root: 'PC1', items: [{ label: 'Game v1', path: 'PC1/Game v1' }, { label: 'Update', path: 'PC1/Game v1/Update' }] });
   assert.deepEqual(crumbsFor('Music', 'Artist/Album'), { root: '', items: [{ label: 'Artist', path: 'Artist' }, { label: 'Album', path: 'Artist/Album' }] });
   assert.deepEqual(crumbsFor('Comics', ''), { root: '', items: [] });
+  const { visibleItems } = await import('../renderer/native/format.mjs');
+  const raw = [{ name: 'Game', path: 'PC1/Game', isDir: true }, { name: 'currentserverPC-FTP.json', path: 'PC1/currentserverPC-FTP.json', isDir: false }, { name: 'PC1', path: 'PC1', isDir: true }, { name: 'notes.txt', path: 'PC1/notes.txt', isDir: false }];
+  assert.deepEqual(visibleItems('PC Games', 'PC1', raw).map((x) => x.name), ['Game', 'notes.txt']);
+  const t = [{ name: 'PC', isDir: true }, { name: 'PCVR', isDir: true }, { name: 'stray', isDir: true }, { name: 'a.json', isDir: false }];
+  assert.deepEqual(visibleItems('Testing', '', t).map((x) => x.name), ['PC', 'PCVR']);
+  assert.equal(visibleItems('Music', '', [{ name: 'X', isDir: true }]).length, 1);
 });

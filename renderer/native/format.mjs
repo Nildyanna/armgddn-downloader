@@ -54,3 +54,21 @@ export function crumbsFor(remote, folder) {
   const rest = root ? parts.slice(1) : parts;
   return { root, items: rest.map((label, i) => ({ label, path: [...(root ? [root] : []), ...rest.slice(0, i + 1)].join('/') })) };
 }
+
+// What the website leaves out of a listing: the folder's own entry if the server echoes it, stray catalog files (currentserver*.json) and,
+// at the top of Testing, everything except the PC and PCVR folders.
+export function visibleItems(remote, folder, items) {
+  const norm = (x) => String(x || '').replace(/^\/+|\/+$/g, '');
+  const here = norm(folder);
+  const leaf = here ? here.split('/').pop() : '';
+  let out = (Array.isArray(items) ? items : []).filter((f) => {
+    if (!f) return false;
+    const fp = norm(f.path);
+    if (here && fp && fp === here) return false;
+    if (leaf && !fp && f.name === leaf) return false;
+    if (!f.isDir && /\.json$/i.test(f.name || '')) return false;
+    return true;
+  });
+  if (remote === 'Testing' && !here) out = out.filter((f) => !f.isDir || f.name === 'PC' || f.name === 'PCVR');
+  return out;
+}
