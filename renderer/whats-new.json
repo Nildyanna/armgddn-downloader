@@ -1,4 +1,11 @@
 {
+  "5.22.3": {
+    "title": "Smoother Long Downloads",
+    "highlights": [
+      "Download links are now renewed just before they expire, so very long downloads no longer hit a burst of failed requests when a link runs out.",
+      "Retry causes in download reports are now more specific, so the reason a download slows or drops can be pinned down. No file names or paths are included."
+    ]
+  },
   "5.22.2": {
     "title": "Download Diagnostics",
     "highlights": [

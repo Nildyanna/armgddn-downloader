@@ -152,3 +152,20 @@ test('by default each stream gets one long request instead of many short ones', 
   assert.strictEqual(sha(fs.readFileSync(out)), sha(DATA));
   assert.ok(seen.length <= 4, `${seen.length} requests`);
 });
+
+test('a link close to its expiry is renewed before any request is refused', async () => {
+  const { linkSecondsLeft } = require('../segmentedDownload');
+  const now = Math.floor(Date.now() / 1000);
+  assert.equal(linkSecondsLeft('https://x/f?remote=a&exp=' + (now + 600) + '&sig=z') > 500, true);
+  assert.equal(linkSecondsLeft('https://x/f?file=a'), null);
+  assert.equal(linkSecondsLeft('not a url'), null);
+  const s = await server();
+  const out = tmp(); let fresh = 0; const events = [];
+  const soon = `${s.base}/f?exp=${now + 20}&sig=a`;
+  await segmentedDownload(base({ url: soon, outputPath: out, onEvent: (m) => events.push(m), getFreshUrl: async () => { fresh++; return `${s.base}/f?exp=${now + 600}&sig=b`; } })).promise;
+  s.srv.close();
+  assert.equal(sha(fs.readFileSync(out)), sha(DATA));
+  assert.equal(fresh, 1, 'renewed once, up front');
+  assert.equal(s.seen.filter((r) => r.mode === '403').length, 0);
+  assert.ok(events.some((m) => /link renewed/.test(m)));
+});

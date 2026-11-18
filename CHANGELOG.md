@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.22.3] - 2026-11-18
+
+### Changed
+- **Links renewed before they expire.** A download link is now renewed about 90 seconds before it runs out, instead of after the server refuses it, so long downloads no longer hit a burst of failed requests.
+- **More specific retry causes.** HTTP/2 and network error families get their own labels; unrecognised wording gets a short fingerprint. No text, hosts or paths are sent.
+
 ## [5.22.2] - 2026-11-17
 
 ### Added
