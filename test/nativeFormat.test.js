@@ -58,4 +58,11 @@ test('grid helpers', async () => {
   const { statusInfo, shortDate } = await import('../renderer/native/format.mjs');
   assert.deepEqual(statusInfo('pending'), ['Pending', 'warn']); assert.deepEqual(statusInfo('REJECTED'), ['Rejected', 'bad']); assert.equal(statusInfo('weird')[0], 'Weird');
   assert.equal(shortDate('not a date'), ''); assert.match(shortDate('2026-11-17T12:00:00Z'), /2026/);
+  const { detailLines, steamLinks, dayKey } = await import('../renderer/native/format.mjs');
+  const item = { size: 52 * 1024 ** 3, modTime: '2026-11-01T00:00:00Z', releaseDate: '2025-02-03', downloadCount: 1234, coverArt: { steamAppId: 4242 } };
+  const lines = detailLines('PC Games', item);
+  assert.equal(lines[0], 'Remote: PC Games'); assert.ok(lines.some((l) => l.startsWith('Size: 52.0 GB'))); assert.ok(lines.some((l) => l.includes('1,234 downloads')));
+  assert.deepEqual(steamLinks(item).map((x) => x[0]), ['Steam', 'SteamDB']); assert.deepEqual(steamLinks({}), []);
+  assert.equal(dayKey(new Date(2026, 10, 18)), '2026-11-18');
+  assert.equal(detailLines('Music', { size: 10, crossRemoteSize: 5000 }).some((l) => l.startsWith('Size: 4.9 KB')), true);   // a stub folder shows the real size
 });

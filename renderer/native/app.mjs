@@ -1,6 +1,5 @@
-import { html, render, useState, useEffect, useMemo, Fragment } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate } from './format.mjs';
-import { useRef } from '../../native/vendor/ui.mjs';
+import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -16,7 +15,7 @@ function tabsFrom(remotes) {
   return out;
 }
 
-function Card({ item, onOpen, remote, folder, onDownload }) {
+function Card({ item, onOpen, remote, folder, onDownload, onDetails }) {
   const [broken, setBroken] = useState(false);
   const cover = !broken && ((item.coverArt && item.coverArt.cover && item.coverArt.cover.url) || collectionCoverPath(remote, folder, item));
   const year = releaseYear(item);
@@ -24,6 +23,7 @@ function Card({ item, onOpen, remote, folder, onDownload }) {
     <div class="cover">${cover ? html`<img loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
       <div class="sub">${[year, formatSize(item.size)].filter(Boolean).join(' · ')}</div>
+      ${item.isDir && canDownload(remote, folder, item) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
       ${canDownload(remote, folder, item) ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div>
   </div>`;
 }
@@ -33,6 +33,49 @@ function AlphaBar({ letters }) {
   const jump = (l) => { const el = document.querySelector('.grid [data-letter="' + l + '"]'); if (el) el.scrollIntoView({ block: 'start' }); };
   if (letters.length < 2) return '';
   return html`<div class="alpha">${letters.map((l) => html`<button onClick=${() => jump(l)}>${l}</button>`)}</div>`;
+}
+
+function Modal({ title, onClose, children, wide }) {
+  useEffect(() => { const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  return html`<div class="overlay" onClick=${onClose}><div class=${'modal' + (wide ? ' wide' : '')} onClick=${(e) => e.stopPropagation()}>
+    <div class="mhead"><div class="mtitle">${title}</div><button class="dbtn" onClick=${onClose}>Close</button></div>${children}</div></div>`;
+}
+
+function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse }) {
+  const art = item.coverArt || {};
+  const cover = art.cover && art.cover.url;
+  const [readme, setReadme] = useState(null);   // null = checking, false = none, object = found
+  const [showReadme, setShowReadme] = useState(false);
+  const path = [folder, item.name].filter(Boolean).join('/');
+  useEffect(() => { api.readme(remote, path).then((r) => setReadme(r.ok && r.data && r.data.found && r.data.contentHash ? r.data : false)); }, []);
+  const cats = Array.isArray(art.categories) ? art.categories.filter(Boolean).slice(0, 10) : [];
+  if (showReadme && readme) return html`<${Modal} title=${'README - ' + cleanTitle(item.name)} onClose=${() => setShowReadme(false)} wide=${true}><pre class="readme">${readme.content}${readme.truncated ? '\n\n[README PREVIEW TRUNCATED]' : ''}</pre></${Modal}>`;
+  return html`<${Modal} title=${cleanTitle(item.name)} onClose=${onClose} wide=${true}>
+    <div class="dhead">
+      <div class="dcover">${cover ? html`<img src=${coverSrc(cover)} alt="" />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
+      <div class="dinfo">
+        <div class="dsub">${detailLines(remote, item).map((l) => html`<div>${l}</div>`)}</div>
+        ${cats.length ? html`<div class="pills">${cats.map((c) => html`<span class="pill">${c}</span>`)}</div>` : ''}
+        ${steamLinks(item).length ? html`<div class="links">${steamLinks(item).map(([n, u]) => html`<a href="#" onClick=${(e) => { e.preventDefault(); api.openLink(u); }}>${n}</a>`)}</div>` : ''}
+        <div class="dbtns">
+          <button class="primary" onClick=${() => { onClose(); onDownload(item); }}>Download</button>
+          <button class="dbtn" onClick=${() => { onClose(); onBrowse(item); }}>Browse files</button>
+          <button class="dbtn" disabled=${!readme} onClick=${() => setShowReadme(true)}>${readme === null ? 'Checking README...' : 'Read README'}</button>
+        </div>
+      </div>
+    </div></${Modal}>`;
+}
+
+// The notices a download goes through on the website: bandwidth reminder (once a day), then the README if there is one.
+function GateModal({ gate }) {
+  const g = gate.spec;
+  return html`<${Modal} title=${g.title} onClose=${() => gate.resolve(false)} wide=${true}>
+    ${g.image ? html`<img class="gateimg" src=${coverSrc(g.image)} alt="" />` : g.text ? html`<pre class="readme">${g.text}</pre>` : g.body}
+    <div class="dbtns" style="margin-top:12px">
+      <button class="primary" onClick=${() => gate.resolve(true)}>${g.ok || 'Continue'}</button>
+      <button class="dbtn" onClick=${() => gate.resolve(false)}>Cancel</button>
+      ${g.skipKey ? html`<label class="skip"><input type="checkbox" onChange=${(e) => { gate.skip = e.target.checked; }} /> Don't show this again today</label>` : ''}
+    </div></${Modal}>`;
 }
 
 function RequestsView({ say }) {
@@ -104,8 +147,30 @@ function App() {
   const [downloads, setDownloads] = useState([]);
   const [toast, setToast] = useState('');
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
+  const [details, setDetails] = useState(null);
+  const [gate, setGate] = useState(null);
+  const acked = useRef(new Set());
+  const ask = (spec) => new Promise((resolve) => { const g = { spec, skip: false, resolve: (v) => { setGate(null); if (v && spec.skipKey && g.skip) { try { localStorage.setItem(spec.skipKey, dayKey()); } catch (e) { } } resolve(v); } }; setGate(g); });
+  // Same order as the website: bandwidth reminder, then (for apps) the PC Apps notice or (for the rest) the README, which must be accepted once per session.
+  const passGates = async (path) => {
+    let skipped = false; try { skipped = localStorage.getItem('bandwidthNoticeSkipDay') === dayKey(); } catch (e) { }
+    if (!skipped && !(await ask({ title: 'Please read - bandwidth matters', skipKey: 'bandwidthNoticeSkipDay', ok: 'OK',
+      body: html`<div class="notice-body"><h3>We pay for the bandwidth</h3><p>Downloading the same game over and over won't fix anything, and every extra copy is one that someone else now can't grab.</p><ul><li>Download the whole game, not one file at a time.</li><li>Turn on Auto-extract in Settings, or extract with 7-Zip.</li><li>If a game gives you trouble, ask for help first in the Telegram before downloading again.</li><li>Don't delete anything until you're sure the game works.</li></ul></div>` }))) return false;
+    if (remote === 'Pirated PC Apps') return ask({ title: 'READ THIS BEFORE DOWNLOADING PC APPS', image: 'https://www.armgddnbrowser.com/PC_Apps_Modal.jpg' });
+    const r = await api.readme(remote, path);
+    const d = r.ok ? r.data : null;
+    if (d && d.found && d.contentHash && !acked.current.has(d.contentHash)) {
+      const yes = await ask({ title: 'READ THIS BEFORE DOWNLOADING THE GAME', text: d.content + (d.truncated ? '\n\n[README PREVIEW TRUNCATED]' : ''), ok: 'I have read it, continue' });
+      if (!yes) return false;
+      acked.current.add(d.contentHash);
+    }
+    return true;
+  };
+  const browseInto = (item) => { setView('library'); autoOk.current = false; setFolder(folder ? folder + '/' + item.name : item.name); setQuery(''); };
   const startDownload = async (item) => {
-    const r = await api.download(remote, [folder, item.name].filter(Boolean).join('/'));
+    const path = [folder, item.name].filter(Boolean).join('/');
+    if (!(await passGates(path))) { say('Download cancelled'); return; }
+    const r = await api.download(remote, path);
     if (r.ok) { say('Download started: ' + cleanTitle(item.name)); setView('downloads'); }
     else say(r.error.kind === 'auth' ? 'Sign in again to download.' : (r.error.message || 'Could not start the download'));
   };
@@ -170,8 +235,10 @@ function App() {
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
-    ${items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
+    ${items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
+    ${details ? html`<${DetailsModal} item=${details} remote=${remote} folder=${folder} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
+    ${gate ? html`<${GateModal} gate=${gate} />` : ''}
     ${toast ? html`<div class="toast">${toast}</div>` : ''}
   </div>`;
 }

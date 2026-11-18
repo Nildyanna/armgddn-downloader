@@ -11,6 +11,7 @@ const wrap = (fn) => async (_event, ...args) => {
   catch (e) { return { ok: false, error: { kind: e && e.kind ? e.kind : 'error', message: e && e.message ? e.message : String(e), status: e && e.status ? e.status : 0 } }; }
 };
 
+const LINK_HOSTS = new Set(['store.steampowered.com', 'steamdb.info', '7-zip.org', 't.me', 'telegram.me', 'github.com']);
 const SAFE_REMOTE = /^[A-Za-z0-9 _.\-]{1,60}$/;
 function browsePath(remote, folder) {
   if (!SAFE_REMOTE.test(String(remote || ''))) throw Object.assign(new Error('Bad remote name'), { kind: 'http', status: 400 });
@@ -23,7 +24,7 @@ function registerSchemes(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'armgddn-img', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 }
 
-function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads }) {
+function start({ BrowserWindow, ipcMain, shell, protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads }) {
   const api = createApiClient({ getToken, version });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
@@ -83,6 +84,18 @@ function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version,
     if (t.length < 2 || t.length > 200) throw Object.assign(new Error('Type what you want (2 to 200 characters)'), { kind: 'http', status: 400 });
     return api.post('/api/requests/submit', { gameTitle: t, category, notes: String(notes || '').trim().slice(0, 500) }, { invalidate: ['/api/requests/my'] });
   }));
+  // README of a title (the same lookup the website's Read README and the download notice use).
+  ipcMain.handle('native:readme', wrap((remote, folderPath) => {
+    browsePath(remote, folderPath);
+    return api.get(`/api/readme-preview?remote=${encodeURIComponent(remote)}&path=${encodeURIComponent(folderPath || '')}`, { ttlMs: 5 * 60 * 1000 });
+  }));
+  // Links in details and notices: https and a short list of hosts only.
+  ipcMain.handle('native:openLink', wrap(async (url) => {
+    const u = new URL(String(url || ''));
+    if (u.protocol !== 'https:' || !LINK_HOSTS.has(u.hostname)) throw Object.assign(new Error('That link is not allowed'), { kind: 'http', status: 400 });
+    await shell.openExternal(u.toString());
+    return { opened: true };
+  }));
   ipcMain.handle('native:stats', wrap(async () => api.stats));
 
   protocol.handle('armgddn-img', async (request) => {
@@ -124,4 +137,4 @@ function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version,
   return win;
 }
 
-module.exports = { start, registerSchemes, wrap, browsePath };
+module.exports = { start, registerSchemes, wrap, browsePath, LINK_HOSTS };

@@ -3260,7 +3260,7 @@ app.whenReady().then(() => {
     try {
       loadSession();
       require('./native/bridge').start({
-        BrowserWindow, ipcMain, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
+        BrowserWindow, ipcMain, shell, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
         openLogin: () => openAuthWindow(), log: logToFile,
         startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer)
       });

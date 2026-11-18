@@ -17,3 +17,8 @@ test('request writes are validated before they reach the site', async () => {
   const bad = await wrap(async () => { throw Object.assign(new Error('Message too long (max 500)'), { kind: 'http', status: 400 }); })(null);
   assert.equal(bad.ok, false); assert.equal(bad.error.status, 400);
 });
+test('only a short list of https hosts can be opened from the window', () => {
+  const { LINK_HOSTS } = require('../native/bridge');
+  for (const h of ['store.steampowered.com', 'steamdb.info', '7-zip.org', 't.me']) assert.ok(LINK_HOSTS.has(h), h);
+  for (const h of ['evil.example', 'steampowered.com.evil.example', 'localhost']) assert.ok(!LINK_HOSTS.has(h), h);
+});

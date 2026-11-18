@@ -133,3 +133,25 @@ export function shortDate(iso) {
   const d = new Date(iso);
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
 }
+
+// Facts shown in the details window, in the website's order.
+export function detailLines(remote, item) {
+  const art = item.coverArt || {};
+  const date = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? String(v || '') : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); };
+  const size = formatSize(item.size && Number(item.size) >= 1024 ? item.size : (item.crossRemoteSize || item.size));
+  const dl = Number(item.downloadCount || 0);
+  return [
+    remote ? `Remote: ${remote}` : '',
+    size ? `Size: ${size}` : '',
+    item.modTime ? `Added/Updated: ${date(item.modTime)}` : '',
+    (item.releaseDate || art.releaseDate) ? `Release: ${date(item.releaseDate || art.releaseDate)}` : '',
+    dl > 0 ? `Popularity: ${dl.toLocaleString()} downloads (last 30 days)` : '',
+  ].filter(Boolean);
+}
+export function steamLinks(item) {
+  const id = item && item.coverArt && item.coverArt.steamAppId;
+  return id ? [['Steam', `https://store.steampowered.com/app/${encodeURIComponent(id)}/`], ['SteamDB', `https://steamdb.info/app/${encodeURIComponent(id)}/`]] : [];
+}
+export const PATCH_FOLDER = /(update|patch|hotfix)/i;
+// The notice shown before a download, once a day unless the member ticks "don't show again today".
+export function dayKey(d = new Date()) { return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
