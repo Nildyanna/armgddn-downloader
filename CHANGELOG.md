@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.24.0] - 2026-11-18
+
+### Added
+- **A Komga section on the built-in window's Comics tab**, matching the website: Download Komga, Setup guide and Add reading orders.
+
+### Changed
+- The app can now open komga.org links from the built-in window.
+
 ## [5.23.1] - 2026-11-18
 
 ### Changed

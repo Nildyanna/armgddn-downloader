@@ -1,4 +1,10 @@
 {
+  "5.24.0": {
+    "title": "Komga on the Comics Tab",
+    "highlights": [
+      "The new built-in window's Comics tab now starts with a Komga section: download Komga, open the setup guide, or add a suggested reading order to your own Komga."
+    ]
+  },
   "5.23.1": {
     "title": "Small Fixes",
     "highlights": [
