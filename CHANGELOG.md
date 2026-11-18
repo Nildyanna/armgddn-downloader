@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.23.1] - 2026-11-18
+
+### Changed
+- **The introduction animation plays only after a first sign-in in the built-in window.** Members who open it already signed in, or who have seen it on the website, no longer get it.
+- **Settings in the built-in window** now include Minimize to the tray and Start minimized.
+
+### Fixed
+- **The built-in window's introduction animation** never started (the screen could stay on a glowing orb). It now plays, and a failed intro removes itself instead of covering the app.
+- **A Companion that is not the installed app** (a development or test copy) can no longer install updates over the real one.
+
 ## [5.23.0] - 2026-11-18
 
 ### Added

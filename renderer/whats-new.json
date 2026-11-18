@@ -1,4 +1,11 @@
 {
+  "5.23.1": {
+    "title": "Small Fixes",
+    "highlights": [
+      "Fixes the introduction animation in the new built-in window, which is only switched on for a few members while it is being tested. It now plays only after a first sign-in, and not for anyone who is already signed in or has seen it on the website.",
+      "The new built-in window's Settings now has Minimize to the tray and Start minimized, like the classic window."
+    ]
+  },
   "5.23.0": {
     "title": "Add to My Komga Works Again",
     "highlights": [
