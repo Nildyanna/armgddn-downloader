@@ -11,3 +11,10 @@ test('loadSession() returns a boolean, so it must not be used as a token in the 
     assert.ok(body.includes('savedSessionToken()'), h);
   }
 });
+
+test('the settings loader ignores a byte-order mark (a PowerShell-written config once stopped the app from loading)', () => {
+  const body = src.slice(src.indexOf('function loadSettings()'), src.indexOf('function loadSettings()') + 500);
+  assert.ok(body.includes("replace(/^\\uFEFF/, '')"));
+  assert.strictEqual(JSON.parse('{"a":1}'.replace(/^\uFEFF/, '')).a, 1);
+  assert.strictEqual(JSON.parse('\uFEFF{"a":1}'.replace(/^\uFEFF/, '')).a, 1);
+});

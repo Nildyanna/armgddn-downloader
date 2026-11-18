@@ -29,7 +29,7 @@ Hidden like on the website: stray `.json` files, folder echoes, Testing strays, 
 - Tools tab (2026-11-18): "only what I'm missing" for Comics and Music (pick folder, scan with live count, compare with the library or one reading order, download the rest)
   and Komga (address and API key, add a reading order as a read list, import the key from the installed Companion). They call the same main-process code as the classic window.
   Tested on the PC: the Comics scan and compare against the live library list (read only), the Komga key import. NOT run: "Download what I'm missing" (it starts real downloads),
-  "Add to my Komga" (it changes the member's own Komga), a Music scan (the imported Music folder is N:\).
+  a Music scan (the imported Music folder is N:\\). "Add to my Komga" was run against a real Komga 1.28 (it created the Daredevil read list, 402 of 419 issues; the test list was deleted afterwards); Komga 1.28 answers the match call with candidates per issue, which komga.js now handles (it used to report "no match" for every list).
 - Themes and their fonts: 27 Google Fonts families (latin woff2, 0.8 MB) are bundled in `renderer/native/fonts` (made by `scripts/get_fonts.py`), so themes look right offline.
 - Not copied: the public status page, game requests (closed), mobile, the remaining classic-window tools (history, schedule; reachable through Settings).
 - Wiki text is the website's. Sections 2, 8, 11, 12, 13 describe the website flow and need rewriting for the app (Wiki edits need approval).

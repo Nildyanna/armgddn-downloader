@@ -400,7 +400,7 @@ function KomgaTool({ say }) {
     setBusy(id); setMsg(`Adding ${title}...`);
     const r = await api.komgaAdd(id);
     setBusy('');
-    if (r && r.ok) { setMsg(`${r.replaced ? 'Updated' : 'Added'} "${r.name}" ${r.replaced ? 'in' : 'to'} your Komga. ${Number(r.count).toLocaleString()} issues are in the read list.${r.missing ? ` ${Number(r.missing).toLocaleString()} are not in your Komga library yet, so they were left out.` : ''}`); say('Added to your Komga: ' + r.name); return; }
+    if (r && r.ok) { setMsg(`${r.replaced ? 'Updated' : 'Added'} "${r.name}" ${r.replaced ? 'in' : 'to'} your Komga. ${Number(r.count).toLocaleString()} issues are in the read list.${r.missing ? ` ${Number(r.missing).toLocaleString()} were left out` + (r.ambiguous ? ` (${Number(r.ambiguous).toLocaleString()} of them because your Komga has more than one series they could belong to, so the app did not guess; the rest are not in your Komga library)` : ' because they are not in your Komga library') + '.' : ''}`); say('Added to your Komga: ' + r.name); return; }
     setMsg((r && r.error) || 'Could not add the list.'); if (r && r.needsSetup) await load();
   };
   return html`<section class="toolcard">

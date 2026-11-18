@@ -18,7 +18,8 @@ function load(fake) {
 const enc = (s) => Buffer.from('ENC:' + s);
 const dec = (b) => b.toString().replace(/^ENC:/, '');
 const syncApi = () => ({ isEncryptionAvailable: () => true, encryptString: enc, decryptString: dec });
-const asyncApi = () => ({ isAsyncEncryptionAvailable: async () => true, encryptStringAsync: async (s) => enc(s), decryptStringAsync: async (b) => dec(b) });
+// Electron 45+ really answers { result, shouldReEncrypt } (see electron.d.ts, DecryptStringAsyncReturnValue), not a string.
+const asyncApi = () => ({ isAsyncEncryptionAvailable: async () => true, encryptStringAsync: async (s) => enc(s), decryptStringAsync: async (b) => ({ shouldReEncrypt: false, result: dec(b) }) });
 
 test('Electron 44: only the synchronous methods exist, and the async helpers use them', async () => {
   const s = load(syncApi());
@@ -53,4 +54,14 @@ test('no usable safeStorage at all: not available, and encrypt/decrypt refuse in
   assert.strictEqual(await s.isAvailable(), false);
   await assert.rejects(() => s.encrypt('x'));
   await assert.rejects(() => s.decrypt(Buffer.from('x')));
+});
+
+test('the async decrypt returns the text, never the { result } object, and refuses a reply with no text', async () => {
+  const s = load(asyncApi());
+  const out = await s.decrypt(await s.encrypt('0123456789abcdef0123456789abcdef'));
+  assert.strictEqual(typeof out, 'string'); assert.strictEqual(out.length, 32); assert.notStrictEqual(out, '[object Object]');
+  const plain = load(Object.assign(asyncApi(), { decryptStringAsync: async (b) => dec(b) }));        // a build that answers with a bare string
+  assert.strictEqual(await plain.decrypt(enc('x')), 'x');
+  const empty = load(Object.assign(asyncApi(), { decryptStringAsync: async () => ({ shouldReEncrypt: false }) }));
+  await assert.rejects(() => empty.decrypt(enc('x')), /nothing readable/);
 });

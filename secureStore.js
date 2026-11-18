@@ -23,7 +23,14 @@ async function encrypt(text) {
 }
 
 async function decrypt(buf) {
-  if (hasAsync) return await safeStorage.decryptStringAsync(buf);
+  if (hasAsync) {
+    // Electron 45+: resolves to { result, shouldReEncrypt }, not a string (returning it as is made every saved key and token the text
+    // "[object Object]"). A plain string is still accepted.
+    const r = await safeStorage.decryptStringAsync(buf);
+    if (typeof r === 'string') return r;
+    if (r && typeof r.result === 'string') return r.result;
+    throw new Error('safeStorage returned nothing readable');
+  }
   if (hasSync) return safeStorage.decryptString(buf);
   throw new Error('safeStorage has no decrypt method');
 }

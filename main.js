@@ -2340,7 +2340,7 @@ function loadSettings() {
   try {
     const configPath = getConfigPath();
     if (fs.existsSync(configPath)) {
-      const data = fs.readFileSync(configPath, 'utf8');
+      const data = fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/, '');   // an editor or PowerShell may have added a byte-order mark
       settings = { ...settings, ...JSON.parse(data) };
     }
     const hadHashDefault = !!settings.autoHashCheckDefaultedOn;
@@ -2657,9 +2657,9 @@ ipcMain.handle('native-komga-add', async (event, listId) => {
     const r = await komga.addReadList({ baseUrl: cfg.url, apiKey: cfg.key, xml, fileName: `${listName || listId} - Suggested Reading Order.cbl` });
     if (r.ok) {
       logToFile(`Komga (native): ${r.replaced ? 'updated' : 'added'} "${listName}" (${r.count} issues, ${r.missing} not in library)`);
-      return { ok: true, replaced: !!r.replaced, count: r.count, missing: r.missing, name: listName };
+      return { ok: true, replaced: !!r.replaced, count: r.count, missing: r.missing, ambiguous: r.ambiguous || 0, name: listName };
     }
-    logToFile('Komga (native): add failed (' + r.reason + ')');
+    logToFile('Komga (native): add failed (' + r.reason + (r.step ? ' at ' + r.step + ', status ' + r.status : '') + ') key length ' + String(cfg.key).length + ' fingerprint ' + require('crypto').createHash('sha256').update(String(cfg.key)).digest('hex').slice(0, 6));
     if (r.reason === 'auth' || r.reason === 'unreachable') forgetKomgaKey();
     return { ok: false, reason: r.reason, error: r.message, needsSetup: r.reason === 'auth' || r.reason === 'unreachable' };
   } finally { komgaBusy = false; }
