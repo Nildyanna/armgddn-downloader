@@ -187,3 +187,34 @@ test('comparison lines read like the classic window, for comics and music', asyn
   assert.match(startedLine('music', { started: 1, files: 10, bytes: 2e9, folder: 'D:\\Music' }), /Started 1 download \(10 tracks, 1\.9 GB\)\. .* arrive in D:\\Music/);
   assert.match(startedLine('comics', { started: 3, files: 5, bytes: 0, folder: 'x' }), /Started 3 downloads \(5 comics, 0 B\)/);
 });
+
+test('the intro plays only after a real first sign-in here, never for someone already signed in, who has seen it, or who has seen it on the website', async () => {
+  const { introDecision, normalizePrefs } = await import('../renderer/native/format.mjs');
+  // a new member signs in for the first time: plays, and is remembered
+  assert.deepEqual(introDecision({ afterSignIn: true }), { play: true, markSeen: true });
+  // the window opens with the member already signed in (an existing Companion user): no intro, and it is not offered later either
+  assert.deepEqual(introDecision({ afterSignIn: false }), { play: false, markSeen: true });
+  // seen in this app before
+  assert.deepEqual(introDecision({ afterSignIn: true, seenHere: true }), { play: false, markSeen: false });
+  // seen on the website (carried with the synced preferences): no intro, and remembered
+  assert.deepEqual(introDecision({ afterSignIn: true, seenOnWebsite: true }), { play: false, markSeen: true });
+  // switched off in Settings, or a screenshot run: no intro and nothing remembered
+  assert.deepEqual(introDecision({ afterSignIn: true, off: true }), { play: false, markSeen: false });
+  assert.deepEqual(introDecision({ afterSignIn: true, quiet: true }), { play: false, markSeen: false });
+  assert.deepEqual(introDecision(), { play: false, markSeen: true });
+  // the website's flag is read as a strict boolean
+  assert.equal(normalizePrefs({ introSeen: true }).introSeen, true);
+  for (const v of [false, 'true', 1, null, undefined]) assert.equal(normalizePrefs({ introSeen: v }).introSeen, false);
+  assert.equal(normalizePrefs({}).introSeen, false);
+});
+
+test('the native window starts the intro only after a sign-in made in it, reads the synced preferences first, and offers the classic switches', () => {
+  const fs = require('fs'); const path = require('path');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes('const boot = async (afterSignIn) => {') && app.includes('boot(true); };') && app.includes('useEffect(() => { boot(); }, []);'));
+  const boot = app.slice(app.indexOf('const boot = async'), app.indexOf('useEffect(() => { boot(); }, []);'));
+  assert.ok(boot.indexOf('api.prefs()') > -1 && boot.indexOf('api.prefs()') < boot.indexOf('introDecision('), 'the preferences are read before the intro is decided');
+  assert.ok(boot.includes('seenOnWebsite') && boot.includes("localStorage.setItem('native.lightningSeen', '1')"));
+  for (const key of ['minimizeToTrayOnMinimize', 'startWithOsMinimized', 'minimizeToTrayOnClose', 'startWithOsStartup', 'autoUpdate', 'showNotifications', 'autoExtract7z', 'autoHashCheck', 'errorReporting'])
+    assert.ok(app.includes("'" + key + "'"), key + ' is in the native Settings');
+});

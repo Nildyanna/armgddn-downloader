@@ -306,7 +306,7 @@ export function parsePrefs(code) {
 export function normalizePrefs(raw) {
   if (!raw || typeof raw !== 'object') return { error: 'The code could not be read.' };
   const str = (v, max) => (typeof v === 'string' && v.length <= max ? v : '');
-  const out = { myList: [], theme: '', strips: {}, searches: [], komgaUrl: '', animations: null };
+  const out = { myList: [], theme: '', strips: {}, searches: [], komgaUrl: '', animations: null, introSeen: false };
   const list = Array.isArray(raw.myList) ? raw.myList.slice(0, 2000) : [];
   for (const i of list) {
     if (!i || typeof i !== 'object') continue;
@@ -324,6 +324,7 @@ export function normalizePrefs(raw) {
   out.searches = (Array.isArray(raw.searches) ? raw.searches : []).map((x) => str(x, 100)).filter(Boolean).slice(0, 30);
   const k = str(raw.komgaUrl, 200); out.komgaUrl = /^https?:\/\/[^\s]+$/.test(k) ? k : '';
   out.animations = raw.animations === '0' || raw.animations === 'off' || raw.animations === false ? false : raw.animations === '1' || raw.animations === 'on' || raw.animations === true ? true : null;
+  out.introSeen = raw.introSeen === true;      // seen on the website
   return out;
 }
 // Merge imported My List entries into the current one without duplicates (same remote and path).
@@ -386,4 +387,13 @@ export function startedLine(kind, r) {
   const n = (v) => Number(v || 0).toLocaleString();
   const unit = kind === 'music' ? 'tracks' : 'comics';
   return `Started ${n(r.started)} download${r.started === 1 ? '' : 's'} (${n(r.files)} ${unit}, ${formatSize(r.bytes) || '0 B'}). They are in the Downloads tab, and arrive in ${r.folder}. Scan again afterwards.`;
+}
+
+// The lightning reveal is a welcome for a member's first sign-in in this app. It plays only after a real sign-in in this window, never when the window
+// opens with the member already signed in (an existing Companion user is not new), never again once seen here, and never when the website's own
+// preferences say they have already seen it. markSeen = remember that, so it is not offered again.
+export function introDecision({ afterSignIn = false, seenHere = false, off = false, quiet = false, seenOnWebsite = false } = {}) {
+  const play = !!afterSignIn && !seenHere && !off && !quiet && !seenOnWebsite;
+  const markSeen = play || !afterSignIn || !!seenOnWebsite;
+  return { play, markSeen };
 }

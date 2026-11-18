@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -253,9 +253,11 @@ const SETTING_ROWS = [
   ['check', 'useNativeWindow', 'Open this native window when the app starts (turn off to use the classic window; applies next time the app starts)'],
   ['check', 'autoExtract7z', 'Extract .7z files automatically'],
   ['check', 'showNotifications', 'Show notifications'],
+  ['check', 'minimizeToTrayOnMinimize', 'Minimize to the tray'],
   ['check', 'minimizeToTrayOnClose', 'Keep running in the tray when the window is closed'],
   ['check', 'autoUpdate', 'Update automatically'],
   ['check', 'startWithOsStartup', 'Start with the computer'],
+  ['check', 'startWithOsMinimized', 'Start minimized'],
   ['check', 'errorReporting', 'Send error reports'],
 ];
 // Help with problems: the same four tools the classic Settings has. The codes are pasted in the ARMGDDN Games Welcome & Support chat for Tulip.
@@ -804,7 +806,7 @@ function App() {
   const autoOk = useRef(true);   // step into the library folder when a tab is opened, but not when the member clicks back to the top
 
   const fail = (e) => { setError(e || { message: 'Something went wrong' }); setItems([]); };
-  const boot = async () => {
+  const boot = async (afterSignIn) => {
     setError(null);
     const s = await api.status();
     setStatus(s.ok ? s.data : { signedIn: false });
@@ -812,17 +814,26 @@ function App() {
     const r = await api.remotes();
     if (!r.ok) return fail(r.error);
     const t = tabsFrom(r.data.remotes); setTabs(t); if (t.length) setRemote(t[0]);
-    // The website's lightning reveal plays once for a member, after their first sign-in (and not in a screenshot run).
-    try { if (!api.quiet && localStorage.getItem('native.lightningSeen') !== '1' && localStorage.getItem('native.lightningOff') !== '1') { localStorage.setItem('native.lightningSeen', '1'); mountLoginLightning(); } } catch (e) { }
     // The website copies each member's preferences to the server; the first time here they come over by themselves, and later visits only add
-    // new My List entries. Nothing for the member to do.
+    // new My List entries. Nothing for the member to do. They are read first, because they also say whether the member has seen the intro.
+    let pulled = null;
+    try { const pr = await api.prefs(); if (pr.ok && pr.data && pr.data.prefs) pulled = pr.data; } catch (e) { }
+    // The lightning reveal: a welcome for the first sign-in here (see introDecision); not for anyone already signed in when the window opens, and
+    // not for anyone who has seen it on the website. Never in a screenshot run.
     try {
-      const pr = await api.prefs();
-      if (pr.ok && pr.data && pr.data.prefs) {
+      const d = introDecision({
+        afterSignIn: !!afterSignIn, seenHere: localStorage.getItem('native.lightningSeen') === '1', off: localStorage.getItem('native.lightningOff') === '1',
+        quiet: !!api.quiet, seenOnWebsite: !!(pulled && pulled.prefs && pulled.prefs.introSeen === true)
+      });
+      if (d.markSeen) localStorage.setItem('native.lightningSeen', '1');
+      if (d.play) mountLoginLightning();
+    } catch (e) { }
+    try {
+      if (pulled) {
         const seen = Number(localStorage.getItem('native.prefsPulled') || 0);
-        const stamp = Number(pr.data.updatedAt) || 1;
+        const stamp = Number(pulled.updatedAt) || 1;
         if (stamp > seen) {
-          const n = normalizePrefs(pr.data.prefs);
+          const n = normalizePrefs(pulled.prefs);
           if (!n.error) { applyPrefs(n, true, seen > 0); localStorage.setItem('native.prefsPulled', String(stamp)); }
         }
       }
@@ -867,7 +878,7 @@ function App() {
     const r = await api.downloadBatch(rem, paths, []);
     if (r.ok) { say('Started ' + paths.length + ' item' + (paths.length === 1 ? '' : 's')); setBatch(false); setView('downloads'); } else say(r.error.message || 'Could not start the batch download');
   };
-  const signIn = async () => { await api.login(); boot(); };
+  const signIn = async () => { await api.login(); boot(true); };
 
   if (status && !status.signedIn) return html`<div class="center"><h1>ARMGDDN</h1><p>Sign in to browse the library.</p><button class="primary" onClick=${signIn}>Sign in with Telegram</button></div>`;
   return html`<div class="shell">
