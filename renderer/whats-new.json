@@ -1,4 +1,11 @@
 {
+  "5.26.1": {
+    "title": "Back And Forth",
+    "highlights": [
+      "Every screen in the new built-in window now has a Back button, and Alt+Left or your mouse's back button works too.",
+      "In \"Check my games\", each game with a newer version is now a link that opens it in the library."
+    ]
+  },
   "5.26.0": {
     "title": "Easier To Get Around",
     "highlights": [

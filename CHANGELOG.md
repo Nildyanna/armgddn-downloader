@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.26.1] - 2026-11-18
+
+### Added
+- **A Back button on every screen** of the built-in window, plus Alt+Left and the mouse back button.
+- **Game updates link to the library.** Each game with a newer version in "Check my games" opens it in the library when clicked.
+
 ## [5.26.0] - 2026-11-18
 
 ### Added
