@@ -211,7 +211,7 @@ header select + select { margin-left: 0; }
 .banner h1 { font-family: Orbitron, "Segoe UI Black", system-ui, sans-serif; font-size: 2rem; margin: 0 0 4px; letter-spacing: .12em; text-transform: uppercase; font-weight: 800; background: linear-gradient(90deg, var(--accent), var(--accent2)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .banner p { margin: 0; color: var(--dim); font-size: .92rem; }
 .banner-actions { position: absolute; top: 8px; right: 14px; display: flex; gap: 8px; align-items: center; z-index: 3; }
-.banner-credit { position: absolute; bottom: 8px; right: 18px; font-size: .62rem; user-select: none; z-index: 2; pointer-events: none; }
+.banner-credit { position: absolute; bottom: 8px; right: 18px; font-size: .72rem; font-weight: 600; user-select: none; z-index: 2; pointer-events: none; }
 .fire-text { position: relative; z-index: 2; background: linear-gradient(to bottom, #ff6b35 0%, #f7931e 25%, #ffcc00 50%, #ff6b35 75%, #cc3300 100%); background-size: 100% 200%; -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; animation: fireFlicker .8s ease-in-out infinite alternate; filter: drop-shadow(0 0 3px rgba(255,150,50,.6)) drop-shadow(0 0 6px rgba(255,100,30,.4)); }
 .fire-particles { position: absolute; inset: 0; z-index: 1; overflow: visible; }
 .flame { position: absolute; bottom: 50%; width: 3px; height: 8px; background: linear-gradient(to top, #ff6b35, #ffcc00, transparent); border-radius: 50% 50% 20% 20%; opacity: 0; animation: flameRise 1.2s ease-out infinite; }
