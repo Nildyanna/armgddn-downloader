@@ -15,15 +15,18 @@ export function releaseYear(item) {
 export function cleanTitle(name) {
   return String(name || '').replace(/\s*-ARMGDDN\b.*$/i, '').replace(/\s+v\d[\w.()\-]*\s*$/i, '').trim() || String(name || '');
 }
-export function filterAndSort(items, { query = '', sort = 'name' } = {}) {
+export function filterAndSort(items, { query = '', sort = 'name', reverse = false } = {}) {
   const q = String(query).trim().toLowerCase();
   let out = (items || []).filter((x) => x && (!q || String(x.name || '').toLowerCase().includes(q)));
   const by = {
     name: (a, b) => cleanTitle(a.name).localeCompare(cleanTitle(b.name), undefined, { sensitivity: 'base', numeric: true }),
     newest: (a, b) => String(b.firstSeenAt || b.modTime || '').localeCompare(String(a.firstSeenAt || a.modTime || '')) || by.name(a, b),
     size: (a, b) => (Number(b.size) || 0) - (Number(a.size) || 0) || by.name(a, b),
+    popularity: (a, b) => (Number(b.downloadCount) || 0) - (Number(a.downloadCount) || 0) || by.name(a, b),
+    released: (a, b) => String(b.releaseDate || (b.coverArt && b.coverArt.releaseDate) || '').localeCompare(String(a.releaseDate || (a.coverArt && a.coverArt.releaseDate) || '')) || by.name(a, b),
   };
-  return out.slice().sort(by[sort] || by.name);
+  const sorted = out.slice().sort(by[sort] || by.name);
+  return reverse ? sorted.reverse() : sorted;
 }
 
 // The top level of a game group is the mirror's root folder ("PC1"), not the library. The website steps into it automatically, and so does this.
@@ -254,4 +257,10 @@ export function searchEverywhere(entries, query, limit = 400) {
   const out = [];
   for (const it of entries || []) { if (searchMatches(it.name, query)) { out.push(it); if (out.length >= limit) break; } }
   return out;
+}
+
+// "123 downloads in the last 30 days", shown with a flame on the cards, as on the website.
+export function popularityLabel(item) {
+  const n = Number(item && item.downloadCount);
+  return Number.isFinite(n) && n > 0 ? '\u{1F525} ' + n.toLocaleString('en-US') + ' (30d)' : '';
 }

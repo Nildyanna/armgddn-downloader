@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -24,7 +24,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
   return html`<div class="card" data-letter=${letterOf(item.name)} title=${item.name}>
     <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
-      <div class="sub">${[year, formatSize(item.size)].filter(Boolean).join(' · ')}</div>
+      <div class="sub">${[year, formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}</div>
       <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
       ${item.isDir && canDownload(remote, folder, item) && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
@@ -163,6 +163,7 @@ function RequestsView({ say, openId }) {
   }
   return html`<div class="reqpane">
     <div class="reqhead"><h2>My requests</h2><button class="primary" onClick=${() => setForm({ category: 'Music', title: '', notes: '' })}>New request</button></div>
+    ${view === 'library' && !everywhere && (remote === 'Music' || remote === 'Comics') && !noticeOff ? html`<div class="notice soft">Some albums and comic collections may be missing tracks or issues that haven't been sourced yet. If you'd like to contribute, please contact Old Man of the Hills. Some releases are left out on purpose (remixes, live versions, compilations and the like), so these lists are not a complete or official catalogue. <button class="dbtn" onClick=${() => setNoticeOff(true)}>Got it</button></div>` : ''}
     ${error ? html`<div class="notice">${error.message}</div>` : ''}
     ${form ? html`<div class="reqform">
       <select value=${form.category} onChange=${(e) => setForm({ ...form, category: e.target.value })}><option>Music</option><option>Comics</option></select>
@@ -269,6 +270,8 @@ function App() {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('name');
+  const [reverse, setReverse] = useState(false);
+  const [noticeOff, setNoticeOff] = useState(false);
   const [view, setView] = useState('library');
   const [openRequest, setOpenRequest] = useState(null);
   useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setView('requests'); setOpenRequest(m.id); } }); }, []);
@@ -399,7 +402,7 @@ function App() {
   }, [remote, folder]);
 
   const cats = useMemo(() => categoryCounts(items || [], remote), [items, remote]);
-  const shown = useMemo(() => filterAndSort(filterByCategory(items || [], category, remote), { query, sort }), [items, query, sort, category, remote]);
+  const shown = useMemo(() => filterAndSort(filterByCategory(items || [], category, remote), { query, sort, reverse }), [items, query, sort, reverse, category, remote]);
   const crumbs = crumbsFor(remote, folder);
   const signIn = async () => { await api.login(); boot(); };
 
@@ -417,7 +420,8 @@ function App() {
       <label class="everywhere" title="Search every section, not just this list"><input type="checkbox" checked=${everywhere} onChange=${(e) => { setEverywhere(e.target.checked); setView('library'); }} /> Everywhere</label>
       <input class="search" type="search" placeholder=${everywhere ? "Search every section" : "Search this list"} value=${query} onInput=${(e) => setQuery(e.target.value)} />
       ${cats.length ? html`<select value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All categories</option>${cats.slice(0, 80).map((c) => html`<option value=${c.name}>${c.name} (${c.count})</option>`)}</select>` : ''}
-      <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="newest">Newest</option><option value="size">Largest</option></select>
+      <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="popularity">Popularity</option><option value="newest">Added</option><option value="released">Released</option><option value="size">Size</option></select>
+      <button class="tab" title="Reverse the order" onClick=${() => setReverse(!reverse)}>${reverse ? '\u2191' : '\u2193'}</button>
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
     </header>
@@ -434,6 +438,7 @@ function App() {
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}
     ${toast ? html`<div class="toast">${toast}</div>` : ''}
+    <div class="credit">Created by Old Man of the Hills v${(status && status.version) || ''}</div>
   </div>`;
 }
 render(html`<${App} />`, document.getElementById('app'));

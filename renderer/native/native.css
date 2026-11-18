@@ -127,3 +127,6 @@ header select + select { margin-left: 0; }
 .srow .slabel { flex: 1; }
 .srow .sval { color: var(--dim); font-size: 12px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
 .srow input[type=number] { width: 90px; background: #0b1426; color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+
+.credit { position: fixed; left: 14px; bottom: 6px; font-size: 11px; color: var(--dim); opacity: .7; pointer-events: none; z-index: 5; }
+.notice.soft { background: #0f1a2e; color: var(--dim); font-size: 12px; border: 1px solid var(--line); margin: 6px 18px; padding: 8px 12px; border-radius: 8px; }

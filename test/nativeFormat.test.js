@@ -94,3 +94,13 @@ test('grid helpers', async () => {
   assert.equal(S.searchMatches('\u00c9dith Piaf', 'edith'), true); assert.equal(S.searchMatches('Doom', 'doom eternal'), false); assert.equal(S.searchMatches('Doom', ''), false);
   assert.equal(S.searchEverywhere([{ name: 'Alpha' }, { name: 'Beta' }, { name: 'Alphabet' }], 'alpha').length, 2); assert.equal(S.searchEverywhere([{ name: 'a' }, { name: 'a' }], 'a', 1).length, 1);
 });
+
+test('sort by popularity and release, reversed, and the flame label', async () => {
+  const { filterAndSort, popularityLabel } = await import('../renderer/native/format.mjs');
+  const items = [{ name: 'A', downloadCount: 3, releaseDate: '2020-01-01' }, { name: 'B', downloadCount: 30, releaseDate: '2018-05-05' }, { name: 'C', releaseDate: '2024-02-02' }];
+  assert.deepEqual(filterAndSort(items, { sort: 'popularity' }).map((x) => x.name), ['B', 'A', 'C']);
+  assert.deepEqual(filterAndSort(items, { sort: 'released' }).map((x) => x.name), ['C', 'A', 'B']);
+  assert.deepEqual(filterAndSort(items, { sort: 'popularity', reverse: true }).map((x) => x.name), ['C', 'A', 'B']);
+  assert.equal(popularityLabel({ downloadCount: 1234 }), '\u{1F525} 1,234 (30d)');
+  assert.equal(popularityLabel({ downloadCount: 0 }), ''); assert.equal(popularityLabel({}), '');
+});
