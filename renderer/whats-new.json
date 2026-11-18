@@ -1,4 +1,11 @@
 {
+  "5.24.1": {
+    "title": "Better Game Art",
+    "highlights": [
+      "Game, music and comic art in the new built-in window now fits like on the website, instead of being cut off.",
+      "Internal update files are no longer listed."
+    ]
+  },
   "5.24.0": {
     "title": "Komga on the Comics Tab",
     "highlights": [

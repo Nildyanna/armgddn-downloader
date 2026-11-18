@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.24.1] - 2026-11-18
+
+### Fixed
+- **Cover art in the built-in window** is shown whole over a blurred backdrop unless its shape matches the tile, as on the website.
+- **Update housekeeping files** (such as `updatePCVR-FTP.txt`) are no longer listed.
+
 ## [5.24.0] - 2026-11-18
 
 ### Added
