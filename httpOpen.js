@@ -12,6 +12,16 @@ const { ResumeError } = require('./resumeDownload');
 const proxy = require('./proxy');
 
 const MAX_REDIRECTS = 5;
+
+// A redirect to another site must not carry the credentials meant for the first one (a Drive access token in Authorization).
+function headersForRedirect(headers, from, to) {
+  let same = false;
+  try { same = new URL(String(from)).origin === new URL(String(to)).origin; } catch (e) { }
+  if (same || !headers) return headers;
+  const out = {};
+  for (const [k, v] of Object.entries(headers)) if (!/^(authorization|cookie|proxy-authorization)$/i.test(k)) out[k] = v;
+  return out;
+}
 const IDLE_CLOSE_MS = 15 * 1000;
 const H1_ONLY_MS = 10 * 60 * 1000;
 let SESSION_GRACE_MS = 5 * 1000;
@@ -160,7 +170,7 @@ async function openH2(u, headers, stallMs, opts, hops) {
         settled = true; req.close();
         if (hops >= MAX_REDIRECTS) return reject(new ResumeError('too many redirects', 'network'));
         let next; try { next = new URL(rh.location, u).toString(); } catch (e) { return reject(new ResumeError('bad redirect', 'network')); }
-        return openAuto(next, headers, stallMs, opts, hops + 1).then(resolve, reject);
+        return openAuto(next, headersForRedirect(headers, u, next), stallMs, opts, hops + 1).then(resolve, reject);
       }
       settled = true;
       req.statusCode = code; req.headers = rh; req.httpVersion = '2.0';
@@ -187,7 +197,7 @@ function openH1(u, headers, stallMs, opts, hops) {
         res.resume();
         if (hops >= MAX_REDIRECTS) return reject(new ResumeError('too many redirects', 'network'));
         let next; try { next = new URL(res.headers.location, u).toString(); } catch (e) { return reject(new ResumeError('bad redirect', 'network')); }
-        return openAuto(next, headers, stallMs, opts, hops + 1).then(resolve, reject);
+        return openAuto(next, headersForRedirect(headers, u, next), stallMs, opts, hops + 1).then(resolve, reject);
       }
       resolve({ req, res });
     });
@@ -213,4 +223,4 @@ function closeAllSessions() {
   h1Only.clear();
 }
 
-module.exports = { openAuto, closeAllSessions, recentStalls, adaptiveStreamCap, _noteStall: noteStall, _clearStalls: () => { stallLog.length = 0; }, _closeSession: closeSession, _setGraceMs: (ms) => { SESSION_GRACE_MS = ms; }, _setProbeMs: (silence, wait) => { SILENCE_PROBE_MS = silence; PING_WAIT_MS = wait; } };
+module.exports = { openAuto, headersForRedirect, closeAllSessions, recentStalls, adaptiveStreamCap, _noteStall: noteStall, _clearStalls: () => { stallLog.length = 0; }, _closeSession: closeSession, _setGraceMs: (ms) => { SESSION_GRACE_MS = ms; }, _setProbeMs: (silence, wait) => { SILENCE_PROBE_MS = silence; PING_WAIT_MS = wait; } };

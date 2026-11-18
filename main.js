@@ -1025,6 +1025,7 @@ function isAllowedUpdateHost(hostname) {
 }
 
 const updateRunner = require('./updateRunner');
+const driveDirectClient = require('./driveDirectClient');
 const hashCheck = require('./hashCheck');
 const exitGuard = require('./exitGuard');
 const { describe7zFailure } = require('./sevenZipErrors');
@@ -4180,6 +4181,8 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
       headers: {
         'Content-Type': 'application/json',
         'Content-Length': Buffer.byteLength(postData),
+        // Says this app can use a Drive link with a token (direct-from-Drive); the site decides per file and otherwise sends the usual links.
+        'X-Drive-Direct': '1',
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       }
     };
@@ -4989,6 +4992,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
     name: name,
     itemKey: downloadItemKey,
     manifestUrl: (typeof manifestUrl === 'string' ? manifestUrl : ''),
+    directGrant: driveDirectClient.grantFromManifest(manifest),   // set when the site started a direct-from-Drive grant
     remotePath: remotePath,  // Store for trending reporting
     progressHost,
     progressPort,
@@ -5965,7 +5969,14 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       const expected = normalizeFileSize(file.size);
       let lastResumeBytes = 0;
       let spBytes = null; let spAt = 0; let spRate = 0;
-      const getFreshUrl = async () => {
+      const getFreshUrl = async (ctx) => {
+        // A Drive link is renewed through the site, which does not count as a new download. If the site will not renew it (or the engine is
+        // already on the gateway), ask the manifest for the gateway link as before.
+        if (download.directGrant && file.headers && !(ctx && ctx.onFallback) && download.manifestUrl && download.token) {
+          const r = await driveDirectClient.renew(download.directGrant, String(download.manifestUrl), download.token);
+          if (r) { logToFile(`[DriveDirect] renewed the token for ${fileName}`); return { url: String(file.url), headers: r.headers, expiresAt: r.expiresAt, fallback: file.fallback }; }
+          logToFile(`[DriveDirect] renewal refused for ${fileName}; using the gateway`);
+        }
         if (!download.manifestUrl || !download.token) return String(file.url);
         const m = await fetchManifestRidingOutNetwork(download, String(download.manifestUrl), download.token, '');
         const wantPath = file.path ? String(file.path) : '';
@@ -6050,6 +6061,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         return;
       }
       if (!failure) {
+        try { if (download.directGrant && file.path) download.directGrant.done.add(String(file.path)); } catch (e) { }
         download.downloadedSize += normalizeFileSize(file.size);
         download.completedFiles++;
         if (download.activeFiles[fileKey]) {
@@ -7730,6 +7742,7 @@ ipcMain.handle('cancel-download', async (event, downloadId) => {
   download.cancelled = true;
   download.status = 'cancelled';
   download.statusMessage = 'Cancelling and removing downloaded files...';
+  try { if (download.directGrant && download.manifestUrl) driveDirectClient.finish(download.directGrant, String(download.manifestUrl), download.token); } catch (e) { }
 
   // Snapshot before termination; the child close handlers remove entries.
   const processes = Array.isArray(download.activeProcesses) ? [...download.activeProcesses] : [];
@@ -8099,6 +8112,7 @@ function finalizeCompletedDownload(downloadId) {
 
   logToFile(`[completeDownload] Setting status to completed and sending event`);
   download.status = 'completed';
+  try { if (download.directGrant && download.manifestUrl) driveDirectClient.finish(download.directGrant, String(download.manifestUrl), download.token); } catch (e) { }
   download.progress = 100;
   download.downloadedSize = download.totalSize;
   download.endTime = new Date().toISOString();

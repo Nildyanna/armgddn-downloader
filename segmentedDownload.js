@@ -169,7 +169,7 @@ function segmentedDownload(opts) {
         refreshing = (async () => {
           try {
             if (typeof getFreshUrl === 'function') {
-              const f = asSource(await getFreshUrl());
+              const f = asSource(await getFreshUrl({ onFallback }));
               if (f) {
                 // A fresh answer replaces the source, except that the fallback already in use is kept if the site sends none.
                 src = { ...f, fallback: f.fallback || (onFallback ? null : src.fallback) };
