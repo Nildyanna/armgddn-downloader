@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.25.0] - 2026-11-18
+
+### Added
+- **Hourly update check in the background**, with a notification when a new version is ready.
+- **Check for updates button** in the built-in window's Settings, and an Update now bar.
+- **Download schedule, game update check, .7z help video, What's New and Clear history** in the built-in window.
+
+### Changed
+- The update window and update notices say ARMGDDN Browser for members on the built-in window.
+
 ## [5.24.2] - 2026-11-18
 
 ### Fixed

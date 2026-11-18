@@ -1,4 +1,13 @@
 {
+  "5.25.0": {
+    "title": "Stay Up To Date",
+    "highlights": [
+      "The Companion now checks for updates once an hour and tells you when one is ready, even when it's sitting in the tray.",
+      "The new built-in window has a Check for updates button in Settings.",
+      "The new built-in window now has everything the classic window had: the download schedule, game update checks, the .7z help video, What's New and clearing your history.",
+      "Members on the new window see \"ARMGDDN Browser\" while it updates."
+    ]
+  },
   "5.24.2": {
     "title": "Opens The Right Window",
     "highlights": [
