@@ -218,7 +218,7 @@ function EverywhereResults({ index, query, render }) {
 // Settings that used to live only in the classic window: the common ones are here; the rest (history, scans, schedule) are one button away.
 const SETTING_ROWS = [
   ['number', 'maxConcurrentDownloads', 'Downloads at the same time', 1, 6],
-  ['number', 'connectionsPerFile', 'Connections per file', 1, 16],
+  ['select', 'connectionsPerFile', 'Connections per file', [[0, 'Automatic'], [1, '1'], [2, '2'], [4, '4'], [8, '8'], [16, '16']]],
   ['number', 'maxDownloadSpeedMBps', 'Speed limit in MB/s (0 = no limit)', 0, 10000],
   ['check', 'autoHashCheck', 'Check files after downloading'],
   ['check', 'autoExtract7z', 'Extract .7z files automatically'],
@@ -240,7 +240,9 @@ function SettingsView({ say }) {
     ${folderRow('downloadPath', 'Download folder')}
     ${folderRow('comicsFolder', 'Comics folder')}
     ${folderRow('musicFolder', 'Music folder')}
-    ${SETTING_ROWS.map(([kind, key, label, min, max]) => kind === 'check'
+    ${SETTING_ROWS.map(([kind, key, label, min, max]) => kind === 'select'
+      ? html`<label class="srow"><span class="slabel">${label}</span><select value=${Number(s[key]) || 0} onChange=${(e) => save({ [key]: Number(e.target.value) })}>${min.map(([v, t]) => html`<option value=${v}>${t}</option>`)}</select></label>`
+      : kind === 'check'
       ? html`<label class="srow"><input type="checkbox" checked=${!!s[key]} onChange=${(e) => save({ [key]: e.target.checked })} /> <span class="slabel">${label}</span></label>`
       : html`<label class="srow"><span class="slabel">${label}</span><input type="number" min=${min} max=${max} value=${Number(s[key]) || 0} onChange=${(e) => { const n = Math.max(min, Math.min(max, Number(e.target.value) || 0)); save({ [key]: n }); }} /></label>`)}
     <div class="srow"><span class="slabel">Download history, schedule, Komga and library scans</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
