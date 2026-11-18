@@ -141,3 +141,10 @@ test('the copy of the preferences the site keeps on the server is read the same 
   assert.equal(p.animations, false); assert.equal(p.myList.length, 1); assert.equal(p.theme, 'dark');
   assert.ok(normalizePrefs(null).error);
 });
+
+test('batch mode only inside a folder with several things, and nested picks are dropped', async () => {
+  const { batchEligible, batchPaths } = await import('../renderer/native/format.mjs');
+  assert.equal(batchEligible('PC-1', 2, 5), true); assert.equal(batchEligible('PC-1', 1, 5), false); assert.equal(batchEligible('PC-1', 2, 1), false);
+  assert.equal(batchEligible('Testing', 1, 3), true); assert.equal(batchEligible('Comics', 0, 3), false);
+  assert.deepEqual(batchPaths(['A/B', 'A/B/c', 'A/B/', '/A/D', 'A/Bx', '']), ['A/B', 'A/D', 'A/Bx']);
+});

@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -15,13 +15,14 @@ function tabsFrom(remotes) {
   return out;
 }
 
-function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, inList, onToggleList }) {
+function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, inList, onToggleList, batch }) {
   const [broken, setBroken] = useState(false);
   const cover = !broken && ((item.coverArt && item.coverArt.cover && item.coverArt.cover.url) || collectionCoverPath(remote, folder, item));
   const year = releaseYear(item);
   const gameSection = ['PC Games', 'PCVR Games', 'Testing'].includes(remote);
   const coverClick = gameSection && cover && item.isDir ? () => onPreview(item) : (item.isDir ? () => onOpen(item) : null);
-  return html`<div class="card" data-letter=${letterOf(item.name)} title=${item.name}>
+  return html`<div class=${'card' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
+    ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
     <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
       <div class="sub">${[year, formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}</div>
@@ -417,9 +418,9 @@ function App() {
   const acked = useRef(new Set());
   const ask = (spec) => new Promise((resolve) => { const g = { spec, skip: false, resolve: (v) => { setGate(null); if (v && spec.skipKey && g.skip) { try { localStorage.setItem(spec.skipKey, dayKey()); } catch (e) { } } resolve(v); } }; setGate(g); });
   // Same order as the website: bandwidth reminder, then (for apps) the PC Apps notice or (for the rest) the README, which must be accepted once per session.
-  const passGates = async (path, remote) => {
+  const passGates = async (path, remote, noBandwidth) => {
     let skipped = false; try { skipped = localStorage.getItem('bandwidthNoticeSkipDay') === dayKey(); } catch (e) { }
-    if (!skipped && !(await ask({ title: 'Please read - bandwidth matters', skipKey: 'bandwidthNoticeSkipDay', ok: 'OK',
+    if (!noBandwidth && !skipped && !(await ask({ title: 'Please read - bandwidth matters', skipKey: 'bandwidthNoticeSkipDay', ok: 'OK',
       body: html`<div class="notice-body"><h3>We pay for the bandwidth</h3><p>Downloading the same game over and over won't fix anything, and every extra copy is one that someone else now can't grab.</p><ul><li>Download the whole game, not one file at a time.</li><li>Turn on Auto-extract in Settings, or extract with 7-Zip.</li><li>If a game gives you trouble, ask for help first in the Telegram before downloading again.</li><li>Don't delete anything until you're sure the game works.</li></ul></div>` }))) return false;
     if (remote === 'Pirated PC Apps') return ask({ title: 'READ THIS BEFORE DOWNLOADING PC APPS', image: 'https://www.armgddnbrowser.com/PC_Apps_Modal.jpg' });
     const r = await api.readme(remote, path);
@@ -514,8 +515,28 @@ function App() {
   }, [remote, folder]);
 
   const cats = useMemo(() => categoryCounts(items || [], remote), [items, remote]);
+  const [batchOn, setBatchOn] = useState(false);
+  const [picked, setPicked] = useState(() => new Set());
+  useEffect(() => { setBatchOn(false); setPicked(new Set()); }, [remote, folder]);
   const shown = useMemo(() => filterAndSort(filterByCategory(items || [], category, remote), { query, sort, reverse }), [items, query, sort, reverse, category, remote]);
   const crumbs = crumbsFor(remote, folder);
+  const batchOk = !everywhere && view === 'library' && items !== null && batchEligible(remote, crumbs.items.length, shown.length);
+  const batchActive = batchOk && batchOn;
+  const itemKeyOf = (it) => itemPath(it);
+  const setBatch = (on) => { setBatchOn(on); setPicked(on ? new Set(shown.filter((it) => !isPatchFolder(it.name)).map(itemKeyOf)) : new Set()); };
+  const togglePick = (it) => { const k = itemKeyOf(it); const n = new Set(picked); if (n.has(k)) n.delete(k); else n.add(k); setPicked(n); };
+  const allPicked = shown.length > 0 && shown.every((it) => picked.has(itemKeyOf(it)));
+  const startBatch = async () => {
+    const rem = remote;
+    const paths = batchPaths([...picked]);
+    if (!paths.length) { say('Nothing selected'); return; }
+    if (paths.length > 50) { say('Select 50 items or fewer at a time'); return; }
+    const star = paths.find((p) => isStarfieldTarget(p));
+    if (star && !(await ask({ title: 'Starfield', text: `${star.split('/').pop()} is not available for auto extraction.\n\nContinue without auto-extract?`, ok: 'Continue' }))) { say('Download cancelled'); return; }
+    for (let i = 0; i < paths.length; i++) { if (!(await passGates(paths[i], rem, i > 0))) { say('Download cancelled'); return; } }
+    const r = await api.downloadBatch(rem, paths, []);
+    if (r.ok) { say('Started ' + paths.length + ' item' + (paths.length === 1 ? '' : 's')); setBatch(false); setView('downloads'); } else say(r.error.message || 'Could not start the batch download');
+  };
   const signIn = async () => { await api.login(); boot(); };
 
   if (status && !status.signedIn) return html`<div class="center"><h1>ARMGDDN</h1><p>Sign in to browse the library.</p><button class="primary" onClick=${signIn}>Sign in with Telegram</button></div>`;
@@ -535,6 +556,8 @@ function App() {
       ${cats.length ? html`<select value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All categories</option>${cats.slice(0, 80).map((c) => html`<option value=${c.name}>${c.name} (${c.count})</option>`)}</select>` : ''}
       <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="popularity">Popularity</option><option value="newest">Added</option><option value="released">Released</option><option value="size">Size</option></select>
       <button class="tab" title="Reverse the order" onClick=${() => setReverse(!reverse)}>${reverse ? '\u2191' : '\u2193'}</button>
+      ${batchOk ? html`<label class="everywhere" title="Pick several items and download them together"><input type="checkbox" checked=${batchOn} onChange=${(e) => setBatch(e.target.checked)} /> Batch</label>` : ''}
+      ${batchActive ? html`<label class="everywhere"><input type="checkbox" checked=${allPicked} onChange=${(e) => setPicked(e.target.checked ? new Set(shown.map(itemKeyOf)) : new Set())} /> Select all</label><button class="primary" disabled=${!picked.size} onClick=${startBatch}>Download ${picked.size || ''} selected</button>` : ''}
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
     </header>
@@ -544,7 +567,7 @@ function App() {
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
     ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} render=${(it) => html`<${Card} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}
-    ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
+    ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
     ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}

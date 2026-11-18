@@ -332,3 +332,13 @@ export function mergeMyList(current, incoming) {
   const added = (incoming || []).filter((i) => { const k = key(i); if (have.has(k)) return false; have.add(k); return true; });
   return { list: (current || []).concat(added), added: added.length };
 }
+
+// Batch mode, as on the website: only inside a folder (two levels below the section, one for Testing) that has more than one thing in it.
+export function batchEligible(remote, crumbDepth, visibleCount) {
+  return Number(visibleCount) > 1 && Number(crumbDepth) >= (remote === 'Testing' ? 1 : 2);
+}
+// The selected paths without repeats and without anything that sits inside another selected folder.
+export function batchPaths(paths) {
+  const clean = Array.from(new Set((paths || []).map((p) => String(p || '').replace(/^\/+|\/+$/g, '')).filter(Boolean)));
+  return clean.filter((p) => !clean.some((q) => q !== p && p.startsWith(q + '/')));
+}
