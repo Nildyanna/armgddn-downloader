@@ -1,8 +1,9 @@
 // The website's full-screen lightning reveal (bolts and sparks around the logo, ember glow, thunder), ported unchanged apart from the asset paths.
 // Plays once after a first sign-in and can be replayed from Settings. Copied from the website's default.php (mountLoginLightning).
 let _loginLightningActive = null;
+const LOGIN_LIGHTNING_REAL_SRC = 'login-thunder.wav';   // the website keeps this in its page; the port forgot it and the intro never started
 
-        export function mountLoginLightning() {
+        function mountLoginLightningInner() {
             // Guard against double-mount (e.g. rapid double-click on the replay button).
             if (_loginLightningActive) return;
             if (document.getElementById('loginLightningStage')) return;
@@ -36,7 +37,7 @@ let _loginLightningActive = null;
             // autoplay-with-sound permission established by tryUnlockLoginLightningAudio().
             const audio = (() => {
                 const el = document.createElement('audio');
-                el.src = 'login-thunder.wav';
+                el.src = LOGIN_LIGHTNING_REAL_SRC;
                 el.preload = 'auto';
                 return el;
             })();
@@ -253,6 +254,7 @@ let _loginLightningActive = null;
             }
 
             function tick(ts) {
+                state.ticked = true;
                 if (!state.lastTs) state.lastTs = ts;
                 const dt = (ts - state.lastTs) / 1000;
                 state.lastTs = ts;
@@ -301,7 +303,7 @@ let _loginLightningActive = null;
             // genuinely attached to the document before playing anything audible.
             if (!stage.isConnected) {
                 console.warn('[LoginLightning] Stage not attached to document — skipping audio playback');
-            } else {
+            } else try {
                 audio.src = LOGIN_LIGHTNING_REAL_SRC;
                 audio.volume = 1;
                 audio.muted = false;
@@ -322,8 +324,27 @@ let _loginLightningActive = null;
                         window.addEventListener('keydown', resume, { once: true });
                     });
                 }
+            } catch (audioError) {
+                console.warn('[LoginLightning] sound could not start, the animation runs without it: ' + (audioError && audioError.message));
             }
 
             state.raf = requestAnimationFrame(tick);
             _loginLightningActive = { teardown };
+            // Safety net: if the animation loop has not drawn a single frame within four seconds, take the stage down instead of leaving it on top.
+            setTimeout(() => {
+                if (!state.ticked && _loginLightningActive && _loginLightningActive.teardown === teardown) {
+                    console.warn('[LoginLightning] the animation did not start; removing the stage');
+                    teardown();
+                }
+            }, 4000);
+        }
+
+        // Starts the reveal. Whatever goes wrong inside, the full-screen stage is removed again so the app can never be left covered.
+        export function mountLoginLightning() {
+            try { mountLoginLightningInner(); }
+            catch (e) {
+                console.warn('[LoginLightning] could not start: ' + (e && e.message ? e.message : e));
+                try { const st = document.getElementById('loginLightningStage'); if (st && st.parentNode) st.parentNode.removeChild(st); } catch (e2) { }
+                _loginLightningActive = null;
+            }
         }
