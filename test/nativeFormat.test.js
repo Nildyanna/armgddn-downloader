@@ -45,4 +45,14 @@ test('grid helpers', async () => {
   assert.equal(canDownload('PC Games', 'PC1', { name: 'Game', isDir: true }), true);
   assert.equal(canDownload('Music', '', { name: 'Abba', isDir: true }), true);
   assert.equal(canDownload('Comics', '', { name: 'Marvel', isDir: true }), true);
+  const { downloadActions } = await import('../renderer/native/format.mjs');
+  assert.deepEqual(downloadActions({ status: 'downloading' }), ['pause', 'cancel']);
+  assert.deepEqual(downloadActions({ status: 'paused' }), ['resume', 'cancel']);
+  assert.deepEqual(downloadActions({ status: 'error' }), ['retry', 'cancel']);
+  assert.deepEqual(downloadActions({ status: 'completed' }), ['openFolder']);
+  assert.deepEqual(downloadActions({ status: 'cancelled' }), []);
+  const { letterOf, lettersPresent } = await import('../renderer/native/format.mjs');
+  assert.equal(letterOf('(the) Gnorp Apologue'), '#');   /* sorts with the symbols, first in the list */ assert.equal(letterOf('7 Days to Die v1 -ARMGDDN'), '#');
+  assert.equal(letterOf('\u00c9dith Piaf'), 'E'); assert.equal(letterOf('\u0421\u043a\u0440\u0438\u043f'), '#');
+  assert.deepEqual(lettersPresent([{ name: 'Zelda' }, { name: '1942' }, { name: 'Abba' }]), ['#', 'A', 'Z']);
 });

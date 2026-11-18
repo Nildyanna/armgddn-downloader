@@ -102,3 +102,24 @@ export function canDownload(remote, folder, item) {
   if (remote === 'Testing' && !String(folder || '') && (item.name === 'PC' || item.name === 'PCVR')) return false;
   return true;
 }
+
+// Buttons for a download row, by status: running -> pause + cancel; paused -> resume + cancel; failed -> retry + cancel; done -> open folder.
+export function downloadActions(d) {
+  const st = String((d && d.status) || '').toLowerCase();
+  if (['completed'].includes(st)) return ['openFolder'];
+  if (['cancelled'].includes(st)) return [];
+  if (st === 'paused') return ['resume', 'cancel'];
+  if (['error', 'failed'].includes(st)) return ['retry', 'cancel'];
+  return ['pause', 'cancel'];
+}
+
+// A-Z jump: the letter a title sorts under (digits and symbols share "#").
+export function letterOf(name) {
+  const t = cleanTitle(name).normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const m = /[A-Za-z]/.exec(t[0] || '');
+  return m ? m[0].toUpperCase() : '#';
+}
+export function lettersPresent(items) {
+  const seen = new Set((items || []).map((x) => letterOf(x.name)));
+  return ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'].filter((l) => seen.has(l));
+}

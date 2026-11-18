@@ -50,3 +50,11 @@ header select { flex: none; }
 .dmeta { color: var(--dim); font-size: 12px; }
 .derr { color: #f87171; font-size: 12px; margin-top: 4px; }
 .toast { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 16px; }
+
+.dbtns { display: flex; gap: 8px; margin-top: 8px; }
+.dbtn { background: transparent; border: 1px solid var(--line); color: var(--fg); border-radius: 8px; padding: 4px 12px; font-size: 12px; }
+.dbtn:hover { border-color: var(--accent); color: var(--accent); }
+
+.alpha { position: fixed; right: 4px; top: 50%; transform: translateY(-50%); display: flex; flex-direction: column; background: rgba(17, 26, 46, .85); border: 1px solid var(--line); border-radius: 10px; padding: 4px 0; z-index: 5; }
+.alpha button { background: none; border: 0; color: var(--dim); font-size: 11px; line-height: 1; padding: 3px 7px; }
+.alpha button:hover { color: var(--accent); }

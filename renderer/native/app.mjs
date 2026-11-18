@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent } from './format.mjs';
 import { useRef } from '../../native/vendor/ui.mjs';
 
 const api = window.nativeAPI;
@@ -20,7 +20,7 @@ function Card({ item, onOpen, remote, folder, onDownload }) {
   const [broken, setBroken] = useState(false);
   const cover = !broken && ((item.coverArt && item.coverArt.cover && item.coverArt.cover.url) || collectionCoverPath(remote, folder, item));
   const year = releaseYear(item);
-  return html`<div class="card" role="button" tabindex="0" onClick=${() => item.isDir && onOpen(item)} onKeyDown=${(e) => { if ((e.key === 'Enter' || e.key === ' ') && item.isDir) { e.preventDefault(); onOpen(item); } }} title=${item.name}>
+  return html`<div class="card" data-letter=${letterOf(item.name)} role="button" tabindex="0" onClick=${() => item.isDir && onOpen(item)} onKeyDown=${(e) => { if ((e.key === 'Enter' || e.key === ' ') && item.isDir) { e.preventDefault(); onOpen(item); } }} title=${item.name}>
     <div class="cover">${cover ? html`<img loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
       <div class="sub">${[year, formatSize(item.size)].filter(Boolean).join(' · ')}</div>
@@ -29,6 +29,12 @@ function Card({ item, onOpen, remote, folder, onDownload }) {
 }
 
 
+function AlphaBar({ letters }) {
+  const jump = (l) => { const el = document.querySelector('.grid [data-letter="' + l + '"]'); if (el) el.scrollIntoView({ block: 'start' }); };
+  if (letters.length < 2) return '';
+  return html`<div class="alpha">${letters.map((l) => html`<button onClick=${() => jump(l)}>${l}</button>`)}</div>`;
+}
+
 function DownloadsView({ list }) {
   if (!list.length) return html`<div class="loading">No downloads yet. Press Download on any game, album or comic collection.</div>`;
   return html`<div class="dlist">${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
@@ -36,6 +42,7 @@ function DownloadsView({ list }) {
     <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
     <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(d.downloadedSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), formatSpeed(d.speed), d.eta ? 'ETA ' + d.eta : ''].filter(Boolean).join(' · ')}</div>
     ${d.error ? html`<div class="derr">${d.error}</div>` : ''}
+    <div class="dbtns">${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>
   </div>`)}</div>`;
 }
 
@@ -108,6 +115,7 @@ function App() {
     <div class="crumbs"><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
+    ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
     ${items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
     ${toast ? html`<div class="toast">${toast}</div>` : ''}

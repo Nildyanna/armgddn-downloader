@@ -97,6 +97,7 @@ function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version,
     width: 1280, height: 860, minWidth: 900, minHeight: 600, backgroundColor: '#0b1220', title: 'ARMGDDN (native preview)',
     webPreferences: { preload: path.join(appDir, 'preload-native.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
+  win.maximize();   // opens maximized
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(appDir, 'renderer', 'native', 'index.html'));
