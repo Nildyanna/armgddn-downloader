@@ -10,4 +10,11 @@ test('grid helpers', async () => {
   assert.deepEqual(filterAndSort(items, { sort: 'size' }).map((x) => x.size), [9, 5, 1]);
   assert.equal(filterAndSort(items, { sort: 'newest' })[0].size, 9);
   assert.deepEqual(filterAndSort(items, { query: 'game' }).length, 2);
+
+  const { autoEnter } = await import('../renderer/native/format.mjs');
+  assert.equal(autoEnter('PC Games', [{ name: 'PC1', isDir: true }]), 'PC1');
+  assert.equal(autoEnter('PCVR Games', [{ name: 'readme.txt', isDir: false }, { name: 'PCVR2', isDir: true }]), 'PCVR2');
+  assert.equal(autoEnter('Music', [{ name: 'Music', isDir: true }]), 'Music');
+  assert.equal(autoEnter('Comics', [{ name: 'A', isDir: true }, { name: 'B', isDir: true }]), null);
+  assert.equal(autoEnter('PC Games', []), null);
 });

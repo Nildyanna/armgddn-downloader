@@ -25,3 +25,15 @@ export function filterAndSort(items, { query = '', sort = 'name' } = {}) {
   };
   return out.slice().sort(by[sort] || by.name);
 }
+
+// The top level of a game group is the mirror's root folder ("PC1"), not the library. The website steps into it automatically, and so does this.
+// Returns the folder to open, or null to show the list as it is.
+const GROUP_ROOTS = { 'PC Games': ['PC1', 'PC2', 'PC3'], 'PCVR Games': ['PCVR1', 'PCVR2', 'PCVR3'], 'PC-1': ['PC1'], 'PC-2': ['PC2'], 'PC-3': ['PC3'], 'PCVR-1': ['PCVR1'], 'PCVR-2': ['PCVR2'], 'PCVR-3': ['PCVR3'] };
+export function autoEnter(remote, items) {
+  const list = Array.isArray(items) ? items : [];
+  const roots = GROUP_ROOTS[remote] || [];
+  const hit = list.find((f) => f && f.isDir && roots.includes(f.name));
+  if (hit) return hit.name;
+  if (list.length === 1 && list[0].isDir) return list[0].name;   // a single folder: nothing else to show
+  return null;
+}

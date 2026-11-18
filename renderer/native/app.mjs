@@ -1,5 +1,6 @@
 import { html, render, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter } from './format.mjs';
+import { useRef } from '../../native/vendor/ui.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -34,6 +35,7 @@ function App() {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState('name');
+  const autoOk = useRef(true);   // step into the library folder when a tab is opened, but not when the member clicks back to the top
 
   const fail = (e) => { setError(e || { message: 'Something went wrong' }); setItems([]); };
   const boot = async () => {
@@ -49,7 +51,14 @@ function App() {
   useEffect(() => {
     if (!remote) return;
     let live = true; setItems(null); setError(null);
-    api.browse(remote, folder).then((r) => { if (!live) return; if (r.ok) setItems(r.data.files || []); else fail(r.error); });
+    api.browse(remote, folder).then((r) => {
+      if (!live) return;
+      if (!r.ok) return fail(r.error);
+      const files = r.data.files || [];
+      const into = folder === '' && autoOk.current ? autoEnter(remote, files) : null;
+      if (into) { setFolder(into); return; }
+      setItems(files);
+    });
     return () => { live = false; };
   }, [remote, folder]);
 
@@ -61,11 +70,11 @@ function App() {
   return html`<div class="shell">
     <header>
       <div class="brand">ARMGDDN</div>
-      <nav>${tabs.map((t) => html`<button class=${t === remote ? 'tab on' : 'tab'} onClick=${() => { setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
+      <nav>${tabs.map((t) => html`<button class=${t === remote ? 'tab on' : 'tab'} onClick=${() => { autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
       <input class="search" type="search" placeholder="Search this list" value=${query} onInput=${(e) => setQuery(e.target.value)} />
       <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="newest">Newest</option><option value="size">Largest</option></select>
     </header>
-    <div class="crumbs"><button onClick=${() => setFolder('')}>${remote || ''}</button>${crumbs.map((c, i) => html`<span> / <button onClick=${() => setFolder(crumbs.slice(0, i + 1).join('/'))}>${c}</button></span>`)}
+    <div class="crumbs"><button onClick=${() => { autoOk.current = false; setFolder(''); }}>${remote || ''}</button>${crumbs.map((c, i) => html`<span> / <button onClick=${() => setFolder(crumbs.slice(0, i + 1).join('/'))}>${c}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${items === null ? html`<div class="loading">Loading…</div>` : html`<main class="grid">${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
