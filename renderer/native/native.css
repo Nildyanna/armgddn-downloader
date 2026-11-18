@@ -102,3 +102,11 @@ header select { flex: none; }
 .patchbtns { display: flex; flex-direction: column; gap: 8px; }
 .patchbtns button { text-align: left; border-radius: 8px; padding: 10px 14px; }
 .patchbtns span { font-size: 12px; opacity: .85; }
+
+.dl.heart { border-color: var(--line); color: var(--dim); padding: 4px 9px; }
+.dl.heart.on { color: #f43f5e; border-color: #f43f5e; }
+header select + select { margin-left: 0; }
+
+.cbtns { display: flex; gap: 4px; margin-top: 8px; flex-wrap: nowrap; }
+.cbtns .dl { margin: 0; padding: 4px 8px; font-size: 12px; white-space: nowrap; }
+.cbtns .dl:last-child { margin-left: auto; }

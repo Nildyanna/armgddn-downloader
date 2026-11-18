@@ -77,4 +77,13 @@ test('grid helpers', async () => {
   assert.equal(patchOldRepackLabel('Cool Game v1.5 -ARMGDDN', 'Cool Game 1.0-1.5 Update Patch'), 'Cool Game v1.0 -ARMGDDN');
   assert.equal(patchOldRepackLabel('Cool Game v1.5 -ARMGDDN', 'Update Patch'), null);
   assert.equal(mayHavePatchQuestion('Cool Game v1.5 -ARMGDDN'), true); assert.equal(mayHavePatchQuestion('Cool Game 1.0-1.5 Update Patch -ARMGDDN'), false); assert.equal(mayHavePatchQuestion('Some Folder'), false);
+  const F = await import('../renderer/native/format.mjs');
+  assert.equal(F.isStarfieldTarget('PC1/Starfield v1 -ARMGDDN'), true); assert.equal(F.isStarfieldTarget('PC1/Starfield2'), false); assert.equal(F.isStarfieldTarget('PC1/Not Starfield'), false);
+  let l = F.myListToggle([], { name: 'G', remote: 'PC Games', path: 'PC1/G', size: 5 });
+  assert.equal(l.length, 1); assert.equal(F.myListHas(l, 'PC Games', '/PC1/G/'), true); assert.equal(F.myListToggle(l, { name: 'G', remote: 'PC Games', path: 'PC1/G' }).length, 0);
+  const catItems = [{ isDir: true, coverArt: { categories: ['Indie', 'Action'] } }, { isDir: true, coverArt: { categories: ['Indie'] } }, { isDir: false, name: 'f' }];
+  assert.deepEqual(F.categoryCounts(catItems, 'PC Games').map((c) => [c.name, c.count]), [['Indie', 2], ['Action', 1]]);
+  assert.equal(F.filterByCategory(catItems, 'Action', 'PC Games').length, 2);   // the matching folder and the loose file
+  assert.deepEqual(F.categoryCounts([{ isDir: true }], 'Music'), []);   // nothing tagged yet: no dropdown
+  assert.deepEqual(F.categoriesOf({ isDir: true, genres: ['Rock'] }, 'Music'), ['Rock']);
 });

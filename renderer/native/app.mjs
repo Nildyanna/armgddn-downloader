@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -15,7 +15,7 @@ function tabsFrom(remotes) {
   return out;
 }
 
-function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview }) {
+function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, inList, onToggleList }) {
   const [broken, setBroken] = useState(false);
   const cover = !broken && ((item.coverArt && item.coverArt.cover && item.coverArt.cover.url) || collectionCoverPath(remote, folder, item));
   const year = releaseYear(item);
@@ -25,9 +25,10 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview }
     <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
       <div class="sub">${[year, formatSize(item.size)].filter(Boolean).join(' · ')}</div>
+      <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
       ${item.isDir && canDownload(remote, folder, item) && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
-      ${canDownload(remote, folder, item) ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div>
+      ${canDownload(remote, folder, item) ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div></div>
   </div>`;
 }
 
@@ -175,6 +176,11 @@ function RequestsView({ say }) {
   </div>`;
 }
 
+function MyListView({ list, render }) {
+  if (!list.length) return html`<div class="loading">Your list is empty. Press the heart on a game, album or comic to save it here.</div>`;
+  return html`<main class="grid wide">${list.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
+}
+
 function DownloadsView({ list }) {
   if (!list.length) return html`<div class="loading">No downloads yet. Press Download on any game, album or comic collection.</div>`;
   return html`<div class="dlist">${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
@@ -201,13 +207,25 @@ function App() {
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
   const [details, setDetails] = useState(null);
   const [preview, setPreview] = useState(null);
+  const [myList, setMyList] = useState(() => { try { return JSON.parse(localStorage.getItem(MY_LIST_KEY) || '[]'); } catch (e) { return []; } });
+  const [category, setCategory] = useState('');
+  const ctxRemote = (it) => (it && it._remote != null ? it._remote : remote);
+  const ctxFolder = (it) => (it && it._folder != null ? it._folder : folder);
+  const itemPath = (it) => [ctxFolder(it), it.name].filter(Boolean).join('/');
+  const toggleList = (it) => {
+    const next = myListToggle(myList, { name: it.name, remote: ctxRemote(it), path: itemPath(it), size: it.size, downloadCount: it.downloadCount, releaseDate: it.releaseDate, coverArt: it.coverArt });
+    setMyList(next); try { localStorage.setItem(MY_LIST_KEY, JSON.stringify(next)); } catch (e) { }
+    say(myListHas(next, ctxRemote(it), itemPath(it)) ? 'Added to My List' : 'Removed from My List');
+  };
+  const inMyList = (it) => myListHas(myList, ctxRemote(it), itemPath(it));
+  const goTo = (rem, path) => { setView('library'); autoOk.current = false; setQuery(''); setCategory(''); setRemote(rem); setFolder(path); };
   const [patchQ, setPatchQ] = useState(null);
   const askPatch = (oldLabel, patch) => new Promise((resolve) => setPatchQ({ oldLabel, patch, resolve: (v) => { setPatchQ(null); resolve(v); } }));
   const [gate, setGate] = useState(null);
   const acked = useRef(new Set());
   const ask = (spec) => new Promise((resolve) => { const g = { spec, skip: false, resolve: (v) => { setGate(null); if (v && spec.skipKey && g.skip) { try { localStorage.setItem(spec.skipKey, dayKey()); } catch (e) { } } resolve(v); } }; setGate(g); });
   // Same order as the website: bandwidth reminder, then (for apps) the PC Apps notice or (for the rest) the README, which must be accepted once per session.
-  const passGates = async (path) => {
+  const passGates = async (path, remote) => {
     let skipped = false; try { skipped = localStorage.getItem('bandwidthNoticeSkipDay') === dayKey(); } catch (e) { }
     if (!skipped && !(await ask({ title: 'Please read - bandwidth matters', skipKey: 'bandwidthNoticeSkipDay', ok: 'OK',
       body: html`<div class="notice-body"><h3>We pay for the bandwidth</h3><p>Downloading the same game over and over won't fix anything, and every extra copy is one that someone else now can't grab.</p><ul><li>Download the whole game, not one file at a time.</li><li>Turn on Auto-extract in Settings, or extract with 7-Zip.</li><li>If a game gives you trouble, ask for help first in the Telegram before downloading again.</li><li>Don't delete anything until you're sure the game works.</li></ul></div>` }))) return false;
@@ -221,9 +239,11 @@ function App() {
     }
     return true;
   };
-  const browseInto = (item) => { setView('library'); autoOk.current = false; setFolder(folder ? folder + '/' + item.name : item.name); setQuery(''); };
+  const browseInto = (item) => goTo(ctxRemote(item), itemPath(item));
   const startDownload = async (item) => {
-    const path = [folder, item.name].filter(Boolean).join('/');
+    const remote = ctxRemote(item);
+    const path = itemPath(item);
+    if (isStarfieldTarget(path) && !(await ask({ title: 'Starfield', text: `${item.name} is not available for auto extraction.\n\nContinue without auto-extract?`, ok: 'Continue' }))) { say('Download cancelled'); return; }
     let patchSkip = null;
     if (item.isDir && mayHavePatchQuestion(item.name)) {
       const kids = await api.browse(remote, path);
@@ -233,7 +253,7 @@ function App() {
         if (answer === null) { say('Download cancelled'); return; }
         if (answer === 'yes') {
           const pp = path + '/' + patch;
-          if (!(await passGates(pp))) { say('Download cancelled'); return; }
+          if (!(await passGates(pp, remote))) { say('Download cancelled'); return; }
           const r2 = await api.download(remote, pp);
           if (r2.ok) { say('Download started: ' + cleanTitle(patch)); setView('downloads'); } else say(r2.error.message || 'Could not start the download');
           return;
@@ -241,7 +261,7 @@ function App() {
       }
       if (patches.length) patchSkip = patches;   // "no" to every patch: the whole game folder, minus the patches
     }
-    if (!(await passGates(path))) { say('Download cancelled'); return; }
+    if (!(await passGates(path, remote))) { say('Download cancelled'); return; }
     const r = patchSkip ? await api.downloadBatch(remote, [path], patchSkip) : await api.download(remote, path);
     if (r.ok) { say('Download started: ' + cleanTitle(item.name)); setView('downloads'); }
     else say(r.error.kind === 'auth' ? 'Sign in again to download.' : (r.error.message || 'Could not start the download'));
@@ -288,7 +308,8 @@ function App() {
     return () => { live = false; };
   }, [remote, folder]);
 
-  const shown = useMemo(() => filterAndSort(items || [], { query, sort }), [items, query, sort]);
+  const cats = useMemo(() => categoryCounts(items || [], remote), [items, remote]);
+  const shown = useMemo(() => filterAndSort(filterByCategory(items || [], category, remote), { query, sort }), [items, query, sort, category, remote]);
   const crumbs = crumbsFor(remote, folder);
   const signIn = async () => { await api.login(); boot(); };
 
@@ -296,20 +317,22 @@ function App() {
   return html`<div class="shell">
     <header>
       <div class="brand">ARMGDDN</div>
-      <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
+      <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
+      <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>
       <button class=${view === 'requests' ? 'tab on' : 'tab'} onClick=${() => setView('requests')}>Requests</button>
       <button class=${view === 'downloads' ? 'tab on' : 'tab'} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
       <input class="search" type="search" placeholder="Search this list" value=${query} onInput=${(e) => setQuery(e.target.value)} />
+      ${cats.length ? html`<select value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All categories</option>${cats.slice(0, 80).map((c) => html`<option value=${c.name}>${c.name} (${c.count})</option>`)}</select>` : ''}
       <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="newest">Newest</option><option value="size">Largest</option></select>
     </header>
-    ${view === 'requests' ? html`<${RequestsView} say=${say} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs"><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
-    ${items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
+    ${items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
-    ${details ? html`<${DetailsModal} item=${details} remote=${remote} folder=${folder} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
+    ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}

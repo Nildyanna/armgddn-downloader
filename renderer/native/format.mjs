@@ -196,3 +196,39 @@ export function patchOldRepackLabel(gameFolderName, patchName) {
 }
 // Does this game folder get the update-patch question? A repack folder (name ends with the group tag), not itself a patch.
 export function mayHavePatchQuestion(name) { return /-ARMGDDN/i.test(String(name || '')) && !isPatchFolder(name); }
+
+// Starfield cannot be auto-extracted: the website asks before sending it. Same match: a path part that starts with "starfield".
+export function isStarfieldTarget(value) {
+  return String(value || '').replace(/\\/g, '/').split('/').filter(Boolean).some((p) => /^starfield(?:[\s._-]|$)/i.test(p));
+}
+
+// My List: kept on this device, one entry per remote + path (same shape the website stores).
+export const MY_LIST_KEY = 'armgddn-my-list';
+export const myListKey = (remote, path) => `${remote}/${String(path || '').replace(/^\/+|\/+$/g, '')}`;
+export function myListHas(list, remote, path) { return (list || []).some((i) => myListKey(i.remote, i.path || i.name) === myListKey(remote, path)); }
+export function myListToggle(list, entry) {
+  const key = myListKey(entry.remote, entry.path || entry.name);
+  const has = (list || []).some((i) => myListKey(i.remote, i.path || i.name) === key);
+  if (has) return (list || []).filter((i) => myListKey(i.remote, i.path || i.name) !== key);
+  return [...(list || []), { name: entry.name, remote: entry.remote, path: entry.path || entry.name, size: entry.size || 0, downloadCount: Number(entry.downloadCount) || 0,
+    releaseDate: entry.releaseDate || null, coverArt: entry.coverArt || null, dateAdded: new Date().toISOString() }];
+}
+
+// Category / genre filter: games use the Steam categories, Music uses genres; "No genre" collects untagged Music.
+export const NO_GENRE = 'No genre';
+export function categoriesOf(item, remote) {
+  if (Array.isArray(item.genres)) return item.genres.filter(Boolean).map(String);
+  const c = item.coverArt && item.coverArt.categories;
+  if (Array.isArray(c)) return c.filter(Boolean).map(String);
+  return remote === 'Music' ? [NO_GENRE] : [];
+}
+export function categoryCounts(items, remote) {
+  const m = new Map();
+  for (const it of items || []) { if (!it || !it.isDir) continue; for (const c of categoriesOf(it, remote)) m.set(c, (m.get(c) || 0) + 1); }
+  const list = [...m.entries()].map(([name, count]) => ({ name, count })).sort((a, b) => (a.name === NO_GENRE) - (b.name === NO_GENRE) || b.count - a.count || a.name.localeCompare(b.name));
+  return remote === 'Music' && list.length === 1 && list[0].name === NO_GENRE ? [] : list;
+}
+export function filterByCategory(items, cat, remote) {
+  if (!cat) return items;
+  return (items || []).filter((it) => !it.isDir || categoriesOf(it, remote).includes(cat));
+}
