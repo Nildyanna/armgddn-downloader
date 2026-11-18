@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, PREFS_SNIPPET, parsePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -391,9 +391,10 @@ function App() {
   const ctxRemote = (it) => (it && it._remote != null ? it._remote : remote);
   const ctxFolder = (it) => (it && it._folder != null ? it._folder : folder);
   const itemPath = (it) => [ctxFolder(it), it.name].filter(Boolean).join('/');
-  const applyPrefs = (p) => {
+  const applyPrefs = (p, quiet, listOnly) => {
     const m = mergeMyList(myList, p.myList);
     setMyList(m.list); try { localStorage.setItem(MY_LIST_KEY, JSON.stringify(m.list)); } catch (e) { }
+    if (listOnly) { if (m.added) say('Added ' + m.added + ' new My List item' + (m.added === 1 ? '' : 's') + ' from the website.'); return; }
     try {
       for (const [id, on] of Object.entries(p.strips)) localStorage.setItem('native.strip.' + id, on ? '1' : '0');
       if (p.theme) localStorage.setItem('native.theme', p.theme);
@@ -401,7 +402,7 @@ function App() {
       if (p.komgaUrl) localStorage.setItem('native.komgaUrl', p.komgaUrl);
       if (p.animations !== null) localStorage.setItem('native.animations', p.animations ? '1' : '0');
     } catch (e) { }
-    say('Imported ' + m.added + ' My List item' + (m.added === 1 ? '' : 's') + (p.theme ? ', your theme' : '') + (p.searches.length ? ', recent searches' : '') + '.');
+    if (!quiet || m.added || p.theme) say((quiet ? 'Brought over your website preferences: ' : 'Imported ') + m.added + ' My List item' + (m.added === 1 ? '' : 's') + (p.theme ? ', your theme' : '') + (p.searches.length ? ', recent searches' : '') + '.');
   };
   const toggleList = (it) => {
     const next = myListToggle(myList, { name: it.name, remote: ctxRemote(it), path: itemPath(it), size: it.size, downloadCount: it.downloadCount, releaseDate: it.releaseDate, coverArt: it.coverArt });
@@ -483,6 +484,19 @@ function App() {
     const r = await api.remotes();
     if (!r.ok) return fail(r.error);
     const t = tabsFrom(r.data.remotes); setTabs(t); if (t.length) setRemote(t[0]);
+    // The website copies each member's preferences to the server; the first time here they come over by themselves, and later visits only add
+    // new My List entries. Nothing for the member to do.
+    try {
+      const pr = await api.prefs();
+      if (pr.ok && pr.data && pr.data.prefs) {
+        const seen = Number(localStorage.getItem('native.prefsPulled') || 0);
+        const stamp = Number(pr.data.updatedAt) || 1;
+        if (stamp > seen) {
+          const n = normalizePrefs(pr.data.prefs);
+          if (!n.error) { applyPrefs(n, true, seen > 0); localStorage.setItem('native.prefsPulled', String(stamp)); }
+        }
+      }
+    } catch (e) { }
   };
   useEffect(() => { boot(); }, []);
   useEffect(() => {

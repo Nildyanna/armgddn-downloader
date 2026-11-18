@@ -126,6 +126,8 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, fs = require(
     clipboard.writeText(t);
     return { copied: true };
   }));
+  // The preferences the website copied to the server for this member (My List, theme, hidden sections, recent searches).
+  ipcMain.handle('native:prefs', wrap(() => api.get('/api/user-prefs', { ttlMs: 0, fresh: true })));
   ipcMain.handle('native:exportList', wrap(async (remote, format) => {
     const { path: p, fmt } = exportPath(remote, format);
     const f = await api.file(p);

@@ -299,6 +299,10 @@ export function parsePrefs(code) {
     const bin = atob(b64);
     raw = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
   } catch (e) { return { error: 'The code could not be read. Copy it again from the website.' }; }
+  return normalizePrefs(raw);
+}
+// The checked form of a set of website preferences, from either the pasted code or the copy the site keeps on the server.
+export function normalizePrefs(raw) {
   if (!raw || typeof raw !== 'object') return { error: 'The code could not be read.' };
   const str = (v, max) => (typeof v === 'string' && v.length <= max ? v : '');
   const out = { myList: [], theme: '', strips: {}, searches: [], komgaUrl: '', animations: null };
@@ -315,10 +319,10 @@ export function parsePrefs(code) {
   const th = str(raw.theme, 40); out.theme = /^[a-z0-9-]+$/i.test(th) ? th : '';
   const col = raw.collapsed && typeof raw.collapsed === 'object' ? raw.collapsed : {};
   const map = { gameRadarContainer: 'picks', trendingPillContainer: 'trending', hiddenGemsContainer: 'gems' };
-  for (const [k, id] of Object.entries(map)) out.strips[id] = col[k] === '1';
+  for (const [k, id] of Object.entries(map)) out.strips[id] = col[k] === '1' || col[k] === true;
   out.searches = (Array.isArray(raw.searches) ? raw.searches : []).map((x) => str(x, 100)).filter(Boolean).slice(0, 30);
   const k = str(raw.komgaUrl, 200); out.komgaUrl = /^https?:\/\/[^\s]+$/.test(k) ? k : '';
-  out.animations = raw.animations === '0' || raw.animations === 'off' ? false : raw.animations === '1' || raw.animations === 'on' ? true : null;
+  out.animations = raw.animations === '0' || raw.animations === 'off' || raw.animations === false ? false : raw.animations === '1' || raw.animations === 'on' || raw.animations === true ? true : null;
   return out;
 }
 // Merge imported My List entries into the current one without duplicates (same remote and path).

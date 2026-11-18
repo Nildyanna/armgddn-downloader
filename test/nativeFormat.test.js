@@ -133,3 +133,11 @@ test('website preferences code: read, checked field by field, merged without dup
   const m = mergeMyList([{ remote: 'PCVR-2', path: 'PCVR2/Half-Life Alyx v1 -ARMGDDN', name: 'x' }, { remote: 'PC-1', path: 'z', name: 'z' }], p.myList);
   assert.equal(m.added, 0); assert.equal(m.list.length, 2);
 });
+
+test('the copy of the preferences the site keeps on the server is read the same way', async () => {
+  const { normalizePrefs } = await import('../renderer/native/format.mjs');
+  const p = normalizePrefs({ theme: 'dark', myList: [{ name: 'G', remote: 'PC-1', path: 'PC1/G', size: 1 }], searches: ['a'], komgaUrl: '', animations: false, collapsed: { gameRadarContainer: true, trendingPillContainer: false, hiddenGemsContainer: false } });
+  assert.deepEqual(p.strips, { picks: true, trending: false, gems: false });
+  assert.equal(p.animations, false); assert.equal(p.myList.length, 1); assert.equal(p.theme, 'dark');
+  assert.ok(normalizePrefs(null).error);
+});
