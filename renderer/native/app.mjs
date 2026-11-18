@@ -19,11 +19,11 @@ function tabsFrom(remotes) {
 function Card({ item, onOpen }) {
   const cover = item.coverArt && item.coverArt.cover && item.coverArt.cover.url;
   const year = releaseYear(item);
-  return html`<button class="card" onClick=${() => item.isDir && onOpen(item)} title=${item.name}>
-    <div class="cover">${cover ? html`<img loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
+  return html`<div class="card" role="button" tabindex="0" onClick=${() => item.isDir && onOpen(item)} onKeyDown=${(e) => { if ((e.key === 'Enter' || e.key === ' ') && item.isDir) { e.preventDefault(); onOpen(item); } }} title=${item.name}>
+    <div class="cover">${cover ? html`<img class="bg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="fg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
       <div class="sub">${[year, formatSize(item.size)].filter(Boolean).join(' · ')}</div></div>
-  </button>`;
+  </div>`;
 }
 
 function App() {

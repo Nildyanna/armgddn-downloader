@@ -62,6 +62,9 @@ function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version,
   win.webContents.on('will-navigate', (e) => e.preventDefault());
   win.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   win.loadFile(path.join(appDir, 'renderer', 'native', 'index.html'));
+  // `--native-shot=<file.png>`: after the page has had time to load, save a screenshot (used to check the layout without watching the window).
+  const shot = (process.argv.find((a) => a.startsWith('--native-shot=')) || '').slice('--native-shot='.length);
+  if (shot) win.webContents.once('did-finish-load', () => setTimeout(async () => { try { require('fs').writeFileSync(shot, (await win.webContents.capturePage()).toPNG()); log('[Native] screenshot saved'); log('[Native] metrics ' + JSON.stringify(await win.webContents.executeJavaScript("(() => { const r = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); const c = getComputedStyle(el); return { w: Math.round(b.width), h: Math.round(b.height), display: c.display, cv: c.contentVisibility }; }; const card = document.querySelector('.card'); return { cards: document.querySelectorAll('.card').length, grid: r(document.querySelector('.grid')), card: r(card), cover: r(card && card.querySelector('.cover')), img: r(card && card.querySelector('img')), meta: r(card && card.querySelector('.meta')), rows: getComputedStyle(document.querySelector('.grid')).gridTemplateRows.slice(0, 80) }; })()"))); } catch (e) { log('[Native] screenshot failed: ' + e.message); } }, 6000));
   log('[Native] preview window opened');
   return win;
 }

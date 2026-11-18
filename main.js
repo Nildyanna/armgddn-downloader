@@ -521,7 +521,10 @@ function isNetworkStreamError(output) {
 // Handle deep links
 let protocolClientRegistered = false;
 let protocolClientRegisterError = '';
-if (process.defaultApp) {
+// The native preview (--native) must never take over armgddn:// links from the installed Companion.
+if (process.argv.includes('--native')) {
+  protocolClientRegisterError = 'skipped (native preview)';
+} else if (process.defaultApp) {
   if (process.argv.length >= 2) {
     try {
       protocolClientRegistered = app.setAsDefaultProtocolClient('armgddn', process.execPath, [path.resolve(process.argv[1])]);
