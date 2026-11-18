@@ -5,7 +5,7 @@ const PROXIED = /(^|\.)(steamgriddb\.com|steamstatic\.com|steamcdn-a\.akamaihd\.
 function coverRoute(rawUrl) {
   const raw = String(rawUrl == null ? '' : rawUrl).trim();
   if (!raw) return null;
-  if (raw.startsWith('/api/art-proxy?')) return { kind: 'site', path: raw };
+  if (raw.startsWith('/api/art-proxy?') || raw.startsWith('/api/collection-cover?')) return { kind: 'site', path: raw };
   let u;
   try { u = new URL(raw.startsWith('//') ? 'https:' + raw : raw); } catch (e) { return null; }
   if (u.protocol === 'http:') u.protocol = 'https:';

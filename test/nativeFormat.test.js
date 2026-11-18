@@ -31,4 +31,10 @@ test('grid helpers', async () => {
   const t = [{ name: 'PC', isDir: true }, { name: 'PCVR', isDir: true }, { name: 'stray', isDir: true }, { name: 'a.json', isDir: false }];
   assert.deepEqual(visibleItems('Testing', '', t).map((x) => x.name), ['PC', 'PCVR']);
   assert.equal(visibleItems('Music', '', [{ name: 'X', isDir: true }]).length, 1);
+  const { collectionCoverPath } = await import('../renderer/native/format.mjs');
+  assert.equal(collectionCoverPath('Music', '', { name: 'Abba', isDir: true }), '/api/collection-cover?remote=Music&path=Abba&w=480');
+  assert.equal(collectionCoverPath('Comics', 'Marvel/X-Men', { name: 'Issue 1.cbz', isDir: false }), '/api/collection-cover?remote=Comics&path=Marvel%2FX-Men%2FIssue%201.cbz&w=480');
+  assert.equal(collectionCoverPath('PC Games', '', { name: 'A', isDir: true }), '');
+  assert.equal(collectionCoverPath('Music', '', { name: 'notes.txt', isDir: false }), '');
+  assert.equal(visibleItems('Music', '', [{ name: '.trash-2026-11-05', isDir: true }, { name: 'Abba', isDir: true }]).length, 1);
 });

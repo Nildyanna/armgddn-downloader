@@ -13,3 +13,6 @@ test('the page-side address round-trips the original url', () => {
   assert.equal(new URL(src).searchParams.get('u'), 'https://x.test/a b.jpg?x=1&y=2');
   assert.equal(coverSrc(''), '');
 });
+test('collection covers are fetched from the site', () => {
+  assert.equal(coverRoute('/api/collection-cover?remote=Music&path=Abba&w=480').kind, 'site');
+});

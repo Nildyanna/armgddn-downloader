@@ -67,8 +67,19 @@ export function visibleItems(remote, folder, items) {
     if (here && fp && fp === here) return false;
     if (leaf && !fp && f.name === leaf) return false;
     if (!f.isDir && /\.json$/i.test(f.name || '')) return false;
+    if (String(f.name || '').startsWith('.')) return false;   // hidden entries such as .trash-...
     return true;
   });
   if (remote === 'Testing' && !here) out = out.filter((f) => !f.isDir || f.name === 'PC' || f.name === 'PCVR');
   return out;
+}
+
+// Music artists and Comics series have no Steam art; the site makes a cover for each folder (and for each comic file) on request.
+const COLLECTIONS = new Set(['Music', 'Comics']);
+export function collectionCoverPath(remote, folder, item) {
+  if (!COLLECTIONS.has(remote) || !item) return '';
+  const isIssue = !item.isDir && /\.(cbz|cbr|cb7|pdf|epub)$/i.test(item.name || '');
+  if (!item.isDir && !isIssue) return '';
+  const rel = [folder, item.name].filter(Boolean).join('/');
+  return `/api/collection-cover?remote=${encodeURIComponent(remote)}&path=${encodeURIComponent(rel)}&w=480`;
 }
