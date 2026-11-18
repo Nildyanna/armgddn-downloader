@@ -1441,6 +1441,10 @@ function escapePowerShellSingleQuoted(value) {
 
 function applyStartupRegistration() {
   try {
+    // A copy that is not the installed app (a dev run, the native preview from a test folder) must never write the Windows/macOS startup
+    // entry: it shares the installed app's entry name, so it replaced it with a bare Electron path and Windows then opened an empty
+    // Electron window at every boot (2026-11-18).
+    if (!app.isPackaged) { logToFile('[Startup] not a packaged build; leaving the OS startup entry alone'); return; }
     const enabled = !!(settings && settings.startWithOsStartup);
 
     if (process.platform === 'win32' || process.platform === 'darwin') {
