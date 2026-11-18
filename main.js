@@ -2633,33 +2633,42 @@ ipcMain.handle('native-komga-save', async (event, data) => {
   return { ok: true, url };
 });
 ipcMain.handle('native-komga-forget', () => { forgetKomgaKey(); return { ok: true }; });
+// The reading orders a member can add: the site's catalog lists with more than 40 comics (the pipeline's own rule for a real reading order),
+// biggest first. Without a sign-in the six classic ones are offered, so the card is never empty.
+ipcMain.handle('native-komga-lists', async () => {
+  try {
+    const r = await comicsGet('/api/comics/catalog-info');
+    if (r && r.ok && r.json && Array.isArray(r.json.lists)) {
+      const lists = r.json.lists.filter((l) => l && /^[a-z0-9-]+$/.test(String(l.id || '')) && Number(l.books) > 40)
+        .sort((a, b) => Number(b.books) - Number(a.books)).map((l) => ({ id: l.id, title: String(l.name || l.id), books: Number(l.books) }));
+      if (lists.length) return { ok: true, lists };
+    }
+  } catch (e) { logToFile('Komga (native): could not load the reading orders: ' + (e && e.message ? e.message : e)); }
+  return { ok: false, lists: Object.entries(KOMGA_LISTS).map(([id, l]) => ({ id, title: l.title, books: 0 })) };
+});
+
+// Adds (or replaces) a reading order in the member's own Komga. The comics are found the way the pipeline identifies them (see komga.js):
+// by the exact file, then by Comic Vine id, never by series name.
 ipcMain.handle('native-komga-add', async (event, listId) => {
-  if (!komga.isValidListId(listId) || !KOMGA_LISTS[listId]) return { ok: false, error: 'Unknown reading list.' };
+  if (!komga.isValidListId(listId)) return { ok: false, error: 'Unknown reading list.' };
   if (komgaBusy) return { ok: false, error: 'Another list is being added. Try again in a moment.' };
   komgaBusy = true;
   try {
     const cfg = await loadKomgaConfig();
     if (!cfg) return { ok: false, needsSetup: true, error: 'Save your Komga address and API key first.' };
-    const token = savedSessionToken();
-    if (!token) return { ok: false, error: 'Sign in first.' };
-    let xml; let listName = KOMGA_LISTS[listId].title;
-    try {
-      const resp = await fetch(`https://www.armgddnbrowser.com/api/komga-readlist?id=${encodeURIComponent(listId)}`, {
-        headers: { 'Authorization': 'Bearer ' + token, 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion() }, signal: AbortSignal.timeout(30000) });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      try { const n = decodeURIComponent(resp.headers.get('x-readlist-name') || ''); if (n) listName = n; } catch (e) { }
-      xml = await resp.text();
-      if (!/<ReadingList[\s>]/.test(xml)) throw new Error('reply was not a reading list');
-    } catch (e) {
-      logToFile('Komga (native): could not get read list from the site: ' + (e && e.message ? e.message : e));
-      return { ok: false, error: 'Could not get the read list from ARMGDDN. Try again in a moment.' };
+    const cat = await comicsGet('/api/comics/catalog?list=' + encodeURIComponent(listId));
+    if (!cat || !cat.ok || !cat.json || !Array.isArray(cat.json.items) || !cat.json.items.length) {
+      logToFile('Komga (native): could not get the reading order from the site: ' + ((cat && cat.error) || 'no answer'));
+      return { ok: false, error: (cat && cat.error) || 'Could not get the reading order from ARMGDDN. Try again in a moment.' };
     }
-    const r = await komga.addReadList({ baseUrl: cfg.url, apiKey: cfg.key, xml, fileName: `${listName || listId} - Suggested Reading Order.cbl` });
+    const title = String((cat.json.list && cat.json.list.name) || listId);
+    const name = `${title} - Suggested Reading Order`;
+    const r = await komga.addCatalogReadList({ baseUrl: cfg.url, apiKey: cfg.key, name, items: cat.json.items });
     if (r.ok) {
-      logToFile(`Komga (native): ${r.replaced ? 'updated' : 'added'} "${listName}" (${r.count} issues, ${r.missing} not in library)`);
-      return { ok: true, replaced: !!r.replaced, count: r.count, missing: r.missing, ambiguous: r.ambiguous || 0, name: listName };
+      logToFile(`Komga (native): ${r.replaced ? 'updated' : 'added'} "${name}" (${r.count} of ${r.total} comics: ${r.byFile} by file, ${r.byCv} by Comic Vine id; ${r.missing} not in this Komga)`);
+      return { ok: true, replaced: !!r.replaced, count: r.count, total: r.total, byFile: r.byFile, byCv: r.byCv, missing: r.missing, name };
     }
-    logToFile('Komga (native): add failed (' + r.reason + (r.step ? ' at ' + r.step + ', status ' + r.status : '') + ') key length ' + String(cfg.key).length + ' fingerprint ' + require('crypto').createHash('sha256').update(String(cfg.key)).digest('hex').slice(0, 6));
+    logToFile('Komga (native): add failed (' + r.reason + (r.step ? ' at ' + r.step + ', status ' + r.status : '') + ')');
     if (r.reason === 'auth' || r.reason === 'unreachable') forgetKomgaKey();
     return { ok: false, reason: r.reason, error: r.message, needsSetup: r.reason === 'auth' || r.reason === 'unreachable' };
   } finally { komgaBusy = false; }

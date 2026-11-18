@@ -153,3 +153,64 @@ test('a list that the name search misses is still found in the full set and upda
   assert.ok(seen.some((x) => x.method === 'PATCH' && x.url === '/api/v1/readlists/L7'));
   assert.ok(!seen.some((x) => x.method === 'POST' && x.url === '/api/v1/readlists'));
 });
+
+// ---- matching by the site's catalog: exact file first, Comic Vine id second, nothing guessed
+const kb = (id, url, size, cv) => ({ id, url, sizeBytes: size, metadata: { links: cv ? [{ label: 'ComicVine', url: `https://comicvine.gamespot.com/x/4000-${cv}/` }] : [] } });
+
+test('catalog matching: the exact file beats the Comic Vine id (the same issue exists as several files), the folder path breaks ties, an id is the fallback, the rest is missing', () => {
+  const { matchCatalogItems } = require('../komga');
+  const books = [
+    { id: 'digital', url: 'R:\\Other\\Daredevil\\Daredevil 307 (1992) (Digital).cbz', size: 500, cv: 307 },     // same issue, another edition, listed first
+    { id: 'scan', url: 'R:\\Daredevil Collection\\Daredevil Vol. 1 (1964)\\Daredevil 307 (1992) (scan).cbz', size: 111, cv: 307 },
+    { id: 'dupA', url: 'D:\\x\\Batman Collection\\Batman (1940)\\Batman 5.cbr', size: 70, cv: 0 },                  // the same file in two folders
+    { id: 'dupB', url: 'D:\\x\\Elseworlds\\Batman 5.cbr', size: 70, cv: 0 },
+    { id: 'other', url: 'D:\\x\\Other edition of 9.cbz', size: 90, cv: 9 },
+  ];
+  const items = [
+    ['Daredevil Collection/Daredevil Vol. 1 (1964)/Daredevil 307 (1992) (scan).cbz', 307, 111, '307', '1992'],     // exact file exists -> scan, not digital
+    ['Batman Collection/Batman (1940)/Batman 5.cbr', 0, 70, '5', '1940'],                                          // two folders -> the one under Batman Collection
+    ['Some Collection/Series/Issue 9 (my edition).cbz', 9, 123, '9', '2001'],                                      // not that file, but the issue id exists -> other
+    ['Nowhere/Missing 1.cbz', 0, 5, '1', '2000'],
+    ['Daredevil Collection/Daredevil Vol. 1 (1964)/Daredevil 307 (1992) (scan).cbz', 307, 111, '307', '1992'],     // a repeat is not added twice
+  ];
+  const m = matchCatalogItems(items, books);
+  assert.deepStrictEqual(m.bookIds, ['scan', 'dupA', 'other']);
+  assert.strictEqual(m.byFile, 3); assert.strictEqual(m.byCv, 1); assert.strictEqual(m.missing, 1);
+});
+
+test('catalog matching: a Comic Vine id shared by two books picks the one in the same collection folder', () => {
+  const { matchCatalogItems } = require('../komga');
+  const books = [{ id: 'far', url: 'D:\\Z\\Nomad\\Nomad 5.cbz', size: 1, cv: 55 }, { id: 'near', url: 'D:\\Z\\Daredevil Collection\\Hand\\Nomad 5.cbz', size: 2, cv: 55 }];
+  const m = matchCatalogItems([['Daredevil Collection/Hand/Nomad 5 (other).cbz', 55, 3, '5', '1992']], books);
+  assert.deepStrictEqual(m.bookIds, ['near']);
+});
+
+test('adding from the catalog pages through every book, creates the list in catalog order, and says how each comic was found', async () => {
+  const page0 = { totalPages: 2, content: [kb('a', 'R:\\C\\S\\one.cbz', 10, 0), kb('b', 'R:\\C\\S\\two.cbz', 20, 222)] };
+  const page1 = { totalPages: 2, content: [kb('c', 'R:\\C\\S\\three.cbz', 30, 0)] };
+  const { server, seen, base } = await standIn({
+    'GET /api/v1/books?size=500&page=0': { body: page0 }, 'GET /api/v1/books?size=500&page=1': { body: page1 },
+    'GET /api/v1/readlists?unpaged=true&search=My%20List': { body: { content: [] } }, 'GET /api/v1/readlists?unpaged=true': { body: { content: [] } },
+    'POST /api/v1/readlists': { status: 201, body: {} }
+  });
+  const { addCatalogReadList } = require('../komga');
+  const items = [['C/S/three.cbz', 0, 30, '3', '2000'], ['C/S/zzz-other-name.cbz', 222, 99, '2', '2000'], ['C/S/one.cbz', 0, 10, '1', '2000'], ['C/S/none.cbz', 0, 1, '4', '2000']];
+  const r = await addCatalogReadList({ baseUrl: base, apiKey: 'k', name: 'My List', items });
+  server.close();
+  assert.deepStrictEqual(r, { ok: true, count: 3, missing: 1, ambiguous: 0, total: 4, byFile: 2, byCv: 1 });
+  const body = JSON.parse(seen[seen.length - 1].body);
+  assert.deepStrictEqual(body, { name: 'My List', summary: '', ordered: true, bookIds: ['c', 'b', 'a'] });
+  assert.ok(seen.every((s) => s.key === 'k'));
+});
+
+test('adding from the catalog: a wrong key, no matching comics, and a dead server each give a clear reason and create nothing', async () => {
+  const { addCatalogReadList } = require('../komga');
+  const a = await standIn({ 'GET /api/v1/books?size=500&page=0': { status: 401, body: {} } });
+  const r1 = await addCatalogReadList({ baseUrl: a.base, apiKey: 'bad', name: 'L', items: [['a/b.cbz', 1, 1, '1', '2000']] });
+  a.server.close(); assert.strictEqual(r1.reason, 'auth'); assert.strictEqual(r1.step, 'books');
+  const b = await standIn({ 'GET /api/v1/books?size=500&page=0': { body: { totalPages: 1, content: [kb('x', 'R:\\other.cbz', 5, 0)] } } });
+  const r2 = await addCatalogReadList({ baseUrl: b.base, apiKey: 'k', name: 'L', items: [['a/b.cbz', 1, 1, '1', '2000']] });
+  b.server.close(); assert.strictEqual(r2.reason, 'nomatch'); assert.ok(!b.seen.some((s) => s.method === 'POST'));
+  const r3 = await addCatalogReadList({ baseUrl: 'http://127.0.0.1:1', apiKey: 'k', name: 'L', items: [['a/b.cbz', 1, 1, '1', '2000']] });
+  assert.strictEqual(r3.reason, 'unreachable');
+});

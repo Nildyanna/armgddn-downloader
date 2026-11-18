@@ -6,9 +6,14 @@ test('loadSession() returns a boolean, so it must not be used as a token in the 
   assert.match(src, /function savedSessionToken\(\)/);
   const catalog = src.slice(src.indexOf('function catalogTokens'), src.indexOf('async function comicsGet'));
   assert.ok(catalog.includes('savedSessionToken()') && !catalog.includes('loadSession()'));
-  for (const h of ["ipcMain.handle('comics-download-missing'", "ipcMain.handle('music-download-missing'", "ipcMain.handle('native-komga-add'"]) {
+  for (const h of ["ipcMain.handle('comics-download-missing'", "ipcMain.handle('music-download-missing'"]) {
     const body = src.slice(src.indexOf(h), src.indexOf(h) + 900);
     assert.ok(body.includes('savedSessionToken()'), h);
+  }
+  // the native Komga calls get their sign-in through comicsGet, which tries every token the app holds (catalogTokens above)
+  for (const h of ["ipcMain.handle('native-komga-lists'", "ipcMain.handle('native-komga-add'"]) {
+    const body = src.slice(src.indexOf(h), src.indexOf(h) + 1400);
+    assert.ok(body.includes('comicsGet('), h);
   }
 });
 

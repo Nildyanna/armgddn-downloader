@@ -381,8 +381,10 @@ function KomgaTool({ say }) {
   const [key, setKey] = useState('');
   const [msg, setMsg] = useState('');
   const [busy, setBusy] = useState('');
+  const [lists, setLists] = useState([]);
   const load = async () => { const r = await api.komgaState(); setK(r); setUrl((u) => u || r.url || r.defaultUrl || ''); return r; };
   useEffect(() => { load().catch(() => setK({ lists: [], defaultUrl: 'http://localhost:25600' })); }, []);
+  useEffect(() => { api.komgaLists().then((r) => setLists((r && r.lists) || [])).catch(() => { }); }, []);
   if (!k) return html`<div class="loading">Loading...</div>`;
   const save = async () => {
     const r = await api.komgaSave({ url, key });
@@ -400,7 +402,7 @@ function KomgaTool({ say }) {
     setBusy(id); setMsg(`Adding ${title}...`);
     const r = await api.komgaAdd(id);
     setBusy('');
-    if (r && r.ok) { setMsg(`${r.replaced ? 'Updated' : 'Added'} "${r.name}" ${r.replaced ? 'in' : 'to'} your Komga. ${Number(r.count).toLocaleString()} issues are in the read list.${r.missing ? ` ${Number(r.missing).toLocaleString()} were left out` + (r.ambiguous ? ` (${Number(r.ambiguous).toLocaleString()} of them because your Komga has more than one series they could belong to, so the app did not guess; the rest are not in your Komga library)` : ' because they are not in your Komga library') + '.' : ''}`); say('Added to your Komga: ' + r.name); return; }
+    if (r && r.ok) { setMsg(`${r.replaced ? 'Updated' : 'Added'} "${r.name}" ${r.replaced ? 'in' : 'to'} your Komga: ${Number(r.count).toLocaleString()} of ${Number(r.total).toLocaleString()} comics, in reading order (${Number(r.byFile).toLocaleString()} matched by file${r.byCv ? `, ${Number(r.byCv).toLocaleString()} by Comic Vine id (another edition of the same issue)` : ''}).${r.missing ? ` ${Number(r.missing).toLocaleString()} are not in your Komga library, so they were left out.` : ''}`); say('Added to your Komga: ' + r.name); return; }
     setMsg((r && r.error) || 'Could not add the list.'); if (r && r.needsSetup) await load();
   };
   return html`<section class="toolcard">
@@ -410,7 +412,7 @@ function KomgaTool({ say }) {
     <label class="srow"><span class="slabel">API key</span><input class="wide" type="password" value=${key} placeholder=${k.hasKey ? 'Saved on this PC (leave empty to keep it)' : 'Paste your API key'} onInput=${(e) => setKey(e.target.value)} /></label>
     ${k.canImport ? html`<div class="srow"><span class="slabel">The installed Companion already has a Komga server and key saved.</span><button class="dbtn go" onClick=${importKey}>Import them</button></div>` : ''}
     <div class="srow"><button class="dbtn" onClick=${save}>Save</button>${k.hasKey ? html`<button class="dbtn" onClick=${forget}>Forget the key</button>` : ''}<span class="slabel">${k.hasKey ? 'A key is saved.' : 'No key saved yet.'}</span></div>
-    <div class="lists">${(k.lists || []).map((l) => html`<div class="srow"><span class="slabel">${l.title}</span><button class="dbtn" disabled=${!k.hasKey || !!busy} onClick=${() => add(l.id, l.title)}>${busy === l.id ? 'Adding...' : 'Add to my Komga'}</button></div>`)}</div>
+    <div class="lists">${(lists.length ? lists : (k.lists || [])).map((l) => html`<div class="srow"><span class="slabel">${l.title}${l.books ? html` <span class="sval">${Number(l.books).toLocaleString()} comics</span>` : ''}</span><button class="dbtn" disabled=${!k.hasKey || !!busy} onClick=${() => add(l.id, l.title)}>${busy === l.id ? 'Adding...' : 'Add to my Komga'}</button></div>`)}</div>
     ${msg ? html`<p class="note">${msg}</p>` : ''}
   </section>`;
 }

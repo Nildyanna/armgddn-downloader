@@ -66,6 +66,96 @@ function chooseFromRequests(xml, matched) {
   return { bookIds, missing, ambiguous, name: (matched && matched.readListMatch && matched.readListMatch.name) || (nm ? nm[1] : '') };
 }
 
+
+// ---- Matching by the site's catalog (how the pipeline identifies books). The .cbl files only carry series, number and year, which is not enough
+// to tell five series called "Daredevil" apart. The catalog behind /api/comics/catalog names every comic exactly: path under the mirror, Comic Vine
+// issue id, size, number and year, and a reading order is the list of those in order. Against the member's own Komga a comic is found by, in order:
+//   1. the exact file: same file name and size. The same Comic Vine issue often exists as several files (a "(scan)" and a "(Digital)" edition, or one
+//      issue in two collections) and the reading order means one of them; if the file is in several folders the one whose folder path matches most wins;
+//   2. the Comic Vine issue id, for a member who has another edition of that issue (the folder path again breaks a tie);
+//   3. otherwise it is not in that Komga and is counted as such.
+// Nothing is guessed by series name.
+const CV_RE = /\/4000-(\d+)/;
+const fileName = (p) => String(p || '').split(/[\\/]/).pop().toLowerCase();
+const segs = (p) => String(p || '').split(/[\\/]/).filter(Boolean).map((x) => x.toLowerCase());
+
+// Every book in the member's Komga as { id, url, size, cv }, page by page (Komga caps the page size).
+async function fetchAllBooks({ base, headers, fetchImpl = fetch, timeoutMs = 60000, pageSize = 500, maxPages = 200 }) {
+  const out = []; let page = 0, pages = 1;
+  while (page < pages && page < maxPages) {
+    const r = await fetchImpl(`${base}/api/v1/books?size=${pageSize}&page=${page}`, { headers, signal: AbortSignal.timeout(timeoutMs) });
+    if (r.status === 401 || r.status === 403) { const e = new Error('Komga did not accept that API key.'); e.reason = 'auth'; e.status = r.status; throw e; }
+    if (!r.ok) { const e = new Error(`Komga answered ${r.status} while listing books.`); e.reason = 'komga'; e.status = r.status; throw e; }
+    const j = await r.json();
+    pages = Number(j.totalPages) || 1;
+    for (const b of (j.content || [])) {
+      let cv = 0;
+      for (const l of ((b.metadata && b.metadata.links) || [])) { const m = CV_RE.exec(String(l && l.url || '')); if (m) { cv = parseInt(m[1], 10); break; } }
+      out.push({ id: b.id, url: String(b.url || ''), size: Number(b.sizeBytes) || 0, cv });
+    }
+    page++;
+  }
+  return out;
+}
+
+function indexBooks(books) {
+  const byFile = new Map(), byCv = new Map();
+  for (const b of books) {
+    const k = fileName(b.url) + '|' + b.size;
+    if (!byFile.has(k)) byFile.set(k, []); byFile.get(k).push(b);
+    if (b.cv) { if (!byCv.has(b.cv)) byCv.set(b.cv, []); byCv.get(b.cv).push(b); }
+  }
+  return { byFile, byCv };
+}
+
+// How many folder names, counted from the file's own folder upwards, two paths share (the member's own root can differ from the mirror's).
+function tailMatch(a, b) {
+  const x = segs(a).slice(0, -1), y = segs(b).slice(0, -1); let n = 0;        // folders only: the file names differ when the match is by Comic Vine id
+  while (n < x.length && n < y.length && x[x.length - 1 - n] === y[y.length - 1 - n]) n++;
+  return n;
+}
+function best(cands, path) {
+  if (cands.length === 1) return cands[0];
+  let top = cands[0], score = tailMatch(top.url, path);
+  for (const c of cands.slice(1)) { const t = tailMatch(c.url, path); if (t > score) { top = c; score = t; } }
+  return top;
+}
+
+// items: the catalog rows [path, cv, size, number, year] of one reading order, in order. -> { bookIds, byFile, byCv, missing }
+function matchCatalogItems(items, books) {
+  const { byFile, byCv } = indexBooks(books);
+  const bookIds = []; let viaFile = 0, viaCv = 0, missing = 0;
+  for (const row of (Array.isArray(items) ? items : [])) {
+    const [p, cv, size] = row;
+    const files = byFile.get(fileName(p) + '|' + (Number(size) || 0));
+    let hit = null;
+    if (files && files.length) { hit = best(files, p); viaFile++; }
+    else if (cv && byCv.get(cv)) { hit = best(byCv.get(cv), p); viaCv++; }
+    if (!hit) { missing++; continue; }
+    if (!bookIds.includes(hit.id)) bookIds.push(hit.id);
+  }
+  return { bookIds, byFile: viaFile, byCv: viaCv, missing };
+}
+
+// Adds (or replaces) a read list built from the catalog. name is the list's name in Komga. Returns the same shapes as addReadList, plus how each comic was found.
+async function addCatalogReadList({ baseUrl, apiKey, name, items, fetchImpl = fetch, timeoutMs = 30000 }) {
+  const base = normalizeBaseUrl(baseUrl);
+  if (!base) return { ok: false, reason: 'komga', message: 'That Komga address does not look right.' };
+  const headers = { 'X-API-Key': apiKey };
+  const sig = () => AbortSignal.timeout(timeoutMs);
+  let books;
+  try { books = await fetchAllBooks({ base, headers, fetchImpl }); }
+  catch (e) {
+    if (e && e.reason === 'auth') return { ok: false, reason: 'auth', step: 'books', status: e.status, message: 'Komga did not accept that API key.' };
+    if (e && e.reason === 'komga') return { ok: false, reason: 'komga', step: 'books', status: e.status, message: e.message };
+    return { ok: false, reason: 'unreachable', message: `Could not reach Komga at ${base}. Is it running?` };
+  }
+  const m = matchCatalogItems(items, books);
+  if (!m.bookIds.length) return { ok: false, reason: 'nomatch', total: (items || []).length, message: 'None of the comics in this reading order are in your Komga library yet. Add your comics to Komga first.' };
+  const r = await saveReadList({ base, headers, request: { name, summary: '', ordered: true, bookIds: m.bookIds }, missing: m.missing, ambiguous: 0, fetchImpl, sig });
+  return r.ok ? { ...r, total: (items || []).length, byFile: m.byFile, byCv: m.byCv } : r;
+}
+
 // Returns { ok: true, count, missing } or { ok: false, reason, message }.
 // reason: 'unreachable' | 'auth' | 'nomatch' | 'exists' | 'komga'. replaced: true when an existing list of that name was updated.
 async function addReadList({ baseUrl, apiKey, xml, fileName, fetchImpl = fetch, timeoutMs = 30000 }) {
@@ -102,6 +192,11 @@ async function addReadList({ baseUrl, apiKey, xml, fileName, fetchImpl = fetch, 
       : 'None of the issues matched books in your Komga library yet. Add your comics to Komga first.' };
   }
 
+  return saveReadList({ base, headers, request, missing, ambiguous, fetchImpl, sig });
+}
+
+// Creates the read list, or replaces the member's list of the same name. request = { name, summary, ordered, bookIds }.
+async function saveReadList({ base, headers, request, missing, ambiguous, fetchImpl, sig }) {
   // A read list with the same name is replaced, so grabbing a fresh one from the site updates what the member has.
   // Komga's name search can miss a list that exists (it did for one created minutes earlier), so when the search finds nothing the whole set of
   // read lists is checked by name. Without this a second run answered "already exists" instead of updating the list.
@@ -151,4 +246,4 @@ async function addReadList({ baseUrl, apiKey, xml, fileName, fetchImpl = fetch, 
 // and the site answers 404 for an unknown one.
 function isValidListId(id) { return typeof id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) && id.length <= 60; }
 
-module.exports = { LISTS, normalizeBaseUrl, addReadList, isValidListId, parseBookEntries, chooseFromRequests };
+module.exports = { LISTS, normalizeBaseUrl, addReadList, addCatalogReadList, isValidListId, parseBookEntries, chooseFromRequests, fetchAllBooks, matchCatalogItems, indexBooks };
