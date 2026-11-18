@@ -4,6 +4,25 @@ import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
 
 const api = window.nativeAPI;
+
+// Themes: the website's palettes (renderer/native/themes.json, made by scripts/extract_themes.py). The choice is remembered on this PC; "System" follows the computer's light or dark setting.
+let THEMES = {};
+try { THEMES = (await import('./themes.json', { with: { type: 'json' } })).default || {}; } catch (e) { THEMES = {}; }
+const themeKeyOk = (id) => id === 'system' || Object.prototype.hasOwnProperty.call(THEMES, id);
+function applyTheme(choice) {
+  const id = themeKeyOk(choice) ? choice : 'dark';
+  let useId = id;
+  if (id === 'system') { let light = false; try { light = window.matchMedia('(prefers-color-scheme: light)').matches; } catch (e) { } useId = light && THEMES.light ? 'light' : 'dark'; }
+  const t = THEMES[useId] || THEMES.dark;
+  if (!t) return;
+  const root = document.documentElement.style;
+  const set = (k, v) => { if (v) root.setProperty(k, v); else root.removeProperty(k); };
+  set('--bg', t.bg); set('--panel', t.panel); set('--fg', t.fg); set('--dim', t.dim); set('--line', t.line); set('--accent', t.accent); set('--accent2', t.accent2);
+  set('--on-accent', t.onAccent); set('--rc', t.radius || '10px');
+  root.setProperty('color-scheme', t.mode === 'light' ? 'light' : 'dark');
+}
+const storedTheme = () => { try { return localStorage.getItem('native.theme') || 'dark'; } catch (e) { return 'dark'; } };
+applyTheme(storedTheme());
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
 const coverSrc = (url) => (url ? 'armgddn-img://c/?u=' + encodeURIComponent(url) : '');
 
@@ -492,7 +511,7 @@ function App() {
     if (listOnly) { if (m.added) say('Added ' + m.added + ' new My List item' + (m.added === 1 ? '' : 's') + ' from the website.'); return; }
     try {
       for (const [id, on] of Object.entries(p.strips)) localStorage.setItem('native.strip.' + id, on ? '1' : '0');
-      if (p.theme) localStorage.setItem('native.theme', p.theme);
+      if (p.theme && themeKeyOk(p.theme)) { localStorage.setItem('native.theme', p.theme); setThemeChoice(p.theme); applyTheme(p.theme); }
       if (p.searches.length) localStorage.setItem('native.recentSearches', JSON.stringify(p.searches));
       if (p.komgaUrl) localStorage.setItem('native.komgaUrl', p.komgaUrl);
       if (p.animations !== null) localStorage.setItem('native.animations', p.animations ? '1' : '0');
@@ -507,6 +526,9 @@ function App() {
   const inMyList = (it) => myListHas(myList, ctxRemote(it), itemPath(it));
   const pendingScroll = useRef('');
   const openTrend = (e) => { const it = homeItem(e); if (!it) return; pendingScroll.current = it.name; goTo(it._remote, it._folder); };
+  const [themeChoice, setThemeChoice] = useState(() => (themeKeyOk(storedTheme()) ? storedTheme() : 'dark'));
+  const chooseTheme = (id) => { setThemeChoice(id); applyTheme(id); try { localStorage.setItem('native.theme', id); } catch (e) { } };
+  useEffect(() => { if (themeChoice !== 'system') return; let mq; try { mq = window.matchMedia('(prefers-color-scheme: light)'); } catch (e) { return; } const on = () => applyTheme('system'); mq.addEventListener('change', on); return () => mq.removeEventListener('change', on); }, [themeChoice]);
   const [radarHistory, setRadarHistory] = useState(() => lsGet('native.radarHistory', []));
   // Opening a game folder is remembered (newest first) so Game Radar can say "Continue browsing" and offer "Resume last visit".
   const recordVisit = (item, rem, base) => {
@@ -661,6 +683,7 @@ function App() {
       <div class="brand">ARMGDDN</div>
       <button class=${view === 'home' ? 'tab on' : 'tab'} onClick=${() => setView('home')}>Home</button>
       <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
+      <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['dark', 'Default', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light').sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
       <button class=${view === 'settings' ? 'tab on' : 'tab'} title="Settings" onClick=${() => setView('settings')}>Settings</button>
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
       <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>

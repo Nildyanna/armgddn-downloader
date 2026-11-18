@@ -158,3 +158,16 @@ test('trending sets follow the website: four sets, five titles each, most downlo
   assert.deepEqual(sets[0].items.map((x) => x.title), ['T7', 'T6', 'T5', 'T4', 'T3']);
   assert.equal(sets[1].items[0].title, 'T8'); assert.deepEqual(trendingSets({}), []);
 });
+
+test('the theme file has every palette the app needs, in colours the page can use', () => {
+  const themes = require('../renderer/native/themes.json');
+  assert.ok(Object.keys(themes).length >= 20);
+  assert.ok(themes.dark && themes.light && themes['blood-moon']);
+  const colour = /^(#[0-9a-f]{3,8}|rgba?\([\d\s.,%]+\)|hsla?\([\d\s.,%]+\))$/i;
+  for (const [id, t] of Object.entries(themes)) {
+    for (const k of ['bg', 'panel', 'fg', 'dim', 'line', 'accent', 'accent2', 'onAccent']) assert.match(String(t[k]), colour, id + '.' + k + ' = ' + t[k]);
+    assert.ok(t.mode === 'dark' || t.mode === 'light', id);
+    if (t.radius) assert.match(t.radius, /^[\d.]+px( [\d.]+px){0,3}$/);
+  }
+  assert.equal(themes.light.mode, 'light'); assert.equal(themes.dark.mode, 'dark');
+});
