@@ -215,12 +215,44 @@ function EverywhereResults({ index, query, render }) {
   return html`<main class="grid wide"><div class="count" style="grid-column:1/-1">${found.length} found</div>${found.map(render)}</main>`;
 }
 
+// Settings that used to live only in the classic window: the common ones are here; the rest (history, scans, schedule) are one button away.
+const SETTING_ROWS = [
+  ['number', 'maxConcurrentDownloads', 'Downloads at the same time', 1, 6],
+  ['number', 'connectionsPerFile', 'Connections per file', 1, 16],
+  ['number', 'maxDownloadSpeedMBps', 'Speed limit in MB/s (0 = no limit)', 0, 10000],
+  ['check', 'autoHashCheck', 'Check files after downloading'],
+  ['check', 'autoExtract7z', 'Extract .7z files automatically'],
+  ['check', 'showNotifications', 'Show notifications'],
+  ['check', 'minimizeToTrayOnClose', 'Keep running in the tray when the window is closed'],
+  ['check', 'autoUpdate', 'Update automatically'],
+  ['check', 'startWithOsStartup', 'Start with the computer'],
+  ['check', 'errorReporting', 'Send error reports'],
+];
+function SettingsView({ say }) {
+  const [s, setS] = useState(null);
+  useEffect(() => { api.getSettings().then((r) => setS(r && typeof r === 'object' ? r : {})).catch(() => setS({})); }, []);
+  if (!s) return html`<div class="loading">Loading settings...</div>`;
+  const save = async (patch) => { const next = { ...s, ...patch }; setS(next); try { await api.saveSettings(patch); } catch (e) { say('Could not save'); } };
+  const pickFolder = async (key) => { const r = await api.browseFolder(); if (r) save({ [key]: r }); };
+  const folderRow = (key, label) => html`<div class="srow"><span class="slabel">${label}</span><span class="sval">${s[key] || 'Not set'}</span><button class="dbtn" onClick=${() => pickFolder(key)}>Change</button></div>`;
+  return html`<main class="settings">
+    <h2>Settings</h2>
+    ${folderRow('downloadPath', 'Download folder')}
+    ${folderRow('comicsFolder', 'Comics folder')}
+    ${folderRow('musicFolder', 'Music folder')}
+    ${SETTING_ROWS.map(([kind, key, label, min, max]) => kind === 'check'
+      ? html`<label class="srow"><input type="checkbox" checked=${!!s[key]} onChange=${(e) => save({ [key]: e.target.checked })} /> <span class="slabel">${label}</span></label>`
+      : html`<label class="srow"><span class="slabel">${label}</span><input type="number" min=${min} max=${max} value=${Number(s[key]) || 0} onChange=${(e) => { const n = Math.max(min, Math.min(max, Number(e.target.value) || 0)); save({ [key]: n }); }} /></label>`)}
+    <div class="srow"><span class="slabel">Download history, schedule, Komga and library scans</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
+  </main>`;
+}
+
 function DownloadsView({ list }) {
   if (!list.length) return html`<div class="loading">No downloads yet. Press Download on any game, album or comic collection.</div>`;
   return html`<div class="dlist">${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
     <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
-    <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(d.downloadedSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), formatSpeed(d.speed), d.eta ? 'ETA ' + d.eta : ''].filter(Boolean).join(' · ')}</div>
+    <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(d.downloadedSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), (d.totalSpeed || formatSpeed(d.speed)), d.eta ? 'ETA ' + d.eta : '', d.fileCount > 1 ? (d.completedFiles || 0) + ' of ' + d.fileCount + ' files' : ''].filter(Boolean).join(' · ')}</div>
     ${d.error ? html`<div class="derr">${d.error}</div>` : ''}
     <div class="dbtns">${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>
   </div>`)}</div>`;
@@ -374,7 +406,7 @@ function App() {
     <header>
       <div class="brand">ARMGDDN</div>
       <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
-      <button class="tab" title="Settings, history and the other tools" onClick=${() => api.openClassic()}>Settings</button>
+      <button class=${view === 'settings' ? 'tab on' : 'tab'} title="Settings" onClick=${() => setView('settings')}>Settings</button>
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
       <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>
       <button class=${view === 'requests' ? 'tab on' : 'tab'} onClick=${() => setView('requests')}>Requests</button>
@@ -387,7 +419,7 @@ function App() {
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
     </header>
-    ${view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'settings' ? html`<${SettingsView} say=${say} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}

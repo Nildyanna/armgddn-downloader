@@ -107,9 +107,9 @@ header select { flex: none; }
 .dl.heart.on { color: #f43f5e; border-color: #f43f5e; }
 header select + select { margin-left: 0; }
 
-.cbtns { display: flex; gap: 4px; margin-top: 8px; flex-wrap: nowrap; }
+.cbtns { display: flex; gap: 4px; margin-top: 8px; flex-wrap: wrap; }
 .cbtns .dl { margin: 0; padding: 4px 8px; font-size: 12px; white-space: nowrap; }
-.cbtns .dl:last-child { margin-left: auto; }
+.cbtns .dl:last-child { margin-left: auto; flex: 0 0 auto; }
 
 .wiki { flex: 1; display: flex; min-height: 0; }
 .wikitoc { width: 270px; flex: none; overflow: auto; padding: 12px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
@@ -120,3 +120,10 @@ header select + select { margin-left: 0; }
 .wikibody a { color: var(--accent); } .wikibody code { background: #0b1426; padding: 1px 6px; border-radius: 4px; }
 
 .everywhere { color: var(--dim); font-size: 12px; display: flex; align-items: center; gap: 5px; white-space: nowrap; flex: none; }
+
+.settings { max-width: 760px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.settings h2 { margin: 0 0 6px; }
+.srow { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--card, #0f1a2e); border: 1px solid var(--line); border-radius: 8px; }
+.srow .slabel { flex: 1; }
+.srow .sval { color: var(--dim); font-size: 12px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
+.srow input[type=number] { width: 90px; background: #0b1426; color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
