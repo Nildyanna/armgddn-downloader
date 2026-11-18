@@ -177,7 +177,12 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, fs = require(
     webPreferences: { preload: path.join(appDir, 'preload-native.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
   });
   win.maximize();   // opens maximized
-  win.webContents.on('console-message', (_e, level, message, line, source) => { if (level >= 2) log('[Native] page ' + (level === 3 ? 'error' : 'warning') + ': ' + String(message).slice(0, 300) + ' (' + String(source).split('/').pop() + ':' + line + ')'); });
+  // Electron 44+ passes one event object ({ level: 'info' | 'warning' | 'error' | 'debug', message, lineNumber, sourceId }); older versions pass separate arguments with a number level.
+  win.webContents.on('console-message', (e, ...legacy) => {
+    const d = e && typeof e.message === 'string' ? e : { level: legacy[0], message: legacy[1], lineNumber: legacy[2], sourceId: legacy[3] };
+    const lvl = typeof d.level === 'number' ? (d.level >= 3 ? 'error' : d.level === 2 ? 'warning' : 'info') : String(d.level || 'info');
+    if (lvl === 'error' || lvl === 'warning') log('[Native] page ' + lvl + ': ' + String(d.message).slice(0, 300) + ' (' + String(d.sourceId || '').split('/').pop() + ':' + (d.lineNumber || 0) + ')');
+  });
   // YouTube refuses an embed that arrives with no website address (error 153) and a local page has none, so the player request carries the
   // site's address, as it does on the website. Only YouTube's embed URLs get it.
   try {
