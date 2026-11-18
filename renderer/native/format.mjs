@@ -282,3 +282,49 @@ export function picksFrom(entries, myListNames, day, count = 12) {
   return (entries || []).filter((e) => { const t = String(e.title || '').toLowerCase(); if (!t || have.has(t) || seen.has(t)) return false; seen.add(t); return !!(e.remote && e.path); })
     .map((e) => ({ e, k: h(String(day) + (e.title || '')) })).sort((a, b) => a.k - b.k).slice(0, count).map((x) => x.e);
 }
+
+// ---- Website preferences -> the app. The website keeps them in the browser, so a short snippet run once on the site produces a code
+// (ARMGDDN-PREFS:1:...) that is pasted into the app. The code is checked field by field; anything unexpected is dropped.
+export const PREFS_PREFIX = 'ARMGDDN-PREFS:1:';
+export const PREFS_SNIPPET = "(()=>{const g=k=>{try{return localStorage.getItem(k)}catch(e){return null}},j=k=>{try{return JSON.parse(g(k))}catch(e){return null}};const o={theme:g('armgddn-theme'),myList:j('armgddn-my-list'),searches:j('armgddn-recent-searches'),komgaUrl:g('komgaUrl'),animations:g('armgddn-animations'),collapsed:{gameRadarContainer:g('armgddn-collapsed-gameRadarContainer'),trendingPillContainer:g('armgddn-collapsed-trendingPillContainer'),hiddenGemsContainer:g('armgddn-collapsed-hiddenGemsContainer')}};const b=btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(o)))).replace(/\\+/g,'-').replace(/\\//g,'_').replace(/=+$/,'');const c='ARMGDDN-PREFS:1:'+b;try{copy(c)}catch(e){}console.log(c);return 'Code ready ('+c.length+' characters); it was copied if your browser allowed it.'})()";
+export function parsePrefs(code) {
+  const text = String(code == null ? '' : code).replace(/\s+/g, '');
+  const at = text.indexOf(PREFS_PREFIX);
+  if (at < 0) return { error: 'That is not a code from the website snippet.' };
+  const body = text.slice(at + PREFS_PREFIX.length).replace(/[^A-Za-z0-9_-]/g, '');
+  if (!body || body.length > 3 * 1024 * 1024) return { error: 'The code is empty or too long.' };
+  let raw;
+  try {
+    const b64 = body.replace(/-/g, '+').replace(/_/g, '/') + '==='.slice((body.length + 3) % 4);
+    const bin = atob(b64);
+    raw = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, (c) => c.charCodeAt(0))));
+  } catch (e) { return { error: 'The code could not be read. Copy it again from the website.' }; }
+  if (!raw || typeof raw !== 'object') return { error: 'The code could not be read.' };
+  const str = (v, max) => (typeof v === 'string' && v.length <= max ? v : '');
+  const out = { myList: [], theme: '', strips: {}, searches: [], komgaUrl: '', animations: null };
+  const list = Array.isArray(raw.myList) ? raw.myList.slice(0, 2000) : [];
+  for (const i of list) {
+    if (!i || typeof i !== 'object') continue;
+    const name = str(i.name, 300), remote = str(i.remote, 60);
+    if (!name || !/^[A-Za-z0-9 _.\-]{1,60}$/.test(remote)) continue;
+    const path = str(i.path, 600);
+    if (path.split('/').includes('..')) continue;
+    const cover = i.coverArt && i.coverArt.cover && typeof i.coverArt.cover.url === 'string' && i.coverArt.cover.url.length < 800 ? { cover: { url: i.coverArt.cover.url } } : null;
+    out.myList.push({ name, remote, path, size: Number(i.size) || 0, downloadCount: Number(i.downloadCount) || 0, releaseDate: str(i.releaseDate, 40) || null, coverArt: cover, dateAdded: str(i.dateAdded, 40) || null });
+  }
+  const th = str(raw.theme, 40); out.theme = /^[a-z0-9-]+$/i.test(th) ? th : '';
+  const col = raw.collapsed && typeof raw.collapsed === 'object' ? raw.collapsed : {};
+  const map = { gameRadarContainer: 'picks', trendingPillContainer: 'trending', hiddenGemsContainer: 'gems' };
+  for (const [k, id] of Object.entries(map)) out.strips[id] = col[k] === '1';
+  out.searches = (Array.isArray(raw.searches) ? raw.searches : []).map((x) => str(x, 100)).filter(Boolean).slice(0, 30);
+  const k = str(raw.komgaUrl, 200); out.komgaUrl = /^https?:\/\/[^\s]+$/.test(k) ? k : '';
+  out.animations = raw.animations === '0' || raw.animations === 'off' ? false : raw.animations === '1' || raw.animations === 'on' ? true : null;
+  return out;
+}
+// Merge imported My List entries into the current one without duplicates (same remote and path).
+export function mergeMyList(current, incoming) {
+  const key = (i) => i.remote + '/' + (i.path || i.name);
+  const have = new Set((current || []).map(key));
+  const added = (incoming || []).filter((i) => { const k = key(i); if (have.has(k)) return false; have.add(k); return true; });
+  return { list: (current || []).concat(added), added: added.length };
+}

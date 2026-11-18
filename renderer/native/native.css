@@ -154,3 +154,7 @@ header select + select { margin-left: 0; }
 .ftitle { font-weight: 600; }
 .fdetail { color: var(--dim); font-size: 12px; margin-top: 2px; }
 .support-note { color: var(--dim); font-size: 12px; padding: 4px 2px; }
+
+.steps { margin: 0 0 10px 18px; padding: 0; color: var(--dim); font-size: 13px; line-height: 1.5; }
+.steps code { color: var(--accent); }
+.prefs-box { width: 100%; min-height: 110px; margin: 10px 0; background: #0b1426; color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 8px; font: 12px/1.4 Consolas, monospace; box-sizing: border-box; }

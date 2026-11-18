@@ -117,3 +117,19 @@ test('home strip entries become list items, and picks skip what is already on My
   assert.deepEqual(picksFrom(e, ['b'], '2026-11-18', 10).map((x) => x.title), a);          // stable within a day
   assert.equal(picksFrom(e, [], 'd', 2).length, 2);
 });
+
+test('website preferences code: read, checked field by field, merged without duplicates', async () => {
+  const { parsePrefs, mergeMyList, PREFS_PREFIX } = await import('../renderer/native/format.mjs');
+  const enc = (o) => PREFS_PREFIX + Buffer.from(JSON.stringify(o), 'utf8').toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  const good = { theme: 'solar-flare', myList: [{ name: 'Half-Life Alyx v1 -ARMGDDN', remote: 'PCVR-2', path: 'PCVR2/Half-Life Alyx v1 -ARMGDDN', size: 5, downloadCount: 3, coverArt: { cover: { url: '/api/art-proxy?url=x' } } }, { name: 'bad', remote: '../x', path: '' }, { name: 'trav', remote: 'PC-1', path: 'a/../b' }, null],
+    searches: ['half life', 5], komgaUrl: 'https://komga.example/', animations: '0', collapsed: { trendingPillContainer: '1' } };
+  const p = parsePrefs('\n  ' + enc(good) + '  \n');
+  assert.equal(p.error, undefined);
+  assert.equal(p.myList.length, 1); assert.equal(p.myList[0].remote, 'PCVR-2'); assert.equal(p.theme, 'solar-flare');
+  assert.deepEqual(p.searches, ['half life']); assert.equal(p.komgaUrl, 'https://komga.example/'); assert.equal(p.animations, false);
+  assert.deepEqual(p.strips, { picks: false, trending: true, gems: false });
+  assert.ok(parsePrefs('hello').error); assert.ok(parsePrefs(PREFS_PREFIX + '!!!').error);
+  assert.ok(parsePrefs(enc({ theme: 'x y', komgaUrl: 'javascript:alert(1)' })).komgaUrl === '');
+  const m = mergeMyList([{ remote: 'PCVR-2', path: 'PCVR2/Half-Life Alyx v1 -ARMGDDN', name: 'x' }, { remote: 'PC-1', path: 'z', name: 'z' }], p.myList);
+  assert.equal(m.added, 0); assert.equal(m.list.length, 2);
+});

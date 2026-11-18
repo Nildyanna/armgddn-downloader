@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, PREFS_SNIPPET, parsePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -260,8 +260,27 @@ function SupportTools({ say, onApplyConnections }) {
   </div>`;
 }
 
-function SettingsView({ say }) {
+// Moves the website's preferences over: the website keeps them in the browser, so a short snippet run on the site makes a code to paste here.
+function PrefsImport({ onClose, onApply, say }) {
+  const [code, setCode] = useState('');
+  const [problem, setProblem] = useState('');
+  const go = () => { const p = parsePrefs(code); if (p.error) { setProblem(p.error); return; } onApply(p); onClose(); };
+  return html`<${Modal} title="Import my website preferences" onClose=${onClose} wide=${true}>
+    <ol class="steps">
+      <li>Open <strong>armgddnbrowser.com</strong> in your browser and sign in.</li>
+      <li>Press <strong>F12</strong>, open the <strong>Console</strong> tab, paste the snippet below and press Enter. (If the browser asks you to type "allow pasting" first, do that.)</li>
+      <li>It prints a long code starting <code>ARMGDDN-PREFS</code> (and copies it if it can). Paste the code in the box here.</li>
+    </ol>
+    <div class="srow"><span class="slabel">The snippet</span><button class="dbtn" onClick=${async () => { const r = await api.copy(PREFS_SNIPPET); say(r.ok ? 'Snippet copied' : 'Could not copy'); }}>Copy snippet</button></div>
+    <textarea class="prefs-box" placeholder="Paste the ARMGDDN-PREFS code here" value=${code} onInput=${(e) => { setCode(e.target.value); setProblem(''); }}></textarea>
+    ${problem ? html`<div class="derr">${problem}</div>` : ''}
+    <div class="dbtns"><button class="dbtn" onClick=${go}>Import</button></div>
+  </${Modal}>`;
+}
+
+function SettingsView({ say, onPrefs }) {
   const [s, setS] = useState(null);
+  const [prefsOpen, setPrefsOpen] = useState(false);
   useEffect(() => { api.getSettings().then((r) => setS(r && typeof r === 'object' ? r : {})).catch(() => setS({})); }, []);
   if (!s) return html`<div class="loading">Loading settings...</div>`;
   const save = async (patch) => { const next = { ...s, ...patch }; setS(next); try { await api.saveSettings(patch); } catch (e) { say('Could not save'); } };
@@ -278,6 +297,8 @@ function SettingsView({ say }) {
       ? html`<label class="srow"><input type="checkbox" checked=${!!s[key]} onChange=${(e) => save({ [key]: e.target.checked })} /> <span class="slabel">${label}</span></label>`
       : html`<label class="srow"><span class="slabel">${label}</span><input type="number" min=${min} max=${max} value=${Number(s[key]) || 0} onChange=${(e) => { const n = Math.max(min, Math.min(max, Number(e.target.value) || 0)); save({ [key]: n }); }} /></label>`)}
     <div class="srow"><span class="slabel">Import the settings of the installed Companion (folders, speed, toggles)</span><button class="dbtn" onClick=${async () => { const r = await api.importSettings(); if (r && r.same) say('This already is the installed Companion\'s settings'); else if (r && r.imported) { say('Imported ' + r.imported + ' settings'); const g = await api.getSettings(); if (g) setS(g); } else say('No installed Companion settings were found'); }}>Import</button></div>
+    <div class="srow"><span class="slabel">Import my website preferences (My List, theme, hidden sections, recent searches)</span><button class="dbtn" onClick=${() => setPrefsOpen(true)}>Import</button></div>
+    ${prefsOpen ? html`<${PrefsImport} onClose=${() => setPrefsOpen(false)} onApply=${onPrefs} say=${say} />` : ''}
     <${SupportTools} say=${say} onApplyConnections=${(v) => save({ connectionsPerFile: v })} />
     <div class="srow"><span class="slabel">Download history, schedule, Komga and library scans</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
   </main>`;
@@ -370,6 +391,18 @@ function App() {
   const ctxRemote = (it) => (it && it._remote != null ? it._remote : remote);
   const ctxFolder = (it) => (it && it._folder != null ? it._folder : folder);
   const itemPath = (it) => [ctxFolder(it), it.name].filter(Boolean).join('/');
+  const applyPrefs = (p) => {
+    const m = mergeMyList(myList, p.myList);
+    setMyList(m.list); try { localStorage.setItem(MY_LIST_KEY, JSON.stringify(m.list)); } catch (e) { }
+    try {
+      for (const [id, on] of Object.entries(p.strips)) localStorage.setItem('native.strip.' + id, on ? '1' : '0');
+      if (p.theme) localStorage.setItem('native.theme', p.theme);
+      if (p.searches.length) localStorage.setItem('native.recentSearches', JSON.stringify(p.searches));
+      if (p.komgaUrl) localStorage.setItem('native.komgaUrl', p.komgaUrl);
+      if (p.animations !== null) localStorage.setItem('native.animations', p.animations ? '1' : '0');
+    } catch (e) { }
+    say('Imported ' + m.added + ' My List item' + (m.added === 1 ? '' : 's') + (p.theme ? ', your theme' : '') + (p.searches.length ? ', recent searches' : '') + '.');
+  };
   const toggleList = (it) => {
     const next = myListToggle(myList, { name: it.name, remote: ctxRemote(it), path: itemPath(it), size: it.size, downloadCount: it.downloadCount, releaseDate: it.releaseDate, coverArt: it.coverArt });
     setMyList(next); try { localStorage.setItem(MY_LIST_KEY, JSON.stringify(next)); } catch (e) { }
@@ -491,7 +524,7 @@ function App() {
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
     </header>
-    ${view === 'home' ? html`<${HomeView} myList=${myList} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'settings' ? html`<${SettingsView} say=${say} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} myList=${myList} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="credit">Created by Old Man of the Hills v${(status && status.version) || ''}</span><span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
