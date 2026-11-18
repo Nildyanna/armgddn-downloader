@@ -1,4 +1,4 @@
-import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
+import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
 import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
@@ -217,7 +217,6 @@ function RequestsView({ say, openId }) {
   }
   return html`<div class="reqpane">
     <div class="reqhead"><h2>My requests</h2><button class="primary" onClick=${() => setForm({ category: 'Music', title: '', notes: '' })}>New request</button></div>
-    ${view === 'library' && !everywhere && (remote === 'Music' || remote === 'Comics') && !noticeOff ? html`<div class="notice soft">Some albums and comic collections may be missing tracks or issues that haven't been sourced yet. If you'd like to contribute, please contact Old Man of the Hills. Some releases are left out on purpose (remixes, live versions, compilations and the like), so these lists are not a complete or official catalogue. <button class="dbtn" onClick=${() => setNoticeOff(true)}>Got it</button></div>` : ''}
     ${error ? html`<div class="notice">${error.message}</div>` : ''}
     ${form ? html`<div class="reqform">
       <select value=${form.category} onChange=${(e) => setForm({ ...form, category: e.target.value })}><option>Music</option><option>Comics</option></select>
@@ -747,6 +746,19 @@ function DownloadsView({ list, onClear }) {
   </div>`)}</div>`;
 }
 
+// A page that throws while it draws must not take the whole window with it: it says so and offers Back.
+class PageGuard extends Component {
+  constructor(props) { super(props); this.state = { err: null }; }
+  componentDidCatch(err) {
+    this.setState({ err });
+    try { console.error('[page crash] ' + (err && err.message ? err.message : err) + ' ' + String(err && err.stack || '').split('\n').slice(0, 3).join(' | ')); } catch (e) { }
+  }
+  render(props) {
+    if (!this.state.err) return props.children;
+    return html`<div class="notice"><strong>This page ran into a problem.</strong> It has been reported in the log. <button class="dbtn" onClick=${() => this.setState({ err: null })}>Try again</button> <button class="dbtn" onClick=${props.onBack}>Back</button></div>`;
+  }
+}
+
 function App() {
   const [status, setStatus] = useState(null);
   const [tabs, setTabs] = useState([]);
@@ -1084,15 +1096,18 @@ function App() {
       </${Fragment}>` : ''}
       ${(view === 'library' || view === 'mylist') ? html`<span class="viewsel" title="How the titles are shown"><button class=${viewMode === 'grid' ? 'tab on' : 'tab'} onClick=${() => setViewMode('grid')}>Grid</button><button class=${viewMode === 'list' ? 'tab on' : 'tab'} onClick=${() => setViewMode('list')}>List</button></span>` : ''}
     </div>
+    <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
+    ${view === 'library' && !everywhere && (remote === 'Music' || remote === 'Comics') && !noticeOff ? html`<div class="notice soft">Some albums and comic collections may be missing tracks or issues that haven't been sourced yet. If you'd like to contribute, please contact Old Man of the Hills. Some releases are left out on purpose (remixes, live versions, compilations and the like), so these lists are not a complete or official catalogue. <button class="dbtn" onClick=${() => setNoticeOff(true)}>Got it</button></div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
     ${view === 'library' && remote === 'Comics' && !everywhere && !folder && !query ? html`<section class="komgabox"><div><strong>Komga</strong> - free comic server and reader. It runs on your PC and reads the comics you download here, with covers, series and reading progress.</div><div class="dbtns"><button class="dbtn go" onClick=${() => api.openExternal('https://komga.org/docs/installation/desktop')}>Download Komga</button><button class="dbtn" onClick=${() => setView('wiki')}>Setup guide</button><button class="dbtn" onClick=${() => setView('tools')}>Add reading orders</button></div></section>` : ''}
     ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}
     ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${viewMode === 'list' ? 'list' : "grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { recordVisit(x, remote, folder); setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
+    </${PageGuard}>
     ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}

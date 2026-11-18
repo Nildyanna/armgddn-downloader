@@ -126,3 +126,13 @@ test('every screen has a Back button (and Alt+Left / the mouse back button) that
   assert.ok(app.includes("e.altKey && e.key === 'ArrowLeft'") && app.includes('e.button === 3'));
   assert.ok(app.includes('skip the app\'s own step into a game group'), 'the automatic step into the mirror root is not a screen');
 });
+
+test('the Requests page no longer throws (a notice that used the library page\'s variables sat inside it), and a page that fails to draw cannot take the whole window down', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  const req = app.slice(app.indexOf('function RequestsView'), app.indexOf('function MyListView'));
+  for (const name of ['noticeOff', 'everywhere', "view ===", "remote ==="]) assert.ok(!req.includes(name), 'RequestsView must not use ' + name);
+  assert.equal((app.match(/Some albums and comic collections may be missing/g) || []).length, 1);
+  assert.ok(app.indexOf('Some albums and comic collections may be missing') > app.indexOf('function App()'), 'the catalogue notice is in the library page');
+  assert.ok(app.includes('class PageGuard extends Component') && app.includes('<${PageGuard} key=${view} onBack=${goBack}>') && app.includes('</${PageGuard}>'));
+  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'native', 'vendor', 'ui.mjs'), 'utf8').includes('Component'));
+});
