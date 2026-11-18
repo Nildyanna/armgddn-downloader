@@ -379,10 +379,12 @@ function App() {
       <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>
       <button class=${view === 'requests' ? 'tab on' : 'tab'} onClick=${() => setView('requests')}>Requests</button>
       <button class=${view === 'downloads' ? 'tab on' : 'tab'} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
+      ${view === 'library' ? html`<${Fragment}>
       <label class="everywhere" title="Search every section, not just this list"><input type="checkbox" checked=${everywhere} onChange=${(e) => { setEverywhere(e.target.checked); setView('library'); }} /> Everywhere</label>
       <input class="search" type="search" placeholder=${everywhere ? "Search every section" : "Search this list"} value=${query} onInput=${(e) => setQuery(e.target.value)} />
       ${cats.length ? html`<select value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All categories</option>${cats.slice(0, 80).map((c) => html`<option value=${c.name}>${c.name} (${c.count})</option>`)}</select>` : ''}
       <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="newest">Newest</option><option value="size">Largest</option></select>
+      </${Fragment}>` : ''}
     </header>
     ${view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
