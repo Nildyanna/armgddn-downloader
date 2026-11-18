@@ -110,3 +110,11 @@ header select + select { margin-left: 0; }
 .cbtns { display: flex; gap: 4px; margin-top: 8px; flex-wrap: nowrap; }
 .cbtns .dl { margin: 0; padding: 4px 8px; font-size: 12px; white-space: nowrap; }
 .cbtns .dl:last-child { margin-left: auto; }
+
+.wiki { flex: 1; display: flex; min-height: 0; }
+.wikitoc { width: 270px; flex: none; overflow: auto; padding: 12px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 2px; }
+.wikitoc button { text-align: left; background: none; border: 0; color: var(--dim); padding: 7px 10px; border-radius: 8px; }
+.wikitoc button:hover { color: var(--fg); } .wikitoc button.on { background: rgba(34, 211, 238, .1); color: var(--accent); }
+.wikibody { flex: 1; overflow: auto; padding: 16px 28px 40px; line-height: 1.6; max-width: 920px; }
+.wikibody h2 { margin-top: 0; } .wikibody h3 { margin: 18px 0 6px; color: var(--accent); } .wikibody img { max-width: 100%; border-radius: 8px; }
+.wikibody a { color: var(--accent); } .wikibody code { background: #0b1426; padding: 1px 6px; border-radius: 4px; }

@@ -232,3 +232,12 @@ export function filterByCategory(items, cat, remote) {
   if (!cat) return items;
   return (items || []).filter((it) => !it.isDir || categoriesOf(it, remote).includes(cat));
 }
+
+// Wiki pictures live on the site; inside the app they come through the private image address (the main process fetches them).
+export function wikiHtmlForApp(htmlText) {
+  return String(htmlText || '').replace(/(<img\b[^>]*?\bsrc=")(https:\/\/[^"]+)(")/gi, (_m, a, url, c) => a + 'armgddn-img://c/?u=' + encodeURIComponent(url) + c);
+}
+export function wikiSectionFor(sections, id) {
+  const list = Array.isArray(sections) ? sections : [];
+  return list.find((s) => s.id === id) || list[0] || null;
+}

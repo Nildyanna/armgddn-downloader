@@ -86,4 +86,7 @@ test('grid helpers', async () => {
   assert.equal(F.filterByCategory(catItems, 'Action', 'PC Games').length, 2);   // the matching folder and the loose file
   assert.deepEqual(F.categoryCounts([{ isDir: true }], 'Music'), []);   // nothing tagged yet: no dropdown
   assert.deepEqual(F.categoriesOf({ isDir: true, genres: ['Rock'] }, 'Music'), ['Rock']);
+  const W = await import('../renderer/native/format.mjs');
+  assert.equal(W.wikiHtmlForApp('<p>x</p><img class="a" src="https://www.armgddnbrowser.com/static/wiki/a b.webp" alt="">'), '<p>x</p><img class="a" src="armgddn-img://c/?u=' + encodeURIComponent('https://www.armgddnbrowser.com/static/wiki/a b.webp') + '" alt="">');
+  assert.equal(W.wikiSectionFor([{ id: 'a' }, { id: 'b' }], 'b').id, 'b'); assert.equal(W.wikiSectionFor([{ id: 'a' }], 'zzz').id, 'a'); assert.equal(W.wikiSectionFor([], 'a'), null);
 });

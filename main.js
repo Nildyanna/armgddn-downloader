@@ -3262,6 +3262,7 @@ app.whenReady().then(() => {
       require('./native/bridge').start({
         BrowserWindow, ipcMain, shell, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
         openLogin: () => openAuthWindow(), log: logToFile,
+        showClassic: () => { try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e) { } } else { mainWindow.focus(); } } } catch (e) { } },
         startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer)
       });
     } catch (e) { logToFile('[Native] preview failed to start: ' + e.message); }
