@@ -35,6 +35,8 @@
       "updateRunner.js",
       "preload.js",
       "preload-update.js",
+      "preload-native.js",
+      "native/**/*",
       "preload-komga.js",
       "komga.js",
       "resumeDownload.js",

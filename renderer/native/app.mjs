@@ -1,0 +1,74 @@
+import { html, render, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort } from './format.mjs';
+
+const api = window.nativeAPI;
+const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
+const coverSrc = (url) => (url ? 'armgddn-img://c/?u=' + encodeURIComponent(url) : '');
+
+// Library sections shown as tabs: the two game groups, then every remote that is not one of their mirrors.
+function tabsFrom(remotes) {
+  const mirrors = new Set(Object.values(GROUPS).flat());
+  const list = Array.isArray(remotes) ? remotes : [];
+  const out = [];
+  for (const g of Object.keys(GROUPS)) if (GROUPS[g].some((m) => list.includes(m))) out.push(g);
+  for (const r of list) if (!mirrors.has(r)) out.push(r);
+  return out;
+}
+
+function Card({ item, onOpen }) {
+  const cover = item.coverArt && item.coverArt.cover && item.coverArt.cover.url;
+  const year = releaseYear(item);
+  return html`<button class="card" onClick=${() => item.isDir && onOpen(item)} title=${item.name}>
+    <div class="cover">${cover ? html`<img loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
+    <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
+      <div class="sub">${[year, formatSize(item.size)].filter(Boolean).join(' · ')}</div></div>
+  </button>`;
+}
+
+function App() {
+  const [status, setStatus] = useState(null);
+  const [tabs, setTabs] = useState([]);
+  const [remote, setRemote] = useState('');
+  const [folder, setFolder] = useState('');
+  const [items, setItems] = useState(null);
+  const [error, setError] = useState(null);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState('name');
+
+  const fail = (e) => { setError(e || { message: 'Something went wrong' }); setItems([]); };
+  const boot = async () => {
+    setError(null);
+    const s = await api.status();
+    setStatus(s.ok ? s.data : { signedIn: false });
+    if (!s.ok || !s.data.signedIn) return;
+    const r = await api.remotes();
+    if (!r.ok) return fail(r.error);
+    const t = tabsFrom(r.data.remotes); setTabs(t); if (t.length) setRemote(t[0]);
+  };
+  useEffect(() => { boot(); }, []);
+  useEffect(() => {
+    if (!remote) return;
+    let live = true; setItems(null); setError(null);
+    api.browse(remote, folder).then((r) => { if (!live) return; if (r.ok) setItems(r.data.files || []); else fail(r.error); });
+    return () => { live = false; };
+  }, [remote, folder]);
+
+  const shown = useMemo(() => filterAndSort(items || [], { query, sort }), [items, query, sort]);
+  const crumbs = folder ? folder.split('/') : [];
+  const signIn = async () => { await api.login(); boot(); };
+
+  if (status && !status.signedIn) return html`<div class="center"><h1>ARMGDDN</h1><p>Sign in to browse the library.</p><button class="primary" onClick=${signIn}>Sign in with Telegram</button></div>`;
+  return html`<div class="shell">
+    <header>
+      <div class="brand">ARMGDDN</div>
+      <nav>${tabs.map((t) => html`<button class=${t === remote ? 'tab on' : 'tab'} onClick=${() => { setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
+      <input class="search" type="search" placeholder="Search this list" value=${query} onInput=${(e) => setQuery(e.target.value)} />
+      <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="newest">Newest</option><option value="size">Largest</option></select>
+    </header>
+    <div class="crumbs"><button onClick=${() => setFolder('')}>${remote || ''}</button>${crumbs.map((c, i) => html`<span> / <button onClick=${() => setFolder(crumbs.slice(0, i + 1).join('/'))}>${c}</button></span>`)}
+      <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
+    ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
+    ${items === null ? html`<div class="loading">Loading…</div>` : html`<main class="grid">${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
+  </div>`;
+}
+render(html`<${App} />`, document.getElementById('app'));

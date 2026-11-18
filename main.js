@@ -654,6 +654,10 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
   try { updateProgress(download.id); } catch (e) { }
 }
 
+// Native browser preview (staging only): `--native` opens the new browse window next to the normal one. Nothing happens without the flag.
+const NATIVE_PREVIEW = process.argv.includes('--native');
+if (NATIVE_PREVIEW) { try { require('./native/bridge').registerSchemes(require('electron').protocol); } catch (e) { } }
+
 // CI smoke test (ARMGDDN_SMOKE_TEST=1): run against a throwaway profile so it
 // never reads or writes real settings, and never reports to Sentry.
 const SMOKE_TEST = process.env.ARMGDDN_SMOKE_TEST === '1';
@@ -3247,6 +3251,15 @@ app.whenReady().then(() => {
   logToFile(`[Startup] debug.log path: ${getDebugLogPath()}`);
   logToFile(`[Protocol] setAsDefaultProtocolClient ok=${protocolClientRegistered}${protocolClientRegisterError ? ` err=${protocolClientRegisterError}` : ''}`);
   loadSettings();
+  if (NATIVE_PREVIEW) {
+    try {
+      loadSession();
+      require('./native/bridge').start({
+        BrowserWindow, ipcMain, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
+        openLogin: () => openAuthWindow(), log: logToFile
+      });
+    } catch (e) { logToFile('[Native] preview failed to start: ' + e.message); }
+  }
 
   // "What's New" popup detection — version-diffing rather than the platform
   // update-relaunch flag (that flag is Windows-only and inconsistent even

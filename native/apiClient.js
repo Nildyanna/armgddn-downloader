@@ -26,11 +26,12 @@ function createApiClient({ getToken, baseUrl = 'https://www.armgddnbrowser.com',
     if (running < maxConcurrent) go(); else queue.push(go);
   });
 
-  async function send(method, path, { body, signal, raw } = {}) {
+  async function send(method, path, { body, signal, raw, headers: extra } = {}) {
     const token = getToken();
     if (!token) throw new ApiError('Not signed in', 'auth', 401);
     const headers = { Authorization: `Bearer ${token}`, 'User-Agent': `ARMGDDN-Companion/${version}`, Accept: raw ? '*/*' : 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (extra) Object.assign(headers, extra);
     let attempt = 0;
     for (;;) {
       const release = await slot();
@@ -65,12 +66,12 @@ function createApiClient({ getToken, baseUrl = 'https://www.armgddnbrowser.com',
     }
   }
 
-  function get(path, { ttlMs = 30000, signal, fresh = false } = {}) {
+  function get(path, { ttlMs = 30000, signal, fresh = false, headers } = {}) {
     const key = 'GET ' + path;
     const hit = cache.get(key);
     if (!fresh && hit && Date.now() - hit.at < hit.ttl) { stats.cacheHits++; return Promise.resolve(hit.value); }
     if (inflight.has(key)) return inflight.get(key);
-    const p = send('GET', path, { signal }).then((v) => { if (ttlMs > 0) cache.set(key, { at: Date.now(), ttl: ttlMs, value: v }); return v; })
+    const p = send('GET', path, { signal, headers }).then((v) => { if (ttlMs > 0) cache.set(key, { at: Date.now(), ttl: ttlMs, value: v }); return v; })
       .finally(() => inflight.delete(key));
     inflight.set(key, p);
     return p;
