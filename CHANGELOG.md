@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.26.0] - 2026-11-18
+
+### Added
+- **A fixed top bar and a page bar in the built-in window.** The top bar is the same on every page with the current page lit in the theme's colour; the bar below holds that page's own controls.
+- **Grid / List switch** for every list of titles: the cards with art, or one plain line per title.
+
+### Fixed
+- The A to Z jump bar sits inside the list area and works in list view.
+- Empty lists say so instead of showing the loading spinner.
+
 ## [5.25.1] - 2026-11-18
 
 ### Fixed

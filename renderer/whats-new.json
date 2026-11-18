@@ -1,4 +1,13 @@
 {
+  "5.26.0": {
+    "title": "Easier To Get Around",
+    "highlights": [
+      "The new built-in window now has a toolbar that stays the same on every page, with the page you're on highlighted.",
+      "Each page's own controls are in a second bar below it.",
+      "Every list can be shown as a grid with art, or as a plain list of titles.",
+      "The A to Z jump bar sits in the right place, and empty lists no longer show a loading spinner."
+    ]
+  },
   "5.25.1": {
     "title": "Art For 3D Models And Apps",
     "highlights": [
