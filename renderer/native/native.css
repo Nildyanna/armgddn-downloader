@@ -93,3 +93,8 @@ header select { flex: none; }
 .notice-body h3 { margin: 0 0 8px; } .notice-body li { margin: 4px 0; }
 
 .trailer { width: 100%; aspect-ratio: 16 / 9; background: #000; border: 0; border-radius: 8px; display: block; }
+
+.cover.clickable { cursor: pointer; }
+.cover.clickable:hover::after { content: "\25B6"; position: absolute; inset: 0; display: grid; place-items: center; font-size: 34px; color: #fff; background: rgba(0, 0, 0, .35); }
+.notice-info { color: var(--dim); margin: 0 0 10px; }
+.meta .dl { margin-right: 4px; }
