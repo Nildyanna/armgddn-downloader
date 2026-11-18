@@ -17,4 +17,12 @@ test('grid helpers', async () => {
   assert.equal(autoEnter('Music', [{ name: 'Music', isDir: true }]), 'Music');
   assert.equal(autoEnter('Comics', [{ name: 'A', isDir: true }, { name: 'B', isDir: true }]), null);
   assert.equal(autoEnter('PC Games', []), null);
+  const { shapeFor } = await import('../renderer/native/format.mjs');
+  assert.equal(shapeFor('PC Games'), 'wide'); assert.equal(shapeFor('PCVR Games'), 'wide'); assert.equal(shapeFor('Music'), 'square');
+  assert.equal(shapeFor('Comics'), 'tall'); assert.equal(shapeFor('3D Printer Models'), 'square'); assert.equal(shapeFor('Pirated PC Apps'), 'wide');
+  const { crumbsFor } = await import('../renderer/native/format.mjs');
+  assert.deepEqual(crumbsFor('PC Games', 'PC1'), { root: 'PC1', items: [] });
+  assert.deepEqual(crumbsFor('PC Games', 'PC1/Game v1/Update'), { root: 'PC1', items: [{ label: 'Game v1', path: 'PC1/Game v1' }, { label: 'Update', path: 'PC1/Game v1/Update' }] });
+  assert.deepEqual(crumbsFor('Music', 'Artist/Album'), { root: '', items: [{ label: 'Artist', path: 'Artist' }, { label: 'Album', path: 'Artist/Album' }] });
+  assert.deepEqual(crumbsFor('Comics', ''), { root: '', items: [] });
 });

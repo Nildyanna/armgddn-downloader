@@ -37,3 +37,20 @@ export function autoEnter(remote, items) {
   if (list.length === 1 && list[0].isDir) return list[0].name;   // a single folder: nothing else to show
   return null;
 }
+
+// Game art (Steam headers) is landscape; albums are square; comics are portrait. The card shape follows the section.
+export function shapeFor(remote) {
+  const r = String(remote || '').toLowerCase();
+  if (r === 'music') return 'square';
+  if (r === 'comics') return 'tall';
+  if (r.includes('3d')) return 'square';
+  return 'wide';
+}
+
+// The mirror's root folder ("PC1") is plumbing, so the breadcrumb hides it: "PC Games / Some Game", and "PC Games" returns to the library, not to the mirror list.
+export function crumbsFor(remote, folder) {
+  const parts = folder ? String(folder).split('/') : [];
+  const root = parts.length && (GROUP_ROOTS[remote] || []).includes(parts[0]) ? parts[0] : '';
+  const rest = root ? parts.slice(1) : parts;
+  return { root, items: rest.map((label, i) => ({ label, path: [...(root ? [root] : []), ...rest.slice(0, i + 1)].join('/') })) };
+}

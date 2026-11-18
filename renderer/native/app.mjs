@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor } from './format.mjs';
 import { useRef } from '../../native/vendor/ui.mjs';
 
 const api = window.nativeAPI;
@@ -17,10 +17,11 @@ function tabsFrom(remotes) {
 }
 
 function Card({ item, onOpen }) {
-  const cover = item.coverArt && item.coverArt.cover && item.coverArt.cover.url;
+  const [broken, setBroken] = useState(false);
+  const cover = !broken && item.coverArt && item.coverArt.cover && item.coverArt.cover.url;
   const year = releaseYear(item);
   return html`<div class="card" role="button" tabindex="0" onClick=${() => item.isDir && onOpen(item)} onKeyDown=${(e) => { if ((e.key === 'Enter' || e.key === ' ') && item.isDir) { e.preventDefault(); onOpen(item); } }} title=${item.name}>
-    <div class="cover">${cover ? html`<img class="bg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="fg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
+    <div class="cover">${cover ? html`<img loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
       <div class="sub">${[year, formatSize(item.size)].filter(Boolean).join(' · ')}</div></div>
   </div>`;
@@ -63,7 +64,7 @@ function App() {
   }, [remote, folder]);
 
   const shown = useMemo(() => filterAndSort(items || [], { query, sort }), [items, query, sort]);
-  const crumbs = folder ? folder.split('/') : [];
+  const crumbs = crumbsFor(remote, folder);
   const signIn = async () => { await api.login(); boot(); };
 
   if (status && !status.signedIn) return html`<div class="center"><h1>ARMGDDN</h1><p>Sign in to browse the library.</p><button class="primary" onClick=${signIn}>Sign in with Telegram</button></div>`;
@@ -74,10 +75,10 @@ function App() {
       <input class="search" type="search" placeholder="Search this list" value=${query} onInput=${(e) => setQuery(e.target.value)} />
       <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="newest">Newest</option><option value="size">Largest</option></select>
     </header>
-    <div class="crumbs"><button onClick=${() => { autoOk.current = false; setFolder(''); }}>${remote || ''}</button>${crumbs.map((c, i) => html`<span> / <button onClick=${() => setFolder(crumbs.slice(0, i + 1).join('/'))}>${c}</button></span>`)}
+    <div class="crumbs"><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
-    ${items === null ? html`<div class="loading">Loading…</div>` : html`<main class="grid">${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
+    ${items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${"grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} key=${it.path || it.name} item=${it} onOpen=${(x) => { setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
   </div>`;
 }
 render(html`<${App} />`, document.getElementById('app'));

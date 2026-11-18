@@ -27,6 +27,29 @@ function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version,
   const api = createApiClient({ getToken, version });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
+
+  // Covers hosted elsewhere (Wikimedia and friends) rate-limit a burst of requests, so they go through a small queue, one retry after a 429,
+  // and a failure is remembered for five minutes instead of being asked again on every scroll.
+  const failedDirect = new Map();
+  let directRunning = 0;
+  const directQueue = [];
+  const directSlot = () => new Promise((resolve) => {
+    const go = () => { directRunning++; resolve(() => { directRunning--; const n = directQueue.shift(); if (n) n(); }); };
+    if (directRunning < 3) go(); else directQueue.push(go);
+  });
+  async function fetchDirect(url) {
+    const release = await directSlot();
+    try {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const r = await fetch(url, { headers: { 'User-Agent': `ARMGDDN-Companion/${version} (https://armgddnbrowser.com)` } });
+        if (r.status === 429 && attempt === 0) { await new Promise((res) => setTimeout(res, Math.min(5000, (Number(r.headers.get('retry-after')) || 2) * 1000))); continue; }
+        if (!r.ok) { try { log('[Native] cover failed: direct ' + r.status + ' ' + new URL(url).hostname); } catch (e3) { } return null; }
+        return { buf: Buffer.from(await r.arrayBuffer()), type: r.headers.get('content-type') || 'image/jpeg' };
+      }
+      return null;
+    } catch (e) { return null; } finally { release(); }
+  }
+
   ipcMain.handle('native:status', wrap(async () => ({ signedIn: !!getToken(), version })));
   ipcMain.handle('native:login', wrap(async () => { await openLogin(); return { signedIn: !!getToken() }; }));
   ipcMain.handle('native:remotes', wrap(() => api.get('/api/remotes', { ttlMs: 5 * 60 * 1000 })));
@@ -44,13 +67,15 @@ function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version,
       }
       let hit = direct.get(route.url);
       if (!hit) {
-        const r = await fetch(route.url, { headers: { 'User-Agent': `ARMGDDN-Companion/${version}` } });
-        if (!r.ok) return new Response('', { status: 404 });
-        hit = { buf: Buffer.from(await r.arrayBuffer()), type: r.headers.get('content-type') || 'image/jpeg' };
+        const bad = failedDirect.get(route.url);
+        if (bad && Date.now() - bad < 5 * 60 * 1000) return new Response('', { status: 404 });
+        hit = await fetchDirect(route.url);
+        if (!hit) { failedDirect.set(route.url, Date.now()); return new Response('', { status: 404 }); }
         if (hit.buf.length < 2 * 1024 * 1024) { direct.set(route.url, hit); if (direct.size > 300) direct.delete(direct.keys().next().value); }
       }
       return new Response(hit.buf, { status: 200, headers: { 'Content-Type': hit.type, 'Cache-Control': 'max-age=86400' } });
     } catch (e) {
+      try { log('[Native] cover failed: ' + (e && e.kind ? e.kind : 'error') + ' ' + (e && e.status ? e.status : '') + ' ' + (e && e.message ? String(e.message).slice(0, 80) : '') + ' ' + new URL(new URL(request.url).searchParams.get('u') || 'https://x/').hostname); } catch (e2) { }
       return new Response('', { status: e && e.kind === 'auth' ? 401 : 502 });
     }
   });
@@ -64,7 +89,7 @@ function start({ BrowserWindow, ipcMain, protocol, getToken, openLogin, version,
   win.loadFile(path.join(appDir, 'renderer', 'native', 'index.html'));
   // `--native-shot=<file.png>`: after the page has had time to load, save a screenshot (used to check the layout without watching the window).
   const shot = (process.argv.find((a) => a.startsWith('--native-shot=')) || '').slice('--native-shot='.length);
-  if (shot) win.webContents.once('did-finish-load', () => setTimeout(async () => { try { require('fs').writeFileSync(shot, (await win.webContents.capturePage()).toPNG()); log('[Native] screenshot saved'); log('[Native] metrics ' + JSON.stringify(await win.webContents.executeJavaScript("(() => { const r = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); const c = getComputedStyle(el); return { w: Math.round(b.width), h: Math.round(b.height), display: c.display, cv: c.contentVisibility }; }; const card = document.querySelector('.card'); return { cards: document.querySelectorAll('.card').length, grid: r(document.querySelector('.grid')), card: r(card), cover: r(card && card.querySelector('.cover')), img: r(card && card.querySelector('img')), meta: r(card && card.querySelector('.meta')), rows: getComputedStyle(document.querySelector('.grid')).gridTemplateRows.slice(0, 80) }; })()"))); } catch (e) { log('[Native] screenshot failed: ' + e.message); } }, 6000));
+  if (shot) win.webContents.once('did-finish-load', () => setTimeout(async () => { try { const tab = (process.argv.find((a) => a.startsWith('--native-tab=')) || '').slice('--native-tab='.length); if (tab) { await win.webContents.executeJavaScript('Array.from(document.querySelectorAll(".tab")).find((b) => b.textContent.trim() === ' + JSON.stringify(tab) + ')?.click()'); await new Promise((r) => setTimeout(r, 6000)); } if (process.argv.includes('--native-scroll')) { await win.webContents.executeJavaScript('new Promise((res) => { const g = document.querySelector(".grid"); let n = 0; const t = setInterval(() => { g.scrollTop += 900; if (++n >= 40) { clearInterval(t); g.scrollTop = 0; setTimeout(res, 1500); } }, 400); })'); } require('fs').writeFileSync(shot, (await win.webContents.capturePage()).toPNG()); log('[Native] screenshot saved'); log('[Native] metrics ' + JSON.stringify(await win.webContents.executeJavaScript("(() => { const r = (el) => { if (!el) return null; const b = el.getBoundingClientRect(); const c = getComputedStyle(el); return { w: Math.round(b.width), h: Math.round(b.height), display: c.display, cv: c.contentVisibility }; }; const card = document.querySelector('.card'); return { cards: document.querySelectorAll('.card').length, grid: r(document.querySelector('.grid')), card: r(card), cover: r(card && card.querySelector('.cover')), img: r(card && card.querySelector('img')), meta: r(card && card.querySelector('.meta')), rows: getComputedStyle(document.querySelector('.grid')).gridTemplateRows.slice(0, 80) }; })()"))); } catch (e) { log('[Native] screenshot failed: ' + e.message); } }, 6000));
   log('[Native] preview window opened');
   return win;
 }

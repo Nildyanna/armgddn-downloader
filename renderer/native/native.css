@@ -17,11 +17,14 @@ nav { display: flex; gap: 4px; flex: 1; min-width: 0; flex-wrap: wrap; }
 .grid { flex: 1; overflow: auto; padding: 8px 18px 24px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; align-content: start; grid-auto-rows: max-content; }
 .card { cursor: pointer; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0; overflow: hidden; display: block; width: 100%; }
 .card:hover { border-color: var(--accent2); transform: translateY(-1px); }
-.cover { aspect-ratio: 2 / 3; background: #0b1426; position: relative; overflow: hidden; }
-.cover img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
-.cover img.bg { object-fit: cover; filter: blur(16px) brightness(.55); transform: scale(1.15); }
-.cover img.fg { object-fit: contain; }
-.nocover { position: absolute; inset: 0; display: grid; place-items: center; }
+.cover { background: #0b1426; position: relative; overflow: hidden; aspect-ratio: 460 / 215; }
+.cover img { position: absolute; inset: 0; width: 100%; height: 100%; display: block; object-fit: cover; }
+.nocover { position: absolute; inset: 0; display: grid; place-items: center; font-size: 44px; color: var(--line); font-weight: 800; }
+.grid.wide { grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); }
+.grid.square { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+.grid.square .cover { aspect-ratio: 1 / 1; }
+.grid.tall { grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); }
+.grid.tall .cover { aspect-ratio: 2 / 3; }
 .nocover { font-size: 44px; color: var(--line); font-weight: 800; }
 .meta { padding: 8px 10px 10px; }
 .title { font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; min-height: 2.8em; }
