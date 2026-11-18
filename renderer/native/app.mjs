@@ -74,9 +74,23 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
 
 
 function AlphaBar({ letters }) {
-  const jump = (l) => { const el = document.querySelector('.grid [data-letter="' + l + '"]'); if (el) el.scrollIntoView({ block: 'start' }); };
-  if (letters.length < 2) return '';
-  return html`<div class="alpha">${letters.map((l) => html`<button onClick=${() => jump(l)}>${l}</button>`)}</div>`;
+  // The bar sits inside the list's own area (below the two top bars, above the update bar), whatever size the window is, in grid or list view.
+  const [box, setBox] = useState(null);
+  const measure = () => {
+    const el = document.querySelector('main.grid, main.list');
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setBox((old) => (old && Math.abs(old.top - r.top) < 1 && Math.abs(old.height - r.height) < 1 ? old : { top: r.top, height: r.height }));
+  };
+  useEffect(() => {
+    measure();
+    const t = setInterval(measure, 500);
+    window.addEventListener('resize', measure);
+    return () => { clearInterval(t); window.removeEventListener('resize', measure); };
+  }, [letters.length]);
+  const jump = (l) => { const el = document.querySelector('main [data-letter="' + l + '"]'); if (el) el.scrollIntoView({ block: 'start' }); };
+  if (letters.length < 2 || !box) return '';
+  return html`<div class="alphawrap" style=${'top:' + Math.round(box.top) + 'px;height:' + Math.round(box.height) + 'px'}><div class="alpha">${letters.map((l) => html`<button onClick=${() => jump(l)}>${l}</button>`)}</div></div>`;
 }
 
 function Modal({ title, onClose, children, wide }) {

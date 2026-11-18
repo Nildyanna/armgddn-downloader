@@ -102,3 +102,12 @@ test('an empty list says so in words; only a list that is really loading gets th
   const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
   assert.ok(css.includes('.empty {'));
 });
+
+test('the alphabet jump bar sits inside the list area under the two bars and works in grid and list view', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  const bar = app.slice(app.indexOf('function AlphaBar'), app.indexOf('function Modal('));
+  assert.ok(bar.includes("document.querySelector('main.grid, main.list')") && bar.includes('class="alphawrap"'), 'positioned from the list area');
+  assert.ok(bar.includes("'main [data-letter=\"'"), 'jumps within a grid or a list');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  assert.ok(css.includes('.alphawrap { position: fixed;') && !/\.alpha \{[^}]*top: 50%/.test(css));
+});
