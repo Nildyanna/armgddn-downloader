@@ -403,3 +403,5 @@ header select + select { margin-left: 0; }
 
 /* An empty list says so in words; only a list that is really loading gets the spinner. */
 .empty { padding: 40px; text-align: center; color: var(--dim); }
+
+.glink { color: var(--accent); text-decoration: underline; cursor: pointer; }

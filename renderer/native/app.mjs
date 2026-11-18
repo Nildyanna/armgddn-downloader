@@ -491,7 +491,7 @@ function ScheduleRow({ s, save }) {
 }
 
 // "Check my games for updates": compares the finished downloads in the history with the newest version in the library.
-function GameUpdatesRow() {
+function GameUpdatesRow({ onOpenGame }) {
   const [st, setSt] = useState({ busy: false, text: '', list: [] });
   const run = async () => {
     setSt({ busy: true, text: 'Checking...', list: [] });
@@ -500,11 +500,11 @@ function GameUpdatesRow() {
       if (!res || !res.ok) return setSt({ busy: false, text: (res && res.error) || 'Could not check for updates.', list: [] });
       if (!res.checked) return setSt({ busy: false, text: 'There are no finished downloads in your history to check.', list: [] });
       if (!res.updates.length) return setSt({ busy: false, text: `Checked ${res.checked} game${res.checked === 1 ? '' : 's'}: all are on the newest version in the library.`, list: [] });
-      setSt({ busy: false, text: `${res.updates.length} game${res.updates.length === 1 ? ' has' : 's have'} a newer version in the library. Find them in the library to download them.`, list: res.updates });
+      setSt({ busy: false, text: `${res.updates.length} game${res.updates.length === 1 ? ' has' : 's have'} a newer version in the library. Click one to open it in the library.`, list: res.updates });
     } catch (e) { setSt({ busy: false, text: 'Could not check for updates.', list: [] }); }
   };
   return html`<div><div class="srow"><span class="slabel">Game updates <span class="sval">${st.text || 'See which of your downloaded games have a newer version.'}</span></span><button class="dbtn" disabled=${st.busy} onClick=${run}>Check my games</button></div>
-    ${st.list.length ? html`<ul class="gu">${st.list.map((u, i) => html`<li key=${i}>${u.latestFolder} <span class="sval">(you have ${u.current}, newest is ${u.latest})</span></li>`)}</ul>` : ''}</div>`;
+    ${st.list.length ? html`<ul class="gu">${st.list.map((u, i) => html`<li key=${i}><a class="glink" href="#" title="Open it in the library" onClick=${(e) => { e.preventDefault(); if (onOpenGame) onOpenGame(u.remote || 'PC Games', u.latestFolder); }}>${u.latestFolder}</a> <span class="sval">(you have ${u.current}, newest is ${u.latest})</span></li>`)}</ul>` : ''}</div>`;
 }
 
 // "New to .7z files?": the short help video, played from the app's own files.
@@ -529,7 +529,7 @@ function WhatsNewButton() {
     ${entry === null ? html`<div class="note">There is nothing to show for this version.</div>` : entry ? html`<${WhatsNewBox} entry=${entry} onClose=${() => setEntry(undefined)} />` : ''}</div>`;
 }
 
-function SettingsView({ say, onPrefs }) {
+function SettingsView({ say, onPrefs, onOpenGame }) {
   const [s, setS] = useState(null);
   const [prefsOpen, setPrefsOpen] = useState(false);
   useEffect(() => { api.getSettings().then((r) => setS(r && typeof r === 'object' ? r : {})).catch(() => setS({})); }, []);
@@ -553,7 +553,7 @@ function SettingsView({ say, onPrefs }) {
     <div class="srow"><span class="slabel">Import my website preferences (My List, theme, hidden sections, recent searches)</span><button class="dbtn" onClick=${() => setPrefsOpen(true)}>Import</button></div>
     ${prefsOpen ? html`<${PrefsImport} onClose=${() => setPrefsOpen(false)} onApply=${onPrefs} say=${say} />` : ''}
     <${ScheduleRow} s=${s} save=${save} />
-    <${GameUpdatesRow} />
+    <${GameUpdatesRow} onOpenGame=${onOpenGame} />
     <${Help7zRow} />
     <${SupportTools} say=${say} onApplyConnections=${(v) => save({ connectionsPerFile: v })} />
     <div class="srow"><span class="slabel">Login animation (lightning and thunder, loud)</span><button class="dbtn" onClick=${() => mountLoginLightning()}>Replay</button></div>
@@ -1046,7 +1046,7 @@ function App() {
       </${Fragment}>` : ''}
       ${(view === 'library' || view === 'mylist') ? html`<span class="viewsel" title="How the titles are shown"><button class=${viewMode === 'grid' ? 'tab on' : 'tab'} onClick=${() => setViewMode('grid')}>Grid</button><button class=${viewMode === 'list' ? 'tab on' : 'tab'} onClick=${() => setViewMode('list')}>List</button></span>` : ''}
     </div>
-    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}

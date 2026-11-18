@@ -61,7 +61,7 @@ test('the Companion checks for updates once an hour in the main process, announc
 
 test('the native window has the classic tools: schedule, game updates, .7z help video, What\'s New after an update, clear history', () => {
   const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
-  for (const piece of ['function ScheduleRow', '<${ScheduleRow} s=${s} save=${save} />', 'function GameUpdatesRow', '<${GameUpdatesRow} />', 'function Help7zRow', '<${Help7zRow} />',
+  for (const piece of ['function ScheduleRow', '<${ScheduleRow} s=${s} save=${save} />', 'function GameUpdatesRow', '<${GameUpdatesRow} onOpenGame=${onOpenGame} />', 'function Help7zRow', '<${Help7zRow} />',
     'function WhatsNewBox', 'api.pendingWhatsNew()', '<${WhatsNewButton} />', 'api.clearHistory()', 'onClear=${']) assert.ok(app.includes(piece), piece);
   const preN = fs.readFileSync(path.join(__dirname, '..', 'preload-native.js'), 'utf8');
   for (const piece of ["getScheduleBanner: call('get-schedule-banner')", "checkGameUpdates: call('check-game-updates')", "clearHistory: call('clear-history')", "pendingWhatsNew: call('native-pending-whats-new')", "getHelp7zVideoSrc: call('get-help-7z-video-src')"]) assert.ok(preN.includes(piece), piece);
@@ -110,4 +110,10 @@ test('the alphabet jump bar sits inside the list area under the two bars and wor
   assert.ok(bar.includes("'main [data-letter=\"'"), 'jumps within a grid or a list');
   const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
   assert.ok(css.includes('.alphawrap { position: fixed;') && !/\.alpha \{[^}]*top: 50%/.test(css));
+});
+
+test('a game found by "Check my games" is a link that opens it in the library (the section comes from the site)', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes('function GameUpdatesRow({ onOpenGame })') && app.includes('class="glink"') && app.includes("onOpenGame(u.remote || 'PC Games', u.latestFolder)"));
+  assert.ok(app.includes("onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }}"));
 });
