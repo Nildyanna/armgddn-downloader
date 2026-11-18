@@ -171,3 +171,19 @@ test('the theme file has every palette the app needs, in colours the page can us
   }
   assert.equal(themes.light.mode, 'light'); assert.equal(themes.dark.mode, 'dark');
 });
+
+test('comparison lines read like the classic window, for comics and music', async () => {
+  const { compareLines, startedLine } = await import('../renderer/native/format.mjs');
+  const c = compareLines('comics', { list: { name: 'Batman Collection' }, summary: { total: 100, have: 60, haveByName: 10, missing: 30, bytesMissing: 3e9, maybe: 2, damagedCount: 4, damaged: ['a.cbz', 'b.cbz', 'c.cbz', 'd.cbz'], perSeries: [{ series: 'Batman', count: 20, bytes: 2e9 }] } });
+  assert.equal(c[0].tone, 'warn'); assert.match(c[0].text, /You have 70 of 100\. 30 are missing \(2\.8 GB\)\./);
+  assert.ok(c.some((l) => /matched by name/.test(l.text))); assert.ok(c.some((l) => /different year/.test(l.text)));
+  assert.ok(c.some((l) => /a\.cbz, b\.cbz, c\.cbz, \.\.\./.test(l.text)));
+  assert.equal(c[c.length - 1].title, 'Missing by series'); assert.match(c[c.length - 1].text, /Batman: 20 \(1\.9 GB\)/);
+  const all = compareLines('comics', { list: { name: 'Marvel' }, summary: { total: 5, have: 5, missing: 0 } });
+  assert.equal(all[0].tone, 'ok'); assert.match(all[0].text, /all 5 comics in Marvel/);
+  const m = compareLines('music', { summary: { total: 1000, have: 900, missing: 100, bytesMissing: 5e8, albums: { complete: 40, partial: 3, none: 7 }, damaged: 2 } });
+  assert.match(m[0].text, /You have 900 of 1,000 tracks\. 100 are missing/); assert.match(m[1].text, /40 complete, 3 partly there, 7 not in your folder/); assert.match(m[2].text, /2 of your files look empty/);
+  assert.deepEqual(compareLines('music', null), []);
+  assert.match(startedLine('music', { started: 1, files: 10, bytes: 2e9, folder: 'D:\\Music' }), /Started 1 download \(10 tracks, 1\.9 GB\)\. .* arrive in D:\\Music/);
+  assert.match(startedLine('comics', { started: 3, files: 5, bytes: 0, folder: 'x' }), /Started 3 downloads \(5 comics, 0 B\)/);
+});

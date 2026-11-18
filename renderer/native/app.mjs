@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -306,6 +306,124 @@ function PrefsImport({ onClose, onApply, say }) {
   </${Modal}>`;
 }
 
+// ---- Tools: "only what I'm missing" for Comics and Music, and Komga. The scanning, comparing and downloading run in the main process (the
+// same code the classic window uses); everything here is the screen for it. Your folder's contents never leave this PC.
+function ScanTool({ kind, say }) {
+  const music = kind === 'music';
+  const [st, setSt] = useState(null);                 // { folder, scanned, running, progress }
+  const [info, setInfo] = useState(null);             // comics: { lists, totals }, music: { totals }
+  const [pick, setPick] = useState('all');
+  const [note, setNote] = useState('');
+  const [lines, setLines] = useState(null);
+  const [canDownload, setCanDownload] = useState(false);
+  const [busy, setBusy] = useState('');
+  const timer = useRef(null);
+  const call = (c, m) => (music ? api[m] : api[c]);
+  const refresh = async () => { const r = await call('comicsState', 'musicState')(); setSt(r && typeof r === 'object' ? r : {}); return r; };
+  useEffect(() => {
+    refresh().catch(() => setSt({}));
+    call('comicsInfo', 'musicInfo')().then((r) => setInfo(r && r.ok ? r : { error: (r && r.error) || 'Could not load the library list.' })).catch(() => setInfo({ error: 'Could not load the library list.' }));
+    return () => clearInterval(timer.current);
+  }, []);
+  const running = !!(st && st.running);
+  useEffect(() => { clearInterval(timer.current); if (running) timer.current = setInterval(() => { refresh().catch(() => { }); }, 700); return () => clearInterval(timer.current); }, [running]);
+  if (!st) return html`<div class="loading">Loading...</div>`;
+  const label = music ? 'music' : 'comics';
+  const chooseFolder = async () => { const f = await call('comicsPickFolder', 'musicPickFolder')(); if (f) { setLines(null); setCanDownload(false); setNote('Folder chosen. Press Scan.'); await refresh(); } };
+  const scan = async () => {
+    setBusy('scan'); setLines(null); setCanDownload(false); setNote('Scanning...');
+    setSt((x) => ({ ...x, running: true, progress: { scanned: 0, current: '' } }));
+    const r = await call('comicsScan', 'musicScan')();
+    setBusy(''); await refresh();
+    if (!r || !r.ok) { setNote((r && r.error) || 'The scan failed.'); return; }
+    setNote(`Scanned ${Number(r.count).toLocaleString()} ${music ? 'music' : 'comic'} files${r.fast ? ` (${Number(r.fast).toLocaleString()} matched the library by name and size without being opened)` : ''}${r.damaged ? `; ${Number(r.damaged).toLocaleString()} look damaged or cut short` : ''}.`);
+  };
+  const compare = async () => {
+    setBusy('compare'); setLines([{ tone: 'info', text: 'Comparing...' }]); setCanDownload(false);
+    const r = await (music ? api.musicCompare('') : api.comicsCompare(pick));
+    setBusy('');
+    if (!r || !r.ok) { setLines([{ tone: 'warn', text: (r && r.error) || 'The comparison failed.' }]); return; }
+    setLines(compareLines(kind, r)); setCanDownload(!!(r.summary && r.summary.missing)); setNote('');
+  };
+  const download = async () => {
+    setBusy('download'); setNote('Starting the downloads...');
+    const r = await call('comicsDownloadMissing', 'musicDownloadMissing')();
+    setBusy(''); setCanDownload(false);
+    if (!r || !r.ok) { setNote((r && r.error) || 'Could not start the downloads.'); return; }
+    setNote(startedLine(kind, r)); say('Started the missing ' + label);
+  };
+  const prog = running && st.progress ? `Scanning... ${Number(st.progress.scanned || 0).toLocaleString()} files` : '';
+  const t = info && info.totals;
+  return html`<section class="toolcard">
+    <h3>${music ? 'Music' : 'Comics'}: only what I'm missing</h3>
+    <p class="note">${music ? 'Scan your music folder and download only the albums and tracks you do not have.' : 'Scan your comics folder and download only the comics you do not have, for the whole library or one reading order.'} The contents of your folder never leave this PC; only the library's list comes down.</p>
+    ${info && info.error ? html`<p class="note warn">${info.error} Sign in again if this keeps happening.</p>` : t ? html`<p class="note">${music ? `The library has ${Number(t.albums || 0).toLocaleString()} albums by ${Number(t.artists || 0).toLocaleString()} artists (${Number(t.tracks || 0).toLocaleString()} tracks, ${formatSize(t.bytes)}).` : `The library has ${Number(t.books || 0).toLocaleString()} comics.`}</p>` : ''}
+    <div class="srow"><span class="slabel">${music ? 'Music' : 'Comics'} folder</span><span class="sval">${st.folder || 'No folder chosen'}</span><button class="dbtn" disabled=${running} onClick=${chooseFolder}>${st.folder ? 'Change' : 'Choose'}</button></div>
+    <div class="srow">
+      <button class="dbtn" disabled=${!st.folder || running || !!busy} onClick=${scan}>Scan</button>
+      ${running ? html`<button class="dbtn" onClick=${() => call('comicsCancelScan', 'musicCancelScan')()}>Stop</button>` : ''}
+      <span class="slabel">${prog || (st.scanned ? `Scanned ${Number(st.scanned).toLocaleString()} ${music ? 'music' : 'comic'} files.` : 'Not scanned yet.')}</span>
+    </div>
+    ${!music ? html`<label class="srow"><span class="slabel">Compare with</span><select value=${pick} onChange=${(e) => setPick(e.target.value)}>
+      <option value="all">${`Everything in the library${t ? ` (${Number(t.books || 0).toLocaleString()} comics)` : ''}`}</option>
+      ${((info && info.lists) || []).map((l) => html`<option value=${l.id}>${l.name} (${Number(l.books || 0).toLocaleString()})</option>`)}</select></label>` : ''}
+    <div class="srow"><button class="dbtn" disabled=${!st.scanned || running || !!busy} onClick=${compare}>Compare</button>
+      ${canDownload ? html`<button class="dbtn go" disabled=${!!busy} onClick=${download}>Download what I'm missing</button>` : ''}
+      <span class="slabel">${st.scanned ? '' : 'Scan first.'}</span></div>
+    ${note ? html`<p class="note">${note}</p>` : ''}
+    ${lines ? html`<div class="results">${lines.map((l) => html`<div class=${'rline ' + l.tone}>${l.title ? html`<b>${l.title}: </b>` : ''}${l.text}</div>`)}</div>` : ''}
+  </section>`;
+}
+
+function KomgaTool({ say }) {
+  const [k, setK] = useState(null);                       // { url, hasKey, defaultUrl, lists }
+  const [url, setUrl] = useState('');
+  const [key, setKey] = useState('');
+  const [msg, setMsg] = useState('');
+  const [busy, setBusy] = useState('');
+  const load = async () => { const r = await api.komgaState(); setK(r); setUrl((u) => u || r.url || r.defaultUrl || ''); return r; };
+  useEffect(() => { load().catch(() => setK({ lists: [], defaultUrl: 'http://localhost:25600' })); }, []);
+  if (!k) return html`<div class="loading">Loading...</div>`;
+  const save = async () => {
+    const r = await api.komgaSave({ url, key });
+    if (!r || !r.ok) { setMsg((r && r.error) || 'Could not save.'); return; }
+    setKey(''); setMsg('Saved. The key is kept on this PC only.'); await load();
+  };
+  const forget = async () => { await api.komgaForget(); setMsg('Forgot the saved key.'); await load(); };
+  const importKey = async () => {
+    setMsg('Importing...');
+    const r = await api.komgaImport();
+    if (!r || !r.ok) { setMsg((r && r.error) || 'Could not import the key.'); return; }
+    setUrl(r.url); setMsg('Imported the Komga address and key from the installed Companion. The key stays on this PC.'); await load();
+  };
+  const add = async (id, title) => {
+    setBusy(id); setMsg(`Adding ${title}...`);
+    const r = await api.komgaAdd(id);
+    setBusy('');
+    if (r && r.ok) { setMsg(`${r.replaced ? 'Updated' : 'Added'} "${r.name}" ${r.replaced ? 'in' : 'to'} your Komga. ${Number(r.count).toLocaleString()} issues are in the read list.${r.missing ? ` ${Number(r.missing).toLocaleString()} are not in your Komga library yet, so they were left out.` : ''}`); say('Added to your Komga: ' + r.name); return; }
+    setMsg((r && r.error) || 'Could not add the list.'); if (r && r.needsSetup) await load();
+  };
+  return html`<section class="toolcard">
+    <h3>Add reading orders to my Komga</h3>
+    <p class="note">Adds a suggested reading order to your own Komga server as a read list, matching the comics you already have in it. Needs your Komga address and an API key (Komga: account settings, API keys).</p>
+    <label class="srow"><span class="slabel">Komga address</span><input class="wide" type="text" value=${url} placeholder=${k.defaultUrl} onInput=${(e) => setUrl(e.target.value)} /></label>
+    <label class="srow"><span class="slabel">API key</span><input class="wide" type="password" value=${key} placeholder=${k.hasKey ? 'Saved on this PC (leave empty to keep it)' : 'Paste your API key'} onInput=${(e) => setKey(e.target.value)} /></label>
+    ${k.canImport ? html`<div class="srow"><span class="slabel">The installed Companion already has a Komga server and key saved.</span><button class="dbtn go" onClick=${importKey}>Import them</button></div>` : ''}
+    <div class="srow"><button class="dbtn" onClick=${save}>Save</button>${k.hasKey ? html`<button class="dbtn" onClick=${forget}>Forget the key</button>` : ''}<span class="slabel">${k.hasKey ? 'A key is saved.' : 'No key saved yet.'}</span></div>
+    <div class="lists">${(k.lists || []).map((l) => html`<div class="srow"><span class="slabel">${l.title}</span><button class="dbtn" disabled=${!k.hasKey || !!busy} onClick=${() => add(l.id, l.title)}>${busy === l.id ? 'Adding...' : 'Add to my Komga'}</button></div>`)}</div>
+    ${msg ? html`<p class="note">${msg}</p>` : ''}
+  </section>`;
+}
+
+function ToolsView({ say }) {
+  return html`<main class="settings tools">
+    <h2>Tools</h2>
+    <${ScanTool} kind="comics" say=${say} />
+    <${ScanTool} kind="music" say=${say} />
+    <${KomgaTool} say=${say} />
+  </main>`;
+}
+
 function SettingsView({ say, onPrefs }) {
   const [s, setS] = useState(null);
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -330,7 +448,7 @@ function SettingsView({ say, onPrefs }) {
     <${SupportTools} say=${say} onApplyConnections=${(v) => save({ connectionsPerFile: v })} />
     <div class="srow"><span class="slabel">Login animation (lightning and thunder, loud)</span><button class="dbtn" onClick=${() => mountLoginLightning()}>Replay</button></div>
     <label class="srow"><input type="checkbox" checked=${localStorage.getItem('native.lightningOff') !== '1'} onChange=${(e) => { try { localStorage.setItem('native.lightningOff', e.target.checked ? '0' : '1'); } catch (er) { } }} /> <span class="slabel">Play the login animation on a first sign-in</span></label>
-    <div class="srow"><span class="slabel">Download history, schedule, Komga and library scans</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
+    <div class="srow"><span class="slabel">Download history, schedule and the other classic tools</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
   </main>`;
 }
 
@@ -764,6 +882,7 @@ function App() {
     <header>
       <button class=${view === 'home' ? 'tab on' : 'tab'} onClick=${() => setView('home')}>Home</button>
       <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
+      <button class=${view === 'tools' ? 'tab on' : 'tab'} title="Only what I'm missing, Komga" onClick=${() => setView('tools')}>Tools</button>
       <button class=${view === 'settings' ? 'tab on' : 'tab'} title="Settings" onClick=${() => setView('settings')}>Settings</button>
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
       <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>
@@ -780,7 +899,7 @@ function App() {
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
     </header>
-    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}

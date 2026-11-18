@@ -2252,6 +2252,14 @@ function loadSession() {
 }
 
 // Same as loadSession, for Electron versions without the synchronous safeStorage methods (called once at startup).
+// The saved sign-in as a token string. loadSession() only fills sessionToken and returns true or false, so using its result as a token
+// sent "Bearer true" (the comics and music library calls were refused with 401 whenever no token had been handed over by the website).
+function savedSessionToken() {
+  if (sessionToken) return String(sessionToken);
+  try { loadSession(); } catch (e) { }
+  return sessionToken ? String(sessionToken) : '';
+}
+
 async function loadSessionAsync() {
   try {
     const sessionPath = getSessionPath();
@@ -2587,6 +2595,74 @@ ipcMain.handle('komga-submit', (event, data) => {
   if (komgaPromptResolve) { const r = komgaPromptResolve; komgaPromptResolve = null; r({ url, key }); }
   if (komgaPromptWin && !komgaPromptWin.isDestroyed()) komgaPromptWin.close();
   return { ok: true };
+});
+
+// The native window's Komga section: the same saved server and key as the classic dialog, answered as data instead of message boxes.
+// The installed Companion's profile folder, when this is a different profile (the native preview keeps its own).
+function installedProfileDir() {
+  try {
+    const dir = path.join(app.getPath('appData'), 'armgddn-downloader');
+    if (path.resolve(dir) === path.resolve(app.getPath('userData'))) return null;
+    return fs.existsSync(path.join(dir, 'komga.json')) ? dir : null;
+  } catch (e) { return null; }
+}
+ipcMain.handle('native-komga-import', async () => {
+  const dir = installedProfileDir();
+  if (!dir) return { ok: false, error: 'There is no other Companion profile with a saved Komga key to import.' };
+  try {
+    const got = await require('./komgaImport').readInstalledKomga(dir);
+    const url = komga.normalizeBaseUrl(got.url);
+    if (!url || !got.key) return { ok: false, error: 'The saved Komga settings in the installed Companion are not usable.' };
+    await saveKomgaConfig({ url, key: got.key });
+    logToFile('[Komga] imported the installed Companion\'s saved server (' + url + ')');
+    return { ok: true, url };
+  } catch (e) { return { ok: false, error: e && e.message ? e.message : 'Could not import the key.' }; }
+});
+ipcMain.handle('native-komga-state', async () => {
+  const cfg = await loadKomgaConfig();
+  return { url: cfg ? cfg.url : '', hasKey: !!cfg, canImport: !cfg && !!installedProfileDir(), defaultUrl: 'http://localhost:25600', lists: Object.entries(KOMGA_LISTS).map(([id, l]) => ({ id, title: l.title })) };
+});
+ipcMain.handle('native-komga-save', async (event, data) => {
+  const url = komga.normalizeBaseUrl(data && data.url);
+  const key = String((data && data.key) || '').trim();
+  if (!url) return { ok: false, error: 'That address does not look right. Example: http://localhost:25600' };
+  const old = await loadKomgaConfig();
+  const useKey = key || (old && old.url === url ? old.key : '');
+  if (!useKey) return { ok: false, error: 'Paste your Komga API key.' };
+  await saveKomgaConfig({ url, key: useKey });
+  return { ok: true, url };
+});
+ipcMain.handle('native-komga-forget', () => { forgetKomgaKey(); return { ok: true }; });
+ipcMain.handle('native-komga-add', async (event, listId) => {
+  if (!komga.isValidListId(listId) || !KOMGA_LISTS[listId]) return { ok: false, error: 'Unknown reading list.' };
+  if (komgaBusy) return { ok: false, error: 'Another list is being added. Try again in a moment.' };
+  komgaBusy = true;
+  try {
+    const cfg = await loadKomgaConfig();
+    if (!cfg) return { ok: false, needsSetup: true, error: 'Save your Komga address and API key first.' };
+    const token = savedSessionToken();
+    if (!token) return { ok: false, error: 'Sign in first.' };
+    let xml; let listName = KOMGA_LISTS[listId].title;
+    try {
+      const resp = await fetch(`https://www.armgddnbrowser.com/api/komga-readlist?id=${encodeURIComponent(listId)}`, {
+        headers: { 'Authorization': 'Bearer ' + token, 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion() }, signal: AbortSignal.timeout(30000) });
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      try { const n = decodeURIComponent(resp.headers.get('x-readlist-name') || ''); if (n) listName = n; } catch (e) { }
+      xml = await resp.text();
+      if (!/<ReadingList[\s>]/.test(xml)) throw new Error('reply was not a reading list');
+    } catch (e) {
+      logToFile('Komga (native): could not get read list from the site: ' + (e && e.message ? e.message : e));
+      return { ok: false, error: 'Could not get the read list from ARMGDDN. Try again in a moment.' };
+    }
+    const r = await komga.addReadList({ baseUrl: cfg.url, apiKey: cfg.key, xml, fileName: `${listName || listId} - Suggested Reading Order.cbl` });
+    if (r.ok) {
+      logToFile(`Komga (native): ${r.replaced ? 'updated' : 'added'} "${listName}" (${r.count} issues, ${r.missing} not in library)`);
+      return { ok: true, replaced: !!r.replaced, count: r.count, missing: r.missing, name: listName };
+    }
+    logToFile('Komga (native): add failed (' + r.reason + ')');
+    if (r.reason === 'auth' || r.reason === 'unreachable') forgetKomgaKey();
+    return { ok: false, reason: r.reason, error: r.message, needsSetup: r.reason === 'auth' || r.reason === 'unreachable' };
+  } finally { komgaBusy = false; }
 });
 
 async function komgaMessage(type, message, detail) {
@@ -3630,7 +3706,7 @@ function saveComicsCache(root, files) {
 // page's, and the saved one. Any of them is a normal app session, so a catalog request tries each until one is accepted.
 function catalogTokens(first) {
   const out = [];
-  for (const t of [first, comicsState.token, musicState.token, loadSession()]) { if (t && !out.includes(t)) out.push(t); }
+  for (const t of [first, comicsState.token, musicState.token, savedSessionToken()]) { if (t && !out.includes(t)) out.push(t); }
   return out;
 }
 
@@ -3659,7 +3735,7 @@ async function comicsGet(pathAndQuery, page, sessionToken) {
   }
 }
 
-ipcMain.handle('comics-get-state', () => ({ folder: settings.comicsFolder || '', scanned: comicsState.rows ? comicsState.rows.length : 0, at: comicsState.at, running: comicsState.running }));
+ipcMain.handle('comics-get-state', () => ({ folder: settings.comicsFolder || '', scanned: comicsState.rows ? comicsState.rows.length : 0, at: comicsState.at, running: comicsState.running, progress: comicsState.running ? (comicsState.progress || { scanned: 0, current: '' }) : null }));
 
 ipcMain.handle('comics-pick-folder', async () => {
   const result = await withDialogFocus(() => dialog.showOpenDialog(getDialogParentWindow(), { properties: ['openDirectory'] }));
@@ -3692,7 +3768,7 @@ ipcMain.handle('comics-scan', async () => {
   if (!root || !fs.existsSync(root)) { resolve({ ok: false, error: 'Choose your comics folder first.' }); return; }
   if (comicsState.running) { resolve({ ok: false, error: 'A scan is already running.' }); return; }
   const { Worker } = require('worker_threads');
-  comicsState.running = true;
+  comicsState.running = true; comicsState.progress = { scanned: 0, current: '' };
   let worker;
   const finish = (out) => { comicsState.running = false; comicsState.worker = null; resolve(out); };
   try {
@@ -3700,7 +3776,7 @@ ipcMain.handle('comics-scan', async () => {
   } catch (e) { finish({ ok: false, error: 'Could not start the scan: ' + e.message }); return; }
   comicsState.worker = worker;
   worker.on('message', (m) => {
-    if (m.type === 'progress') { sendToMain('comics-scan-progress', { scanned: m.scanned, current: m.current }); return; }
+    if (m.type === 'progress') { comicsState.progress = { scanned: m.scanned, current: m.current }; sendToMain('comics-scan-progress', { scanned: m.scanned, current: m.current }); return; }
     if (m.type === 'done') {
       comicsState.rows = m.rows; comicsState.root = root; comicsState.at = Date.now(); comicsState.last = null;
       saveComicsCache(root, m.cache);
@@ -3741,7 +3817,7 @@ ipcMain.handle('comics-compare', async (event, listId) => {
 ipcMain.handle('comics-download-missing', async () => {
   const last = comicsState.last;
   if (!last || !Array.isArray(last.missingRows) || !last.missingRows.length) return { ok: false, error: 'Compare first. There is nothing to download.' };
-  const token = comicsState.token || loadSession();
+  const token = comicsState.token || savedSessionToken();
   if (!token) return { ok: false, error: 'Sign in first: open the Comics page on the site and press "Only what I\'m missing".' };
   const toFolder = !!(settings.comicsFolder && fs.existsSync(settings.comicsFolder));
   const batches = comicsScan.planBatches(last.missingRows, 400, 60e9).slice(0, 40);
@@ -3772,7 +3848,7 @@ const musicScan = require('./musicScan');
 const musicState = { running: false, worker: null, rows: null, root: '', at: 0, last: null, token: '' };
 const musicGet = (pathAndQuery) => comicsGet(pathAndQuery, 'Music', musicState.token);
 
-ipcMain.handle('music-get-state', () => ({ folder: settings.musicFolder || '', scanned: musicState.rows ? musicState.rows.length : 0, at: musicState.at, running: musicState.running }));
+ipcMain.handle('music-get-state', () => ({ folder: settings.musicFolder || '', scanned: musicState.rows ? musicState.rows.length : 0, at: musicState.at, running: musicState.running, progress: musicState.running ? (musicState.progress || { scanned: 0, current: '' }) : null }));
 
 ipcMain.handle('music-pick-folder', async () => {
   const result = await withDialogFocus(() => dialog.showOpenDialog(getDialogParentWindow(), { properties: ['openDirectory'] }));
@@ -3792,14 +3868,14 @@ ipcMain.handle('music-scan', async () => {
   if (!info.ok) return { ok: false, needsSignIn: true, error: 'The scan did not start: ' + info.error };
   return new Promise((resolve) => {
     const { Worker } = require('worker_threads');
-    musicState.running = true;
+    musicState.running = true; musicState.progress = { scanned: 0, current: '' };
     let worker;
     const finish = (out) => { musicState.running = false; musicState.worker = null; resolve(out); };
     try { worker = new Worker(path.join(__dirname, 'musicScanWorker.js'), { workerData: { root } }); }
     catch (e) { finish({ ok: false, error: 'Could not start the scan: ' + e.message }); return; }
     musicState.worker = worker;
     worker.on('message', (m) => {
-      if (m.type === 'progress') { sendToMain('music-scan-progress', { scanned: m.scanned, current: m.current }); return; }
+      if (m.type === 'progress') { musicState.progress = { scanned: m.scanned, current: m.current }; sendToMain('music-scan-progress', { scanned: m.scanned, current: m.current }); return; }
       if (m.type === 'done') {
         musicState.rows = m.rows; musicState.root = root; musicState.at = Date.now(); musicState.last = null;
         logToFile(`[music] scanned ${m.rows.length} files`);
@@ -3835,7 +3911,7 @@ ipcMain.handle('music-compare', async (event, folder) => {
 ipcMain.handle('music-download-missing', async () => {
   const last = musicState.last;
   if (!last || !Array.isArray(last.missingRows) || !last.missingRows.length) return { ok: false, error: 'Compare first. There is nothing to download.' };
-  const token = musicState.token || loadSession();
+  const token = musicState.token || savedSessionToken();
   if (!token) return { ok: false, error: 'Sign in first: open the Music page on the site and press "Only what I\'m missing".' };
   if (!(settings.musicFolder && fs.existsSync(settings.musicFolder))) return { ok: false, error: 'Choose your music folder first.' };
   const batches = musicScan.planBatches(last.missingRows, 400, 60e9).slice(0, 40);

@@ -359,3 +359,31 @@ export function trendingSets(windows) {
   }
   return out;
 }
+
+// "Only what I'm missing": the lines the Tools screen shows for a comparison. kind is 'comics' or 'music'; r is the reply of comics-compare /
+// music-compare ({ list, summary }). Each line is { tone: 'ok' | 'warn' | 'info', text }; the text matches the classic window's wording.
+export function compareLines(kind, r) {
+  const s = r && r.summary; if (!s) return [];
+  const n = (v) => Number(v || 0).toLocaleString();
+  const out = [];
+  if (kind === 'music') {
+    out.push(s.missing ? { tone: 'warn', text: `You have ${n(s.have)} of ${n(s.total)} tracks. ${n(s.missing)} are missing (${formatSize(s.bytesMissing) || '0 B'}).` } : { tone: 'ok', text: `You already have all ${n(s.total)} tracks in the library.` });
+    if (s.albums) out.push({ tone: 'info', text: `Albums: ${n(s.albums.complete)} complete, ${n(s.albums.partial)} partly there, ${n(s.albums.none)} not in your folder.` });
+    if (s.damaged) out.push({ tone: 'warn', text: `${n(s.damaged)} of your files look empty or cut short and are not counted as owned; they will be downloaded again.` });
+    return out;
+  }
+  const listName = r.list && r.list.name ? r.list.name : 'this list';
+  out.push(s.missing ? { tone: 'warn', text: `You have ${n((s.have || 0) + (s.haveByName || 0))} of ${n(s.total)}. ${n(s.missing)} are missing (${formatSize(s.bytesMissing) || '0 B'}).` } : { tone: 'ok', text: `You already have all ${n(s.total)} comics in ${listName}.` });
+  if (s.haveByName) out.push({ tone: 'ok', text: `${n(s.haveByName)} were matched by name because they have no Comic Vine tag.` });
+  if (s.maybe) out.push({ tone: 'info', text: `${n(s.maybe)} look like the same issue from a different year; they are listed as missing so nothing is skipped by mistake.` });
+  if (s.damagedCount) out.push({ tone: 'warn', text: `${n(s.damagedCount)} of your files look damaged or cut short and are not counted as owned: ${(s.damaged || []).slice(0, 3).join(', ')}${s.damagedCount > 3 ? ', ...' : ''}` });
+  if (Array.isArray(s.perSeries) && s.perSeries.length) out.push({ tone: 'info', title: 'Missing by series', text: s.perSeries.slice(0, 15).map((x) => `${x.series}: ${n(x.count)} (${formatSize(x.bytes) || '0 B'})`).join(' \u2022 ') });
+  return out;
+}
+
+// What the download step reported: "Started 2 downloads (120 comics, 3.4 GB). They arrive in <folder>."
+export function startedLine(kind, r) {
+  const n = (v) => Number(v || 0).toLocaleString();
+  const unit = kind === 'music' ? 'tracks' : 'comics';
+  return `Started ${n(r.started)} download${r.started === 1 ? '' : 's'} (${n(r.files)} ${unit}, ${formatSize(r.bytes) || '0 B'}). They are in the Downloads tab, and arrive in ${r.folder}. Scan again afterwards.`;
+}

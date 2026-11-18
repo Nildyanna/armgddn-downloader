@@ -350,3 +350,17 @@ header select + select { margin-left: 0; }
     display: none !important;
     opacity: 0 !important;
 }
+
+/* Tools: only what I'm missing (Comics, Music) and Komga */
+.settings.tools { max-width: 860px; }
+.toolcard { display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--rc, 10px); background: var(--panel, transparent); }
+.toolcard h3 { margin: 0; }
+.toolcard .note { margin: 0; color: var(--dim); font-size: 13px; line-height: 1.45; }
+.toolcard .note.warn { color: var(--warn, #e0a030); }
+.toolcard .srow select, .toolcard input.wide { background: var(--inset); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; max-width: 360px; }
+.toolcard input.wide { width: 320px; }
+.dbtn.go { border-color: var(--accent); color: var(--accent); }
+.dbtn:disabled { opacity: .45; cursor: default; }
+.results { display: flex; flex-direction: column; gap: 6px; }
+.rline { padding: 8px 12px; border: 1px solid var(--line); border-left-width: 4px; border-radius: 8px; font-size: 13px; line-height: 1.45; }
+.rline.ok { border-left-color: #3cb371; } .rline.warn { border-left-color: #e0a030; } .rline.info { border-left-color: var(--accent); }
