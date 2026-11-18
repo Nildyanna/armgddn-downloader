@@ -116,6 +116,9 @@ function start({ BrowserWindow, ipcMain, shell, dialog, fs = require('fs'), prot
     browsePath(remote, folderPath);
     return api.get(`/api/readme-preview?remote=${encodeURIComponent(remote)}&path=${encodeURIComponent(folderPath || '')}`, { ttlMs: 5 * 60 * 1000 });
   }));
+  // Home page strips: the same data the website's Trending Downloads and Hidden Gems strips show.
+  ipcMain.handle('native:trending', wrap(() => api.get('/api/trending-downloads', { ttlMs: 5 * 60 * 1000 })));
+  ipcMain.handle('native:gems', wrap(() => api.get('/api/hidden-gems', { ttlMs: 10 * 60 * 1000 })));
   ipcMain.handle('native:exportList', wrap(async (remote, format) => {
     const { path: p, fmt } = exportPath(remote, format);
     const f = await api.file(p);

@@ -104,3 +104,16 @@ test('sort by popularity and release, reversed, and the flame label', async () =
   assert.equal(popularityLabel({ downloadCount: 1234 }), '\u{1F525} 1,234 (30d)');
   assert.equal(popularityLabel({ downloadCount: 0 }), ''); assert.equal(popularityLabel({}), '');
 });
+
+test('home strip entries become list items, and picks skip what is already on My List', async () => {
+  const { homeItem, picksFrom } = await import('../renderer/native/format.mjs');
+  const it = homeItem({ title: 'Half-Life Alyx', remote: 'PCVR-2', path: 'PCVR2/Half-Life Alyx v1 -ARMGDDN', sizeBytes: 5e9, coverUrl: '/api/art-proxy?url=x', total: 12 });
+  assert.deepEqual([it.name, it._remote, it._folder, it.size, it.downloadCount, it.isDir], ['Half-Life Alyx v1 -ARMGDDN', 'PCVR-2', 'PCVR2', 5e9, 12, true]);
+  assert.equal(it.coverArt.cover.url, '/api/art-proxy?url=x');
+  assert.equal(homeItem({ title: 'x' }), null);
+  const e = ['A', 'B', 'C', 'D'].map((t) => ({ title: t, remote: 'PC-2', path: 'PC2/' + t }));
+  const a = picksFrom(e, ['b'], '2026-11-18', 10).map((x) => x.title);
+  assert.deepEqual(a.slice().sort(), ['A', 'C', 'D']);
+  assert.deepEqual(picksFrom(e, ['b'], '2026-11-18', 10).map((x) => x.title), a);          // stable within a day
+  assert.equal(picksFrom(e, [], 'd', 2).length, 2);
+});

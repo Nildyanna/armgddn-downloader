@@ -7,6 +7,6 @@ contextBridge.exposeInMainWorld('nativeAPI', {
   onOpen: (cb) => ipcRenderer.on('native:open', (_e, msg) => cb(msg)),
   download: call('native:download'), downloadBatch: call('native:downloadBatch'), downloads: call('native:downloads'),
   pause: call('pause-download'), resume: call('resume-download'), cancel: call('cancel-download'), retry: call('retry-download'), openFolder: call('open-folder'), history: call('get-history'),
-  openClassic: call('native:openClassic'), exportList: call('native:exportList'), getSettings: call('get-settings'), saveSettings: call('save-settings'), browseFolder: call('browse-folder'), readme: call('native:readme'), openLink: call('native:openLink'),
+  openClassic: call('native:openClassic'), exportList: call('native:exportList'), trending: call('native:trending'), gems: call('native:gems'), getSettings: call('get-settings'), saveSettings: call('save-settings'), browseFolder: call('browse-folder'), readme: call('native:readme'), openLink: call('native:openLink'),
   requests: call('native:requests'), thread: call('native:thread'), comment: call('native:comment'), submitRequest: call('native:submitRequest'),
 });

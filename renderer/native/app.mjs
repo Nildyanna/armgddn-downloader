@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, formatSpeed, popularityLabel, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere } from './format.mjs';
 
 const api = window.nativeAPI;
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
@@ -250,6 +250,38 @@ function SettingsView({ say }) {
   </main>`;
 }
 
+// Home: the three strips the website's landing page has. Trending scrolls like the website's marquee and stops when the mouse is over it.
+function Strip({ id, title, sub, right, children }) {
+  const [hidden, setHidden] = useState(() => { try { return localStorage.getItem('native.strip.' + id) === '1'; } catch (e) { return false; } });
+  const toggle = () => { const v = !hidden; setHidden(v); try { localStorage.setItem('native.strip.' + id, v ? '1' : '0'); } catch (e) { } };
+  return html`<section class="strip"><div class="strip-head"><span class="strip-title">${title}</span>${sub ? html`<span class="strip-sub">${sub}</span>` : ''}<span class="strip-right">${right || ''}<button class="dbtn" onClick=${toggle}>${hidden ? 'Show' : 'Hide'}</button></span></div>${hidden ? '' : children}</section>`;
+}
+function HomeView({ myList, render }) {
+  const [trend, setTrend] = useState(null);
+  const [gems, setGems] = useState(null);
+  const [mode, setMode] = useState('week');
+  useEffect(() => {
+    api.trending().then((r) => setTrend(r.ok && r.data && r.data.windows ? r.data.windows : {}));
+    api.gems().then((r) => setGems(r.ok && r.data && Array.isArray(r.data.items) ? r.data.items : []));
+  }, []);
+  const list = trend ? (trend[mode] || []).map(homeItem).filter(Boolean).slice(0, 20) : null;
+  const picks = trend ? picksFrom([...(trend.month || []), ...(trend.week || [])], (myList || []).map((i) => cleanTitle(i.name)), new Date().toISOString().slice(0, 10), 12).map(homeItem).filter(Boolean) : null;
+  const gemItems = gems ? gems.map((g) => homeItem({ ...g, total: g.downloads })).filter(Boolean) : null;
+  return html`<main class="home">
+    <${Strip} id="trending" title="\u{1F525} Trending Downloads" sub=${mode === 'week' ? 'last 7 days' : 'last 30 days'} right=${html`<button class="dbtn" onClick=${() => setMode(mode === 'week' ? 'month' : 'week')}>${mode === 'week' ? 'Show 30 days' : 'Show 7 days'}</button>`}>
+      ${list === null ? html`<div class="loading">Loading…</div>` : !list.length ? html`<div class="loading">Nothing is trending yet.</div>`
+        : html`<div class="marquee"><div class="marquee-track" style=${'animation-duration:' + Math.max(40, list.length * 6) + 's'}>${list.map((it) => render(it, 'a'))}${list.map((it) => render(it, 'b'))}</div></div>`}
+      <div class="strip-note">Download counts are from the last 7 or 30 days, not all-time totals.</div>
+    </${Strip}>
+    <${Strip} id="picks" title="Picks for you" sub="Trending titles that are not on your list yet">
+      ${picks === null ? html`<div class="loading">Loading…</div>` : !picks.length ? html`<div class="loading">No picks yet.</div>` : html`<div class="hrow">${picks.map((it) => render(it, 'p'))}</div>`}
+    </${Strip}>
+    <${Strip} id="gems" title="Hidden Gems" sub="In the library a while, hardly downloaded. A different handful each day.">
+      ${gemItems === null ? html`<div class="loading">Loading…</div>` : !gemItems.length ? html`<div class="loading">No gems today.</div>` : html`<div class="hrow">${gemItems.map((it) => render(it, 'g'))}</div>`}
+    </${Strip}>
+  </main>`;
+}
+
 function DownloadsView({ list }) {
   if (!list.length) return html`<div class="loading">No downloads yet. Press Download on any game, album or comic collection.</div>`;
   return html`<div class="dlist">${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
@@ -272,7 +304,7 @@ function App() {
   const [sort, setSort] = useState('name');
   const [reverse, setReverse] = useState(false);
   const [noticeOff, setNoticeOff] = useState(false);
-  const [view, setView] = useState('library');
+  const [view, setView] = useState('home');
   const [openRequest, setOpenRequest] = useState(null);
   useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setView('requests'); setOpenRequest(m.id); } }); }, []);
   const [downloads, setDownloads] = useState([]);
@@ -410,6 +442,7 @@ function App() {
   return html`<div class="shell">
     <header>
       <div class="brand">ARMGDDN</div>
+      <button class=${view === 'home' ? 'tab on' : 'tab'} onClick=${() => setView('home')}>Home</button>
       <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
       <button class=${view === 'settings' ? 'tab on' : 'tab'} title="Settings" onClick=${() => setView('settings')}>Settings</button>
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
@@ -425,7 +458,7 @@ function App() {
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
     </header>
-    ${view === 'settings' ? html`<${SettingsView} say=${say} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} myList=${myList} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'settings' ? html`<${SettingsView} say=${say} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="credit">Created by Old Man of the Hills v${(status && status.version) || ''}</span><span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}

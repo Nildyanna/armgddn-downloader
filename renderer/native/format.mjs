@@ -264,3 +264,21 @@ export function popularityLabel(item) {
   const n = Number(item && item.downloadCount);
   return Number.isFinite(n) && n > 0 ? '\u{1F525} ' + n.toLocaleString('en-US') + ' (30d)' : '';
 }
+
+// A trending or hidden-gem entry from the site as the same kind of item the lists use, so the Details and Download paths work unchanged.
+export function homeItem(e) {
+  if (!e || !e.remote || !e.path) return null;
+  const parts = String(e.path).split('/').filter(Boolean);
+  const name = parts.pop();
+  if (!name) return null;
+  const cover = e.coverUrl ? { cover: { url: e.coverUrl } } : undefined;
+  return { name, size: Number(e.sizeBytes) || 0, isDir: true, _remote: e.remote, _folder: parts.join('/'), coverArt: cover, downloadCount: Number(e.total != null ? e.total : e.downloads) || 0, _title: e.title || '' };
+}
+// "Picks for you": trending titles that are not already in My List, in an order that changes each day.
+export function picksFrom(entries, myListNames, day, count = 12) {
+  const have = new Set((myListNames || []).map((n) => String(n).toLowerCase()));
+  const h = (str) => { let x = 0; for (let i = 0; i < str.length; i++) x = (x * 31 + str.charCodeAt(i)) | 0; return x >>> 0; };
+  const seen = new Set();
+  return (entries || []).filter((e) => { const t = String(e.title || '').toLowerCase(); if (!t || have.has(t) || seen.has(t)) return false; seen.add(t); return !!(e.remote && e.path); })
+    .map((e) => ({ e, k: h(String(day) + (e.title || '')) })).sort((a, b) => a.k - b.k).slice(0, count).map((x) => x.e);
+}
