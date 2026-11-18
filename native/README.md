@@ -26,8 +26,12 @@ Hidden like on the website: stray `.json` files, folder echoes, Testing strays, 
 - **Writes to the live site are unproven.** Request comments are blocked by CSRF for the Companion, and a Companion login has no username, until the staged
   site change (branch `native-companion` in `ArmgddnBrowser-native`, commit `9af58aae`) is deployed. Reads work today.
 - Members' website My Lists do not carry over (the site keeps them in the browser).
-- Not copied: Komga "only what I'm missing" and the other classic-window tools (reachable through Settings), themes, the public status page,
-  game requests (closed), mobile.
+- Tools tab (2026-11-18): "only what I'm missing" for Comics and Music (pick folder, scan with live count, compare with the library or one reading order, download the rest)
+  and Komga (address and API key, add a reading order as a read list, import the key from the installed Companion). They call the same main-process code as the classic window.
+  Tested on the PC: the Comics scan and compare against the live library list (read only), the Komga key import. NOT run: "Download what I'm missing" (it starts real downloads),
+  "Add to my Komga" (it changes the member's own Komga), a Music scan (the imported Music folder is N:\).
+- Themes and their fonts: 27 Google Fonts families (latin woff2, 0.8 MB) are bundled in `renderer/native/fonts` (made by `scripts/get_fonts.py`), so themes look right offline.
+- Not copied: the public status page, game requests (closed), mobile, the remaining classic-window tools (history, schedule; reachable through Settings).
 - Wiki text is the website's. Sections 2, 8, 11, 12, 13 describe the website flow and need rewriting for the app (Wiki edits need approval).
 - Tested from this window on 2026-11-18 (Windows): pause holds the byte count and resume finishes with every file checked; cancel removes the partial files (an empty folder is left); a download paused for 11 minutes, past the 10 minute link life, resumed with fresh links and finished checked. Not yet tested: a very large (tens of GB) download, closing the app mid-download, Linux and macOS. Steam HLS trailers are untested (direct video and YouTube were).
 - The Companion's own test suite cannot run on the build server (it cannot open a local test port); CI runs it on tag.
