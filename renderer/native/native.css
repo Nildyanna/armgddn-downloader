@@ -384,12 +384,12 @@ header select + select { margin-left: 0; }
 
 /* Two bars: the top one is the same on every page (where you can go, the current page lit); the one below holds what belongs to this page. */
 .topbar { border-bottom: 0; padding-bottom: 6px; }
-.topbar .tab.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); font-weight: 600; }
+.topbar .tab.on { color: var(--fg); background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); border-bottom: 3px solid var(--accent); font-weight: 600; }
 .subbar { display: flex; align-items: center; gap: 10px; padding: 6px 18px 10px; background: var(--surface); border-bottom: 1px solid var(--line); flex-wrap: wrap; min-height: 44px; }
 .subbar .subtitle { color: var(--fg); font-weight: 600; margin-right: 6px; min-width: 90px; }
 .subbar select { flex: none; }
 .viewsel { margin-left: auto; display: flex; gap: 2px; flex: none; }
-.viewsel .tab.on { color: var(--on-accent); background: var(--accent); border-color: var(--accent); }
+.viewsel .tab.on { color: var(--fg); background: color-mix(in srgb, var(--accent) 22%, transparent); border-color: color-mix(in srgb, var(--accent) 55%, transparent); font-weight: 600; }
 /* List view: titles only */
 .list { flex: 1; overflow: auto; padding: 8px 46px 24px 18px; display: flex; flex-direction: column; gap: 2px; align-content: start; }
 .lrow { display: flex; align-items: center; gap: 12px; padding: 6px 10px; border-radius: 8px; border: 1px solid transparent; }
