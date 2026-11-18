@@ -50,3 +50,30 @@ test('a redirect to another site never carries the token, a same-site one keeps 
   assert.deepEqual(headersForRedirect(h, new URL('https://www.googleapis.com/drive/v3/files/1?alt=media'), 'https://doc-0g.googleusercontent.com/x'), { Range: 'bytes=0-1', Accept: '*/*' });
   assert.strictEqual(headersForRedirect(h, new URL('https://www.googleapis.com/a'), 'https://www.googleapis.com/b'), h);
 });
+
+test('a download that failed and was retried reports its later files without crediting twice, and says nothing when nothing is new', async () => {
+  const g = c.grantFromManifest(manifest);
+  const seen = []; const opts = { request: fakeRequest({ status: 200, json: { success: true } }, seen) };
+  g.done.add('PCVR1/G/a.7z');                                       // one file finished, then the download failed
+  assert.equal(await c.finish(g, 'https://www.armgddnbrowser.com/x', 's', opts), true);
+  assert.equal(seen[0].body.notDownloaded, 50); assert.deepEqual(seen[0].body.completedPaths, ['PCVR1/G/a.7z']);
+  assert.equal(await c.finish(g, 'https://www.armgddnbrowser.com/x', 's', opts), false);       // nothing new
+  g.done.add('PCVR1/G/b.7z');                                       // a retry finishes the rest
+  assert.equal(await c.finish(g, 'https://www.armgddnbrowser.com/x', 's', opts), true);
+  assert.equal(seen.length, 2);
+  assert.equal(seen[1].body.notDownloaded, 0);                      // the credit is only asked for once
+  assert.deepEqual(seen[1].body.completedPaths, ['PCVR1/G/b.7z']);  // and only the new file is sent
+});
+
+test('the app reports a finally failed download, not a paused one, and not while an automatic retry is waiting', () => {
+  const fs = require('fs'); const path = require('path');
+  const src = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const helper = src.slice(src.indexOf('function reportDirectGrantEnd'), src.indexOf('function scheduleAutoRetry'));
+  assert.ok(helper.includes('download.paused') && helper.includes('__autoRetryPending') && helper.includes('driveDirectClient.finish'));
+  assert.ok(src.includes('if (!download.paused && !download.cancelled) reportDirectGrantEnd(download);'));            // end of the first run
+  assert.ok(src.includes('if (hasErrors && !download.paused && !download.cancelled) reportDirectGrantEnd(download);'));  // end of a retried run
+  assert.ok(src.includes("if (download.status === 'error' || download.status === 'failed') reportDirectGrantEnd(download);"));   // after an automatic retry
+  assert.ok(src.includes("download.status = 'failed';\n        reportDirectGrantEnd(download);"));                               // stuck download finalised as failed
+  const pause = src.slice(src.indexOf("download.paused = true;\n  download.status = 'paused';"), src.indexOf("download.paused = true;\n  download.status = 'paused';") + 1500);
+  assert.ok(!pause.includes('driveDirectClient.finish') && !pause.includes('reportDirectGrantEnd'));                        // pausing sends nothing
+});

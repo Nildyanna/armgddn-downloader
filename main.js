@@ -3559,6 +3559,16 @@ ipcMain.handle('retry-download', async (event, downloadId) => {
 const AUTO_RETRY_TRANSIENT_RE = /(stalled|link expired|network\/dns|timed out|connection dropped|gateway error|could not be resumed|download failed\.)/i;
 const AUTO_RETRY_BLOCK_RE = /(disk space|quota|date\/time|download folder|security error)/i;
 const AUTO_RETRY_MAX = 5;
+// A download that has finally failed (no automatic retry waiting) tells the site how much of its direct-from-Drive grant was not downloaded, so
+// the member's daily allowance is credited back. A paused download sends nothing: it can resume, and the allowance window rolls on its own.
+function reportDirectGrantEnd(download) {
+  try {
+    if (!download || !download.directGrant || !download.manifestUrl) return;
+    if (download.paused || download.__autoRetryPending) return;
+    driveDirectClient.finish(download.directGrant, String(download.manifestUrl), download.token);
+  } catch (e) { }
+}
+
 function scheduleAutoRetry(downloadId, download) {
   try {
     if (!download || download.__autoRetryPending) return;
@@ -3592,6 +3602,7 @@ function scheduleAutoRetry(downloadId, download) {
         try { logToFile(`[AutoRetry] failed: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
       } finally {
         download.__autoRetryPending = false;
+        if (download.status === 'error' || download.status === 'failed') reportDirectGrantEnd(download);
       }
     })();
   } catch (e) { }
@@ -5333,6 +5344,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
   } else if (hasErrors) {
     // Ensure final progress is sent for partial/error downloads
     updateProgress(downloadId);
+    if (!download.paused && !download.cancelled) reportDirectGrantEnd(download);
   }
 
   return downloadId;
@@ -6963,6 +6975,7 @@ setInterval(() => {
         logToFile(`[Poll] Download ${id} has errors and no active processes — finalizing as failed`);
         updateProgress(id);
         download.status = 'failed';
+        reportDirectGrantEnd(download);
         activeDownloads.delete(id);
         continue;
       }
@@ -8163,6 +8176,7 @@ async function resumeDownloadFiles(downloadId) {
   } else {
     logToFile(`[Resume] NOT completing - updating progress instead`);
     updateProgress(downloadId);
+    if (hasErrors && !download.paused && !download.cancelled) reportDirectGrantEnd(download);
   }
 }
 

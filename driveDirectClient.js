@@ -12,7 +12,7 @@ function grantFromManifest(manifest) {
   const files = new Map();   // path -> size, for the files that were given a Drive link
   for (const f of (manifest.files || [])) if (f && f.path && f.headers && f.headers.Authorization) files.set(String(f.path), Number(f.size) || 0);
   if (!files.size) return null;
-  return { grantId: d.grantId, files, done: new Set(), skipped: new Set(), finished: false };
+  return { grantId: d.grantId, files, done: new Set(), sent: new Set(), skipped: new Set(), finished: false };
 }
 
 function post(base, pathName, token, body, { request = https.request, timeoutMs = 15000 } = {}) {
@@ -47,13 +47,19 @@ function notDownloaded(grant) {
   return n;
 }
 
-// Tell the site how the grant ended. Safe to call more than once: only the first call is sent.
+// Tell the site how the grant ended: the bytes that were given a Drive link but not downloaded (credited back, once, by the site) and the files
+// that finished (remembered, so a repeat counts double). Safe to call again: a later call only sends files that finished since the last one, and
+// sends nothing at all when there is nothing new (a failed download that is retried and then completes reports its remaining files this way).
 async function finish(grant, manifestUrl, token, opts) {
-  if (!grant || grant.finished) return false;
+  if (!grant) return false;
+  const fresh = Array.from(grant.done).filter((p) => !grant.sent.has(p));
+  if (grant.finished && !fresh.length) return false;
+  const first = !grant.finished;
   grant.finished = true;
+  for (const p of fresh) grant.sent.add(p);
   try {
     const r = await post(manifestUrl, '/api/drive-direct/finish', token,
-      { grantId: grant.grantId, notDownloaded: notDownloaded(grant), completedPaths: Array.from(grant.done) }, opts);
+      { grantId: grant.grantId, notDownloaded: first ? notDownloaded(grant) : 0, completedPaths: fresh }, opts);
     return r.status === 200;
   } catch (e) { return false; }
 }
