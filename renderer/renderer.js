@@ -290,6 +290,8 @@ async function showAlertDialog(title, message) {
 
   // Setup IPC listeners from main process
   function setupIPCListeners() {
+    // The main process checks once an hour and announces a new version here (a Companion left running never re-checked before).
+    try { if (api.onUpdateAvailable) api.onUpdateAvailable((info) => { if (info && info.hasUpdate) showUpdateNotification(info); }); } catch (e) { }
     // Deep link handler
     api.onDeepLink((url) => {
       handleDeepLink(url);

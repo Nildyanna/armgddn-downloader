@@ -969,6 +969,7 @@ function postJsonWithBearer(urlString, bodyObj, bearerToken) {
 let mainWindow;
 let authWindow;
 let progressWin = null; // Update progress window
+let pendingWhatsNewEntryNative = null; // the same entry, held for the native window, which asks for it once at start-up
 let pendingWhatsNewEntry = null; // Set once at startup if this launch is a version bump with curated content; pushed to renderer on did-finish-load
 let tray;
 let activeDownloads = new Map();
@@ -3197,7 +3198,7 @@ function createTray() {
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
   ]);
 
-  tray.setToolTip('ARMGDDN Companion');
+  tray.setToolTip(NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion');
   tray.setContextMenu(buildTrayMenu());
   rebuildTrayMenu = () => { try { tray.setContextMenu(buildTrayMenu()); } catch (e) { } };
 
@@ -3450,6 +3451,7 @@ function runSmokeTest() {
 }
 
 app.whenReady().then(() => {
+  startUpdatePoller();
   try { startScheduleTicker(); } catch (e) { }
   try {
     logToFile(`[Startup] version: ${app.getVersion()}`);
@@ -3501,6 +3503,7 @@ app.whenReady().then(() => {
     const currentVersion = app.getVersion();
     if (settings.lastSeenVersion && settings.lastSeenVersion !== currentVersion) {
       pendingWhatsNewEntry = getWhatsNewForVersion(currentVersion);
+      pendingWhatsNewEntryNative = pendingWhatsNewEntry;
     }
     if (settings.lastSeenVersion !== currentVersion) {
       settings.lastSeenVersion = currentVersion;
@@ -4068,6 +4071,8 @@ ipcMain.handle('get-app-load', async (event, token, manifestUrl) => {
 // version bump. Always returns the current version's entry (or null), regardless
 // of whether it was already shown this run.
 ipcMain.handle('get-whats-new', () => getWhatsNewForVersion(app.getVersion()));
+// The native window's one-time "What's New" after an update (the classic window gets it pushed when it loads).
+ipcMain.handle('native-pending-whats-new', () => { const e = pendingWhatsNewEntryNative; pendingWhatsNewEntryNative = null; return e || null; });
 
 // Check free disk space at (or above) a given path, for Settings/list UI readouts.
 ipcMain.handle('check-disk-space', async (event, targetPath) => {
@@ -8981,14 +8986,39 @@ function fetchLatestReleaseInfo() {
 // Check for updates via GitHub releases
 // Security (C1/H1): installerUrl is NOT returned to the renderer — the install-update
 // handler derives the URL internally to prevent renderer-supplied URL attacks.
-ipcMain.handle('check-updates', async () => {
-  const result = await fetchLatestReleaseInfo();
+function safeUpdateResult(result) {
   // Strip installerUrl — renderer must not supply it back to install-update
   const { installerUrl: _stripped, ...safeResult } = result;
   // Surface whether auto-install is available without exposing the URL
   safeResult.canAutoInstall = !!_stripped;
   return safeResult;
-});
+}
+ipcMain.handle('check-updates', async () => safeUpdateResult(await fetchLatestReleaseInfo()));
+
+// A Companion left running (a PC that stays on, the app in the tray) never saw a new release: the check ran only at start-up. This checks once an
+// hour in the main process, so it works with every window closed. A new version is announced once: an OS notification (when notifications are on)
+// and a message to whichever windows are open, which show their own update prompt.
+const UPDATE_POLL_MS = 60 * 60 * 1000;
+let _updateAnnouncedVersion = '';
+async function pollForUpdateOnce() {
+  try {
+    if (SMOKE_TEST) return;
+    if (!app.isPackaged && process.env.ARMGDDN_ALLOW_DEV_UPDATE !== '1') return;          // a test or dev copy never announces updates
+    if (_installUpdateInProgress) return;
+    const raw = await fetchLatestReleaseInfo();
+    if (!raw || raw.error || !raw.hasUpdate || !raw.latestVersion) return;
+    if (_updateAnnouncedVersion === raw.latestVersion) return;                              // already told them about this one
+    _updateAnnouncedVersion = raw.latestVersion;
+    logToFile(`[Update] hourly check: version ${raw.latestVersion} is available (running ${app.getVersion()})`);
+    showDownloadNotification(NATIVE_PREVIEW ? 'ARMGDDN Browser update available' : 'ARMGDDN Companion update available', `Version ${raw.latestVersion} is ready. Open ${NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'the Companion'} to install it.`);
+    const info = safeUpdateResult(raw);
+    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-available', info); } catch (e) { }
+    try { if (nativeWindow && !nativeWindow.isDestroyed()) nativeWindow.webContents.send('native:updateAvailable', info); } catch (e) { }
+  } catch (e) { logToFile('[Update] hourly check failed: ' + (e && e.message ? e.message : e)); }
+}
+function startUpdatePoller() {
+  try { setInterval(pollForUpdateOnce, UPDATE_POLL_MS); } catch (e) { }
+}
 
 // Guard against concurrent install-update calls (e.g. the double-runner loop caused by
 // a relaunch-on-failure bug in older runners).  Once an install is in flight, any
@@ -9498,7 +9528,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                     // Menu shortcut, even after the user moved or deleted it.
                     const silentArg = silent ? '/S --updated' : '--updated';
                     const runner = updateRunner.buildRunner({
-                      pid, filePath, appExe: process.execPath, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut: startMenuShortcut
+                      pid, filePath, appExe: process.execPath, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut: startMenuShortcut, appName: NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion'
                     });
                     // Tell any app that starts while the installer works (the member opens it again) not to start a second install.
                     try { fs.writeFileSync(resultPath, JSON.stringify({ state: 'installing', ts: Date.now() })); } catch (e) { }

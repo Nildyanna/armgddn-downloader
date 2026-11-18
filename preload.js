@@ -36,6 +36,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   openExternal: (url) => ipcRenderer.invoke('open-external', url),
   getVersion: () => ipcRenderer.invoke('get-version'),
   checkUpdates: () => ipcRenderer.invoke('check-updates'),
+  onUpdateAvailable: (callback) => ipcRenderer.on('update-available', (event, info) => callback(info)),
   // Security (C1/H1): URL param removed — main process derives installer URL internally
   installUpdate: (options) => ipcRenderer.invoke('install-update', null, options),
   checkConnection: () => ipcRenderer.invoke('check-connection'),

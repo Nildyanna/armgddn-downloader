@@ -10,7 +10,9 @@ function escapePsPath(p) {
 
 // The runner shows a small always-on-top "Updating..." window while the silent installer works (it takes 20-80 seconds and the
 // app itself is closed by then, so without it the member sees nothing and starts the app again, which starts a second installer).
-function buildRunner({ pid, filePath, appExe, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut }) {
+function buildRunner({ pid, filePath, appExe, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut, appName }) {
+  // Members on the new built-in window know the app as "ARMGDDN Browser"; everyone else sees "ARMGDDN Companion".
+  const name = String(appName || 'ARMGDDN Companion').replace(/[^A-Za-z0-9 ]/g, '');
   return [
     '# ARMGDDN Companion update runner — auto-generated, do not edit',
     `$pid_to_wait = ${pid}`,
@@ -37,14 +39,14 @@ function buildRunner({ pid, filePath, appExe, wrapperLogPath, resultPath, silent
     '  Add-Type -AssemblyName System.Windows.Forms',
     '  [System.Windows.Forms.Application]::EnableVisualStyles()',
     '  $form = New-Object System.Windows.Forms.Form',
-    '  $form.Text = \'ARMGDDN Companion\'',
+    `  $form.Text = '${name}'`,
     '  $form.TopMost = $true',
     '  $form.StartPosition = \'CenterScreen\'',
     '  $form.FormBorderStyle = \'FixedDialog\'',
     '  $form.ControlBox = $false',
     '  $form.ClientSize = New-Object System.Drawing.Size(380, 84)',
     '  $label = New-Object System.Windows.Forms.Label',
-    '  $label.Text = \'Installing the update. ARMGDDN Companion reopens by itself in about a minute.\'',
+    `  $label.Text = 'Installing the update. ${name} reopens by itself in about a minute.'`,
     '  $label.SetBounds(14, 12, 352, 32)',
     '  $bar = New-Object System.Windows.Forms.ProgressBar',
     '  $bar.Style = \'Marquee\'',

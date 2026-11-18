@@ -40,3 +40,45 @@ test('opening the Companion again or using the tray brings up the native window 
   assert.ok(tray.includes('showAppWindow()'), 'the tray shows the native window first');
   assert.ok(main.includes("nativeWindow.on('close'") && main.includes('settings.minimizeToTrayOnClose) { event.preventDefault(); nativeWindow.hide(); }'));
 });
+
+test('the Companion checks for updates once an hour in the main process, announces each new version once, and the native window has a Check for updates button and an Update now bar', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes('const UPDATE_POLL_MS = 60 * 60 * 1000;') && main.includes('setInterval(pollForUpdateOnce, UPDATE_POLL_MS)'));
+  assert.ok(main.includes('app.whenReady().then(() => {\n  startUpdatePoller();'), 'the poller starts with the app');
+  const poll = main.slice(main.indexOf('async function pollForUpdateOnce'), main.indexOf('function startUpdatePoller'));
+  assert.ok(poll.includes('_updateAnnouncedVersion === raw.latestVersion'), 'a version is announced once');
+  assert.ok(poll.includes('showDownloadNotification(') && poll.includes("send('update-available'") && poll.includes("send('native:updateAvailable'"));
+  assert.ok(poll.includes('!app.isPackaged') && poll.includes('SMOKE_TEST'), 'dev copies and the CI smoke run never announce');
+  const pre = fs.readFileSync(path.join(__dirname, '..', 'preload.js'), 'utf8');
+  const preN = fs.readFileSync(path.join(__dirname, '..', 'preload-native.js'), 'utf8');
+  assert.ok(pre.includes("'update-available'") && preN.includes("'native:updateAvailable'") && preN.includes("checkUpdates: call('check-updates')"));
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes('Check for updates') && app.includes('function UpdateRow') && app.includes('<${UpdateRow} say=${say} />'));
+  assert.ok(app.includes('updatebar') && app.includes('api.checkUpdates()') && app.includes('api.onUpdateAvailable('));
+  const classic = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'renderer.js'), 'utf8');
+  assert.ok(classic.includes('api.onUpdateAvailable') && classic.includes('showUpdateNotification(info)'));
+});
+
+test('the native window has the classic tools: schedule, game updates, .7z help video, What\'s New after an update, clear history', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  for (const piece of ['function ScheduleRow', '<${ScheduleRow} s=${s} save=${save} />', 'function GameUpdatesRow', '<${GameUpdatesRow} />', 'function Help7zRow', '<${Help7zRow} />',
+    'function WhatsNewBox', 'api.pendingWhatsNew()', '<${WhatsNewButton} />', 'api.clearHistory()', 'onClear=${']) assert.ok(app.includes(piece), piece);
+  const preN = fs.readFileSync(path.join(__dirname, '..', 'preload-native.js'), 'utf8');
+  for (const piece of ["getScheduleBanner: call('get-schedule-banner')", "checkGameUpdates: call('check-game-updates')", "clearHistory: call('clear-history')", "pendingWhatsNew: call('native-pending-whats-new')", "getHelp7zVideoSrc: call('get-help-7z-video-src')"]) assert.ok(preN.includes(piece), piece);
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes("ipcMain.handle('native-pending-whats-new'") && main.includes('pendingWhatsNewEntryNative = pendingWhatsNewEntry;'));
+  const html = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'index.html'), 'utf8');
+  assert.ok(html.includes("media-src 'self' blob: file:"), 'the local help video may play');
+});
+
+test('members on the native window see ARMGDDN Browser in the update window, notification and bar; everyone else keeps ARMGDDN Companion', () => {
+  const u = require('../updateRunner');
+  const base = { pid: 1, filePath: 'a', appExe: 'b', wrapperLogPath: 'c', resultPath: 'd', silentArg: '/S', shouldRelaunch: true };
+  const nat = u.buildRunner({ ...base, appName: 'ARMGDDN Browser' });
+  assert.ok(nat.includes("$form.Text = 'ARMGDDN Browser'") && nat.includes('Installing the update. ARMGDDN Browser reopens by itself'));
+  const classic = u.buildRunner(base);
+  assert.ok(classic.includes("$form.Text = 'ARMGDDN Companion'") && classic.includes('Installing the update. ARMGDDN Companion reopens by itself'));
+  assert.ok(!u.buildRunner({ ...base, appName: "x'; Remove-Item *" }).includes("Remove-Item *'"), 'the name cannot break out of the script');
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes("appName: NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion'") && main.includes("NATIVE_PREVIEW ? 'ARMGDDN Browser update available'"));
+});

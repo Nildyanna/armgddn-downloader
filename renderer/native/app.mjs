@@ -429,6 +429,80 @@ function ToolsView({ say }) {
   </main>`;
 }
 
+// "Check for updates" in Settings: asks GitHub's latest release now, and says plainly what it found. The Companion also checks by itself once an hour.
+function UpdateRow({ say }) {
+  const [state, setState] = useState({ busy: false, text: '' });
+  const check = async () => {
+    setState({ busy: true, text: 'Checking...' });
+    try {
+      const r = await api.checkUpdates();
+      if (!r || r.error) setState({ busy: false, text: 'Could not check: ' + ((r && r.error) || 'no answer') });
+      else if (r.hasUpdate) setState({ busy: false, text: `v${r.latestVersion} is available (you have v${r.version}). The Update now bar at the top will install it.` });
+      else setState({ busy: false, text: `You are on the latest version (v${r.version}).` });
+      if (r && r.hasUpdate) { try { window.dispatchEvent(new CustomEvent('native-update-found', { detail: r })); } catch (e) { } }
+    } catch (e) { setState({ busy: false, text: 'Could not check for updates.' }); }
+  };
+  return html`<div class="srow"><span class="slabel">ARMGDDN Browser updates <span class="sval">${state.text || 'It checks once an hour by itself.'}</span></span><button class="dbtn" disabled=${state.busy} onClick=${check}>Check for updates</button></div>`;
+}
+
+// The download schedule, as in the classic Settings: pause or slow downloads between two times on chosen days.
+const DAY_LABELS = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']];
+function ScheduleRow({ s, save }) {
+  const sch = s.schedule || {};
+  const days = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6];
+  const [banner, setBanner] = useState('');
+  useEffect(() => { try { api.onScheduleBanner((t) => setBanner(t || '')); api.getScheduleBanner().then((t) => setBanner(t || '')).catch(() => { }); } catch (e) { } }, []);
+  const put = (patch) => save({ schedule: { enabled: !!sch.enabled, start: sch.start || '23:00', end: sch.end || '07:00', action: sch.action === 'limit' ? 'limit' : 'pause', limitMBps: sch.limitMBps || 5, days, ...patch } });
+  const toggleDay = (d) => put({ days: days.includes(d) ? days.filter((x) => x !== d) : days.concat(d).sort() });
+  return html`<div class="sched">
+    <div class="srow"><span class="slabel">Download schedule <span class="sval">Pause or slow downloads at set times.</span></span><label class="chk"><input type="checkbox" checked=${!!sch.enabled} onChange=${(e) => put({ enabled: e.target.checked })} /> On</label></div>
+    ${sch.enabled ? html`<div class="srow schedfields"><span class="slabel">From <input type="time" value=${sch.start || '23:00'} onChange=${(e) => put({ start: e.target.value || '23:00' })} /> to <input type="time" value=${sch.end || '07:00'} onChange=${(e) => put({ end: e.target.value || '07:00' })} />
+      <select value=${sch.action === 'limit' ? 'limit' : 'pause'} onChange=${(e) => put({ action: e.target.value })}><option value="pause">Pause downloads</option><option value="limit">Limit speed to</option></select>
+      ${sch.action === 'limit' ? html`<input type="number" min="1" step="1" style="width:70px" value=${sch.limitMBps || 5} onChange=${(e) => put({ limitMBps: parseInt(e.target.value, 10) || 5 })} /> MB/s` : ''}</span></div>
+      <div class="srow"><span class="slabel">${DAY_LABELS.map(([d, l]) => html`<label class="chk" key=${d}><input type="checkbox" checked=${days.includes(d)} onChange=${() => toggleDay(d)} /> ${l}</label>`)}</span></div>` : ''}
+    ${banner ? html`<div class="note">${banner}</div>` : ''}
+  </div>`;
+}
+
+// "Check my games for updates": compares the finished downloads in the history with the newest version in the library.
+function GameUpdatesRow() {
+  const [st, setSt] = useState({ busy: false, text: '', list: [] });
+  const run = async () => {
+    setSt({ busy: true, text: 'Checking...', list: [] });
+    try {
+      const res = await api.checkGameUpdates();
+      if (!res || !res.ok) return setSt({ busy: false, text: (res && res.error) || 'Could not check for updates.', list: [] });
+      if (!res.checked) return setSt({ busy: false, text: 'There are no finished downloads in your history to check.', list: [] });
+      if (!res.updates.length) return setSt({ busy: false, text: `Checked ${res.checked} game${res.checked === 1 ? '' : 's'}: all are on the newest version in the library.`, list: [] });
+      setSt({ busy: false, text: `${res.updates.length} game${res.updates.length === 1 ? ' has' : 's have'} a newer version in the library. Find them in the library to download them.`, list: res.updates });
+    } catch (e) { setSt({ busy: false, text: 'Could not check for updates.', list: [] }); }
+  };
+  return html`<div><div class="srow"><span class="slabel">Game updates <span class="sval">${st.text || 'See which of your downloaded games have a newer version.'}</span></span><button class="dbtn" disabled=${st.busy} onClick=${run}>Check my games</button></div>
+    ${st.list.length ? html`<ul class="gu">${st.list.map((u, i) => html`<li key=${i}>${u.latestFolder} <span class="sval">(you have ${u.current}, newest is ${u.latest})</span></li>`)}</ul>` : ''}</div>`;
+}
+
+// "New to .7z files?": the short help video, played from the app's own files.
+function Help7zRow() {
+  const [src, setSrc] = useState('');
+  const [open, setOpen] = useState(false);
+  const show = async () => { setOpen(!open); if (!open && !src) { try { setSrc(await api.getHelp7zVideoSrc()); } catch (e) { } } };
+  return html`<div><div class="srow"><span class="slabel">New to .7z files? <span class="sval">A short video on opening multi-part archives after a download.</span></span><button class="dbtn" onClick=${show}>${open ? 'Hide the video' : 'Watch the video'}</button></div>
+    ${open && src ? html`<video class="help7z" controls src=${src}></video>` : ''}</div>`;
+}
+
+// What's New: the changes in the running version, shown once after an update and on request.
+function WhatsNewBox({ entry, onClose }) {
+  if (!entry) return '';
+  const items = Array.isArray(entry.highlights) ? entry.highlights : [];
+  return html`<div class="notice soft whatsnew"><strong>${entry.title ? "What's New: " + entry.title : "What's New"}</strong><ul>${items.map((h, i) => html`<li key=${i}>${String(h)}</li>`)}</ul><button class="dbtn" onClick=${onClose}>Got it</button></div>`;
+}
+function WhatsNewButton() {
+  const [entry, setEntry] = useState(undefined);
+  const show = async () => { try { setEntry((await api.getWhatsNew()) || null); } catch (e) { setEntry(null); } };
+  return html`<div><div class="srow"><span class="slabel">What's New <span class="sval">The changes in this version.</span></span><button class="dbtn" onClick=${show}>Show what's new</button></div>
+    ${entry === null ? html`<div class="note">There is nothing to show for this version.</div>` : entry ? html`<${WhatsNewBox} entry=${entry} onClose=${() => setEntry(undefined)} />` : ''}</div>`;
+}
+
 function SettingsView({ say, onPrefs }) {
   const [s, setS] = useState(null);
   const [prefsOpen, setPrefsOpen] = useState(false);
@@ -439,6 +513,8 @@ function SettingsView({ say, onPrefs }) {
   const folderRow = (key, label) => html`<div class="srow"><span class="slabel">${label}</span><span class="sval">${s[key] || 'Not set'}</span><button class="dbtn" onClick=${() => pickFolder(key)}>Change</button></div>`;
   return html`<main class="settings">
     <h2>Settings</h2>
+    <${UpdateRow} say=${say} />
+    <${WhatsNewButton} />
     ${folderRow('downloadPath', 'Download folder')}
     ${folderRow('comicsFolder', 'Comics folder')}
     ${folderRow('musicFolder', 'Music folder')}
@@ -450,10 +526,13 @@ function SettingsView({ say, onPrefs }) {
     <div class="srow"><span class="slabel">Import the settings of the installed Companion (folders, speed, toggles)</span><button class="dbtn" onClick=${async () => { const r = await api.importSettings(); if (r && r.same) say('This already is the installed Companion\'s settings'); else if (r && r.imported) { say('Imported ' + r.imported + ' settings'); const g = await api.getSettings(); if (g) setS(g); } else say('No installed Companion settings were found'); }}>Import</button></div>
     <div class="srow"><span class="slabel">Import my website preferences (My List, theme, hidden sections, recent searches)</span><button class="dbtn" onClick=${() => setPrefsOpen(true)}>Import</button></div>
     ${prefsOpen ? html`<${PrefsImport} onClose=${() => setPrefsOpen(false)} onApply=${onPrefs} say=${say} />` : ''}
+    <${ScheduleRow} s=${s} save=${save} />
+    <${GameUpdatesRow} />
+    <${Help7zRow} />
     <${SupportTools} say=${say} onApplyConnections=${(v) => save({ connectionsPerFile: v })} />
     <div class="srow"><span class="slabel">Login animation (lightning and thunder, loud)</span><button class="dbtn" onClick=${() => mountLoginLightning()}>Replay</button></div>
     <label class="srow"><input type="checkbox" checked=${localStorage.getItem('native.lightningOff') !== '1'} onChange=${(e) => { try { localStorage.setItem('native.lightningOff', e.target.checked ? '0' : '1'); } catch (er) { } }} /> <span class="slabel">Play the login animation on a first sign-in</span></label>
-    <div class="srow"><span class="slabel">Download history, schedule and the other classic tools</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
+    <div class="srow"><span class="slabel">The classic window is still available</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
   </main>`;
 }
 
@@ -631,9 +710,9 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
   </main>`;
 }
 
-function DownloadsView({ list }) {
+function DownloadsView({ list, onClear }) {
   if (!list.length) return html`<div class="loading">No downloads yet. Press Download on any game, album or comic collection.</div>`;
-  return html`<div class="dlist">${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
+  return html`<div class="dlist"><div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
     <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
     <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(d.downloadedSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), (d.totalSpeed || formatSpeed(d.speed)), d.eta ? 'ETA ' + d.eta : '', d.fileCount > 1 ? (d.completedFiles || 0) + ' of ' + d.fileCount + ' files' : ''].filter(Boolean).join(' · ')}</div>
@@ -664,6 +743,26 @@ function App() {
   const [downloads, setDownloads] = useState([]);
   const [toast, setToast] = useState('');
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
+  const [whatsNew, setWhatsNew] = useState(null);
+  useEffect(() => { api.pendingWhatsNew().then((e) => { if (e) setWhatsNew(e); }).catch(() => { }); }, []);
+  // A new Companion version: found at start-up, or announced by the hourly check in the main process.
+  const [updateInfo, setUpdateInfo] = useState(null);
+  const [updating, setUpdating] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    try { api.onUpdateAvailable((info) => { if (alive && info && info.hasUpdate) setUpdateInfo(info); }); } catch (e) { }
+    const onFound = (e) => { if (alive && e && e.detail && e.detail.hasUpdate) setUpdateInfo(e.detail); };
+    window.addEventListener('native-update-found', onFound);
+    api.checkUpdates().then((r) => { if (alive && r && r.hasUpdate) setUpdateInfo(r); }).catch(() => { });
+    return () => { alive = false; window.removeEventListener('native-update-found', onFound); };
+  }, []);
+  const installUpdate = async () => {
+    setUpdating(true);
+    try {
+      const r = await api.installUpdate({ silent: true, relaunchAfterInstall: true, source: 'native-banner' });
+      if (r && r.success === false && !r.installerPath) { setUpdating(false); say((r && r.error) || 'The update could not be started'); }
+    } catch (e) { setUpdating(false); say('The update could not be started'); }
+  };
   const [details, setDetails] = useState(null);
   const [preview, setPreview] = useState(null);
   const [myList, setMyList] = useState(() => { try { return JSON.parse(localStorage.getItem(MY_LIST_KEY) || '[]'); } catch (e) { return []; } });
@@ -913,7 +1012,7 @@ function App() {
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
     </header>
-    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
@@ -926,6 +1025,8 @@ function App() {
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}
+    ${whatsNew ? html`<${WhatsNewBox} entry=${whatsNew} onClose=${() => setWhatsNew(null)} />` : ''}
+    ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN Browser ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${activeCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN Browser.</span>` : ''}<button class="dbtn go" disabled=${updating || activeCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     ${toast ? html`<div class="toast">${toast}</div>` : ''}
   </div>`;
 }

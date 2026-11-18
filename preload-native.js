@@ -14,5 +14,10 @@ contextBridge.exposeInMainWorld('nativeAPI', {
   musicState: call('music-get-state'), musicPickFolder: call('music-pick-folder'), musicScan: call('music-scan'), musicCancelScan: call('music-cancel-scan'), musicInfo: call('music-info'), musicCompare: call('music-compare'), musicDownloadMissing: call('music-download-missing'),
   komgaState: call('native-komga-state'), komgaSave: call('native-komga-save'), komgaForget: call('native-komga-forget'), komgaImport: call('native-komga-import'), komgaAdd: call('native-komga-add'), komgaLists: call('native-komga-lists'),
   openExternal: call('open-external'),
+  getScheduleBanner: call('get-schedule-banner'), onScheduleBanner: (cb) => ipcRenderer.on('schedule-banner', (_e, t) => cb(t)),
+  checkGameUpdates: call('check-game-updates'), clearHistory: call('clear-history'),
+  getWhatsNew: call('get-whats-new'), pendingWhatsNew: call('native-pending-whats-new'), getHelp7zVideoSrc: call('get-help-7z-video-src'),
+  checkUpdates: call('check-updates'), installUpdate: (options) => ipcRenderer.invoke('install-update', null, options),
+  onUpdateAvailable: (cb) => ipcRenderer.on('native:updateAvailable', (_e, info) => cb(info)),
   requests: call('native:requests'), thread: call('native:thread'), comment: call('native:comment'), submitRequest: call('native:submitRequest'),
 });
