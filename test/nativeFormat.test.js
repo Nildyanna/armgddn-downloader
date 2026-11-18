@@ -89,4 +89,8 @@ test('grid helpers', async () => {
   const W = await import('../renderer/native/format.mjs');
   assert.equal(W.wikiHtmlForApp('<p>x</p><img class="a" src="https://www.armgddnbrowser.com/static/wiki/a b.webp" alt="">'), '<p>x</p><img class="a" src="armgddn-img://c/?u=' + encodeURIComponent('https://www.armgddnbrowser.com/static/wiki/a b.webp') + '" alt="">');
   assert.equal(W.wikiSectionFor([{ id: 'a' }, { id: 'b' }], 'b').id, 'b'); assert.equal(W.wikiSectionFor([{ id: 'a' }], 'zzz').id, 'a'); assert.equal(W.wikiSectionFor([], 'a'), null);
+  const S = await import('../renderer/native/format.mjs');
+  assert.equal(S.searchMatches("Assassin's Creed Mirage v1 -ARMGDDN", 'assassins creed'), true); assert.equal(S.searchMatches('Half-Life Alyx', 'half life'), true);
+  assert.equal(S.searchMatches('\u00c9dith Piaf', 'edith'), true); assert.equal(S.searchMatches('Doom', 'doom eternal'), false); assert.equal(S.searchMatches('Doom', ''), false);
+  assert.equal(S.searchEverywhere([{ name: 'Alpha' }, { name: 'Beta' }, { name: 'Alphabet' }], 'alpha').length, 2); assert.equal(S.searchEverywhere([{ name: 'a' }, { name: 'a' }], 'a', 1).length, 1);
 });

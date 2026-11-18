@@ -118,3 +118,5 @@ header select + select { margin-left: 0; }
 .wikibody { flex: 1; overflow: auto; padding: 16px 28px 40px; line-height: 1.6; max-width: 920px; }
 .wikibody h2 { margin-top: 0; } .wikibody h3 { margin: 18px 0 6px; color: var(--accent); } .wikibody img { max-width: 100%; border-radius: 8px; }
 .wikibody a { color: var(--accent); } .wikibody code { background: #0b1426; padding: 1px 6px; border-radius: 4px; }
+
+.everywhere { color: var(--dim); font-size: 12px; display: flex; align-items: center; gap: 5px; white-space: nowrap; flex: none; }

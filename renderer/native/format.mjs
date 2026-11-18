@@ -241,3 +241,17 @@ export function wikiSectionFor(sections, id) {
   const list = Array.isArray(sections) ? sections : [];
   return list.find((s) => s.id === id) || list[0] || null;
 }
+
+// Search everywhere: a name matches when every word of the query appears in it, ignoring case, apostrophes and punctuation ("Assassins Creed" finds "Assassin's Creed").
+export function looseKey(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/['\u2019`"]/g, '').replace(/[^a-z0-9]+/g, ' ').trim(); }
+export function searchMatches(name, query) {
+  const q = looseKey(query);
+  if (!q) return false;
+  const k = ' ' + looseKey(name) + ' ';
+  return q.split(' ').every((w) => k.includes(w));
+}
+export function searchEverywhere(entries, query, limit = 400) {
+  const out = [];
+  for (const it of entries || []) { if (searchMatches(it.name, query)) { out.push(it); if (out.length >= limit) break; } }
+  return out;
+}
