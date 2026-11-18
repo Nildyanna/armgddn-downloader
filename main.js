@@ -8976,6 +8976,12 @@ let _installUpdateInProgress = false;
 // derived freshly in the main process from the GitHub releases API to prevent renderer
 // compromise from redirecting the update to an attacker-controlled URL.
 ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => {
+  // A copy that is not the installed app (a dev run, a test copy that imported the real app's settings, auto-update included) must never run an
+  // installer: it would silently replace the member's real Companion and relaunch it (a test copy did exactly that on 2026-11-18).
+  if (!app.isPackaged && process.env.ARMGDDN_ALLOW_DEV_UPDATE !== '1') {
+    logToFile('Update - not installing from an unpackaged copy');
+    return { success: false, error: 'Updates are only installed by the packaged app' };
+  }
   if (_installUpdateInProgress) {
     logToFile('install-update: another install is already in progress — ignoring duplicate call');
     return { success: false, error: 'Another update install is already in progress' };
