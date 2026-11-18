@@ -244,3 +244,4 @@ header select + select { margin-left: 0; }
 [data-anim="0"] .header-stars { display: none; }
 .banner > .banner-logo, .banner > .banner-text { position: relative; z-index: 1; }
 .banner > .banner-logo { position: absolute; }
+.rcover .nocover { font-size: 13px; font-weight: 600; color: var(--dim); text-align: center; padding: 8px; background: none; }
