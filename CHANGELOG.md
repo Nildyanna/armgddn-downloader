@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.25.1] - 2026-11-18
+
+### Fixed
+- **3D model and PC app pictures** were not loaded by the built-in window. They now are.
+
 ## [5.25.0] - 2026-11-18
 
 ### Added
