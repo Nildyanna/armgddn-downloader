@@ -5881,14 +5881,17 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       'Accept': '*/*'
     };
     let useSegmented = multiThreadStreams > 0 && fileSize > 0 && !file.__noSegmented && !(settings && settings.segmentedDownloads === false);
+    // A source that needs request headers (a Drive token) only works through the segmented engine, so it never drops back to rclone copyurl.
+    const needsHeaders = !!(file.headers && typeof file.headers === 'object' && Object.keys(file.headers).length);
+    if (needsHeaders && fileSize > 0) useSegmented = true;
     if (useSegmented) {
       // A progress record from an earlier run already proved this server honours Range: no need to ask again (and a slow
       // answer must never push a Resume onto the rclone path, which starts the file over).
       const hasRecord = fs.existsSync(outputPath + '.armseg') && fs.existsSync(outputPath + '.armdl');
       if (!hasRecord) {
         let probe = { ok: false };
-        try { probe = await probeRanges(String(file.url), segmentHeaders, undefined, directEndpoint.tlsOptions()); } catch (e) { }
-        if (!probe.ok || (probe.total && probe.total !== fileSize)) {
+        try { probe = await probeRanges(String(file.url), { ...segmentHeaders, ...(needsHeaders ? file.headers : {}) }, undefined, directEndpoint.tlsOptions()); } catch (e) { }
+        if (!needsHeaders && (!probe.ok || (probe.total && probe.total !== fileSize))) {
           useSegmented = false;
           logToFile(`[Segmented] not used for ${file && file.name ? String(file.name) : ''}: server did not confirm Range for ${fileSize} bytes (status ${probe.status || 0}, total ${probe.total || 0}${probe.error ? `, ${probe.error}` : ''}); using rclone`);
         }
@@ -5912,6 +5915,8 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         let u = String(hit.url);
         try { u = transformProxyUrlToDirectIfPossible(u) || u; } catch (e) { }
         logToFile(`[Resume] fresh link for ${fileName}`);
+        // A manifest entry may also say which headers to send, when the source expires and which source to fall back to.
+        if (hit.headers || hit.expiresAt || hit.fallback) return { url: u, headers: hit.headers, expiresAt: hit.expiresAt, fallback: hit.fallback };
         return u;
       };
       const limitBytes = appliedBwLimit ? (parseFloat(appliedBwLimit) || 0) * 1048576 : 0;   // same per-worker limit rclone would get
@@ -5921,6 +5926,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         : (o) => resumeDownload({ ...o, tlsOptions: directEndpoint.tlsOptions() });
       const ctl = engine({
         url: String(file.url),
+        source: { url: String(file.url), headers: file.headers, expiresAt: file.expiresAt, fallback: file.fallback },
         outputPath,
         expectedSize: expected,
         getFreshUrl,

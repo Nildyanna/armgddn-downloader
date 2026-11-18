@@ -74,6 +74,20 @@ function linkSecondsLeft(link, now = Date.now()) {
     return Number.isFinite(exp) && exp > 1e9 ? exp - now / 1000 : null;
   } catch (e) { return null; }
 }
+// Expiry stated by the site (epoch seconds or milliseconds, or an ISO date) as milliseconds, or null.
+function expiryMs(v) {
+  if (v == null || v === '') return null;
+  const n = typeof v === 'number' ? v : (/^\d+(\.\d+)?$/.test(String(v)) ? Number(v) : Date.parse(String(v)));
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n > 1e11 ? n : n * 1000;
+}
+// A download source: where to ask, with which extra headers, and until when it works. A plain link string is a source with nothing extra.
+function asSource(x) {
+  if (!x) return null;
+  if (typeof x === 'string') return { url: x, headers: {}, expiresAtMs: null, fallback: null };
+  if (!x.url) return null;
+  return { url: String(x.url), headers: x.headers && typeof x.headers === 'object' ? x.headers : {}, expiresAtMs: expiryMs(x.expiresAt), fallback: asSource(x.fallback) };
+}
 const activeByPath = new Map();     // outputPath -> controller of the run that owns that file right now
 
 function segmentedDownload(opts) {
@@ -129,8 +143,11 @@ function segmentedDownload(opts) {
       if (force || sinceReport >= 256 * 1024) { sinceReport = 0; try { onProgress(onDisk(), total); } catch (e) { } }
     };
 
-    let url = opts.url;
+    let src = asSource(opts.source) || asSource(opts.url);
+    let url = src.url;
     let urlVersion = 0;
+    let onFallback = false;
+    const refusedRenewals = new Set();   // link versions that were refused straight after being renewed
     let refreshing = null;
     // Signed links carry their own expiry (exp, in seconds). Renew one shortly before it runs out instead of waiting for the server to
     // refuse it, which used to cost a burst of failed requests from every stream. A wrong PC clock cannot cause a loop: renewing is
@@ -138,7 +155,8 @@ function segmentedDownload(opts) {
     let lastRenewAt = 0;
     const renewBeforeExpiry = async () => {
       if (typeof getFreshUrl !== 'function') return;
-      const left = linkSecondsLeft(url);
+      if (refreshing) { await refreshing; return; }       // another stream is already renewing: wait for the new source instead of using the old one
+      const left = src.expiresAtMs != null ? (src.expiresAtMs - Date.now()) / 1000 : linkSecondsLeft(url);
       if (left === null || left > EXPIRY_MARGIN_S || Date.now() - lastRenewAt < 30000) return;
       lastRenewAt = Date.now();
       emit(`link renewed ${Math.max(0, Math.round(left))}s before it expires`);
@@ -150,7 +168,14 @@ function segmentedDownload(opts) {
       if (!refreshing) {
         refreshing = (async () => {
           try {
-            if (typeof getFreshUrl === 'function') { const f = await getFreshUrl(); if (f) url = f; }
+            if (typeof getFreshUrl === 'function') {
+              const f = asSource(await getFreshUrl());
+              if (f) {
+                // A fresh answer replaces the source, except that the fallback already in use is kept if the site sends none.
+                src = { ...f, fallback: f.fallback || (onFallback ? null : src.fallback) };
+                url = src.url;
+              }
+            }
           } finally { urlVersion++; refreshing = null; }
         })();
       }
@@ -173,7 +198,7 @@ function segmentedDownload(opts) {
         attempt++;
         try {
           const openedAt = Date.now();
-          const { req, res } = await openAuto(url, { ...headers, 'Accept-Encoding': 'identity', Range: `bytes=${start}-${end}` }, stallMs, { signal: ctl.signal, tls: tlsOptions });
+          const { req, res } = await openAuto(url, { ...headers, ...src.headers, 'Accept-Encoding': 'identity', Range: `bytes=${start}-${end}` }, stallMs, { signal: ctl.signal, tls: tlsOptions });
           const handle = { req, res };
           live.add(handle);
           try {
@@ -230,14 +255,22 @@ function segmentedDownload(opts) {
             live.delete(handle);
             try { res.destroy(); } catch (e) { } try { req.destroy(); } catch (e) { }
           }
-          attempt = 0;
+          attempt = 0; refusedRenewals.clear();
         } catch (e) {
           if (aborted) throw aborted;
           const err = e instanceof ResumeError ? e : new ResumeError(e && e.message ? e.message : String(e), 'network');
           if (err.kind === 'fatal' || err.kind === 'unsupported') throw err;
           if (attempt >= maxAttempts) throw err;
           emit(`chunk ${i} retry ${attempt}: ${err.kind} ${err.message}`);
-          if (err.kind === 'expired') await refreshUrl(ver);
+          if (err.kind === 'expired') {
+            // A refusal of a link we had just renewed counts once per renewal (not once per stream). Two renewals in a row refused means the
+            // source itself is refusing (a quota, a revoked account), so use the fallback source if there is one.
+            if (ver > 0 && ver === urlVersion) refusedRenewals.add(ver);
+            if (refusedRenewals.size >= 2 && src.fallback && !onFallback) {
+              src = { ...src.fallback, fallback: null }; url = src.url; onFallback = true; urlVersion++; refusedRenewals.clear();
+              emit('switched to the fallback source');
+            } else await refreshUrl(ver);
+          }
           await sleep(Math.min(15000, retryDelayMs * attempt));
         }
       }
@@ -287,4 +320,4 @@ function segmentedDownload(opts) {
   return me;
 }
 
-module.exports = { segmentedDownload, probeRanges, linkSecondsLeft, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };
+module.exports = { segmentedDownload, probeRanges, linkSecondsLeft, expiryMs, asSource, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };

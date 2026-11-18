@@ -20,7 +20,7 @@ function server(opts = {}) {
     const n = seen.length;
     const m = /bytes=(\d+)-(\d+)?/.exec(q.headers.range || '');
     const mode = opts.mode ? opts.mode(n, m && [+m[1], m[2] ? +m[2] : SIZE - 1]) : 'ok';
-    seen.push({ range: q.headers.range || null, mode });
+    seen.push({ range: q.headers.range || null, mode, auth: q.headers.authorization || null });
     if (mode === '403') { s.writeHead(403); return s.end(); }
     if (mode === '500') { s.writeHead(500); return s.end(); }
     if (!m || mode === 'norange') { s.writeHead(200, { 'Content-Length': SIZE }); return s.end(DATA); }
@@ -168,4 +168,40 @@ test('a link close to its expiry is renewed before any request is refused', asyn
   assert.equal(fresh, 1, 'renewed once, up front');
   assert.equal(s.seen.filter((r) => r.mode === '403').length, 0);
   assert.ok(events.some((m) => /link renewed/.test(m)));
+});
+
+test('a source can carry its own headers and its own expiry time', async () => {
+  const s = await server();
+  const out = tmp(); let fresh = 0; const events = [];
+  const soon = Date.now() + 20000;      // stated expiry in the manifest, not in the link
+  await segmentedDownload(base({ outputPath: out, onEvent: (m) => events.push(m),
+    source: { url: `${s.base}/f`, headers: { Authorization: 'Bearer one' }, expiresAt: soon },
+    getFreshUrl: async () => { fresh++; return { url: `${s.base}/f`, headers: { Authorization: 'Bearer two' }, expiresAt: Date.now() + 600000 }; } })).promise;
+  s.srv.close();
+  assert.equal(sha(fs.readFileSync(out)), sha(DATA));
+  assert.equal(fresh, 1);
+  assert.ok(s.seen.every((r) => r.auth === 'Bearer two'), 'renewed before the first request, so every request used the new token: ' + JSON.stringify(s.seen.map((r) => r.auth)));
+  assert.ok(events.some((m) => /link renewed/.test(m)));
+});
+
+test('when two renewals in a row are refused the download moves to its fallback source', async () => {
+  const primary = await server({ mode: () => '403' });
+  const backup = await server();
+  const out = tmp(); const events = [];
+  await segmentedDownload(base({ outputPath: out, onEvent: (m) => events.push(m), maxAttempts: 8,
+    source: { url: `${primary.base}/f`, fallback: { url: `${backup.base}/f`, headers: { 'X-Source': 'backup' } } },
+    getFreshUrl: async () => ({ url: `${primary.base}/f` }) })).promise;
+  primary.srv.close(); backup.srv.close();
+  assert.equal(sha(fs.readFileSync(out)), sha(DATA));
+  assert.ok(events.some((m) => /fallback source/.test(m)));
+  assert.ok(backup.seen.length > 0);
+});
+
+test('a plain link string still works as before', async () => {
+  const { asSource, expiryMs } = require('../segmentedDownload');
+  assert.deepEqual(asSource('https://x/f'), { url: 'https://x/f', headers: {}, expiresAtMs: null, fallback: null });
+  assert.equal(asSource(null), null);
+  assert.equal(expiryMs(1800000000), 1800000000000);
+  assert.equal(expiryMs('2027-01-01T00:00:00Z'), 1798761600000);
+  assert.equal(expiryMs('nonsense'), null);
 });
