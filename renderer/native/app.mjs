@@ -335,6 +335,7 @@ function TrendingStrip({ windows, onOpen }) {
   useEffect(() => {
     const v = view.current, t = track.current;
     if (!cur || !v || !t || typeof t.animate !== 'function') return;
+    if (document.documentElement.dataset.anim === '0') { t.style.transform = 'translateX(12px)'; const id = setTimeout(() => { setIdx((n) => (sets.length ? (n + 1) % sets.length : 0)); setCycle((n) => n + 1); }, 9000); return () => clearTimeout(id); }
     const pad = 24, w = t.scrollWidth, vw = v.clientWidth;
     const start = -(w + pad), end = vw + pad;
     const a = t.animate([{ transform: 'translateX(' + start + 'px)' }, { transform: 'translateX(' + end + 'px)' }], { duration: Math.max(4, (end - start) / 115) * 1000, easing: 'linear', fill: 'forwards' });
@@ -529,6 +530,10 @@ function App() {
   const [themeChoice, setThemeChoice] = useState(() => (themeKeyOk(storedTheme()) ? storedTheme() : 'dark'));
   const chooseTheme = (id) => { setThemeChoice(id); applyTheme(id); try { localStorage.setItem('native.theme', id); } catch (e) { } };
   useEffect(() => { if (themeChoice !== 'system') return; let mq; try { mq = window.matchMedia('(prefers-color-scheme: light)'); } catch (e) { return; } const on = () => applyTheme('system'); mq.addEventListener('change', on); return () => mq.removeEventListener('change', on); }, [themeChoice]);
+  const [animOn, setAnimOn] = useState(() => { try { return localStorage.getItem('native.animations') !== '0'; } catch (e) { return true; } });
+  useEffect(() => { document.documentElement.dataset.anim = animOn ? '1' : '0'; }, [animOn]);
+  const toggleAnim = () => { const v = !animOn; setAnimOn(v); try { localStorage.setItem('native.animations', v ? '1' : '0'); } catch (e) { } };
+  const logout = async () => { await api.logout(); setStatus({ signedIn: false }); };
   const [radarHistory, setRadarHistory] = useState(() => lsGet('native.radarHistory', []));
   // Opening a game folder is remembered (newest first) so Game Radar can say "Continue browsing" and offer "Resume last visit".
   const recordVisit = (item, rem, base) => {
@@ -679,11 +684,19 @@ function App() {
 
   if (status && !status.signedIn) return html`<div class="center"><h1>ARMGDDN</h1><p>Sign in to browse the library.</p><button class="primary" onClick=${signIn}>Sign in with Telegram</button></div>`;
   return html`<div class="shell">
+    <div class="banner">
+      <div class="banner-actions">
+        <button class="dbtn" title="Turn the moving effects on or off" onClick=${toggleAnim}>\u2728 Animations ${animOn ? 'on' : 'off'}</button>
+      <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['dark', 'Default', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light').sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
+        ${status && status.signedIn ? html`<button class="dbtn" title="Sign out of this PC" onClick=${logout}>Logout</button>` : ''}
+      </div>
+      <div class="banner-credit"><div class="fire-particles"><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i></div><span class="fire-text">Created by Old Man of the Hills v${(status && status.version) || ''}</span></div>
+      <img class="banner-logo" src="skull-logo.png" alt="ARMGDDN" />
+      <div class="banner-text"><h1>ARMGDDN BROWSER</h1><p>Secure Multi-Remote Game Browser</p></div>
+    </div>
     <header>
-      <div class="brand">ARMGDDN</div>
       <button class=${view === 'home' ? 'tab on' : 'tab'} onClick=${() => setView('home')}>Home</button>
       <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
-      <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['dark', 'Default', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light').sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
       <button class=${view === 'settings' ? 'tab on' : 'tab'} title="Settings" onClick=${() => setView('settings')}>Settings</button>
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
       <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>
@@ -702,7 +715,7 @@ function App() {
     </header>
     ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
-      <span class="credit">Created by Old Man of the Hills v${(status && status.version) || ''}</span><span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
+      <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
     ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} render=${(it) => html`<${Card} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}

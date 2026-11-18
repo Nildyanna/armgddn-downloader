@@ -38,7 +38,7 @@ function registerSchemes(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'armgddn-img', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 }
 
-function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, showClassic }) {
+function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, showClassic }) {
   const api = createApiClient({ getToken, version });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
@@ -130,6 +130,8 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, fs = require(
   ipcMain.handle('native:prefs', wrap(() => api.get('/api/user-prefs', { ttlMs: 0, fresh: true })));
   // The member's own download history and the related titles the site works out from it (Game Radar).
   ipcMain.handle('native:appProgress', wrap(() => api.get('/api/app-progress', { ttlMs: 60 * 1000 })));
+  // Sign out: forget the saved sign-in on this PC (the app then offers Sign in again).
+  ipcMain.handle('native:logout', wrap(async () => { if (clearSession) clearSession(); return { signedOut: true }; }));
   ipcMain.handle('native:exportList', wrap(async (remote, format) => {
     const { path: p, fmt } = exportPath(remote, format);
     const f = await api.file(p);

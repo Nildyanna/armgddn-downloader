@@ -3327,7 +3327,7 @@ app.whenReady().then(() => {
       importClassicSettings(false);
       ipcMain.handle('native-import-settings', () => importClassicSettings(true));
       nativeWindow = require('./native/bridge').start({
-        BrowserWindow, ipcMain, shell, dialog, clipboard: require('electron').clipboard, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
+        BrowserWindow, ipcMain, shell, dialog, clipboard: require('electron').clipboard, clearSession, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
         openLogin: () => openAuthWindow(), log: logToFile,
         showClassic: () => { try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e) { } } else { mainWindow.focus(); } } } catch (e) { } },
         startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer)
