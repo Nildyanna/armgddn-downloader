@@ -20,11 +20,25 @@ function browsePath(remote, folder) {
   return `/api/browse/${encodeURIComponent(remote)}` + (f ? `?path=${encodeURIComponent(f)}` : '');
 }
 
+// Export list: the site builds the CSV or Excel file for a remote; the app asks where to save it.
+function exportPath(remote, format) {
+  if (!SAFE_REMOTE.test(String(remote || ''))) throw Object.assign(new Error('Bad remote name'), { kind: 'http', status: 400 });
+  const fmt = String(format || '').toLowerCase();
+  if (fmt !== 'csv' && fmt !== 'xlsx') throw Object.assign(new Error('Format must be csv or xlsx'), { kind: 'http', status: 400 });
+  return { path: `/api/export/${encodeURIComponent(remote)}?format=${fmt}`, fmt };
+}
+function exportFileName(disposition, remote, fmt) {
+  const m = /filename="([^"]+)"/.exec(String(disposition || ''));
+  const raw = m ? m[1] : `ARMGDDN-${String(remote).replace(/[^A-Za-z0-9._-]+/g, '-')}.${fmt}`;
+  const clean = path.basename(raw.replace(/\\/g, '/')).replace(/[<>:"|?*\x00-\x1f]/g, '_').slice(0, 120);
+  return clean && clean.toLowerCase().endsWith('.' + fmt) ? clean : `ARMGDDN-${String(remote).replace(/[^A-Za-z0-9._-]+/g, '-')}.${fmt}`;
+}
+
 function registerSchemes(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'armgddn-img', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 }
 
-function start({ BrowserWindow, ipcMain, shell, protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, showClassic }) {
+function start({ BrowserWindow, ipcMain, shell, dialog, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, showClassic }) {
   const api = createApiClient({ getToken, version });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
@@ -101,6 +115,15 @@ function start({ BrowserWindow, ipcMain, shell, protocol, getToken, openLogin, v
     browsePath(remote, folderPath);
     return api.get(`/api/readme-preview?remote=${encodeURIComponent(remote)}&path=${encodeURIComponent(folderPath || '')}`, { ttlMs: 5 * 60 * 1000 });
   }));
+  ipcMain.handle('native:exportList', wrap(async (remote, format) => {
+    const { path: p, fmt } = exportPath(remote, format);
+    const f = await api.file(p);
+    const name = exportFileName(f.disposition, remote, fmt);
+    const pick = await dialog.showSaveDialog(win, { title: 'Save the list', defaultPath: name, filters: [{ name: fmt === 'xlsx' ? 'Excel' : 'CSV', extensions: [fmt] }] });
+    if (pick.canceled || !pick.filePath) return { saved: false };
+    await fs.promises.writeFile(pick.filePath, f.buf);
+    return { saved: true, name: path.basename(pick.filePath), bytes: f.buf.length };
+  }));
   // Links in details and notices: https and a short list of hosts only.
   ipcMain.handle('native:openLink', wrap(async (url) => {
     const u = new URL(String(url || ''));
@@ -160,4 +183,4 @@ function start({ BrowserWindow, ipcMain, shell, protocol, getToken, openLogin, v
   return win;
 }
 
-module.exports = { start, registerSchemes, wrap, browsePath, LINK_HOSTS };
+module.exports = { start, registerSchemes, wrap, browsePath, exportPath, exportFileName, LINK_HOSTS };

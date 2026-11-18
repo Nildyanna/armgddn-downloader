@@ -103,8 +103,14 @@ function createApiClient({ getToken, baseUrl = 'https://www.armgddnbrowser.com',
     return p;
   }
 
+  // A file the site builds on request (an export list): fetched whole, never cached.
+  async function file(path, { signal } = {}) {
+    const res = await send('GET', path, { signal, raw: true });
+    return { buf: Buffer.from(await res.arrayBuffer()), type: (res.headers && res.headers.get && res.headers.get('content-type')) || 'application/octet-stream', disposition: (res.headers && res.headers.get && res.headers.get('content-disposition')) || '' };
+  }
+
   return {
-    get, image, stats,
+    get, image, file, stats,
     post: (path, body, opts) => write('POST', path, body, opts),
     put: (path, body, opts) => write('PUT', path, body, opts),
     del: (path, body, opts) => write('DELETE', path, body, opts),

@@ -27,3 +27,13 @@ test('a batch download refuses odd paths before the site sees them', async () =>
   assert.throws(() => browsePath('PC Games', '../x'));
   assert.equal(browsePath('PC Games', 'PC1/Game'), '/api/browse/PC%20Games?path=PC1%2FGame');
 });
+
+test('export list: only csv or xlsx of a safe remote, and a safe file name', () => {
+  const { exportPath, exportFileName } = require('../native/bridge');
+  assert.deepEqual(exportPath('PC Games', 'CSV'), { path: '/api/export/PC%20Games?format=csv', fmt: 'csv' });
+  assert.throws(() => exportPath('PC Games', 'exe'));
+  assert.throws(() => exportPath('../x', 'csv'));
+  assert.equal(exportFileName('attachment; filename="ARMGDDN-PC-Games-2026-11-18.csv"', 'PC Games', 'csv'), 'ARMGDDN-PC-Games-2026-11-18.csv');
+  assert.equal(exportFileName('attachment; filename="..\\..\\evil.bat"', 'PC Games', 'csv'), 'ARMGDDN-PC-Games.csv');
+  assert.equal(exportFileName('', 'PC Games', 'xlsx'), 'ARMGDDN-PC-Games.xlsx');
+});
