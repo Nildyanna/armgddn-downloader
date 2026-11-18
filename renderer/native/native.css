@@ -131,7 +131,7 @@ header select + select { margin-left: 0; }
 .credit { margin-left: auto; font-size: 11px; color: var(--dim); opacity: .75; margin-right: 14px; }
 .notice.soft { background: var(--card2); color: var(--dim); font-size: 12px; border: 1px solid var(--line); margin: 6px 18px; padding: 8px 12px; border-radius: 8px; }
 
-.home { flex: 1; overflow: auto; padding: 10px 18px 28px; display: flex; flex-direction: column; gap: 18px; }
+.home { flex: 1; overflow-y: auto; overflow-x: hidden; padding: 10px 18px 28px; display: flex; flex-direction: column; gap: 18px; }
 .strip { background: var(--surface); border: 1px solid var(--line); border-radius: var(--rc); padding: 10px 12px 12px; }
 .strip-head { display: flex; align-items: center; gap: 10px; margin-bottom: 8px; }
 .strip-title { font-weight: 700; font-size: 15px; }
