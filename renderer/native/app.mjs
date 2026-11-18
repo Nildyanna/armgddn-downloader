@@ -427,7 +427,7 @@ function App() {
     </header>
     ${view === 'settings' ? html`<${SettingsView} say=${say} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} render=${(it) => html`<${Card} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
-      <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
+      <span class="credit">Created by Old Man of the Hills v${(status && status.version) || ''}</span><span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
     ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} render=${(it) => html`<${Card} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}
@@ -438,7 +438,6 @@ function App() {
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}
     ${toast ? html`<div class="toast">${toast}</div>` : ''}
-    <div class="credit">Created by Old Man of the Hills v${(status && status.version) || ''}</div>
   </div>`;
 }
 render(html`<${App} />`, document.getElementById('app'));

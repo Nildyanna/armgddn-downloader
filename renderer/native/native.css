@@ -15,7 +15,7 @@ nav::-webkit-scrollbar { display: none; }
 header select { flex: none; }
 .crumbs { padding: 8px 18px; color: var(--dim); display: flex; gap: 2px; align-items: center; flex-wrap: wrap; }
 .crumbs button { background: none; border: 0; color: var(--accent); padding: 0; }
-.count { margin-left: auto; }
+.count { margin-left: 0; }
 .grid { flex: 1; overflow: auto; padding: 8px 46px 24px 18px; display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; align-content: start; grid-auto-rows: max-content; }
 .card { cursor: pointer; text-align: left; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 0; overflow: hidden; display: block; width: 100%; }
 .card:hover { border-color: var(--accent2); transform: translateY(-1px); }
@@ -128,5 +128,5 @@ header select + select { margin-left: 0; }
 .srow .sval { color: var(--dim); font-size: 12px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; direction: rtl; }
 .srow input[type=number] { width: 90px; background: #0b1426; color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
 
-.credit { position: fixed; left: 14px; bottom: 6px; font-size: 11px; color: var(--dim); opacity: .7; pointer-events: none; z-index: 5; }
+.credit { margin-left: auto; font-size: 11px; color: var(--dim); opacity: .75; margin-right: 14px; }
 .notice.soft { background: #0f1a2e; color: var(--dim); font-size: 12px; border: 1px solid var(--line); margin: 6px 18px; padding: 8px 12px; border-radius: 8px; }
