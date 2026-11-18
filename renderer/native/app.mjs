@@ -346,6 +346,7 @@ function HomeView({ myList, render, onOpenTrend }) {
     // Hidden gems arrive without art, so each one's cover comes from the same listing the library shows (one cached call per folder).
     api.gems().then(async (r) => {
       const list = r.ok && r.data && Array.isArray(r.data.items) ? r.data.items.map((g) => homeItem({ ...g, total: g.downloads })).filter(Boolean) : [];
+      setGems(list);          // show them at once; the covers fill in as the listings arrive
       const folders = [...new Set(list.map((it) => it._remote + '|' + it._folder))];
       const art = new Map();
       await Promise.all(folders.map(async (k) => { const [rem, fol] = k.split('|'); const b = await api.browse(rem, fol); if (b.ok) for (const f of (b.data.files || [])) if (f && f.coverArt) art.set(k + '|' + f.name, f); }));
