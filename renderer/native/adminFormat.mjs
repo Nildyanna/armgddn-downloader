@@ -107,6 +107,12 @@ export function confirmText(action, a = {}) {
     case 'unbanIp': return { title: 'Unban an IP address', text: `Let ${a.ip || 'this address'} use the site again.`, ok: 'Unban it' };
     case 'requestStatus': return { title: 'Change a request', text: `Set request ${a.id} (${a.title || 'untitled'}) to "${a.status}". The member who asked may be told.`, ok: 'Change it' };
     case 'clearMissing': return { title: 'Stop listing a game', text: `Mark "${a.title || a.gameKey}" as having no cover or trailer available, so it stops showing in the missing list and future checks do not add it back.`, ok: 'Mark it' };
+    case 'accessAdd': return { title: 'Give admin access', text: `Add ${a.id} to the ${a.list === 'channel' ? 'full admin' : 'request admin'} list. They can use the admin pages (${a.list === 'channel' ? 'all of them except the owner-only ones' : 'requests only'}) from their next visit.`, ok: 'Add them' };
+    case 'accessRemove': return { title: 'Remove admin access', text: `Take ${a.id} off the ${a.list === 'channel' ? 'full admin' : 'request admin'} list.`, ok: 'Remove them' };
+    case 'banUser': return { title: 'Ban a member by Telegram id', text: `Ban every IP address that Telegram id ${a.telegramId} has used. Other members on those addresses are blocked too, and the admins get a Telegram alert.`, ok: 'Ban them' };
+    case 'reloadOverrides': return { title: 'Reload the art overrides', text: 'Re-read the override list now and clear the browse cache so changes show up without restarting the site.', ok: 'Reload' };
+    case 'addCover': return { title: 'Set a cover', text: `Use this picture as the cover for "${a.title || a.gameKey}": ${a.coverUrl}`, ok: 'Set the cover' };
+    case 'addTrailer': return { title: 'Set a trailer', text: `Use this YouTube video as the trailer for "${a.title || a.gameKey}": ${a.trailerYoutube}`, ok: 'Set the trailer' };
     default: return null;
   }
 }

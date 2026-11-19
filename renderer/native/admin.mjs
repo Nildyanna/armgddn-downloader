@@ -148,6 +148,9 @@ function RequestsPage({ audit }) {
 function MissingPage() {
   const [st, reload] = useAdminData('missing', {}, 0);
   const [actionUi, act] = useAdminAction(() => reload());
+  const [fix, setFix] = useState(null);
+  const [coverUrl, setCoverUrl] = useState('');
+  const [trailerUrl, setTrailerUrl] = useState('');
   const [what, setWhat] = useState('all');
   const [query, setQuery] = useState('');
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
@@ -160,7 +163,10 @@ function MissingPage() {
       <span class="sval">${rows.length} shown</span><button class="dbtn" onClick=${reload}>Refresh</button>
     </div>
     ${actionUi}
-    <${DataTable} rows=${rows} columns=${['title', 'cover', 'trailer', 'folder']} empty="Nothing is missing." extra=${(r) => html`<button class="dbtn" onClick=${() => act('clearMissing', { gameKey: r.folder, title: r.title })}>Stop listing</button>`} extraLabel="Action" />
+    ${fix ? html`<div class="apanel"><h4>Fix: ${fix.title}</h4>
+      <div class="afilters"><input class="search wide" type="url" placeholder="Picture address (https://...)" value=${coverUrl} onInput=${(e) => setCoverUrl(e.target.value)} /><button class="dbtn" disabled=${!/^https:\/\//i.test(coverUrl.trim())} onClick=${() => act('addCover', { gameKey: fix.folder, title: fix.title, coverUrl: coverUrl.trim() })}>Set cover</button></div>
+      <div class="afilters"><input class="search wide" type="url" placeholder="YouTube address (https://www.youtube.com/...)" value=${trailerUrl} onInput=${(e) => setTrailerUrl(e.target.value)} /><button class="dbtn" disabled=${!/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(trailerUrl.trim())} onClick=${() => act('addTrailer', { gameKey: fix.folder, title: fix.title, trailerYoutube: trailerUrl.trim() })}>Set trailer</button><button class="dbtn" onClick=${() => setFix(null)}>Close</button></div></div>` : ''}
+    <${DataTable} rows=${rows} columns=${['title', 'cover', 'trailer', 'folder']} empty="Nothing is missing." extra=${(r) => html`<span><button class="dbtn" onClick=${() => { setFix(r); setCoverUrl(''); setTrailerUrl(''); }}>Fix</button> <button class="dbtn" onClick=${() => act('clearMissing', { gameKey: r.folder, title: r.title })}>Stop listing</button></span>`} extraLabel="Action" />
   </div>`;
 }
 
@@ -276,19 +282,40 @@ function IpBansPage() {
   const [actionUi, act] = useAdminAction(() => reload());
   const [ip, setIp] = useState('');
   const [reason, setReason] = useState('');
+  const [uid, setUid] = useState('');
+  const [who, setWho] = useState('');
+  const [found, setFound] = useState(null);
+  const lookup = async () => {
+    const w = who.trim(); const r = await api.adminGet('lookup', /^\d+$/.test(w) ? { telegramId: w } : { username: w });
+    setFound(r && r.ok && r.data ? r.data : { error: (r && r.error && r.error.message) || 'Not found' });
+  };
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
   const rows = Object.entries(st.data.bannedIps || {}).map(([addr, v]) => ({ ip: addr, reason: (v && v.reason) || '', bannedAt: (v && v.bannedAt) || '', bannedBy: (v && v.bannedBy) || '' }));
   return html`<div>
     <${Cards} items=${[{ label: 'Banned addresses', value: String(st.data.totalBanned || 0), hint: '' }, { label: 'Members tracked', value: String(st.data.totalUsersTracked || 0), hint: '' }]} />
     ${actionUi}
     <div class="afilters"><input class="search" type="text" placeholder="IP address" value=${ip} onInput=${(e) => setIp(e.target.value)} /><input class="search" type="text" placeholder="Reason" value=${reason} onInput=${(e) => setReason(e.target.value)} /><button class="dbtn" disabled=${!ip.trim()} onClick=${() => { act('banIp', { ip: ip.trim(), reason }); setIp(''); setReason(''); }}>Ban this address</button></div>
+    <div class="afilters"><input class="search" type="text" placeholder="Telegram id to ban (digits)" value=${uid} onInput=${(e) => setUid(e.target.value)} /><button class="dbtn" disabled=${!/^\d{3,20}$/.test(uid.trim())} onClick=${() => { act('banUser', { telegramId: uid.trim(), reason }); setUid(''); }}>Ban this member's addresses</button>
+      <input class="search" type="text" placeholder="Look up: @username or Telegram id" value=${who} onInput=${(e) => setWho(e.target.value)} /><button class="dbtn" disabled=${!who.trim()} onClick=${lookup}>Look up</button></div>
+    ${found ? html`<div class="apanel"><h4>Member lookup</h4>${found.error ? html`<div class="notice">${found.error}</div>` : html`<${Tree} value=${found} />`}</div>` : ''}
     <${DataTable} rows=${rows} columns=${['ip', 'reason', 'bannedAt', 'bannedBy']} empty="No banned addresses." extra=${(r) => html`<button class="dbtn" onClick=${() => act('unbanIp', { ip: r.ip })}>Unban</button>`} />
   </div>`;
 }
 
 function AccessPage() {
   const [st, reload] = useAdminData('access', {}, 0);
-  return st.data ? html`<div><p class="sval">Who counts as an admin. Changing these lists stays on the website for now.</p><${Tree} value=${st.data.effective || st.data} /></div>` : html`<${Status} state=${st} onRetry=${reload} />`;
+  const [actionUi, act] = useAdminAction(() => reload());
+  const [list, setList] = useState('request');
+  const [id, setId] = useState('');
+  if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
+  const eff = st.data.effective || {};
+  const rows = [].concat((eff.channelAdminIds || []).map((x) => ({ id: String(x), list: 'channel', role: 'Full admin' })), (eff.requestAdminIds || []).map((x) => ({ id: String(x), list: 'request', role: 'Request admin' })));
+  return html`<div>
+    <p class="sval">Who counts as an admin. Owners are set in the site's own settings and are not changed here.</p>
+    ${actionUi}
+    <div class="afilters"><label>List <select value=${list} onChange=${(e) => setList(e.target.value)}><option value="request">Request admin (requests only)</option><option value="channel">Full admin</option></select></label><input class="search" type="text" placeholder="Telegram id (digits)" value=${id} onInput=${(e) => setId(e.target.value)} /><button class="dbtn" disabled=${!/^\d{3,20}$/.test(id.trim())} onClick=${() => { act('accessAdd', { list, id: id.trim() }); setId(''); }}>Add</button></div>
+    <${DataTable} rows=${rows} columns=${['id', 'role']} empty="Nobody is on the lists." extra=${(r) => html`<button class="dbtn" onClick=${() => act('accessRemove', { list: r.list, id: r.id })}>Remove</button>`} />
+  </div>`;
 }
 
 function ControlsPage() {
@@ -297,6 +324,7 @@ function ControlsPage() {
     ${actionUi}
     <div class="acontrols">
       <div class="acard"><div class="alabel">Mirror quota</div><div class="ahint">Mark every PC and PCVR mirror as available again after the storage provider's limit resets.</div><button class="dbtn" onClick=${() => act('resetQuota', {})}>Reset mirror quota</button></div>
+      <div class="acard"><div class="alabel">Art overrides</div><div class="ahint">Re-read the override list and clear the browse cache, so art changes show up without a restart.</div><button class="dbtn" onClick=${() => act('reloadOverrides', {})}>Reload overrides</button></div>
       <div class="acard"><div class="alabel">Server</div><div class="ahint">Restart the website. Everyone is disconnected for about a minute.</div><button class="primary danger" onClick=${() => act('restartServer', {})}>Restart the server</button></div>
     </div>
   </div>`;

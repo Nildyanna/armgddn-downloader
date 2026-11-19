@@ -34,8 +34,8 @@ test('admin formatting helpers', async () => {
   assert.deepEqual(f.loyaltyRows({ t1: 5, t3: 2 }).map((r) => r.n), [5, 0, 2, 0, 0]);
   assert.deepEqual(f.topRows([{ title: 'A', total: 10 }, { title: 'B', total: 5 }], 'title', 'total'), [{ label: 'A', value: 10, pct: 100 }, { label: 'B', value: 5, pct: 50 }]); assert.deepEqual(f.topRows(null, 'a', 'b'), []);
   assert.deepEqual(f.moverRows([{ title: 'X', recent_n: 9, prior_n: 3, pct_change: 200 }]), [{ title: 'X', now: 9, before: 3, change: '+200%' }]);
-  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing']) { const c = f.confirmText(a, { ip: '1.2.3.4', id: 5, title: 'T', status: 'approved', gameKey: 'k' }); assert.ok(c && c.title && c.text && c.ok, a); }
-  assert.equal(f.confirmText('somethingElse'), null);
+  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer']) { const c = f.confirmText(a, { ip: '1.2.3.4', id: 5, title: 'T', status: 'approved', gameKey: 'k' }); assert.ok(c && c.title && c.text && c.ok, a); }
+  assert.equal(f.confirmText('somethingElse'), null); assert.ok(f.confirmText('accessAdd', { id: '123456', list: 'channel' }).text.includes('full admin')); assert.ok(f.confirmText('addCover', { title: 'Halo', coverUrl: 'https://x/y.jpg' }).text.includes('https://x/y.jpg'));
   assert.ok(f.confirmText('banIp', { ip: '1.2.3.4' }).text.includes('1.2.3.4')); assert.ok(f.confirmText('requestStatus', { id: 5, title: 'Halo', status: 'rejected' }).text.includes('"rejected"'));
   const miss = { count: 2, trailerCount: 1, trailerUnavailableCount: 3, totalUniqueGames: 10, gamesWithStatus: [{ gameKey: 'PC1/Halo', cleanTitle: 'Halo', missingCover: true, missingTrailer: false }, { gameKey: 'PC1/Doom', cleanTitle: 'Doom', missingCover: false, missingTrailer: true }] };
   assert.equal(f.missingCards(miss)[1].hint, '3 marked unavailable'); assert.deepEqual(f.missingCards(null), []);
@@ -53,7 +53,7 @@ test('admin actions are a fixed list, validated, each behind a confirmation, and
   for (const route of ['/api/admin/stats', '/api/admin/system-details', '/api/admin/user-activity', '/api/admin/queue', '/api/admin/requests', '/api/admin/missing-covers', '/api/admin/report-data', '/api/admin/report-collections', '/api/admin/status-report']) assert.ok(block.includes("'" + route + "'"), route);
   assert.ok(block.includes('Unknown admin page') && block.includes('A-Za-z_ -'));
   const acts = bridge.slice(bridge.indexOf("ipcMain.handle('native:adminDo'"), bridge.indexOf("// The publisher collections"));
-  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing']) assert.ok(acts.includes("case '" + a + "'"), a);
+  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer']) assert.ok(acts.includes("case '" + a + "'"), a);
   assert.ok(acts.includes('Unknown admin action') && acts.includes('A-Fa-f') || acts.includes('a-fA-F'));
   assert.ok(!/api\.(put|del)\(/.test(acts) && !acts.includes('/api/admin/requests/' + '${id}`)' + ', {}'), 'no delete or free-form write');
   assert.ok(view.includes('useAdminAction') && view.includes('confirmText(') && view.includes('api.adminDo('), 'every action goes through the confirmation');

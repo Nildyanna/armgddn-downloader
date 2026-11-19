@@ -87,11 +87,16 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   const reqId = (id) => { const n = Number(id); if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error('Bad request id'), { kind: 'http', status: 400 }); return n; };
   // Watchlist ("Tell me when it is added"): the same lists the website keeps, so a title watched in either place shows in both.
   // Admin pages (read only). The site decides who may see what from the member's own role; these are the only admin addresses the app will ask for.
-  const ADMIN_GET = { stats: '/api/admin/stats', system: '/api/admin/system-details', activity: '/api/admin/user-activity', queue: '/api/admin/queue', requests: '/api/admin/requests', missing: '/api/admin/missing-covers', ipbans: '/api/admin/ip-bans', access: '/api/admin/access-lists', report: '/api/admin/report-data', collections: '/api/admin/report-collections', reliability: '/api/admin/status-report' };
+  const ADMIN_GET = { stats: '/api/admin/stats', system: '/api/admin/system-details', activity: '/api/admin/user-activity', queue: '/api/admin/queue', requests: '/api/admin/requests', missing: '/api/admin/missing-covers', lookup: '/api/admin/ip-bans/lookup', youtube: '/api/admin/youtube-search', ipbans: '/api/admin/ip-bans', access: '/api/admin/access-lists', report: '/api/admin/report-data', collections: '/api/admin/report-collections', reliability: '/api/admin/status-report' };
   ipcMain.handle('native:adminGet', wrap((kind, params) => {
     const base = ADMIN_GET[String(kind)];
     if (!base) throw Object.assign(new Error('Unknown admin page'), { kind: 'http', status: 400 });
     const q = new URLSearchParams();
+    if (kind === 'lookup' && params && typeof params === 'object') {
+      const id = String(params.telegramId || ''), un = String(params.username || '').replace(/^@/, '');
+      if (/^\d{3,20}$/.test(id)) q.set('telegramId', id); else if (/^[A-Za-z0-9_]{3,40}$/.test(un)) q.set('username', un); else throw Object.assign(new Error('Type a Telegram id (digits) or a @username'), { kind: 'http', status: 400 });
+    }
+    if (kind === 'youtube') { const term = String((params && params.q) || '').trim().slice(0, 100); if (!term) throw Object.assign(new Error('Type what to search for'), { kind: 'http', status: 400 }); q.set('q', term); }
     if (kind === 'requests' && params && typeof params === 'object') for (const k of ['status', 'category']) { const v = String(params[k] || ''); if (/^[A-Za-z_ -]{1,30}$/.test(v)) q.set(k, v); }
     return api.get(base + (q.toString() ? '?' + q.toString() : ''), { ttlMs: 0, fresh: true });
   }));
@@ -131,6 +136,32 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
         const gameKey = text(a.gameKey, 300).trim();
         if (!gameKey) throw bad('Nothing chosen');
         return api.post('/api/admin/missing-covers/clear', { gameKey }, { invalidate: ['/api/admin/missing-covers'] });
+      }
+      case 'accessAdd':
+      case 'accessRemove': {
+        const list = String(a.list);
+        const id = text(a.id, 20).trim();
+        if (list !== 'channel' && list !== 'request') throw bad('Pick a list');
+        if (!/^\d{3,20}$/.test(id)) throw bad('A Telegram id is digits only');
+        return api.post(action === 'accessAdd' ? '/api/admin/access-lists/add' : '/api/admin/access-lists/remove', { list, id }, { invalidate: ['/api/admin/access-lists'] });
+      }
+      case 'banUser': {
+        const id = text(a.telegramId, 20).trim();
+        if (!/^\d{3,20}$/.test(id)) throw bad('A Telegram id is digits only');
+        return api.post('/api/admin/ip-bans/ban-user', { telegramId: id, reason: text(a.reason, 200).trim() || 'Banned from the app' }, { invalidate: ['/api/admin/ip-bans'] });
+      }
+      case 'reloadOverrides': return api.post('/api/admin/reload-overrides', {});
+      case 'addCover': {
+        const gameKey = text(a.gameKey, 300).trim(), coverUrl = text(a.coverUrl, 600).trim();
+        if (!gameKey) throw bad('Nothing chosen');
+        if (!/^https:\/\/[^\s]+$/i.test(coverUrl)) throw bad('The picture address must start with https://');
+        return api.post('/api/admin/missing-covers/add-art', { gameKey, coverUrl }, { invalidate: ['/api/admin/missing-covers'] });
+      }
+      case 'addTrailer': {
+        const gameKey = text(a.gameKey, 300).trim(), trailerYoutube = text(a.trailerYoutube, 300).trim();
+        if (!gameKey) throw bad('Nothing chosen');
+        if (!/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\/[^\s]+$/i.test(trailerYoutube)) throw bad('Paste a YouTube address (https://www.youtube.com/...)');
+        return api.post('/api/admin/missing-covers/add-trailer', { gameKey, trailerYoutube }, { invalidate: ['/api/admin/missing-covers'] });
       }
       default: throw bad('Unknown admin action');
     }
