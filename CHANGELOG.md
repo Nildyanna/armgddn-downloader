@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.26.3] - 2026-11-19
+
+### Fixed
+- **Updating from Settings:** when a check finds a new version, the "Check for updates" button becomes "Update to vX" and installs it.
+- The "Update now" bar was drawn at the very bottom of the page, out of sight. It is now at the top, under the header.
+- The Settings page background is one smooth backdrop from top to bottom instead of tiled stripes.
+
 ## [5.26.2] - 2026-11-18
 
 ### Added

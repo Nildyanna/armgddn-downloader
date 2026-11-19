@@ -1,4 +1,12 @@
 {
+  "5.26.3": {
+    "title": "Easier Updating",
+    "highlights": [
+      "When \"Check for updates\" in Settings finds a new version, the button becomes \"Update to vX\" and installs it.",
+      "The \"Update now\" bar was drawn at the very bottom of the page, out of sight. It now shows at the top, under the header.",
+      "The Settings page background is one smooth backdrop from top to bottom instead of tiled stripes."
+    ]
+  },
   "5.26.2": {
     "title": "Fixes And A Proper Menu",
     "highlights": [
