@@ -42,7 +42,7 @@ export function tableColumns(rows, max = 8) {
 // Which pages this member may open. The server decides what it really returns; this only decides which tabs to show.
 export function adminTabs(role, canManage) {
   const tabs = [];
-  if (role === 'owner' || role === 'admin') tabs.push(['overview', 'Overview'], ['analytics', 'Analytics']);
+  if (role === 'owner' || role === 'admin') tabs.push(['overview', 'Overview'], ['analytics', 'Analytics'], ['collections', 'Music and Comics']);
   if (role === 'owner') tabs.push(['system', 'System'], ['activity', 'Activity'], ['missing', 'Missing art'], ['ipbans', 'IP bans'], ['access', 'Access'], ['controls', 'Controls']);
   if (canManage) tabs.push(['queue', 'Queue'], ['requests', 'Requests'], ['audit', 'Audit']);
   return tabs;
@@ -147,3 +147,23 @@ export function topRows(list, labelKey, valueKey, limit = 25) {
   return rows.map((r) => ({ ...r, pct: max ? Math.round(100 * r.value / max) : 0 }));
 }
 export function moverRows(list) { return (list || []).map((x) => ({ title: x.title, now: num(x.recent_n), before: num(x.prior_n), change: (num(x.pct_change) > 0 ? '+' : '') + num(x.pct_change) + '%' })); }
+
+// ---- Music and Comics section (the site's /api/admin/report-collections) ----
+export function collectionCards(o, kind) {
+  if (!o || typeof o !== 'object') return [];
+  const unit = kind === 'Music' ? 'albums' : 'issues';
+  const out = [];
+  const add = (label, v, hint) => { if (v !== undefined && v !== null) out.push({ label, value: num(v).toLocaleString('en-US'), hint: hint || '' }); };
+  add('Downloaded today', o.today, unit); add('Last 7 days', o.d7, unit); add('Last 30 days', o.d30, unit); add('All time', o.allTime, unit);
+  add('Members, 30 days', o.users30d); add('Members, all time', o.usersAll); add('Members who came back', o.repeatUsers);
+  if (o.itemsPerAction) add('Per download', o.itemsPerAction, unit);
+  if (o.tracks) add('Tracks, 30 days', o.tracks.d30, 'all time ' + num(o.tracks.allTime).toLocaleString('en-US'));
+  return out;
+}
+export function collectionDaily(o) { const r = (o && o.daily) || []; return { labels: r.map((x) => String(x.day || '').slice(5)), values: r.map((x) => num(x.items)) }; }
+export function arraySeries(arr, labels) { return { labels: labels.slice(), values: labels.map((_, i) => num((arr || [])[i])) }; }
+export function requestsSummary(rows) {
+  const by = {};
+  for (const r of rows || []) { const c = r.category || 'Other'; (by[c] = by[c] || {})[r.status || 'unknown'] = num(r.n); }
+  return Object.entries(by).flatMap(([category, st]) => Object.entries(st).map(([status, n]) => ({ category, status, requests: n })));
+}

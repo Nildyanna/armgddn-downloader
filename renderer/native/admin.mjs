@@ -1,6 +1,6 @@
 // The Admin pages of the built-in window (phase 1: read only). Shown only to owners and admins; the site decides what each role may see.
 import { html, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
-import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows } from './adminFormat.mjs';
+import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -223,6 +223,40 @@ function AnalyticsPage() {
   </div>`;
 }
 
+function CollectionKind({ kind, o }) {
+  const daily = collectionDaily(o);
+  const hours = arraySeries(o.hours, Array.from({ length: 24 }, (_, i) => String(i)));
+  const dows = arraySeries(o.dows, DOW_LABELS);
+  const names = (list, n) => topRows(list, 'name', 'value', n);
+  return html`<div>
+    <h4 class="asub">${kind}</h4>
+    <${Cards} items=${collectionCards(o, kind)} />
+    <div class="agrid">
+      <${Panel} title=${'Downloaded per day, last 30 days (' + (kind === 'Music' ? 'albums' : 'issues') + ')'} wide=${true}><${BarChart} labels=${daily.labels} values=${daily.values} every=${3} /><//>
+      <${Panel} title="By hour of day (Eastern)"><${BarChart} labels=${hours.labels} values=${hours.values} every=${3} /><//>
+      <${Panel} title="By day of week"><${BarChart} labels=${dows.labels} values=${dows.values} every=${1} /><//>
+      <${Panel} title=${kind === 'Music' ? 'Most downloaded artists, 30 days' : 'Most downloaded series, 30 days'}><${RankList} rows=${names(kind === 'Music' ? o.topArtists : o.topSeries, 10)} /><//>
+      <${Panel} title=${kind === 'Music' ? 'Most downloaded albums, 30 days' : 'Most downloaded volumes, 30 days'}><${RankList} rows=${names(o.topUnits, 10)} /><//>
+      <${Panel} title=${'Top ' + kind + ' collectors, 30 days'}><${RankList} rows=${topRows(o.topUsers, 'username', 'items', 10)} /><//>
+    </div>
+  </div>`;
+}
+
+function CollectionsPage() {
+  const [st, reload] = useAdminData('collections', {}, 300);
+  if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
+  const d = st.data, dl = d.downloads || {};
+  return html`<div>
+    <p class="sval">Download numbers are counted from 2026-10-20, so they start small and grow.</p>
+    ${dl.Music ? html`<${CollectionKind} kind="Music" o=${dl.Music} />` : ''}
+    ${dl.Comics ? html`<${CollectionKind} kind="Comics" o=${dl.Comics} />` : ''}
+    <h4 class="asub">Music and Comics requests</h4>
+    <${DataTable} rows=${requestsSummary(d.requests)} columns=${['category', 'status', 'requests']} empty="No requests." />
+    <h4 class="asub">What is in the library</h4>
+    <${Tree} value=${d.catalog || {}} />
+  </div>`;
+}
+
 function IpBansPage() {
   const [st, reload] = useAdminData('ipbans', {}, 0);
   const [actionUi, act] = useAdminAction(() => reload());
@@ -262,6 +296,6 @@ export function AdminView({ admin }) {
   return html`<main class="adminpage">
     <h2>Admin</h2>
     <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${id === cur ? 'tab on' : 'tab'} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
-    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
+    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;
 }

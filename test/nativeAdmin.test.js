@@ -10,13 +10,18 @@ test('admin formatting helpers', async () => {
   assert.ok(f.formatCell('x'.repeat(200)).endsWith('...') && f.formatCell('x'.repeat(200)).length === 90);
   assert.deepEqual(f.tableColumns([{ id: 1, name: 'a', meta: { x: 1 } }, { id: 2, extra: 'y', tags: ['t'] }]), ['id', 'name', 'extra', 'tags'], 'nested objects are skipped');
   assert.equal(f.tableColumns([{ a: 1, b: 2, c: 3 }], 2).length, 2);
-  assert.deepEqual(f.adminTabs('owner', true).map((t) => t[0]), ['overview', 'analytics', 'system', 'activity', 'missing', 'ipbans', 'access', 'controls', 'queue', 'requests', 'audit']);
-  assert.deepEqual(f.adminTabs('admin', false).map((t) => t[0]), ['overview', 'analytics']);
-  assert.deepEqual(f.adminTabs('admin', true).map((t) => t[0]), ['overview', 'analytics', 'queue', 'requests', 'audit']);
+  assert.deepEqual(f.adminTabs('owner', true).map((t) => t[0]), ['overview', 'analytics', 'collections', 'system', 'activity', 'missing', 'ipbans', 'access', 'controls', 'queue', 'requests', 'audit']);
+  assert.deepEqual(f.adminTabs('admin', false).map((t) => t[0]), ['overview', 'analytics', 'collections']);
+  assert.deepEqual(f.adminTabs('admin', true).map((t) => t[0]), ['overview', 'analytics', 'collections', 'queue', 'requests', 'audit']);
   assert.deepEqual(f.adminTabs('user', false), []); assert.deepEqual(f.adminTabs(undefined, false), []);
   const cards = f.statCards({ uptimeMs: 3600000, overhead: { level: 'ok', eventLoopMeanMs: 3, eventLoopP99Ms: 9, rssMb: 410 }, concurrency: { activeTotalStreams: 12, maxGlobalRcloneStreams: 40, globalStreamQueueLength: 0, peaksSinceBoot: { globalStreamQueueLength: 5 } }, api: { uniqueDownloads: 99, auth: { success: 7, failure: 1 } } });
   assert.equal(cards.find((c) => c.label === 'Uptime').value, '1h 0m'); assert.equal(cards.find((c) => c.label === 'Active streams').hint, 'limit 40'); assert.equal(cards.find((c) => c.label === 'Logins').hint, '1 failed');
   assert.deepEqual(f.statCards(null), []);
+  const cc = f.collectionCards({ today: 3, d7: 20, d30: 90, allTime: 500, users30d: 12, usersAll: 40, repeatUsers: 8, itemsPerAction: 2.5, tracks: { d30: 300, allTime: 1200 } }, 'Music');
+  assert.equal(cc.find((c) => c.label === 'Last 30 days').hint, 'albums'); assert.equal(cc.find((c) => c.label === 'Tracks, 30 days').hint, 'all time 1,200'); assert.equal(f.collectionCards({}, 'Comics').length, 0);
+  assert.deepEqual(f.collectionDaily({ daily: [{ day: '2026-11-01', items: 4 }] }), { labels: ['11-01'], values: [4] });
+  assert.deepEqual(f.arraySeries([5, 6], ['a', 'b', 'c']), { labels: ['a', 'b', 'c'], values: [5, 6, 0] });
+  assert.deepEqual(f.requestsSummary([{ category: 'Music', status: 'pending', n: 4 }, { category: 'Music', status: 'completed', n: 1 }]), [{ category: 'Music', status: 'pending', requests: 4 }, { category: 'Music', status: 'completed', requests: 1 }]);
   const rep = { headline: { totalEvents: 1234, today: 5, thisWeek: 40, thisMonth: 160, totalUsers: 90, users7d: 20, users30d: 50, catalogTotal: 300, catalog30d: 120, redownloadRate: 12 }, growth: { retentionBase: 10, retentionReturned: 4 } };
   const ac = f.analyticsCards(rep); assert.equal(ac.find((c) => c.label === 'Downloads, all time').value, '1,234'); assert.equal(ac.find((c) => c.label === '30-day retention').value, '40%'); assert.equal(ac.find((c) => c.label === 'Re-download rate').value, '12%');
   assert.deepEqual(f.dailySeries([{ day: '2026-11-18', downloads: 7 }]), { labels: ['11-18'], values: [7] });
@@ -41,7 +46,7 @@ test('admin formatting helpers', async () => {
 test('admin actions are a fixed list, validated, each behind a confirmation, and only for owners and admins', () => {
   const bridge = read('native', 'bridge.js'), app = read('renderer', 'native', 'app.mjs'), view = read('renderer', 'native', 'admin.mjs');
   const block = bridge.slice(bridge.indexOf('const ADMIN_GET'), bridge.indexOf("// The publisher collections"));
-  for (const route of ['/api/admin/stats', '/api/admin/system-details', '/api/admin/user-activity', '/api/admin/queue', '/api/admin/requests', '/api/admin/missing-covers', '/api/admin/report-data']) assert.ok(block.includes("'" + route + "'"), route);
+  for (const route of ['/api/admin/stats', '/api/admin/system-details', '/api/admin/user-activity', '/api/admin/queue', '/api/admin/requests', '/api/admin/missing-covers', '/api/admin/report-data', '/api/admin/report-collections']) assert.ok(block.includes("'" + route + "'"), route);
   assert.ok(block.includes('Unknown admin page') && block.includes('A-Za-z_ -'));
   const acts = bridge.slice(bridge.indexOf("ipcMain.handle('native:adminDo'"), bridge.indexOf("// The publisher collections"));
   for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing']) assert.ok(acts.includes("case '" + a + "'"), a);
