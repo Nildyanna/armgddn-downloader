@@ -291,9 +291,10 @@ test('publisher collections: members present in the list, total size, and the co
 test('the Comics page shows the publisher collections right under the Komga box', () => {
   const fs = require('fs'), path = require('path');
   const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
-  const k = app.indexOf('class="komgabox"'), b = app.indexOf('class="bundles"');
-  assert.ok(k > 0 && b > k, 'bundles come after the Komga box');
-  assert.ok(app.indexOf("view === 'library' && remote === 'Comics' && !everywhere && !folder && !query ? html`<section class=\"komgabox\"") < b);
+  const lib = app.indexOf("html`<main class=${viewMode === 'list' ? 'list'");
+  assert.ok(lib > 0 && app.indexOf('class="komgabox"') > 0 && app.indexOf('class="komgabox"') < lib, 'the Komga box is above the list');
+  assert.ok(app.indexOf('${showBundles ? html`<section class="bundles">', lib) === lib + app.slice(lib).indexOf('${showBundles ? html`<section class="bundles">') && app.slice(lib, lib + 400).includes('showBundles'), 'the collections are the first rows INSIDE the scrolling list, so they scroll with it');
+  assert.ok(!/\n    \$\{view === 'library' && remote === 'Comics' && !everywhere && !folder && !query && items !== null \? html`<section class="bundles">/.test(app), 'no static copy above the list');
   assert.ok(app.includes('api.comicBundles()') && app.includes('downloadBundle') && app.includes('Download All'));
   assert.ok(fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8').includes("'/api/comic-bundles'"));
 });

@@ -428,7 +428,7 @@ header select + select { margin-left: 0; }
 .tab.quota { opacity: .45; cursor: not-allowed; text-decoration: line-through; }
 .modal input.wide { flex: 1; background: var(--inset); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; }
 
-.bundles { margin: 0 52px 8px 18px; display: flex; flex-direction: column; gap: 8px; }
+.bundles { grid-column: 1 / -1; margin: 0 0 8px 0; display: flex; flex-direction: column; gap: 8px; }
 .bundles:empty { display: none; }
 .bundle { display: flex; align-items: center; gap: 14px; padding: 10px 14px; border: 1px solid var(--line, rgba(255,255,255,.15)); border-radius: 10px; background: var(--card, var(--card2)); }
 .bundle .bcover { width: 54px; height: 80px; flex: none; border-radius: 6px; overflow: hidden; background: var(--inset); }
