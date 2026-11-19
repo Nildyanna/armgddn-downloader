@@ -1,4 +1,14 @@
 {
+  "5.29.0": {
+    "title": "Admin, Built In",
+    "highlights": [
+      "Owners and admins get a new Admin tab in the top bar. It never shows for anyone else.",
+      "Overview, Analytics, Music and Comics, and Reliability: the site's reports, with charts, inside the app.",
+      "System, Activity, Queue, Requests, Audit, Missing art and IP bans: the same pages as the website's panel.",
+      "Controls: reset the mirror quota and restart the server. Every action asks you to confirm first.",
+      "Requests can have their status changed from the app, and missing art can be marked \"stop listing\"."
+    ]
+  },
   "5.28.0": {
     "title": "More From The Website, Built In",
     "highlights": [

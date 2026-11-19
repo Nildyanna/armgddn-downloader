@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.29.0] - 2026-11-19
+
+### Added
+- **Admin tab** in the built-in window, for owners and admins only (the site decides who qualifies):
+  Overview, Analytics, Music and Comics, Reliability, System, Activity, Missing art, IP bans, Access,
+  Controls, Queue, Requests and Audit. The reports are drawn in the app without a chart library.
+- **Actions** with a confirmation step each: change a request's status, stop listing a game in Missing art,
+  ban or unban an IP address, reset mirror quota, restart the server.
+
+### Notes
+- The owner console, editing the admin lists, adding art or trailers by hand and the art auto-fix stay on the website for now.
+
 ## [5.28.0] - 2026-11-19
 
 ### Added
