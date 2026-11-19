@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.30.1] - 2026-11-19
+
+### Fixed
+- The owner status dock is now the last row of the window instead of an overlay, so it no longer covers the bottom of the page, the What's New Got it button or messages (the toast now sits above it).
+- Settings, Tools and Admin scroll inside their own box, so the dock stays at the bottom of the window.
+- The Admin view no longer draws the library list underneath it.
+- The publisher collections on the Comics page scroll with the list instead of staying fixed above it.
+
 ## [5.30.0] - 2026-11-19
 
 ### Added

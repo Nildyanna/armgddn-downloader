@@ -1,4 +1,12 @@
 {
+  "5.30.1": {
+    "title": "Tidier Layout",
+    "highlights": [
+      "The owner status strip no longer leaves a gap above the What's New box, no longer covers its Got it button, and no longer hides messages.",
+      "Settings, Tools and Admin now scroll inside their own box, so the status strip stays at the bottom of the window.",
+      "On Comics, the Marvel and DC collections now scroll with the list."
+    ]
+  },
   "5.30.0": {
     "title": "The Owner's Dock",
     "highlights": [
