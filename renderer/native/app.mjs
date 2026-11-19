@@ -1225,9 +1225,9 @@ function App() {
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}
-    ${admin && admin.role === 'owner' ? html`<${OwnerDock} onOpenAnalytics=${() => { setAdminStart({ tab: 'analytics', n: Date.now() }); setView('admin'); }} />` : ''}
     ${watchOpen ? html`<${WatchlistModal} onClose=${() => setWatchOpen(false)} say=${say} startTitle=${watchStart} />` : ''}
     ${whatsNew ? html`<${WhatsNewBox} entry=${whatsNew} onClose=${() => setWhatsNew(null)} />` : ''}
+    ${admin && admin.role === 'owner' ? html`<${OwnerDock} onOpenAnalytics=${() => { setAdminStart({ tab: 'analytics', n: Date.now() }); setView('admin'); }} />` : ''}
     ${toast ? html`<div class="toast">${toast}</div>` : ''}
   </div>`;
 }

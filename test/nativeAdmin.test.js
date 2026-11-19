@@ -82,6 +82,8 @@ test('admin actions are a fixed list, validated, each behind a confirmation, and
 test('the owner dock is for owners only, polls like the website widget and opens the same places', () => {
   const dock = read('renderer', 'native', 'ownerDock.mjs'), app = read('renderer', 'native', 'app.mjs'), bridge = read('native', 'bridge.js');
   assert.ok(app.includes("admin && admin.role === 'owner' ? html`<${OwnerDock}"), 'only owners get it');
+  assert.ok(app.indexOf('<${OwnerDock}') > app.indexOf('<${WhatsNewBox} entry=${whatsNew}'), 'the dock is the last row of the window, under the What\'s New box, so nothing is covered');
+  assert.ok(!read('renderer', 'native', 'native.css').includes('.ownerdock { position: fixed') && !dock.includes('dockspace'), 'no overlay and no blank spacer');
   assert.ok(dock.includes('setInterval(poll, 5000)') && dock.includes("api.adminGet('stats'") && dock.includes("api.adminGet('siteStatus'"));
   for (const piece of ["setDetail('streams')", "setDetail('users')", "setDetail('speed')", "setDetail('queue')", 'setStatusOpen(true)', 'onOpenAnalytics']) assert.ok(dock.includes(piece), piece);
   assert.ok(app.includes("setAdminStart({ tab: 'analytics'") && read('renderer', 'native', 'admin.mjs').includes('initialTab'));

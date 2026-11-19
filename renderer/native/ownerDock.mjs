@@ -81,7 +81,6 @@ export function OwnerDock({ onOpenAnalytics }) {
       </div>
       <span class="dbreak">${vals ? vals.queueBreakdown : ''}</span>
     </div>
-    <div class="dockspace"></div>
     ${statusOpen ? html`<${StatusModal} site=${site} onClose=${() => setStatusOpen(false)} />` : ''}
     ${detail ? html`<${DetailsModal} mode=${detail} onClose=${() => setDetail(null)} />` : ''}
   </div>`;

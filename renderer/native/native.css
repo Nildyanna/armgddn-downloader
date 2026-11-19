@@ -478,8 +478,7 @@ header select + select { margin-left: 0; }
 .arankval { text-align: right; color: var(--dim); }
 
 /* Owner status dock */
-.ownerdock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; padding: 5px 12px; background: var(--panel, #0d1320); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0,0,0,.35); }
-.dockspace { height: 46px; }
+.ownerdock { position: relative; flex: none; z-index: 15; display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; padding: 5px 12px; background: var(--panel, #0d1320); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0,0,0,.35); }
 .dtitle { background: none; border: 0; color: var(--dim); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; padding: 4px 8px; }
 .dtitle:hover, .dcell:hover { color: var(--accent, #6cf); }
 .dcell { display: inline-flex; align-items: center; gap: 6px; background: none; border: 1px solid transparent; border-radius: 8px; color: inherit; cursor: pointer; padding: 3px 9px; font: inherit; }
@@ -494,3 +493,4 @@ header select + select { margin-left: 0; }
 .ownerdock { display: grid; grid-template-columns: 1fr auto 1fr; }
 .ownerdock .dbreak { justify-self: end; margin-left: 0; }
 @media (max-width: 1100px) { .ownerdock { display: flex; } .ownerdock .dbreak { margin-left: auto; } .ownerdock > span:first-child { display: none; } }
+.shell > div:has(> .ownerdock) { flex: none; }
