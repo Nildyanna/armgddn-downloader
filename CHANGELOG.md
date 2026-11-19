@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.27.0] - 2026-11-19
+
+### Changed
+- **Settings** in the built-in window are now grouped into one card per topic: Updates, Folders, Downloads, Your games, The app and its window, Import, and Help and reports.
+
 ## [5.26.3] - 2026-11-19
 
 ### Fixed

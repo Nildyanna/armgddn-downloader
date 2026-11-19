@@ -1,4 +1,10 @@
 {
+  "5.27.0": {
+    "title": "A Tidier Settings Page",
+    "highlights": [
+      "Settings are now grouped into cards by topic: Updates, Folders, Downloads, Your games, The app and its window, Import, and Help and reports."
+    ]
+  },
   "5.26.3": {
     "title": "Easier Updating",
     "highlights": [
