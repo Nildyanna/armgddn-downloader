@@ -576,7 +576,7 @@ function WhatsNewButton() {
     ${entry === null ? html`<div class="note">There is nothing to show for this version.</div>` : entry ? html`<${WhatsNewBox} entry=${entry} onClose=${() => setEntry(undefined)} />` : ''}</div>`;
 }
 
-function SettingsView({ say, onPrefs, onOpenGame }) {
+function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
   const [s, setS] = useState(null);
   const [prefsOpen, setPrefsOpen] = useState(false);
   useEffect(() => { api.getSettings().then((r) => setS(r && typeof r === 'object' ? r : {})).catch(() => setS({})); }, []);
@@ -614,6 +614,7 @@ function SettingsView({ say, onPrefs, onOpenGame }) {
     <${GameUpdatesRow} onOpenGame=${onOpenGame} />
     </section>
     <section class="sgroup"><h3>The app and its window</h3>
+    ${ownerToggle ? html`<label class="srow"><input type="checkbox" checked=${!ownerToggle.off} onChange=${(e) => ownerToggle.set(!e.target.checked)} /> <span class="slabel">Owner view: show the Admin tab and the status dock (turn off to see the app as a regular member)</span></label>` : ''}
     ${settingRow('useNativeWindow')}
     ${settingRow('showNotifications')}
     ${settingRow('minimizeToTrayOnMinimize')}
@@ -838,7 +839,11 @@ function App() {
   const [status, setStatus] = useState(null);
   const [tabs, setTabs] = useState([]);
   const [adminStart, setAdminStart] = useState({ tab: '', n: 0 });   // where the Admin page opens (the dock sends the owner to Analytics)
-  const [admin, setAdmin] = useState(null);           // { role, canManage } for owners and admins, null for everyone else
+  const [realAdmin, setAdmin] = useState(null);       // { role, canManage } for owners and admins, null for everyone else
+  // Owner view: an owner can switch the owner pages off to see the app as a regular member (the website's /ot toggle). It is a setting, so it stays.
+  const [ownerViewOff, setOwnerViewOff] = useState(() => { try { return localStorage.getItem('native.ownerViewOff') === '1'; } catch (e) { return false; } });
+  const admin = ownerViewOff && realAdmin && realAdmin.role === 'owner' ? null : realAdmin;
+  const ownerToggle = realAdmin && realAdmin.role === 'owner' ? { off: ownerViewOff, set: (off) => { setOwnerViewOff(off); try { localStorage.setItem('native.ownerViewOff', off ? '1' : '0'); } catch (e) { } } } : null;
   const [bundles, setBundles] = useState(null);       // publisher collections for the Comics page
   const [quota, setQuota] = useState(() => new Set());     // sections whose download quota is used up
   const [watchOpen, setWatchOpen] = useState(false);
@@ -1203,7 +1208,7 @@ function App() {
     ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN Browser ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${activeCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN Browser.</span>` : ''}<button class="dbtn go" disabled=${updating || activeCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} />` : ''}
-    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}

@@ -87,3 +87,11 @@ test('the owner dock is for owners only, polls like the website widget and opens
   assert.ok(app.includes("setAdminStart({ tab: 'analytics'") && read('renderer', 'native', 'admin.mjs').includes('initialTab'));
   assert.ok(bridge.includes("siteStatus: '/api/status'") && bridge.includes("refetchStatus: '/api/admin/refetch-all-game-art/status'") && bridge.includes("case 'refetchArt'"));
 });
+
+test('the owner view toggle is a setting that hides the owner pages and the dock, and only owners have it', () => {
+  const app = read('renderer', 'native', 'app.mjs');
+  assert.ok(app.includes("localStorage.getItem('native.ownerViewOff') === '1'") && app.includes("localStorage.setItem('native.ownerViewOff'"));
+  assert.ok(app.includes("const admin = ownerViewOff && realAdmin && realAdmin.role === 'owner' ? null : realAdmin;"), 'the pages see no admin when the owner view is off');
+  assert.ok(app.includes("const ownerToggle = realAdmin && realAdmin.role === 'owner' ?"), 'only an owner is offered the switch');
+  assert.ok(app.includes('Owner view: show the Admin tab and the status dock') && app.includes('ownerToggle=${ownerToggle}'));
+});
