@@ -1,6 +1,9 @@
 :root { --surface: color-mix(in srgb, var(--panel) 80%, transparent); --inset: color-mix(in srgb, color-mix(in srgb, var(--bg) 55%, var(--panel)) 82%, transparent); --inset2: color-mix(in srgb, var(--bg) 88%, var(--fg)); --card2: color-mix(in srgb, var(--panel) 80%, var(--bg)); --on-accent: #04121a; --rc: 10px; --bg: #0b1220; --panel: #111a2e; --line: #1d2a47; --fg: #dbe4f5; --dim: #8394b5; --accent: #22d3ee; --accent2: #a855f7; color-scheme: dark; }
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--page, var(--bg)); background-color: var(--page-color, var(--bg)); color: var(--fg); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
+/* The themed backdrop is one picture from the top of the window to the bottom, drawn on its own fixed layer. As a fixed background of the body it was drawn in
+   tiles inside the scrolling pages (Settings), and the seams showed as lines. */
+body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none; background: var(--page, var(--bg)); background-attachment: scroll; }
+body { margin: 0; background: none; background-color: var(--page-color, var(--bg)); color: var(--fg); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
 button { font: inherit; color: inherit; cursor: pointer; }
 .shell { display: flex; flex-direction: column; height: 100vh; }
 header { display: flex; align-items: center; gap: 10px; padding: 10px 18px; background: var(--surface); border-bottom: 1px solid var(--line); flex-wrap: nowrap; }

@@ -153,3 +153,9 @@ test('File > Exit really exits: it marks the app as quitting so the keep-running
   assert.ok(main.includes("app.on('before-quit', () => { app.isQuitting = true; });"));
   assert.ok(!/label: 'File',\s*submenu: \[[^\]]*role: 'quit'/.test(main), 'the File menu no longer uses the plain quit role');
 });
+
+test('the themed backdrop is a single fixed layer behind the window, not a tiled background of the body', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  assert.ok(/body::before \{[^}]*position: fixed; inset: 0; z-index: -1;[^}]*background: var\(--page, var\(--bg\)\); background-attachment: scroll;/.test(css));
+  assert.ok(/body \{[^}]*background: none; background-color: var\(--page-color/.test(css), 'the body itself paints only the colour');
+});
