@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.34.0] - 2026-11-19
+
+### Security
+- Deep links no longer replace the saved sign-in, and Komga deep links ask for confirmation.
+- Direct cover fetches refuse private addresses and are limited in time, type and size.
+- Electron run-as-Node, Node options and debug-port features are disabled at pack time.
+- The saved sign-in file is readable by the user only.
+- The page policy gains object-src, base-uri and form-action.
+- Sensitive admin actions are confirmed by the app in a system dialog.
+
 ## [5.33.0] - 2026-11-19
 
 ### Changed

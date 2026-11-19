@@ -1,4 +1,13 @@
 {
+  "5.34.0": {
+    "title": "Safer Links and Covers",
+    "highlights": [
+      "A link on a website can no longer sign you in as someone else. Adding a reading order to your Komga now asks first.",
+      "Pictures from other sites are checked before they load, so a bad link cannot reach into your home network.",
+      "Admins: restarts, resets, bans and admin-list changes are confirmed in a system window.",
+      "The app turns off developer features it never uses, and your saved sign-in is readable only by your own account."
+    ]
+  },
   "5.33.0": {
     "title": "Clearer Charts",
     "highlights": [
