@@ -1,6 +1,6 @@
 // The Admin pages of the built-in window (phase 1: read only). Shown only to owners and admins; the site decides what each role may see.
 import { html, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
-import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES } from './adminFormat.mjs';
+import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -164,6 +164,65 @@ function MissingPage() {
   </div>`;
 }
 
+// Charts are drawn here as plain SVG (no chart library): bars with a hover note, a heat grid, and ranked lists with inline bars.
+function BarChart({ labels, values, height = 150, every }) {
+  const W = 640, H = height, pad = 22, n = values.length || 1;
+  const max = Math.max(1, ...values);
+  const bw = (W - pad) / n;
+  const step = every || Math.max(1, Math.ceil(n / 12));
+  return html`<svg class="achart" viewBox=${'0 0 ' + W + ' ' + (H + 18)} role="img" preserveAspectRatio="none">
+    ${values.map((v, i) => { const h = Math.max(v ? 1 : 0, Math.round((H - 6) * v / max)); return html`<rect key=${i} x=${pad + i * bw + 1} y=${H - h} width=${Math.max(1, bw - 2)} height=${h} rx="1.5" class="abar"><title>${labels[i]}: ${v.toLocaleString('en-US')}</title></rect>`; })}
+    ${labels.map((l, i) => (i % step === 0 ? html`<text key=${'t' + i} x=${pad + i * bw + bw / 2} y=${H + 13} text-anchor="middle" class="atick">${l}</text>` : ''))}
+    <text x="0" y="10" class="atick">${max.toLocaleString('en-US')}</text>
+  </svg>`;
+}
+function Heatmap({ rows }) {
+  const { grid, max } = heatmapGrid(rows);
+  const cell = 24, W = 30 + 24 * cell, H = 8 * cell + 14;
+  return html`<svg class="achart" viewBox=${'0 0 ' + W + ' ' + H} role="img">
+    ${grid.map((r, d) => html`<g key=${d}><text x="0" y=${14 + d * cell + 14} class="atick">${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]}</text>${r.map((n, h) => html`<rect key=${h} x=${30 + h * cell} y=${14 + d * cell} width=${cell - 2} height=${cell - 2} rx="3" class="aheat" style=${'opacity:' + (n ? 0.12 + 0.88 * n / max : 0.05)}><title>${['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]} ${h}:00: ${n.toLocaleString('en-US')}</title></rect>`)}</g>`)}
+    ${[0, 3, 6, 9, 12, 15, 18, 21].map((h) => html`<text key=${'h' + h} x=${30 + h * cell + cell / 2} y="10" text-anchor="middle" class="atick">${h}</text>`)}
+  </svg>`;
+}
+function RankList({ rows, unit }) {
+  if (!rows.length) return html`<div class="empty">Nothing to show.</div>`;
+  return html`<div class="arank">${rows.map((r, i) => html`<div class="arankrow" key=${i}><span class="arankn">${i + 1}</span><span class="aranklabel" title=${r.label}>${r.label}</span><span class="arankbar"><i style=${'width:' + r.pct + '%'}></i></span><span class="arankval">${r.value.toLocaleString('en-US')}${unit ? ' ' + unit : ''}</span></div>`)}</div>`;
+}
+function Panel({ title, children, wide }) { return html`<section class=${'apanel' + (wide ? ' wide' : '')}><h4>${title}</h4>${children}</section>`; }
+
+function AnalyticsPage() {
+  const [st, reload] = useAdminData('report', {}, 120);
+  if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
+  const d = st.data;
+  const daily = dailySeries(d.daily), weekly = weeklySeries(d.weekly), hours = hourSeries(d.peakHour), dows = dowSeries(d.peakDow);
+  const nuw = newUsersSeries(d.newUsersWeekly, 'week'), num = newUsersSeries(d.newUsersMonthly, 'month');
+  const beh = d.behavior || {};
+  return html`<div>
+    <${Cards} items=${analyticsCards(d)} />
+    <div class="agrid">
+      <${Panel} title="Daily downloads, last 60 days" wide=${true}><${BarChart} labels=${daily.labels} values=${daily.values} /><//>
+      <${Panel} title="Weekly downloads, last 12 weeks"><${BarChart} labels=${weekly.labels} values=${weekly.values} every=${2} /><//>
+      <${Panel} title="New members per week (first download)"><${BarChart} labels=${nuw.labels} values=${nuw.values} every=${3} /><//>
+      <${Panel} title="New members per month"><${BarChart} labels=${num.labels} values=${num.values} every=${2} /><//>
+      <${Panel} title="Downloads by hour of day (Eastern)"><${BarChart} labels=${hours.labels} values=${hours.values} every=${3} /><//>
+      <${Panel} title="Downloads by day of week"><${BarChart} labels=${dows.labels} values=${dows.values} every=${1} /><//>
+      <${Panel} title="Hour of day by day of week (Eastern, all time)" wide=${true}><${Heatmap} rows=${d.heatmapRaw} /><//>
+      <${Panel} title="Top genres"><${RankList} rows=${topRows(d.genres, 'name', 'count', 8)} /><//>
+      <${Panel} title="Top 10 games, last 30 days"><${RankList} rows=${topRows(d.topGames30d, 'title', 'total', 10)} /><//>
+      <${Panel} title="Member loyalty (downloads per member, all time)"><${RankList} rows=${(() => { const l = loyaltyRows(d.loyaltyTiers); const m = Math.max(1, ...l.map((x) => x.n)); return l.map((x) => ({ label: x.label, value: x.n, pct: Math.round(100 * x.n / m) })); })()} unit="members" /><//>
+      <${Panel} title="Returning and power members">
+        <div class="akv"><div class="arow"><span class="ak">Came back at least once</span><span class="av">${Number(beh.returningUsers || 0).toLocaleString('en-US')}</span></div><div class="arow"><span class="ak">Power members (10+ downloads)</span><span class="av">${Number(beh.powerUsers || 0).toLocaleString('en-US')}</span></div></div>
+      <//>
+    </div>
+    <h4 class="asub">Biggest movers: last 30 days against the 30 before</h4>
+    <${DataTable} rows=${moverRows(d.biggestMovers)} columns=${['title', 'now', 'before', 'change']} empty="No movers yet." />
+    <h4 class="asub">Top 25 games, all time</h4>
+    <${RankList} rows=${topRows(d.topGames, 'title', 'total', 25)} />
+    <h4 class="asub">Top 25 members, all time</h4>
+    <${RankList} rows=${topRows(d.topUsers, 'username', 'downloads', 25)} />
+  </div>`;
+}
+
 function IpBansPage() {
   const [st, reload] = useAdminData('ipbans', {}, 0);
   const [actionUi, act] = useAdminAction(() => reload());
@@ -203,6 +262,6 @@ export function AdminView({ admin }) {
   return html`<main class="adminpage">
     <h2>Admin</h2>
     <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${id === cur ? 'tab on' : 'tab'} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
-    ${cur === 'overview' ? html`<${Overview} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
+    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;
 }

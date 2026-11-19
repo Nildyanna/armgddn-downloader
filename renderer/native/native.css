@@ -462,3 +462,17 @@ header select + select { margin-left: 0; }
 .acontrols { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
 .acontrols .acard { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
 .primary.danger { background: #b3261e; border-color: #b3261e; color: #fff; }
+
+.agrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 12px; margin-top: 12px; }
+.apanel { border: 1px solid var(--line); border-radius: 10px; background: var(--card, var(--card2)); padding: 10px 14px 12px; min-width: 0; }
+.apanel.wide { grid-column: 1 / -1; }
+.apanel h4 { margin: 2px 0 8px; font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--dim); }
+.achart { width: 100%; height: auto; display: block; }
+.abar { fill: var(--accent, #6cf); opacity: .85; } .abar:hover { opacity: 1; }
+.aheat { fill: var(--accent, #6cf); }
+.atick { fill: var(--dim); font-size: 10px; }
+.arank { display: flex; flex-direction: column; gap: 5px; }
+.arankrow { display: grid; grid-template-columns: 24px minmax(120px, 1.2fr) minmax(80px, 2fr) 96px; gap: 8px; align-items: center; font-size: 13px; }
+.arankn { color: var(--dim); text-align: right; } .aranklabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.arankbar { height: 8px; border-radius: 4px; background: var(--inset); overflow: hidden; } .arankbar i { display: block; height: 100%; background: var(--accent, #6cf); }
+.arankval { text-align: right; color: var(--dim); }

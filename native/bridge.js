@@ -87,7 +87,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   const reqId = (id) => { const n = Number(id); if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error('Bad request id'), { kind: 'http', status: 400 }); return n; };
   // Watchlist ("Tell me when it is added"): the same lists the website keeps, so a title watched in either place shows in both.
   // Admin pages (read only). The site decides who may see what from the member's own role; these are the only admin addresses the app will ask for.
-  const ADMIN_GET = { stats: '/api/admin/stats', system: '/api/admin/system-details', activity: '/api/admin/user-activity', queue: '/api/admin/queue', requests: '/api/admin/requests', missing: '/api/admin/missing-covers', ipbans: '/api/admin/ip-bans', access: '/api/admin/access-lists' };
+  const ADMIN_GET = { stats: '/api/admin/stats', system: '/api/admin/system-details', activity: '/api/admin/user-activity', queue: '/api/admin/queue', requests: '/api/admin/requests', missing: '/api/admin/missing-covers', ipbans: '/api/admin/ip-bans', access: '/api/admin/access-lists', report: '/api/admin/report-data' };
   ipcMain.handle('native:adminGet', wrap((kind, params) => {
     const base = ADMIN_GET[String(kind)];
     if (!base) throw Object.assign(new Error('Unknown admin page'), { kind: 'http', status: 400 });

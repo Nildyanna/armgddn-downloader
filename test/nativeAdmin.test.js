@@ -10,13 +10,21 @@ test('admin formatting helpers', async () => {
   assert.ok(f.formatCell('x'.repeat(200)).endsWith('...') && f.formatCell('x'.repeat(200)).length === 90);
   assert.deepEqual(f.tableColumns([{ id: 1, name: 'a', meta: { x: 1 } }, { id: 2, extra: 'y', tags: ['t'] }]), ['id', 'name', 'extra', 'tags'], 'nested objects are skipped');
   assert.equal(f.tableColumns([{ a: 1, b: 2, c: 3 }], 2).length, 2);
-  assert.deepEqual(f.adminTabs('owner', true).map((t) => t[0]), ['overview', 'system', 'activity', 'missing', 'ipbans', 'access', 'controls', 'queue', 'requests', 'audit']);
-  assert.deepEqual(f.adminTabs('admin', false).map((t) => t[0]), ['overview']);
-  assert.deepEqual(f.adminTabs('admin', true).map((t) => t[0]), ['overview', 'queue', 'requests', 'audit']);
+  assert.deepEqual(f.adminTabs('owner', true).map((t) => t[0]), ['overview', 'analytics', 'system', 'activity', 'missing', 'ipbans', 'access', 'controls', 'queue', 'requests', 'audit']);
+  assert.deepEqual(f.adminTabs('admin', false).map((t) => t[0]), ['overview', 'analytics']);
+  assert.deepEqual(f.adminTabs('admin', true).map((t) => t[0]), ['overview', 'analytics', 'queue', 'requests', 'audit']);
   assert.deepEqual(f.adminTabs('user', false), []); assert.deepEqual(f.adminTabs(undefined, false), []);
   const cards = f.statCards({ uptimeMs: 3600000, overhead: { level: 'ok', eventLoopMeanMs: 3, eventLoopP99Ms: 9, rssMb: 410 }, concurrency: { activeTotalStreams: 12, maxGlobalRcloneStreams: 40, globalStreamQueueLength: 0, peaksSinceBoot: { globalStreamQueueLength: 5 } }, api: { uniqueDownloads: 99, auth: { success: 7, failure: 1 } } });
   assert.equal(cards.find((c) => c.label === 'Uptime').value, '1h 0m'); assert.equal(cards.find((c) => c.label === 'Active streams').hint, 'limit 40'); assert.equal(cards.find((c) => c.label === 'Logins').hint, '1 failed');
   assert.deepEqual(f.statCards(null), []);
+  const rep = { headline: { totalEvents: 1234, today: 5, thisWeek: 40, thisMonth: 160, totalUsers: 90, users7d: 20, users30d: 50, catalogTotal: 300, catalog30d: 120, redownloadRate: 12 }, growth: { retentionBase: 10, retentionReturned: 4 } };
+  const ac = f.analyticsCards(rep); assert.equal(ac.find((c) => c.label === 'Downloads, all time').value, '1,234'); assert.equal(ac.find((c) => c.label === '30-day retention').value, '40%'); assert.equal(ac.find((c) => c.label === 'Re-download rate').value, '12%');
+  assert.deepEqual(f.dailySeries([{ day: '2026-11-18', downloads: 7 }]), { labels: ['11-18'], values: [7] });
+  assert.equal(f.hourSeries([{ hour: 3, n: 9 }]).values[3], 9); assert.equal(f.hourSeries([]).values.length, 24); assert.equal(f.dowSeries([{ dow: 2, n: 4 }]).values[2], 4); assert.equal(f.dowSeries([]).labels[0], 'Sun');
+  const hg = f.heatmapGrid([{ dow: 1, hour: 20, n: 50 }, { dow: 9, hour: 1, n: 5 }]); assert.equal(hg.grid[1][20], 50); assert.equal(hg.max, 50); assert.equal(hg.grid.length, 7);
+  assert.deepEqual(f.loyaltyRows({ t1: 5, t3: 2 }).map((r) => r.n), [5, 0, 2, 0, 0]);
+  assert.deepEqual(f.topRows([{ title: 'A', total: 10 }, { title: 'B', total: 5 }], 'title', 'total'), [{ label: 'A', value: 10, pct: 100 }, { label: 'B', value: 5, pct: 50 }]); assert.deepEqual(f.topRows(null, 'a', 'b'), []);
+  assert.deepEqual(f.moverRows([{ title: 'X', recent_n: 9, prior_n: 3, pct_change: 200 }]), [{ title: 'X', now: 9, before: 3, change: '+200%' }]);
   for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing']) { const c = f.confirmText(a, { ip: '1.2.3.4', id: 5, title: 'T', status: 'approved', gameKey: 'k' }); assert.ok(c && c.title && c.text && c.ok, a); }
   assert.equal(f.confirmText('somethingElse'), null);
   assert.ok(f.confirmText('banIp', { ip: '1.2.3.4' }).text.includes('1.2.3.4')); assert.ok(f.confirmText('requestStatus', { id: 5, title: 'Halo', status: 'rejected' }).text.includes('"rejected"'));
@@ -33,7 +41,7 @@ test('admin formatting helpers', async () => {
 test('admin actions are a fixed list, validated, each behind a confirmation, and only for owners and admins', () => {
   const bridge = read('native', 'bridge.js'), app = read('renderer', 'native', 'app.mjs'), view = read('renderer', 'native', 'admin.mjs');
   const block = bridge.slice(bridge.indexOf('const ADMIN_GET'), bridge.indexOf("// The publisher collections"));
-  for (const route of ['/api/admin/stats', '/api/admin/system-details', '/api/admin/user-activity', '/api/admin/queue', '/api/admin/requests', '/api/admin/missing-covers']) assert.ok(block.includes("'" + route + "'"), route);
+  for (const route of ['/api/admin/stats', '/api/admin/system-details', '/api/admin/user-activity', '/api/admin/queue', '/api/admin/requests', '/api/admin/missing-covers', '/api/admin/report-data']) assert.ok(block.includes("'" + route + "'"), route);
   assert.ok(block.includes('Unknown admin page') && block.includes('A-Za-z_ -'));
   const acts = bridge.slice(bridge.indexOf("ipcMain.handle('native:adminDo'"), bridge.indexOf("// The publisher collections"));
   for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing']) assert.ok(acts.includes("case '" + a + "'"), a);

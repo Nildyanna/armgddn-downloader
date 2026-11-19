@@ -42,7 +42,7 @@ export function tableColumns(rows, max = 8) {
 // Which pages this member may open. The server decides what it really returns; this only decides which tabs to show.
 export function adminTabs(role, canManage) {
   const tabs = [];
-  if (role === 'owner' || role === 'admin') tabs.push(['overview', 'Overview']);
+  if (role === 'owner' || role === 'admin') tabs.push(['overview', 'Overview'], ['analytics', 'Analytics']);
   if (role === 'owner') tabs.push(['system', 'System'], ['activity', 'Activity'], ['missing', 'Missing art'], ['ipbans', 'IP bans'], ['access', 'Access'], ['controls', 'Controls']);
   if (canManage) tabs.push(['queue', 'Queue'], ['requests', 'Requests'], ['audit', 'Audit']);
   return tabs;
@@ -110,3 +110,40 @@ export function confirmText(action, a = {}) {
     default: return null;
   }
 }
+
+// ---- Analytics report (the site's /api/admin/report-data) ----
+const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+export const DOW_LABELS = DOW;
+
+export function analyticsCards(d) {
+  const h = (d && d.headline) || {}, g = (d && d.growth) || {};
+  const out = [];
+  const add = (label, value, hint) => { if (value !== undefined && value !== null) out.push({ label, value: num(value).toLocaleString('en-US'), hint: hint || '' }); };
+  add('Downloads, all time', h.totalEvents); add('Downloads today', h.today); add('This week', h.thisWeek); add('This month', h.thisMonth);
+  add('Members who downloaded', h.totalUsers); add('Active in 7 days', h.users7d); add('Active in 30 days', h.users30d);
+  add('Titles downloaded', h.catalogTotal, h.catalog30d != null ? num(h.catalog30d).toLocaleString('en-US') + ' in the last 30 days' : '');
+  if (h.redownloadRate != null) out.push({ label: 'Re-download rate', value: num(h.redownloadRate) + '%', hint: '' });
+  if (g.retentionBase) out.push({ label: '30-day retention', value: Math.round(100 * num(g.retentionReturned) / num(g.retentionBase)) + '%', hint: num(g.retentionReturned) + ' of ' + num(g.retentionBase) + ' came back' });
+  return out;
+}
+export function dailySeries(rows) { const r = rows || []; return { labels: r.map((x) => String(x.day || '').slice(5)), values: r.map((x) => num(x.downloads)) }; }
+export function weeklySeries(rows) { const r = rows || []; return { labels: r.map((x) => String(x.week || '')), values: r.map((x) => num(x.downloads)) }; }
+export function newUsersSeries(rows, key) { const r = rows || []; return { labels: r.map((x) => String(x[key] || '')), values: r.map((x) => num(x.newUsers)) }; }
+export function hourSeries(rows) { const by = new Map((rows || []).map((x) => [num(x.hour), num(x.n)])); const labels = [], values = []; for (let h = 0; h < 24; h++) { labels.push(String(h)); values.push(by.get(h) || 0); } return { labels, values }; }
+export function dowSeries(rows) { const by = new Map((rows || []).map((x) => [num(x.dow), num(x.n)])); return { labels: DOW.slice(), values: DOW.map((_, i) => by.get(i) || 0) }; }
+export function heatmapGrid(rows) {
+  const grid = DOW.map(() => Array(24).fill(0)); let max = 0;
+  for (const r of rows || []) { const d = num(r.dow), h = num(r.hour); if (d >= 0 && d < 7 && h >= 0 && h < 24) { grid[d][h] = num(r.n); if (grid[d][h] > max) max = grid[d][h]; } }
+  return { grid, max };
+}
+export function loyaltyRows(t) {
+  const x = t || {};
+  return [['1 download', x.t1], ['2 to 5', x.t2], ['6 to 10', x.t3], ['11 to 25', x.t4], ['More than 25', x.t5]].map(([label, n]) => ({ label, n: num(n) }));
+}
+export function topRows(list, labelKey, valueKey, limit = 25) {
+  const rows = (list || []).slice(0, limit).map((x) => ({ label: String(x[labelKey] || ''), value: num(x[valueKey]) }));
+  const max = rows.reduce((m, r) => Math.max(m, r.value), 0);
+  return rows.map((r) => ({ ...r, pct: max ? Math.round(100 * r.value / max) : 0 }));
+}
+export function moverRows(list) { return (list || []).map((x) => ({ title: x.title, now: num(x.recent_n), before: num(x.prior_n), change: (num(x.pct_change) > 0 ? '+' : '') + num(x.pct_change) + '%' })); }
