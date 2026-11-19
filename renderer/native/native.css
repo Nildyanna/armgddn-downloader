@@ -594,3 +594,7 @@ header select + select { margin-left: 0; }
 .bval { font-size: 10px; color: var(--dim); line-height: 1.4; white-space: nowrap; }
 .blabels { display: flex; gap: 3px; padding-left: 38px; font-size: 10px; color: var(--dim); }
 .blabels span { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; overflow: visible; }
+
+.pbadge { margin-left: 6px; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; letter-spacing: .05em; vertical-align: middle; }
+.pbadge.pc { background: rgba(80, 150, 230, .2); color: #8cc4ff; border: 1px solid rgba(80, 150, 230, .5); }
+.pbadge.pcvr { background: rgba(170, 110, 240, .2); color: #cfa4ff; border: 1px solid rgba(170, 110, 240, .5); }
