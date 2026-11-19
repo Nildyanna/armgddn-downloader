@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.33.0] - 2026-11-19
+
+### Changed
+- Admin charts say what each bar is, show the values and the peak, and have hover notes. The last row of chart cards is centered.
+
+### Fixed
+- The Desert Dusk header curve clipped the Logout button.
+
 ## [5.32.0] - 2026-11-19
 
 ### Added

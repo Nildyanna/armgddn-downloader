@@ -1,4 +1,11 @@
 {
+  "5.33.0": {
+    "title": "Clearer Charts",
+    "highlights": [
+      "Admin charts say what each bar means, show the values and the peak, and the last row of chart cards is centered.",
+      "Desert Dusk no longer cuts off the Logout button."
+    ]
+  },
   "5.32.0": {
     "title": "Admin Polish",
     "highlights": [
