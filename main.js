@@ -2305,6 +2305,12 @@ async function loadSessionAsync() {
   }
 }
 
+// The saved sign-in is readable by this user only (matters when the system has no keychain and the token is not encrypted).
+function writeSessionFile(sessionPath, data) {
+  fs.writeFileSync(sessionPath, JSON.stringify(data, null, 2), { mode: 0o600 });
+  try { fs.chmodSync(sessionPath, 0o600); } catch (e) { /* not supported on this system */ }
+}
+
 // Save app session token to file (encrypted)
 function saveSession(token) {
   try { scheduleNativeGateCheck(4000); } catch (e) { }
@@ -2323,7 +2329,7 @@ function saveSession(token) {
         try {
           let tok = token, enc = false;
           if (await secureStore.isAvailable()) { tok = (await secureStore.encrypt(token)).toString('base64'); enc = true; }
-          fs.writeFileSync(sessionPath, JSON.stringify({ token: tok, expiresAt, encrypted: enc }, null, 2));
+          writeSessionFile(sessionPath, { token: tok, expiresAt, encrypted: enc });
           logToFile('Session saved to file (encrypted: ' + enc + ')');
         } catch (e) { logToFile('Failed to save session: ' + e.message); }
       })();
@@ -2337,7 +2343,7 @@ function saveSession(token) {
       encrypted = true;
     }
 
-    fs.writeFileSync(sessionPath, JSON.stringify({ token: storedToken, expiresAt, encrypted }, null, 2));
+    writeSessionFile(sessionPath, { token: storedToken, expiresAt, encrypted });
     sessionToken = token;
     logToFile('Session saved to file (encrypted: ' + encrypted + ')');
   } catch (e) {
@@ -2782,6 +2788,17 @@ async function addReadListToKomga(listId) {
 }
 
 // Handle deep link
+async function confirmKomgaDeepLink(listId) {
+  if (!komga.isValidListId(listId)) return false;
+  const name = String((KOMGA_LISTS[listId] && KOMGA_LISTS[listId].title) || listId);
+  const r = await withDialogFocus(() => dialog.showMessageBox(getDialogParentWindow(), {
+    type: 'question', buttons: ['Add it', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true,
+    title: 'Add to My Komga', message: 'Add the reading order "' + name + '" to your Komga?',
+    detail: 'A link asked the Companion to add this reading order. Choose Cancel if you did not click Add to My Komga on the ARMGDDN site.'
+  }));
+  return !!r && r.response === 0;
+}
+
 function handleDeepLink(url) {
   // Validate before processing
   const validatedUrl = validateDeepLink(url);
@@ -2811,7 +2828,7 @@ function handleDeepLink(url) {
       // Opens the "only what I'm missing" panel for a reading order. The token minted by the site is kept in memory only (never saved
       // as the Companion's own sign-in) and is used for the catalog and the downloads of this session.
       const tok = String(u.searchParams.get('token') || '');
-      if (tok) { comicsState.token = tok; try { saveSession(tok); } catch (e) { /* keep the in-memory copy */ } }
+      if (tok) { comicsState.token = tok; }   // memory only: a link on a web page must never replace the member's saved sign-in
       logToFile(`[deeplink] comics opened, site token ${tok ? 'received' : 'missing'}`);
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
       const open = () => sendToMain('comics-open', { listId: String(u.searchParams.get('list') || 'all'), folder: String(u.searchParams.get('folder') || '') });
@@ -2821,7 +2838,7 @@ function handleDeepLink(url) {
     if (u.hostname === 'music') {
       // Same as comics: opens the "only what I'm missing" panel; the site's token is kept in memory for this session only.
       const tok = String(u.searchParams.get('token') || '');
-      if (tok) { musicState.token = tok; try { saveSession(tok); } catch (e) { /* keep the in-memory copy */ } }
+      if (tok) { musicState.token = tok; }   // memory only, same reason
       logToFile(`[deeplink] music opened, site token ${tok ? 'received' : 'missing'}`);
       try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
       const open = () => sendToMain('music-open', { folder: String(u.searchParams.get('folder') || '') });
@@ -2829,7 +2846,9 @@ function handleDeepLink(url) {
       return;
     }
     if (u.hostname === 'komga') {
-      addReadListToKomga(u.searchParams.get('list')).catch(e => logToFile('Komga add failed: ' + (e && e.message ? e.message : e)));
+      // A link on any web page can open this, so the member is asked before anything is added to their Komga.
+      const listId = u.searchParams.get('list');
+      confirmKomgaDeepLink(listId).then((ok) => ok && addReadListToKomga(listId)).catch(e => logToFile('Komga add failed: ' + (e && e.message ? e.message : e)));
       return;
     }
   } catch (e) { }

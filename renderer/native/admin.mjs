@@ -1,7 +1,7 @@
 // The Admin pages of the built-in window (phase 1: read only). Shown only to owners and admins; the site decides what each role may see.
 import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
 import './ownerRouting.js';
-import { usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -29,18 +29,21 @@ function useAdminAction(after) {
   const [pending, setPending] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
-  const run = (action, args) => { setMsg(''); setPending({ action, args, c: confirmText(action, args) }); };
-  const go = async () => {
-    const p = pending; if (!p) return;
+  const exec = async (action, args) => {
     setBusy(true);
-    const r = await api.adminDo(p.action, p.args);
+    const r = await api.adminDo(action, args);
     setBusy(false); setPending(null);
+    if (r && r.ok && r.data && r.data.cancelled) { setMsg('Cancelled.'); return; }
     if (r && r.ok && r.data && r.data.success !== false) {
       const failed = r.data.failed && r.data.failed.length ? ' (not reset: ' + r.data.failed.join(', ') + ')' : '';
       setMsg((r.data.message || 'Done.') + failed);
       if (after) after();
     } else setMsg('Did not work: ' + ((r && r.error && r.error.message) || (r && r.data && r.data.error) || 'no answer'));
   };
+  // The sensitive actions are confirmed by the app itself in a system dialog it builds from the request (the page cannot confirm for the member);
+  // the rest ask in the page.
+  const run = (action, args) => { setMsg(''); if (NATIVE_CONFIRMED.includes(action)) exec(action, args); else setPending({ action, args, c: confirmText(action, args) }); };
+  const go = () => { const p = pending; if (p) exec(p.action, p.args); };
   const ui = html`<div>
     ${msg ? html`<div class="notice soft">${msg}</div>` : ''}
     ${pending ? html`<div class="overlay" onClick=${() => !busy && setPending(null)}><div class="modal" onClick=${(e) => e.stopPropagation()}>

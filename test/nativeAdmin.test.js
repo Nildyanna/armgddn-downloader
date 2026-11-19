@@ -73,7 +73,7 @@ test('admin actions are a fixed list, validated, each behind a confirmation, and
   assert.ok(acts.includes('Unknown admin action') && acts.includes('A-Fa-f') || acts.includes('a-fA-F'));
   assert.ok(!/api\.(put|del)\(/.test(acts) && !acts.includes('/api/admin/requests/' + '${id}`)' + ', {}'), 'no delete or free-form write');
   assert.ok(view.includes('useAdminAction') && view.includes('confirmText(') && view.includes('api.adminDo('), 'every action goes through the confirmation');
-  assert.ok(!/api\.adminDo\(/.test(view.replace(/const r = await api\.adminDo\(p\.action, p\.args\);/, '')), 'adminDo is only called from the confirmation step');
+  assert.ok(!/api\.adminDo\(/.test(view.replace(/const r = await api\.adminDo\(action, args\);/, '')), 'adminDo is only called from the confirmation step');
   assert.ok(app.includes("a.data.role === 'owner' || a.data.role === 'admin'") && app.includes("view === 'admin' && admin"), 'the tab and the page need the role the site reported');
   assert.ok(view.includes('export function AdminView') && view.includes('adminTabs('));
   assert.ok(read('preload-native.js').includes("adminGet: call('native:adminGet')"));

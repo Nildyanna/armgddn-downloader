@@ -129,6 +129,8 @@ export function missingRows(d, { what = 'all', query = '' } = {}) {
     .map((g) => ({ title: g.cleanTitle || g.gameKey, folder: g.gameKey, cover: g.missingCover ? 'Missing' : 'Has one', trailer: g.missingTrailer ? 'Missing' : 'Has one' }));
 }
 
+// Confirmed by the app in a system dialog (see native/bridge.js), not by the page: the actions that change the site for everyone.
+export const NATIVE_CONFIRMED = ['restartServer', 'resetQuota', 'resetApiStats', 'resetDownloadCache', 'refetchArt', 'autofixArt', 'banIp', 'unbanIp', 'banUser', 'accessAdd', 'accessRemove'];
 export const REQUEST_STATUS_CHOICES = ['pending', 'approved', 'rejected', 'completed', 'duplicate'];
 
 // What the member is asked to confirm before an admin action runs. Every action has one; the wording says what will happen and what it cannot undo.

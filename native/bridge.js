@@ -3,7 +3,8 @@
 // process. The page never sees the login token: it asks over IPC, and covers come through the private armgddn-img:// address.
 const path = require('path');
 const { createApiClient } = require('./apiClient');
-const { coverRoute } = require('./coverPath');
+const dns = require('dns');
+const { coverRoute, isPrivateAddress, isPublicHostName, MAX_COVER_BYTES } = require('./coverPath');
 
 // IPC replies are plain data, so errors travel as { ok: false, error: { kind, message, status } } instead of throwing across the bridge.
 const wrap = (fn) => async (_event, ...args) => {
@@ -52,14 +53,34 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     const go = () => { directRunning++; resolve(() => { directRunning--; const n = directQueue.shift(); if (n) n(); }); };
     if (directRunning < 3) go(); else directQueue.push(go);
   });
+  // One hop of a direct cover fetch: https only, a public address only (the name AND every address it resolves to), no automatic redirects, a time
+  // limit, an image type, and a size limit while it downloads.
+  async function coverHop(url) {
+    const u = new URL(url);
+    if (u.protocol !== 'https:' || !isPublicHostName(u.hostname)) throw new Error('blocked');
+    const addrs = await dns.promises.lookup(u.hostname, { all: true });
+    if (!addrs.length || addrs.some((x) => isPrivateAddress(x.address))) throw new Error('blocked');
+    return fetch(u.toString(), { redirect: 'manual', signal: AbortSignal.timeout(12000), headers: { 'User-Agent': `ARMGDDN-Companion/${version} (https://armgddnbrowser.com)` } });
+  }
+  async function readLimited(r) {
+    const len = Number(r.headers.get('content-length'));
+    if (Number.isFinite(len) && len > MAX_COVER_BYTES) throw new Error('too big');
+    const chunks = []; let total = 0;
+    for await (const c of r.body) { total += c.length; if (total > MAX_COVER_BYTES) throw new Error('too big'); chunks.push(Buffer.from(c)); }
+    return Buffer.concat(chunks);
+  }
   async function fetchDirect(url) {
     const release = await directSlot();
     try {
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const r = await fetch(url, { headers: { 'User-Agent': `ARMGDDN-Companion/${version} (https://armgddnbrowser.com)` } });
-        if (r.status === 429 && attempt === 0) { await new Promise((res) => setTimeout(res, Math.min(5000, (Number(r.headers.get('retry-after')) || 2) * 1000))); continue; }
-        if (!r.ok) { try { log('[Native] cover failed: direct ' + r.status + ' ' + new URL(url).hostname); } catch (e3) { } return null; }
-        return { buf: Buffer.from(await r.arrayBuffer()), type: r.headers.get('content-type') || 'image/jpeg' };
+      let cur = url;
+      for (let hop = 0, attempt = 0; hop < 4; hop++) {
+        const r = await coverHop(cur);
+        if (r.status >= 300 && r.status < 400 && r.headers.get('location')) { cur = new URL(r.headers.get('location'), cur).toString(); continue; }   // each redirect is checked again
+        if (r.status === 429 && attempt === 0) { attempt++; hop--; await new Promise((res) => setTimeout(res, Math.min(5000, (Number(r.headers.get('retry-after')) || 2) * 1000))); continue; }
+        if (!r.ok) { try { log('[Native] cover failed: direct ' + r.status + ' ' + new URL(cur).hostname); } catch (e3) { } return null; }
+        const type = String(r.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+        if (!/^image\/(jpeg|png|webp|gif|avif|bmp|svg\+xml)$/.test(type)) return null;
+        return { buf: await readLimited(r), type };
       }
       return null;
     } catch (e) { return null; } finally { release(); }
@@ -106,8 +127,30 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   const REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'completed', 'duplicate'];
   const bad = (m) => Object.assign(new Error(m), { kind: 'http', status: 400 });
   const text = (v, max) => String(v == null ? '' : v).slice(0, max);
+  // The actions that change the site for everyone are confirmed here, in a system dialog the app builds itself from the validated request: a page
+  // that has been tampered with cannot click through it, and the site still checks the member's role. The wording is the app's own.
+  const NATIVE_CONFIRM = {
+    restartServer: ['Restart the server', 'The website restarts now. Everyone is disconnected for about a minute.', 'Restart it'],
+    resetQuota: ['Reset mirror quota', 'Mark every PC and PCVR mirror as available again, even if the storage provider is still limiting downloads.', 'Reset it'],
+    resetApiStats: ['Reset the usage numbers', 'Set the request and download counts, current and all-time, back to zero. This cannot be undone.', 'Reset them'],
+    resetDownloadCache: ['Reset the download cache', 'Delete every cached file on the site.', 'Reset it'],
+    refetchArt: ['Re-fetch all game art', 'Look every game up again on Steam and SteamGridDB. A long job on the server.', 'Start it'],
+    autofixArt: ['Auto-fix covers', 'Look up every game missing a cover on Steam and fill in what can be found.', 'Run it'],
+    banIp: ['Ban an IP address', (a) => `Ban ${text(a.ip, 45)}. Anyone on it is blocked from the site.`, 'Ban it'],
+    unbanIp: ['Unban an IP address', (a) => `Let ${text(a.ip, 45)} use the site again.`, 'Unban it'],
+    banUser: ['Ban a member', (a) => `Ban the member with Telegram id ${text(a.id || a.telegramId, 20)} from the site.`, 'Ban them'],
+    accessAdd: ['Add an admin', (a) => `Add Telegram id ${text(a.id, 20)} to the ${a.list === 'request' ? 'request admin' : 'full admin'} list.`, 'Add them'],
+    accessRemove: ['Remove an admin', (a) => `Remove Telegram id ${text(a.id, 20)} from the ${a.list === 'request' ? 'request admin' : 'full admin'} list.`, 'Remove them'],
+  };
+  async function confirmAdminAction(action, a) {
+    const c = NATIVE_CONFIRM[action];
+    if (!c) return true;
+    const r = await dialog.showMessageBox(win, { type: 'warning', buttons: [c[2], 'Cancel'], defaultId: 1, cancelId: 1, noLink: true, title: 'Confirm: ' + c[0], message: c[0], detail: typeof c[1] === 'function' ? c[1](a) : c[1] });
+    return r.response === 0;
+  }
   ipcMain.handle('native:adminDo', wrap(async (action, args) => {
     const a = args && typeof args === 'object' ? args : {};
+    if (NATIVE_CONFIRM[String(action)] && !(await confirmAdminAction(String(action), a))) return { success: true, cancelled: true };
     switch (String(action)) {
       case 'resetQuota': {
         const failed = [];
