@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.28.0] - 2026-11-19
+
+### Added
+- **Watchlist** in the built-in window: "Tell me when it is added" under a search, and My watchlist. Same list as the website.
+- **Newest / Older** tags when the same game is in more than one place with different builds.
+- **Closest-title search** when nothing matches exactly, and a line saying when a title is also in another section.
+- **Comics** show their proper title, issue number, release date and a ComicVine tag, listed in release order.
+- **Publisher collections** (Marvel, DC) with Download All at the top of Comics, under the Komga box.
+- **Quota:** a section whose download quota is used up is dimmed. Folders that only point to the other server say "You must download from PCVR server" (or PC) with a Go there button.
+- **Help > About** with the version and a Copy details button.
+
+### Changed
+- The Wiki in the built-in window is rewritten for the app (Komga and Linux sections carried over).
+
 ## [5.27.0] - 2026-11-19
 
 ### Changed

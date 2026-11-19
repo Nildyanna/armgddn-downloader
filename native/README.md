@@ -10,7 +10,7 @@ built into the app. It opens only when the app starts with `--native`; without t
   token + deep-link path the website uses, requests, README, links (https allowlist).
 - `native/apiClient.js`: at most 6 calls at a time, GET cache, 429/5xx retries, image cache.
 - `native/vendor/`: Preact, htm, hls.js (no build step). Licenses beside them.
-- `renderer/native/`: `app.mjs` (screens), `format.mjs` (pure helpers, all tested), `native.css`, `wiki.json` (copied from the site by `scripts/extract_wiki.py`).
+- `renderer/native/`: `app.mjs` (screens), `format.mjs` (pure helpers, all tested), `native.css`, `wiki.json` (hand written for the app since 5.28.0; `scripts/extract_wiki.py`).
 - `preload-native.js`: the only things the page can call.
 - Tests: `test/native*.test.js` (19 pass). Run: `node --test test/native*.test.js`.
 

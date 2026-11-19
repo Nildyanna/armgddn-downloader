@@ -1,4 +1,17 @@
 {
+  "5.28.0": {
+    "title": "More From The Website, Built In",
+    "highlights": [
+      "Tell me when it is added: a watchlist inside the app. You get a Telegram message when a title is added or a newer build appears.",
+      "Newest and Older tags when the same game is in two builds.",
+      "Search suggests the closest titles when you mistype, and says when a title is also in another section.",
+      "Comics show their proper title, issue number, release date and a ComicVine tag, in release order.",
+      "Publisher collections (Marvel, DC) have a Download All button at the top of Comics, under the Komga box.",
+      "Sections at quota are dimmed, and folders that point to the other server say which one to use.",
+      "The Wiki is rewritten for the app.",
+      "Help > About shows the version and can copy the details."
+    ]
+  },
   "5.27.0": {
     "title": "A Tidier Settings Page",
     "highlights": [
