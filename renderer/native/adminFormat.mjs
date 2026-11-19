@@ -42,7 +42,7 @@ export function tableColumns(rows, max = 8) {
 // Which pages this member may open. The server decides what it really returns; this only decides which tabs to show.
 export function adminTabs(role, canManage) {
   const tabs = [];
-  if (role === 'owner' || role === 'admin') tabs.push(['overview', 'Overview'], ['analytics', 'Analytics'], ['collections', 'Music and Comics']);
+  if (role === 'owner' || role === 'admin') tabs.push(['overview', 'Overview'], ['analytics', 'Analytics'], ['collections', 'Music and Comics'], ['reliability', 'Reliability']);
   if (role === 'owner') tabs.push(['system', 'System'], ['activity', 'Activity'], ['missing', 'Missing art'], ['ipbans', 'IP bans'], ['access', 'Access'], ['controls', 'Controls']);
   if (canManage) tabs.push(['queue', 'Queue'], ['requests', 'Requests'], ['audit', 'Audit']);
   return tabs;
@@ -166,4 +166,13 @@ export function requestsSummary(rows) {
   const by = {};
   for (const r of rows || []) { const c = r.category || 'Other'; (by[c] = by[c] || {})[r.status || 'unknown'] = num(r.n); }
   return Object.entries(by).flatMap(([category, st]) => Object.entries(st).map(([status, n]) => ({ category, status, requests: n })));
+}
+
+// ---- Reliability (the site's /api/admin/status-report) ----
+const pct = (v) => (v == null ? '-' : (Math.round(num(v) * 100) / 100) + '%');
+export function uptimeRows(list) { return (list || []).map((u) => ({ service: String(u.label || '').replace(/ \(.*\)$/, ''), last24h: pct(u.d1), last7days: pct(u.d7), last30days: pct(u.d30) })); }
+export function outageRows(list) { return (list || []).map((o) => ({ service: o.label, type: o.level === 'down' ? 'Down' : 'Degraded', started: o.start, length: formatUptime(o.lengthMs) + (o.ongoing ? ' (ongoing)' : '') })); }
+export function dailyUptime(list) {
+  const r = list || [];
+  return { labels: r.map((x) => String(x.day || '').slice(5, 10)), values: r.map((x) => (x.pct == null ? 0 : Math.round(num(x.pct) * 10) / 10)), colors: r.map((x) => (x.pct == null ? 'transparent' : x.pct >= 99.9 ? '#4ade80' : x.pct >= 90 ? '#fb923c' : '#ef4444')) };
 }

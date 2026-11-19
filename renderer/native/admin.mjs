@@ -1,6 +1,6 @@
 // The Admin pages of the built-in window (phase 1: read only). Shown only to owners and admins; the site decides what each role may see.
 import { html, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
-import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, DOW_LABELS } from './adminFormat.mjs';
+import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -165,13 +165,13 @@ function MissingPage() {
 }
 
 // Charts are drawn here as plain SVG (no chart library): bars with a hover note, a heat grid, and ranked lists with inline bars.
-function BarChart({ labels, values, height = 150, every }) {
+function BarChart({ labels, values, height = 150, every, colors }) {
   const W = 640, H = height, pad = 22, n = values.length || 1;
   const max = Math.max(1, ...values);
   const bw = (W - pad) / n;
   const step = every || Math.max(1, Math.ceil(n / 12));
   return html`<svg class="achart" viewBox=${'0 0 ' + W + ' ' + (H + 18)} role="img" preserveAspectRatio="none">
-    ${values.map((v, i) => { const h = Math.max(v ? 1 : 0, Math.round((H - 6) * v / max)); return html`<rect key=${i} x=${pad + i * bw + 1} y=${H - h} width=${Math.max(1, bw - 2)} height=${h} rx="1.5" class="abar"><title>${labels[i]}: ${v.toLocaleString('en-US')}</title></rect>`; })}
+    ${values.map((v, i) => { const h = Math.max(v ? 1 : 0, Math.round((H - 6) * v / max)); return html`<rect key=${i} x=${pad + i * bw + 1} y=${H - h} width=${Math.max(1, bw - 2)} height=${h} rx="1.5" class="abar" style=${colors && colors[i] ? 'fill:' + colors[i] + ';opacity:.9' : ''}><title>${labels[i]}: ${v.toLocaleString('en-US')}</title></rect>`; })}
     ${labels.map((l, i) => (i % step === 0 ? html`<text key=${'t' + i} x=${pad + i * bw + bw / 2} y=${H + 13} text-anchor="middle" class="atick">${l}</text>` : ''))}
     <text x="0" y="10" class="atick">${max.toLocaleString('en-US')}</text>
   </svg>`;
@@ -257,6 +257,20 @@ function CollectionsPage() {
   </div>`;
 }
 
+function ReliabilityPage() {
+  const [st, reload] = useAdminData('reliability', {}, 120);
+  if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
+  const d = st.data, daily = dailyUptime(d.daily);
+  return html`<div>
+    <p class="sval">Monitoring since ${d.monitoringSince ? new Date(d.monitoringSince).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'unknown'}. Each service is checked every minute.</p>
+    <h4 class="asub">Uptime by service</h4>
+    <${DataTable} rows=${uptimeRows(d.uptime)} columns=${['service', 'last24h', 'last7days', 'last30days']} empty="No data yet." />
+    <div class="agrid"><${Panel} title="Percent of each day with every service up" wide=${true}><${BarChart} labels=${daily.labels} values=${daily.values} colors=${daily.colors} every=${3} /><//></div>
+    <h4 class="asub">Outages</h4>
+    <${DataTable} rows=${outageRows(d.outages)} columns=${['service', 'type', 'started', 'length']} empty="No outages recorded since monitoring began." />
+  </div>`;
+}
+
 function IpBansPage() {
   const [st, reload] = useAdminData('ipbans', {}, 0);
   const [actionUi, act] = useAdminAction(() => reload());
@@ -296,6 +310,6 @@ export function AdminView({ admin }) {
   return html`<main class="adminpage">
     <h2>Admin</h2>
     <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${id === cur ? 'tab on' : 'tab'} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
-    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
+    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'reliability' ? html`<${ReliabilityPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;
 }
