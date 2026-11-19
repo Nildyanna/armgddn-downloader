@@ -457,18 +457,27 @@ function ToolsView({ say }) {
 // "Check for updates" in Settings: asks GitHub's latest release now, and says plainly what it found. The Companion also checks by itself once an hour.
 function UpdateRow({ say }) {
   const [state, setState] = useState({ busy: false, text: '' });
+  const [found, setFound] = useState(null);     // an update was found: the button now installs it
+  const install = async () => {
+    setState({ busy: true, text: 'Updating... ARMGDDN Browser will restart by itself.' });
+    try {
+      const r = await api.installUpdate({ silent: true, relaunchAfterInstall: true, source: 'native-settings' });
+      if (r && r.success === false && !r.installerPath) setState({ busy: false, text: (r && r.error) || 'The update could not be started' });
+    } catch (e) { setState({ busy: false, text: 'The update could not be started' }); }
+  };
   const check = async () => {
     setState({ busy: true, text: 'Checking...' });
     try {
       const r = await api.checkUpdates();
       if (!r || r.error) setState({ busy: false, text: 'Could not check: ' + ((r && r.error) || 'no answer') });
-      else if (r.hasUpdate) setState({ busy: false, text: `v${r.latestVersion} is available (you have v${r.version}). The Update now bar at the top will install it.` });
+      else if (r.hasUpdate) setState({ busy: false, text: `v${r.latestVersion} is available (you have v${r.version}). Finish or pause your downloads first: updating restarts ARMGDDN Browser.` });
+      if (r.hasUpdate && r.canAutoInstall) setFound(r);
       else setState({ busy: false, text: `You are on the latest version (v${r.version}).` });
       if (r && r.hasUpdate) { try { window.dispatchEvent(new CustomEvent('native-update-found', { detail: r })); } catch (e) { } }
     } catch (e) { setState({ busy: false, text: 'Could not check for updates.' }); }
   };
   useEffect(() => { const run = () => check(); window.addEventListener('native-run-update-check', run); return () => window.removeEventListener('native-run-update-check', run); }, []);
-  return html`<div class="srow"><span class="slabel">ARMGDDN Browser updates <span class="sval">${state.text || 'It checks once an hour by itself.'}</span></span><button class="dbtn" disabled=${state.busy} onClick=${check}>Check for updates</button></div>`;
+  return html`<div class="srow"><span class="slabel">ARMGDDN Browser updates <span class="sval">${state.text || 'It checks once an hour by itself.'}</span></span>${found ? html`<button class="dbtn go" disabled=${state.busy} onClick=${install}>Update to v${found.latestVersion}</button>` : html`<button class="dbtn" disabled=${state.busy} onClick=${check}>Check for updates</button>`}</div>`;
 }
 
 // The download schedule, as in the classic Settings: pause or slow downloads between two times on chosen days.
