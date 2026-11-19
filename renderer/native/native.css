@@ -131,6 +131,10 @@ header select + select { margin-left: 0; }
 
 .settings { max-width: 760px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 10px; }
 .settings h2 { margin: 0 0 6px; }
+.sgroup { display: flex; flex-direction: column; gap: 0; margin-top: 12px; padding: 4px 14px 6px; background: var(--card, var(--card2)); border: 1px solid var(--line); border-radius: 10px; }
+.sgroup h3 { margin: 8px 0 4px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.sgroup .srow { background: none; border: 0; border-radius: 0; padding: 10px 0; border-top: 1px solid var(--line); }
+.sgroup h3 + .srow, .sgroup h3 + div > .srow:first-child { border-top: 0; }
 .srow { display: flex; align-items: center; gap: 12px; padding: 8px 12px; background: var(--card, var(--card2)); border: 1px solid var(--line); border-radius: 8px; }
 .srow .slabel { flex: 1; }
 .srow .sval { color: var(--dim); font-size: 12px; max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -546,28 +546,55 @@ function SettingsView({ say, onPrefs, onOpenGame }) {
   const save = async (patch) => { const next = { ...s, ...patch }; setS(next); try { await api.saveSettings(patch); } catch (e) { say('Could not save'); } };
   const pickFolder = async (key) => { const r = await api.browseFolder(); if (r) save({ [key]: r }); };
   const folderRow = (key, label) => html`<div class="srow"><span class="slabel">${label}</span><span class="sval">${s[key] || 'Not set'}</span><button class="dbtn" onClick=${() => pickFolder(key)}>Change</button></div>`;
-  return html`<main class="settings">
-    <h2>Settings</h2>
-    <${UpdateRow} say=${say} />
-    <${WhatsNewButton} />
-    ${folderRow('downloadPath', 'Download folder')}
-    ${folderRow('comicsFolder', 'Comics folder')}
-    ${folderRow('musicFolder', 'Music folder')}
-    ${SETTING_ROWS.map(([kind, key, label, min, max]) => kind === 'select'
+  const settingRow = (k) => { const [kind, key, label, min, max] = SETTING_ROWS.find((r) => r[1] === k); return kind === 'select'
       ? html`<label class="srow"><span class="slabel">${label}</span><select value=${Number(s[key]) || 0} onChange=${(e) => save({ [key]: Number(e.target.value) })}>${min.map(([v, t]) => html`<option value=${v}>${t}</option>`)}</select></label>`
       : kind === 'check'
       ? html`<label class="srow"><input type="checkbox" checked=${!!s[key]} onChange=${(e) => save({ [key]: e.target.checked })} /> <span class="slabel">${label}</span></label>`
-      : html`<label class="srow"><span class="slabel">${label}</span><input type="number" min=${min} max=${max} value=${Number(s[key]) || 0} onChange=${(e) => { const n = Math.max(min, Math.min(max, Number(e.target.value) || 0)); save({ [key]: n }); }} /></label>`)}
-    <div class="srow"><span class="slabel">Import the settings of the installed Companion (folders, speed, toggles)</span><button class="dbtn" onClick=${async () => { const r = await api.importSettings(); if (r && r.same) say('This already is the installed Companion\'s settings'); else if (r && r.imported) { say('Imported ' + r.imported + ' settings'); const g = await api.getSettings(); if (g) setS(g); } else say('No installed Companion settings were found'); }}>Import</button></div>
-    <div class="srow"><span class="slabel">Import my website preferences (My List, theme, hidden sections, recent searches)</span><button class="dbtn" onClick=${() => setPrefsOpen(true)}>Import</button></div>
-    ${prefsOpen ? html`<${PrefsImport} onClose=${() => setPrefsOpen(false)} onApply=${onPrefs} say=${say} />` : ''}
-    <${ScheduleRow} s=${s} save=${save} />
-    <${GameUpdatesRow} onOpenGame=${onOpenGame} />
+      : html`<label class="srow"><span class="slabel">${label}</span><input type="number" min=${min} max=${max} value=${Number(s[key]) || 0} onChange=${(e) => { const n = Math.max(min, Math.min(max, Number(e.target.value) || 0)); save({ [key]: n }); }} /></label>`; };
+  return html`<main class="settings">
+    <h2>Settings</h2>
+    <section class="sgroup"><h3>Updates</h3>
+    <${UpdateRow} say=${say} />
+    <${WhatsNewButton} />
+    ${settingRow('autoUpdate')}
+    </section>
+    <section class="sgroup"><h3>Folders</h3>
+    ${folderRow('downloadPath', 'Download folder')}
+    ${folderRow('comicsFolder', 'Comics folder')}
+    ${folderRow('musicFolder', 'Music folder')}
+    </section>
+    <section class="sgroup"><h3>Downloads</h3>
+    ${settingRow('maxConcurrentDownloads')}
+    ${settingRow('connectionsPerFile')}
+    ${settingRow('maxDownloadSpeedMBps')}
+    ${settingRow('autoHashCheck')}
+    ${settingRow('autoExtract7z')}
     <${Help7zRow} />
-    <${SupportTools} say=${say} onApplyConnections=${(v) => save({ connectionsPerFile: v })} />
+    <${ScheduleRow} s=${s} save=${save} />
+    </section>
+    <section class="sgroup"><h3>Your games</h3>
+    <${GameUpdatesRow} onOpenGame=${onOpenGame} />
+    </section>
+    <section class="sgroup"><h3>The app and its window</h3>
+    ${settingRow('useNativeWindow')}
+    ${settingRow('showNotifications')}
+    ${settingRow('minimizeToTrayOnMinimize')}
+    ${settingRow('minimizeToTrayOnClose')}
+    ${settingRow('startWithOsStartup')}
+    ${settingRow('startWithOsMinimized')}
     <div class="srow"><span class="slabel">Login animation (lightning and thunder, loud)</span><button class="dbtn" onClick=${() => mountLoginLightning()}>Replay</button></div>
     <label class="srow"><input type="checkbox" checked=${localStorage.getItem('native.lightningOff') !== '1'} onChange=${(e) => { try { localStorage.setItem('native.lightningOff', e.target.checked ? '0' : '1'); } catch (er) { } }} /> <span class="slabel">Play the login animation on a first sign-in</span></label>
     <div class="srow"><span class="slabel">The classic window is still available</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
+    </section>
+    <section class="sgroup"><h3>Import</h3>
+    <div class="srow"><span class="slabel">Import the settings of the installed Companion (folders, speed, toggles)</span><button class="dbtn" onClick=${async () => { const r = await api.importSettings(); if (r && r.same) say('This already is the installed Companion\'s settings'); else if (r && r.imported) { say('Imported ' + r.imported + ' settings'); const g = await api.getSettings(); if (g) setS(g); } else say('No installed Companion settings were found'); }}>Import</button></div>
+    <div class="srow"><span class="slabel">Import my website preferences (My List, theme, hidden sections, recent searches)</span><button class="dbtn" onClick=${() => setPrefsOpen(true)}>Import</button></div>
+    ${prefsOpen ? html`<${PrefsImport} onClose=${() => setPrefsOpen(false)} onApply=${onPrefs} say=${say} />` : ''}
+    </section>
+    <section class="sgroup"><h3>Help and reports</h3>
+    ${settingRow('errorReporting')}
+    <${SupportTools} say=${say} onApplyConnections=${(v) => save({ connectionsPerFile: v })} />
+    </section>
   </main>`;
 }
 
