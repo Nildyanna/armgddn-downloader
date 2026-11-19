@@ -1,4 +1,12 @@
 {
+  "5.31.0": {
+    "title": "Live Admin Maps",
+    "highlights": [
+      "The Admin Overview has the live routing map and the service map, with moving dots that follow the traffic.",
+      "The Requests tab has the request flow map, and Overview has new Usage cards (total requests, downloads, download cache) with owner Reset buttons.",
+      "The Admin tab row is visible again, and times in Admin tables show as dates."
+    ]
+  },
   "5.30.1": {
     "title": "Tidier Layout",
     "highlights": [

@@ -15,6 +15,7 @@ const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/;
 export function formatCell(v) {
   if (v === null || v === undefined) return '';
   if (typeof v === 'boolean') return v ? 'Yes' : 'No';
+  if (typeof v === 'number' && v > 946684800000 && v < 4102444800000) return new Date(v).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
   if (typeof v === 'number') return Number.isFinite(v) ? v.toLocaleString('en-US') : '';
   if (typeof v === 'string') {
     if (ISO.test(v)) { const d = new Date(v); if (!isNaN(d)) return d.toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
@@ -67,6 +68,21 @@ export function statCards(s) {
   return out;
 }
 
+const fmtBytes = (n) => { n = Number(n) || 0; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i ? n.toFixed(n >= 100 ? 0 : 1) : String(n)) + ' ' + u[i]; };
+
+// The site panel's Usage cards: total requests, downloads and the download cache, each with its all-time figure where the site has one.
+export function usageCards(s) {
+  if (!s || typeof s !== 'object') return [];
+  const a = s.api || {}, t = s.apiAllTime || null;
+  const sum = (x) => (x.browseRequests || 0) + (x.remotesRequests || 0) + (x.downloadManifestRequests || 0);
+  const n = (v) => Number(v || 0).toLocaleString('en-US');
+  const out = [{ label: 'Total requests', value: n(sum(a)), hint: t ? 'all time ' + n(sum(t)) : '' }];
+  out.push({ label: 'Downloads', value: n(a.uniqueDownloads), hint: (t ? 'all time ' + n(t.uniqueDownloads) + ' - ' : '') + 'tokens / direct' });
+  const c = s.downloadCache;
+  if (c && c.enabled) out.push({ label: 'Download cache', value: fmtBytes(c.totalBytes), hint: 'max ' + (c.maxBytes ? fmtBytes(c.maxBytes) : 'unlimited') + ', entries ' + (c.totalEntries || 0) + ', active ' + (c.activeEntries || 0) + (c.pendingReset && c.activeEntries > 0 ? ', cooling down' : '') });
+  return out;
+}
+
 export function remoteRows(s) {
   return ((s && s.remotes) || []).map((r) => ({ name: r.name, status: r.status, lastChecked: r.lastStatusAt || '', lastError: r.lastError || '', failures: r.errorDetail ? r.errorDetail.failureCount : 0 }));
 }
@@ -103,6 +119,8 @@ export function confirmText(action, a = {}) {
   switch (action) {
     case 'resetQuota': return { title: 'Reset mirror quota', text: 'Mark every PC and PCVR mirror as available again, even if the storage provider is still limiting downloads. Members may hit errors if a mirror really is at its limit.', ok: 'Reset all mirrors' };
     case 'restartServer': return { title: 'Restart the server', text: 'The website restarts now. Everyone is disconnected for about a minute, and downloads in progress on the site side are interrupted. This app will show errors until it is back.', ok: 'Restart the server' };
+    case 'resetApiStats': return { title: 'Reset the usage numbers', text: 'Set the request and download counts, current and all-time, back to zero. They fill up again with new traffic. This cannot be undone.', ok: 'Reset them' };
+    case 'resetDownloadCache': return { title: 'Reset the download cache', text: 'Delete every cached file on the site. Downloads in progress finish first. Files are fetched again the next time someone asks for them.', ok: 'Reset it' };
     case 'banIp': return { title: 'Ban an IP address', text: `Ban ${a.ip || 'this address'}. Anyone on it is blocked from the site, and the other admins get a Telegram alert.`, ok: 'Ban it' };
     case 'unbanIp': return { title: 'Unban an IP address', text: `Let ${a.ip || 'this address'} use the site again.`, ok: 'Unban it' };
     case 'requestStatus': return { title: 'Change a request', text: `Set request ${a.id} (${a.title || 'untitled'}) to "${a.status}". The member who asked may be told.`, ok: 'Change it' };

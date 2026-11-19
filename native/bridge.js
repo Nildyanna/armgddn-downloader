@@ -116,6 +116,8 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
         return { success: true, failed };
       }
       case 'restartServer': return api.post('/api/admin/restart-server', {});
+      case 'resetApiStats': return api.post('/api/admin/reset-api-stats', {});
+      case 'resetDownloadCache': return api.post('/api/admin/reset-download-cache', {});
       case 'banIp': {
         const ip = text(a.ip, 45).trim();
         if (!/^[0-9a-fA-F:.]{3,45}$/.test(ip)) throw bad('That does not look like an IP address');

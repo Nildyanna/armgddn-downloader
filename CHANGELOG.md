@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.31.0] - 2026-11-19
+
+### Added
+- Admin Overview: the website's live routing map and service map. Requests: the request flow map.
+- Usage cards (total requests, downloads, download cache) and owner buttons to reset the usage numbers and the download cache.
+
+### Fixed
+- The Admin tab row collapsed after the 5.30.1 layout change.
+- Admin tables showed some times as raw numbers.
+
 ## [5.30.1] - 2026-11-19
 
 ### Fixed

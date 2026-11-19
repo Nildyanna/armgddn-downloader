@@ -1,6 +1,7 @@
 // The Admin pages of the built-in window (phase 1: read only). Shown only to owners and admins; the site decides what each role may see.
-import { html, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
-import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
+import './ownerRouting.js';
+import { usageCards, labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -85,12 +86,38 @@ function Status({ state, onRetry }) {
   return null;
 }
 
+
+// The website's live maps (routing, services, request flow), drawn by the same code and patched on every refresh.
+function LiveMap({ kind, data, onOpen }) {
+  const ref = useRef(null);
+  useEffect(() => {
+    const R = self.OwnerRouting;
+    if (!R || !ref.current || !data) return;
+    R.onOpen = (k, key, act) => (onOpen ? onOpen(k, key, act) : false);
+    try {
+      if (kind === 'routing') R.update(ref.current, R.buildModel(data));
+      else if (kind === 'services') R.updateServices(ref.current, data, (t) => new Date(t).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }));
+      else R.updateRequests(ref.current, data);
+    } catch (e) { console.warn('live map failed:', e && e.message); }
+  }, [kind, data]);
+  return html`<div class="livemap" ref=${ref}></div>`;
+}
+
 function Overview() {
   const [st, reload] = useAdminData('stats', {}, 15);
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
   const s = st.data;
+  const [site] = useAdminData('siteStatus', {}, 30);
+  const [actionUi, act] = useAdminAction(() => reload());
+  const owner = s.role === 'owner';
+  const cache = s.downloadCache;
   return html`<div>
+    ${actionUi}
+    <${LiveMap} kind="routing" data=${s} />
+    ${site.data ? html`<${LiveMap} kind="services" data=${site.data} />` : ''}
     <${Cards} items=${statCards(s)} />
+    <${Cards} items=${usageCards(s)} />
+    ${owner ? html`<div class="dbtns"><button class="dbtn" onClick=${() => act('resetApiStats', {})}>Reset usage numbers</button>${cache && cache.enabled ? html`<button class="dbtn" disabled=${!!(cache.pendingReset && cache.activeEntries > 0)} onClick=${() => act('resetDownloadCache', {})}>${cache.pendingReset && cache.activeEntries > 0 ? 'Cache cooling down...' : 'Reset download cache'}</button>` : ''}</div>` : ''}
     <h4 class="asub">Sections</h4>
     <${DataTable} rows=${remoteRows(s)} columns=${['name', 'status', 'lastChecked', 'failures', 'lastError']} />
     ${s.appDownloadsByRemote && Object.keys(s.appDownloadsByRemote).length ? html`<h4 class="asub">App downloads by section</h4><${Tree} value=${s.appDownloadsByRemote} />` : ''}
@@ -133,6 +160,7 @@ function RequestsPage({ audit }) {
   const rows = audit && by ? all.filter((r) => r.handledBy === by) : all;
   const stats = st.data.stats || {};
   return html`<div>
+    ${!audit ? html`<${LiveMap} kind="requests" data=${stats} />` : ''}
     ${!audit ? html`<${Cards} items=${['pending', 'approved', 'completed', 'rejected'].map((k) => ({ label: labelOf(k), value: String(stats[k] || 0), hint: '' })).concat([{ label: 'New in 7 days', value: String(stats.arrivals7 || 0), hint: '' }])} />` : ''}
     <div class="afilters">
       <label>Status <select value=${status} onChange=${(e) => setStatus(e.target.value)}>${REQUEST_STATUSES.map((s) => html`<option value=${s}>${s ? labelOf(s) : 'All'}</option>`)}</select></label>
