@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.30.0] - 2026-11-19
+
+### Added
+- **Status dock** for owners along the bottom of every page (the website's System widget): Status, Overhead, Loop,
+  Streams, Users, Speed and Queue, refreshed every 5 seconds, with 30 minute graphs that survive a restart.
+  The title, Overhead and Loop open Analytics; Status opens the site status window; Streams, Users, Speed and Queue
+  open their detail pages.
+- **Owner view** setting: turn it off to hide the Admin tab and the dock and see the app as a regular member.
+- **Admin:** re-fetch all game art (with a progress line), add or remove admins, ban a member by Telegram id,
+  look up a member, reload the art overrides, and set a cover or a YouTube trailer from Missing art.
+  Each action asks for confirmation first.
+
 ## [5.29.0] - 2026-11-19
 
 ### Added

@@ -1,4 +1,14 @@
 {
+  "5.30.0": {
+    "title": "The Owner's Dock",
+    "highlights": [
+      "Owners get a status strip along the bottom of every page: Status, Overhead, Loop, Streams, Users, Speed and Queue, with 30-minute graphs.",
+      "Click Status for the site status window. Click Streams, Users, Speed or Queue for their details. Click Loop or the System title for the analytics report.",
+      "Owner view in Settings hides the Admin tab and the dock so you can see the app as a regular member.",
+      "Admin: re-fetch all game art, with progress. It asks you to confirm first.",
+      "Admin: add or remove admins, ban a member by Telegram ID, look up a member, reload the art overrides, and set a cover or a YouTube trailer."
+    ]
+  },
   "5.29.0": {
     "title": "Admin, Built In",
     "highlights": [
