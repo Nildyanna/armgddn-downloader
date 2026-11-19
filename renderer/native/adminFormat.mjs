@@ -43,7 +43,7 @@ export function tableColumns(rows, max = 8) {
 export function adminTabs(role, canManage) {
   const tabs = [];
   if (role === 'owner' || role === 'admin') tabs.push(['overview', 'Overview']);
-  if (role === 'owner') tabs.push(['system', 'System'], ['activity', 'Activity'], ['missing', 'Missing art']);
+  if (role === 'owner') tabs.push(['system', 'System'], ['activity', 'Activity'], ['missing', 'Missing art'], ['ipbans', 'IP bans'], ['access', 'Access'], ['controls', 'Controls']);
   if (canManage) tabs.push(['queue', 'Queue'], ['requests', 'Requests'], ['audit', 'Audit']);
   return tabs;
 }
@@ -94,4 +94,19 @@ export function missingRows(d, { what = 'all', query = '' } = {}) {
     .filter((g) => g && (what === 'cover' ? g.missingCover : what === 'trailer' ? g.missingTrailer : true))
     .filter((g) => !q || String(g.cleanTitle || '').toLowerCase().includes(q) || String(g.gameKey || '').toLowerCase().includes(q))
     .map((g) => ({ title: g.cleanTitle || g.gameKey, folder: g.gameKey, cover: g.missingCover ? 'Missing' : 'Has one', trailer: g.missingTrailer ? 'Missing' : 'Has one' }));
+}
+
+export const REQUEST_STATUS_CHOICES = ['pending', 'approved', 'rejected', 'completed', 'duplicate'];
+
+// What the member is asked to confirm before an admin action runs. Every action has one; the wording says what will happen and what it cannot undo.
+export function confirmText(action, a = {}) {
+  switch (action) {
+    case 'resetQuota': return { title: 'Reset mirror quota', text: 'Mark every PC and PCVR mirror as available again, even if the storage provider is still limiting downloads. Members may hit errors if a mirror really is at its limit.', ok: 'Reset all mirrors' };
+    case 'restartServer': return { title: 'Restart the server', text: 'The website restarts now. Everyone is disconnected for about a minute, and downloads in progress on the site side are interrupted. This app will show errors until it is back.', ok: 'Restart the server' };
+    case 'banIp': return { title: 'Ban an IP address', text: `Ban ${a.ip || 'this address'}. Anyone on it is blocked from the site, and the other admins get a Telegram alert.`, ok: 'Ban it' };
+    case 'unbanIp': return { title: 'Unban an IP address', text: `Let ${a.ip || 'this address'} use the site again.`, ok: 'Unban it' };
+    case 'requestStatus': return { title: 'Change a request', text: `Set request ${a.id} (${a.title || 'untitled'}) to "${a.status}". The member who asked may be told.`, ok: 'Change it' };
+    case 'clearMissing': return { title: 'Stop listing a game', text: `Mark "${a.title || a.gameKey}" as having no cover or trailer available, so it stops showing in the missing list and future checks do not add it back.`, ok: 'Mark it' };
+    default: return null;
+  }
 }

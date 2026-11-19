@@ -87,13 +87,53 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   const reqId = (id) => { const n = Number(id); if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error('Bad request id'), { kind: 'http', status: 400 }); return n; };
   // Watchlist ("Tell me when it is added"): the same lists the website keeps, so a title watched in either place shows in both.
   // Admin pages (read only). The site decides who may see what from the member's own role; these are the only admin addresses the app will ask for.
-  const ADMIN_GET = { stats: '/api/admin/stats', system: '/api/admin/system-details', activity: '/api/admin/user-activity', queue: '/api/admin/queue', requests: '/api/admin/requests', missing: '/api/admin/missing-covers' };
+  const ADMIN_GET = { stats: '/api/admin/stats', system: '/api/admin/system-details', activity: '/api/admin/user-activity', queue: '/api/admin/queue', requests: '/api/admin/requests', missing: '/api/admin/missing-covers', ipbans: '/api/admin/ip-bans', access: '/api/admin/access-lists' };
   ipcMain.handle('native:adminGet', wrap((kind, params) => {
     const base = ADMIN_GET[String(kind)];
     if (!base) throw Object.assign(new Error('Unknown admin page'), { kind: 'http', status: 400 });
     const q = new URLSearchParams();
     if (kind === 'requests' && params && typeof params === 'object') for (const k of ['status', 'category']) { const v = String(params[k] || ''); if (/^[A-Za-z_ -]{1,30}$/.test(v)) q.set(k, v); }
     return api.get(base + (q.toString() ? '?' + q.toString() : ''), { ttlMs: 0, fresh: true });
+  }));
+  // Admin actions. Each is a fixed, validated request; the site checks the member's role again and refuses anyone who is not allowed. The app asks
+  // the member to confirm every one of them before it gets here.
+  const MIRRORS = ['PC-1', 'PC-2', 'PC-3', 'PCVR-1', 'PCVR-2', 'PCVR-3'];
+  const REQUEST_STATUSES = ['pending', 'approved', 'rejected', 'completed', 'duplicate'];
+  const bad = (m) => Object.assign(new Error(m), { kind: 'http', status: 400 });
+  const text = (v, max) => String(v == null ? '' : v).slice(0, max);
+  ipcMain.handle('native:adminDo', wrap(async (action, args) => {
+    const a = args && typeof args === 'object' ? args : {};
+    switch (String(action)) {
+      case 'resetQuota': {
+        const failed = [];
+        for (const m of MIRRORS) { try { await api.post('/api/admin/mirror-status', { remote: m, status: 'available' }); } catch (e) { failed.push(m); } }
+        if (failed.length === MIRRORS.length) throw bad('Could not reset any mirror');
+        return { success: true, failed };
+      }
+      case 'restartServer': return api.post('/api/admin/restart-server', {});
+      case 'banIp': {
+        const ip = text(a.ip, 45).trim();
+        if (!/^[0-9a-fA-F:.]{3,45}$/.test(ip)) throw bad('That does not look like an IP address');
+        return api.post('/api/admin/ip-bans/ban-ip', { ip, reason: text(a.reason, 200).trim() || 'Banned from the app' }, { invalidate: ['/api/admin/ip-bans'] });
+      }
+      case 'unbanIp': {
+        const ip = text(a.ip, 45).trim();
+        if (!/^[0-9a-fA-F:.]{3,45}$/.test(ip)) throw bad('That does not look like an IP address');
+        return api.post('/api/admin/ip-bans/unban-ip', { ip }, { invalidate: ['/api/admin/ip-bans'] });
+      }
+      case 'requestStatus': {
+        const id = Number(a.id);
+        if (!Number.isInteger(id) || id < 1) throw bad('Bad request id');
+        if (!REQUEST_STATUSES.includes(String(a.status))) throw bad('Bad status');
+        return api.post(`/api/admin/requests/${id}/status`, { status: String(a.status), adminNotes: text(a.adminNotes, 500), decisionReason: text(a.decisionReason, 500) }, { invalidate: ['/api/admin/requests'] });
+      }
+      case 'clearMissing': {
+        const gameKey = text(a.gameKey, 300).trim();
+        if (!gameKey) throw bad('Nothing chosen');
+        return api.post('/api/admin/missing-covers/clear', { gameKey }, { invalidate: ['/api/admin/missing-covers'] });
+      }
+      default: throw bad('Unknown admin action');
+    }
   }));
   // The publisher collections on the Comics page (Marvel Collection, DC Collection ...): worked out by the site, one download each.
   ipcMain.handle('native:comicBundles', wrap(() => api.get('/api/comic-bundles', { ttlMs: 5 * 60 * 1000 })));

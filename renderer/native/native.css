@@ -458,3 +458,7 @@ header select + select { margin-left: 0; }
 .agroup h4 { margin: 8px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
 .afilters { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
 .afilters select { background: var(--inset); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
+
+.acontrols { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+.acontrols .acard { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+.primary.danger { background: #b3261e; border-color: #b3261e; color: #fff; }

@@ -1,6 +1,6 @@
 // The Admin pages of the built-in window (phase 1: read only). Shown only to owners and admins; the site decides what each role may see.
 import { html, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
-import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows } from './adminFormat.mjs';
+import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -23,17 +23,44 @@ function useAdminData(kind, params, every) {
   return [state, load];
 }
 
+// Every admin action asks first, says what it will do, and reports what the site answered.
+function useAdminAction(after) {
+  const [pending, setPending] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState('');
+  const run = (action, args) => { setMsg(''); setPending({ action, args, c: confirmText(action, args) }); };
+  const go = async () => {
+    const p = pending; if (!p) return;
+    setBusy(true);
+    const r = await api.adminDo(p.action, p.args);
+    setBusy(false); setPending(null);
+    if (r && r.ok && r.data && r.data.success !== false) {
+      const failed = r.data.failed && r.data.failed.length ? ' (not reset: ' + r.data.failed.join(', ') + ')' : '';
+      setMsg((r.data.message || 'Done.') + failed);
+      if (after) after();
+    } else setMsg('Did not work: ' + ((r && r.error && r.error.message) || (r && r.data && r.data.error) || 'no answer'));
+  };
+  const ui = html`<div>
+    ${msg ? html`<div class="notice soft">${msg}</div>` : ''}
+    ${pending ? html`<div class="overlay" onClick=${() => !busy && setPending(null)}><div class="modal" onClick=${(e) => e.stopPropagation()}>
+      <h3>${pending.c.title}</h3><p>${pending.c.text}</p>
+      <div class="dbtns"><button class="primary danger" disabled=${busy} onClick=${go}>${busy ? 'Working...' : pending.c.ok}</button><button class="dbtn" disabled=${busy} onClick=${() => setPending(null)}>Cancel</button></div>
+    </div></div>` : ''}
+  </div>`;
+  return [ui, run];
+}
+
 function Cards({ items }) {
   return html`<div class="acards">${items.map((c) => html`<div class="acard" key=${c.label}><div class="alabel">${c.label}</div><div class="avalue">${c.value}</div>${c.hint ? html`<div class="ahint">${c.hint}</div>` : ''}</div>`)}</div>`;
 }
 
 const MAX_ROWS = 200;
-function DataTable({ rows, columns, empty }) {
+function DataTable({ rows, columns, empty, extra, extraLabel }) {
   const all = Array.isArray(rows) ? rows : [];
   const list = all.slice(0, MAX_ROWS);
   if (!list.length) return html`<div class="empty">${empty || 'Nothing to show.'}</div>`;
   const cols = columns || tableColumns(list);
-  return html`<div><div class="atable"><table><thead><tr>${cols.map((c) => html`<th key=${c}>${labelOf(c)}</th>`)}</tr></thead><tbody>${list.map((r, i) => html`<tr key=${i}>${cols.map((c) => html`<td key=${c}>${formatCell(r[c])}</td>`)}</tr>`)}</tbody></table></div>${all.length > MAX_ROWS ? html`<div class="sval">Showing the first ${MAX_ROWS} of ${all.length}. Filter by status to narrow it.</div>` : ''}</div>`;
+  return html`<div><div class="atable"><table><thead><tr>${cols.map((c) => html`<th key=${c}>${labelOf(c)}</th>`)}${extra ? html`<th>${extraLabel || 'Action'}</th>` : ''}</tr></thead><tbody>${list.map((r, i) => html`<tr key=${i}>${cols.map((c) => html`<td key=${c}>${formatCell(r[c])}</td>`)}${extra ? html`<td>${extra(r)}</td>` : ''}</tr>`)}</tbody></table></div>${all.length > MAX_ROWS ? html`<div class="sval">Showing the first ${MAX_ROWS} of ${all.length}. Filter by status to narrow it.</div>` : ''}</div>`;
 }
 
 // Any answer the site gives, drawn as it comes: plain values as rows, lists of records as tables, nested objects as their own groups.
@@ -99,6 +126,7 @@ function RequestsPage({ audit }) {
   const [status, setStatus] = useState('');
   const [by, setBy] = useState('');
   const [st, reload] = useAdminData('requests', status ? { status } : {}, 60);
+  const [actionUi, act] = useAdminAction(() => reload());
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
   const all = requestRows(st.data.requests, { audit });
   const people = [...new Set(all.map((r) => r.handledBy).filter(Boolean))];
@@ -111,12 +139,15 @@ function RequestsPage({ audit }) {
       ${audit ? html`<label>Handled by <select value=${by} onChange=${(e) => setBy(e.target.value)}><option value="">All</option>${people.map((p) => html`<option value=${p}>@${p}</option>`)}</select></label>` : ''}
       <span class="sval">${rows.length} shown</span>
     </div>
-    <${DataTable} rows=${rows} columns=${audit ? ['id', 'title', 'status', 'handledBy', 'handledAt', 'by', 'category'] : ['id', 'title', 'by', 'category', 'status', 'votes', 'requested']} empty=${audit ? 'No handled requests.' : 'No requests.'} />
+    ${actionUi}
+    <${DataTable} rows=${rows} columns=${audit ? ['id', 'title', 'status', 'handledBy', 'handledAt', 'by', 'category'] : ['id', 'title', 'by', 'category', 'status', 'votes', 'requested']} empty=${audit ? 'No handled requests.' : 'No requests.'}
+      extra=${audit ? null : (r) => html`<select value="" onChange=${(e) => { const v = e.target.value; e.target.value = ''; if (v) act('requestStatus', { id: r.id, title: r.title, status: v }); }}><option value="">Set to...</option>${REQUEST_STATUS_CHOICES.filter((x) => x !== r.status).map((x) => html`<option value=${x}>${x}</option>`)}</select>`} extraLabel="Change" />
   </div>`;
 }
 
 function MissingPage() {
   const [st, reload] = useAdminData('missing', {}, 0);
+  const [actionUi, act] = useAdminAction(() => reload());
   const [what, setWhat] = useState('all');
   const [query, setQuery] = useState('');
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
@@ -128,7 +159,39 @@ function MissingPage() {
       <input class="search" type="search" placeholder="Search titles" value=${query} onInput=${(e) => setQuery(e.target.value)} />
       <span class="sval">${rows.length} shown</span><button class="dbtn" onClick=${reload}>Refresh</button>
     </div>
-    <${DataTable} rows=${rows} columns=${['title', 'cover', 'trailer', 'folder']} empty="Nothing is missing." />
+    ${actionUi}
+    <${DataTable} rows=${rows} columns=${['title', 'cover', 'trailer', 'folder']} empty="Nothing is missing." extra=${(r) => html`<button class="dbtn" onClick=${() => act('clearMissing', { gameKey: r.folder, title: r.title })}>Stop listing</button>`} extraLabel="Action" />
+  </div>`;
+}
+
+function IpBansPage() {
+  const [st, reload] = useAdminData('ipbans', {}, 0);
+  const [actionUi, act] = useAdminAction(() => reload());
+  const [ip, setIp] = useState('');
+  const [reason, setReason] = useState('');
+  if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
+  const rows = Object.entries(st.data.bannedIps || {}).map(([addr, v]) => ({ ip: addr, reason: (v && v.reason) || '', bannedAt: (v && v.bannedAt) || '', bannedBy: (v && v.bannedBy) || '' }));
+  return html`<div>
+    <${Cards} items=${[{ label: 'Banned addresses', value: String(st.data.totalBanned || 0), hint: '' }, { label: 'Members tracked', value: String(st.data.totalUsersTracked || 0), hint: '' }]} />
+    ${actionUi}
+    <div class="afilters"><input class="search" type="text" placeholder="IP address" value=${ip} onInput=${(e) => setIp(e.target.value)} /><input class="search" type="text" placeholder="Reason" value=${reason} onInput=${(e) => setReason(e.target.value)} /><button class="dbtn" disabled=${!ip.trim()} onClick=${() => { act('banIp', { ip: ip.trim(), reason }); setIp(''); setReason(''); }}>Ban this address</button></div>
+    <${DataTable} rows=${rows} columns=${['ip', 'reason', 'bannedAt', 'bannedBy']} empty="No banned addresses." extra=${(r) => html`<button class="dbtn" onClick=${() => act('unbanIp', { ip: r.ip })}>Unban</button>`} />
+  </div>`;
+}
+
+function AccessPage() {
+  const [st, reload] = useAdminData('access', {}, 0);
+  return st.data ? html`<div><p class="sval">Who counts as an admin. Changing these lists stays on the website for now.</p><${Tree} value=${st.data.effective || st.data} /></div>` : html`<${Status} state=${st} onRetry=${reload} />`;
+}
+
+function ControlsPage() {
+  const [actionUi, act] = useAdminAction(null);
+  return html`<div>
+    ${actionUi}
+    <div class="acontrols">
+      <div class="acard"><div class="alabel">Mirror quota</div><div class="ahint">Mark every PC and PCVR mirror as available again after the storage provider's limit resets.</div><button class="dbtn" onClick=${() => act('resetQuota', {})}>Reset mirror quota</button></div>
+      <div class="acard"><div class="alabel">Server</div><div class="ahint">Restart the website. Everyone is disconnected for about a minute.</div><button class="primary danger" onClick=${() => act('restartServer', {})}>Restart the server</button></div>
+    </div>
   </div>`;
 }
 
@@ -138,8 +201,8 @@ export function AdminView({ admin }) {
   if (!tabs.length) return html`<div class="empty">The admin pages are for owners and admins.</div>`;
   const cur = tabs.some((t) => t[0] === tab) ? tab : tabs[0][0];
   return html`<main class="adminpage">
-    <h2>Admin <span class="sval">read only for now</span></h2>
+    <h2>Admin</h2>
     <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${id === cur ? 'tab on' : 'tab'} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
-    ${cur === 'overview' ? html`<${Overview} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
+    ${cur === 'overview' ? html`<${Overview} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;
 }
