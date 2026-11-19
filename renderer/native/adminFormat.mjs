@@ -25,6 +25,23 @@ export function formatCell(v) {
   return '';
 }
 
+// Cell text that knows what the column is: sizes in bytes read as 120 GB, years and decades carry no thousands comma.
+export function formatCellFor(key, v, hint) {
+  const k = String(key || ''), h = String(hint || '');
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    if (/(bytes|size)$/i.test(k) || (k === 'value' && /(size|bytes)/i.test(h))) return fmtBytes(v);
+    if (/^decades?$/i.test(k)) return v + 's';
+    if (/^years?$/i.test(k)) return String(v);
+  }
+  return formatCell(v);
+}
+
+// The 8 weekly pass/fail counts of the testing report: entry 0 is the week ending now. Says which weeks they are.
+export function weekRows(list, now = Date.now()) {
+  const day = 86400000, fmt = (t) => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  return (list || []).map((w, i) => ({ week: i === 0 ? 'This week' : i === 1 ? 'Last week' : i + ' weeks ago', dates: fmt(now - (i + 1) * 7 * day + day) + ' - ' + fmt(now - i * 7 * day), pass: w && w.pass || 0, fail: w && w.fail || 0 }));
+}
+
 // Columns for a list of records: the keys that hold plain values, in the order first seen, at most `max`.
 export function tableColumns(rows, max = 8) {
   const seen = [];
@@ -68,7 +85,7 @@ export function statCards(s) {
   return out;
 }
 
-const fmtBytes = (n) => { n = Number(n) || 0; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i ? n.toFixed(n >= 100 ? 0 : 1) : String(n)) + ' ' + u[i]; };
+export const fmtBytes = (n) => { n = Number(n) || 0; const u = ['B', 'KB', 'MB', 'GB', 'TB']; let i = 0; while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; } return (i ? n.toFixed(n >= 100 ? 0 : 1) : String(n)) + ' ' + u[i]; };
 
 // The site panel's Usage cards: total requests, downloads and the download cache, each with its all-time figure where the site has one.
 export function usageCards(s) {
@@ -119,6 +136,7 @@ export function confirmText(action, a = {}) {
   switch (action) {
     case 'resetQuota': return { title: 'Reset mirror quota', text: 'Mark every PC and PCVR mirror as available again, even if the storage provider is still limiting downloads. Members may hit errors if a mirror really is at its limit.', ok: 'Reset all mirrors' };
     case 'restartServer': return { title: 'Restart the server', text: 'The website restarts now. Everyone is disconnected for about a minute, and downloads in progress on the site side are interrupted. This app will show errors until it is back.', ok: 'Restart the server' };
+    case 'autofixArt': return { title: 'Auto-fix covers', text: 'Look up every game that is missing a cover on Steam and fill in what can be found. It can take a minute, and games where Steam has no trailer are marked as having none.', ok: 'Run it' };
     case 'resetApiStats': return { title: 'Reset the usage numbers', text: 'Set the request and download counts, current and all-time, back to zero. They fill up again with new traffic. This cannot be undone.', ok: 'Reset them' };
     case 'resetDownloadCache': return { title: 'Reset the download cache', text: 'Delete every cached file on the site. Downloads in progress finish first. Files are fetched again the next time someone asks for them.', ok: 'Reset it' };
     case 'banIp': return { title: 'Ban an IP address', text: `Ban ${a.ip || 'this address'}. Anyone on it is blocked from the site, and the other admins get a Telegram alert.`, ok: 'Ban it' };
@@ -199,7 +217,7 @@ export function uptimeRows(list) { return (list || []).map((u) => ({ service: St
 export function outageRows(list) { return (list || []).map((o) => ({ service: o.label, type: o.level === 'down' ? 'Down' : 'Degraded', started: o.start, length: formatUptime(o.lengthMs) + (o.ongoing ? ' (ongoing)' : '') })); }
 export function dailyUptime(list) {
   const r = list || [];
-  return { labels: r.map((x) => String(x.day || '').slice(5, 10)), values: r.map((x) => (x.pct == null ? 0 : Math.round(num(x.pct) * 10) / 10)), colors: r.map((x) => (x.pct == null ? 'transparent' : x.pct >= 99.9 ? '#4ade80' : x.pct >= 90 ? '#fb923c' : '#ef4444')) };
+  return { labels: r.map((x) => { if (typeof x.day !== 'number') return String(x.day || '').slice(5, 10); const d = new Date(x.day); return (d.getMonth() + 1) + '/' + d.getDate(); }), values: r.map((x) => (x.pct == null ? 0 : Math.round(num(x.pct) * 10) / 10)), colors: r.map((x) => (x.pct == null ? 'transparent' : x.pct >= 99.9 ? '#4ade80' : x.pct >= 90 ? '#fb923c' : '#ef4444')) };
 }
 
 // ---- The owner status dock (the website's "System" widget): same numbers, same rules ----

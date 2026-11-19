@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.32.0] - 2026-11-19
+
+### Added
+- Save any Admin page as a PDF.
+- A back-to-top button on long pages.
+- Missing art: Auto-fix covers, and a YouTube trailer search for each game.
+
+### Fixed
+- Admin sizes show as GB and TB, and decades and years have no thousands comma.
+- The Reliability chart's date labels and the testing weeks table now show real dates.
+- The Top 25 lists have card backgrounds.
+
 ## [5.31.0] - 2026-11-19
 
 ### Added

@@ -1,7 +1,7 @@
 // The Admin pages of the built-in window (phase 1: read only). Shown only to owners and admins; the site decides what each role may see.
 import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
 import './ownerRouting.js';
-import { usageCards, labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -56,27 +56,27 @@ function Cards({ items }) {
 }
 
 const MAX_ROWS = 200;
-export function DataTable({ rows, columns, empty, extra, extraLabel }) {
+export function DataTable({ rows, columns, empty, extra, extraLabel, hint }) {
   const all = Array.isArray(rows) ? rows : [];
   const list = all.slice(0, MAX_ROWS);
   if (!list.length) return html`<div class="empty">${empty || 'Nothing to show.'}</div>`;
   const cols = columns || tableColumns(list);
-  return html`<div><div class="atable"><table><thead><tr>${cols.map((c) => html`<th key=${c}>${labelOf(c)}</th>`)}${extra ? html`<th>${extraLabel || 'Action'}</th>` : ''}</tr></thead><tbody>${list.map((r, i) => html`<tr key=${i}>${cols.map((c) => html`<td key=${c}>${formatCell(r[c])}</td>`)}${extra ? html`<td>${extra(r)}</td>` : ''}</tr>`)}</tbody></table></div>${all.length > MAX_ROWS ? html`<div class="sval">Showing the first ${MAX_ROWS} of ${all.length}. Filter by status to narrow it.</div>` : ''}</div>`;
+  return html`<div><div class="atable"><table><thead><tr>${cols.map((c) => html`<th key=${c}>${labelOf(c)}</th>`)}${extra ? html`<th>${extraLabel || 'Action'}</th>` : ''}</tr></thead><tbody>${list.map((r, i) => html`<tr key=${i}>${cols.map((c) => html`<td key=${c}>${formatCellFor(c, r[c], hint)}</td>`)}${extra ? html`<td>${extra(r)}</td>` : ''}</tr>`)}</tbody></table></div>${all.length > MAX_ROWS ? html`<div class="sval">Showing the first ${MAX_ROWS} of ${all.length}. Filter by status to narrow it.</div>` : ''}</div>`;
 }
 
 // Any answer the site gives, drawn as it comes: plain values as rows, lists of records as tables, nested objects as their own groups.
-function Tree({ value, depth = 0 }) {
+function Tree({ value, depth = 0, hint }) {
   if (value === null || typeof value !== 'object') return html`<span>${formatCell(value)}</span>`;
   if (Array.isArray(value)) {
-    if (value.length && value.every((x) => x && typeof x === 'object' && !Array.isArray(x))) return html`<${DataTable} rows=${value} />`;
+    if (value.length && value.every((x) => x && typeof x === 'object' && !Array.isArray(x))) return html`<${DataTable} rows=${hint === 'weeks' ? weekRows(value) : value} hint=${hint} />`;
     return html`<span>${formatCell(value) || 'None'}</span>`;
   }
   const entries = Object.entries(value).filter(([k]) => k !== 'success');
   const plain = entries.filter(([, v]) => v === null || typeof v !== 'object');
   const nested = entries.filter(([, v]) => v !== null && typeof v === 'object');
   return html`<div class=${'atree d' + Math.min(depth, 2)}>
-    ${plain.length ? html`<div class="akv">${plain.map(([k, v]) => html`<div class="arow" key=${k}><span class="ak">${labelOf(k)}</span><span class="av">${formatCell(v)}</span></div>`)}</div>` : ''}
-    ${nested.map(([k, v]) => (Array.isArray(v) && !v.length) || (!Array.isArray(v) && !Object.keys(v).length) ? '' : html`<section class="agroup" key=${k}><h4>${labelOf(k)}</h4><${Tree} value=${v} depth=${depth + 1} /></section>`)}
+    ${plain.length ? html`<div class="akv">${plain.map(([k, v]) => html`<div class="arow" key=${k}><span class="ak">${labelOf(k)}</span><span class="av">${formatCellFor(k, v, hint)}</span></div>`)}</div>` : ''}
+    ${nested.map(([k, v]) => (Array.isArray(v) && !v.length) || (!Array.isArray(v) && !Object.keys(v).length) ? '' : html`<section class="agroup" key=${k}><h4>${labelOf(k)}</h4><${Tree} value=${v} depth=${depth + 1} hint=${k} /></section>`)}
   </div>`;
 }
 
@@ -181,6 +181,8 @@ function MissingPage() {
   const [trailerUrl, setTrailerUrl] = useState('');
   const [what, setWhat] = useState('all');
   const [query, setQuery] = useState('');
+  const [found, setFound] = useState(null);
+  const search = async (title) => { setFound({ loading: true }); const r = await api.adminGet('youtube', { q: title + ' game trailer' }); setFound(r && r.ok && r.data && Array.isArray(r.data.results) ? { list: r.data.results } : { error: (r && r.error && r.error.message) || 'No results' }); };
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
   const rows = missingRows(st.data, { what, query });
   return html`<div>
@@ -188,13 +190,14 @@ function MissingPage() {
     <div class="afilters">
       <label>Show <select value=${what} onChange=${(e) => setWhat(e.target.value)}><option value="all">Everything missing</option><option value="cover">Missing a cover</option><option value="trailer">Missing a trailer</option></select></label>
       <input class="search" type="search" placeholder="Search titles" value=${query} onInput=${(e) => setQuery(e.target.value)} />
-      <span class="sval">${rows.length} shown</span><button class="dbtn" onClick=${reload}>Refresh</button>
+      <span class="sval">${rows.length} shown</span><button class="dbtn" onClick=${reload}>Refresh</button><button class="dbtn" onClick=${() => act('autofixArt', {})}>Auto-fix covers</button>
     </div>
     ${actionUi}
     ${fix ? html`<div class="apanel"><h4>Fix: ${fix.title}</h4>
       <div class="afilters"><input class="search wide" type="url" placeholder="Picture address (https://...)" value=${coverUrl} onInput=${(e) => setCoverUrl(e.target.value)} /><button class="dbtn" disabled=${!/^https:\/\//i.test(coverUrl.trim())} onClick=${() => act('addCover', { gameKey: fix.folder, title: fix.title, coverUrl: coverUrl.trim() })}>Set cover</button></div>
-      <div class="afilters"><input class="search wide" type="url" placeholder="YouTube address (https://www.youtube.com/...)" value=${trailerUrl} onInput=${(e) => setTrailerUrl(e.target.value)} /><button class="dbtn" disabled=${!/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(trailerUrl.trim())} onClick=${() => act('addTrailer', { gameKey: fix.folder, title: fix.title, trailerYoutube: trailerUrl.trim() })}>Set trailer</button><button class="dbtn" onClick=${() => setFix(null)}>Close</button></div></div>` : ''}
-    <${DataTable} rows=${rows} columns=${['title', 'cover', 'trailer', 'folder']} empty="Nothing is missing." extra=${(r) => html`<span><button class="dbtn" onClick=${() => { setFix(r); setCoverUrl(''); setTrailerUrl(''); }}>Fix</button> <button class="dbtn" onClick=${() => act('clearMissing', { gameKey: r.folder, title: r.title })}>Stop listing</button></span>`} extraLabel="Action" />
+      <div class="afilters"><input class="search wide" type="url" placeholder="YouTube address (https://www.youtube.com/...)" value=${trailerUrl} onInput=${(e) => setTrailerUrl(e.target.value)} /><button class="dbtn" disabled=${!/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(trailerUrl.trim())} onClick=${() => act('addTrailer', { gameKey: fix.folder, title: fix.title, trailerYoutube: trailerUrl.trim() })}>Set trailer</button><button class="dbtn" onClick=${() => search(fix.title)}>Search YouTube</button><button class="dbtn" onClick=${() => setFix(null)}>Close</button></div>
+      ${found ? (found.loading ? html`<div class="sval">Searching YouTube...</div>` : found.error ? html`<div class="sval">${found.error}</div>` : !found.list.length ? html`<div class="sval">No videos found.</div>` : html`<div class="ytlist">${found.list.map((v) => html`<div class="ytrow" key=${v.videoId}><span class="yttitle">${v.title}</span><span class="sval">${[v.channel, v.duration, v.views].filter(Boolean).join(' - ')}</span><button class="dbtn" onClick=${() => act('addTrailer', { gameKey: fix.folder, title: fix.title, trailerYoutube: 'https://www.youtube.com/watch?v=' + v.videoId })}>Use this trailer</button></div>`)}</div>`) : ''}</div>` : ''}
+    <${DataTable} rows=${rows} columns=${['title', 'cover', 'trailer', 'folder']} empty="Nothing is missing." extra=${(r) => html`<span><button class="dbtn" onClick=${() => { setFix(r); setFound(null); setCoverUrl(''); setTrailerUrl(''); }}>Fix</button> <button class="dbtn" onClick=${() => act('clearMissing', { gameKey: r.folder, title: r.title })}>Stop listing</button></span>`} extraLabel="Action" />
   </div>`;
 }
 
@@ -250,10 +253,10 @@ function AnalyticsPage() {
     </div>
     <h4 class="asub">Biggest movers: last 30 days against the 30 before</h4>
     <${DataTable} rows=${moverRows(d.biggestMovers)} columns=${['title', 'now', 'before', 'change']} empty="No movers yet." />
-    <h4 class="asub">Top 25 games, all time</h4>
-    <${RankList} rows=${topRows(d.topGames, 'title', 'total', 25)} />
-    <h4 class="asub">Top 25 members, all time</h4>
-    <${RankList} rows=${topRows(d.topUsers, 'username', 'downloads', 25)} />
+    <div class="agrid">
+      <${Panel} title="Top 25 games, all time" wide=${true}><${RankList} rows=${topRows(d.topGames, 'title', 'total', 25)} /><//>
+      <${Panel} title="Top 25 members, all time" wide=${true}><${RankList} rows=${topRows(d.topUsers, 'username', 'downloads', 25)} /><//>
+    </div>
   </div>`;
 }
 
@@ -368,8 +371,10 @@ export function AdminView({ admin, initialTab }) {
   const [tab, setTab] = useState(() => (initialTab && tabs.some((t) => t[0] === initialTab) ? initialTab : (tabs[0] ? tabs[0][0] : '')));
   if (!tabs.length) return html`<div class="empty">The admin pages are for owners and admins.</div>`;
   const cur = tabs.some((t) => t[0] === tab) ? tab : tabs[0][0];
+  const [pdfMsg, setPdfMsg] = useState('');
+  const savePdf = async () => { setPdfMsg(''); const r = await api.savePdf('ARMGDDN ' + ((tabs.find((t) => t[0] === cur) || [])[1] || 'Admin')); setPdfMsg(r && r.ok && r.data && r.data.saved ? 'Saved ' + r.data.name : r && r.ok ? '' : 'Could not save: ' + ((r && r.error && r.error.message) || 'no answer')); };
   return html`<main class="adminpage">
-    <h2>Admin</h2>
+    <div class="adminhead"><h2>Admin</h2><button class="dbtn" onClick=${savePdf}>Save this page as PDF</button>${pdfMsg ? html`<span class="sval">${pdfMsg}</span>` : ''}</div>
     <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${id === cur ? 'tab on' : 'tab'} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
     ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'reliability' ? html`<${ReliabilityPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;

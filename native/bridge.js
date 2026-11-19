@@ -116,6 +116,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
         return { success: true, failed };
       }
       case 'restartServer': return api.post('/api/admin/restart-server', {});
+      case 'autofixArt': { const r = await api.post('/api/admin/missing-art/autofix', {}, { invalidate: ['/api/admin/missing-covers'] }); return { ...r, message: 'Auto-fix done. Covers fixed: ' + (Number(r && r.coverFixedCount) || 0) + '.' }; }
       case 'resetApiStats': return api.post('/api/admin/reset-api-stats', {});
       case 'resetDownloadCache': return api.post('/api/admin/reset-download-cache', {});
       case 'banIp': {
@@ -229,6 +230,15 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   ipcMain.handle('native:appProgress', wrap(() => api.get('/api/app-progress', { ttlMs: 60 * 1000 })));
   // Sign out: forget the saved sign-in on this PC (the app then offers Sign in again).
   ipcMain.handle('native:logout', wrap(async () => { if (clearSession) clearSession(); return { signedOut: true }; }));
+  // Save what is on screen as a PDF (the Admin pages carry a print layout). The member picks where it goes.
+  ipcMain.handle('native:savePdf', wrap(async (title) => {
+    const name = String(title || 'ARMGDDN report').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'ARMGDDN report';
+    const pick = await dialog.showSaveDialog(win, { title: 'Save as PDF', defaultPath: name + '.pdf', filters: [{ name: 'PDF', extensions: ['pdf'] }] });
+    if (pick.canceled || !pick.filePath) return { saved: false };
+    const buf = await win.webContents.printToPDF({ printBackground: true, pageSize: 'Letter', margins: { marginType: 'default' } });
+    await fs.promises.writeFile(pick.filePath, buf);
+    return { saved: true, name: path.basename(pick.filePath), bytes: buf.length };
+  }));
   ipcMain.handle('native:exportList', wrap(async (remote, format) => {
     const { path: p, fmt } = exportPath(remote, format);
     const f = await api.file(p);

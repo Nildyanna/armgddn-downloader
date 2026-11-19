@@ -559,3 +559,19 @@ header select + select { margin-left: 0; }
 .or-pop-x { position: absolute; top: 6px; right: 8px; width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: 1.1rem; cursor: pointer; }
 .or-pop-x:hover { background: rgba(255, 255, 255, .1); }
 .or-map[data-compact] .or-name { -webkit-line-clamp: 1; }
+
+.adminhead { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.ytlist { display: flex; flex-direction: column; gap: 6px; margin-top: 8px; }
+.ytrow { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; }
+.yttitle { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.totop { position: fixed; right: 22px; bottom: 70px; z-index: 35; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--card, var(--card2)); color: var(--fg); font-size: 20px; line-height: 1; box-shadow: 0 4px 14px rgba(0,0,0,.35); cursor: pointer; }
+.totop[hidden] { display: none; }
+@media print {
+  :root { --fg: #111; --dim: #555; --line: #ccc; --card: #fff; --card2: #fff; --bg: #fff; }
+  body::before { display: none; }
+  body { background: #fff; color: #111; }
+  .shell > :not(main.adminpage), .atabs, .adminhead button, .totop, .dbtn, .dbtns { display: none !important; }
+  .shell, .shell > main.adminpage { display: block; height: auto; overflow: visible; max-width: none; padding: 0; }
+  .atable, .apanel, .acard { break-inside: avoid; }
+  .arankbar { background: #e5e7eb; }
+}

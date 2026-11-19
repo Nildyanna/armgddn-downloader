@@ -1,3 +1,4 @@
+import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
 import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts } from './format.mjs';
 

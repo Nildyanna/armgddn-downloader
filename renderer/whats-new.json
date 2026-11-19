@@ -1,4 +1,12 @@
 {
+  "5.32.0": {
+    "title": "Admin Polish",
+    "highlights": [
+      "Admin pages show sizes as GB and TB, and dates and decades in plain form. The testing weeks now say which weeks they are.",
+      "Save any Admin page as a PDF, and a back-to-top button appears on long pages.",
+      "Missing art has Auto-fix covers and a YouTube trailer search for each game."
+    ]
+  },
   "5.31.0": {
     "title": "Live Admin Maps",
     "highlights": [
