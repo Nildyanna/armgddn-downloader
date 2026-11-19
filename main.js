@@ -662,6 +662,7 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
 
 // Native browser preview (staging only): `--native` opens the new browse window next to the normal one. Nothing happens without the flag.
 const nativeGate = require('./nativeGate');
+const shortcutNames = require('./shortcutNames');
 // Which window this launch opens: --native (development) or --classic on the command line, otherwise the site's saved answer for this member (see
 // nativeGate.js): the native window opens only for members the site lists, and only if they have not turned it off.
 const NATIVE_PREVIEW = nativeGate.wantsNative({ argv: process.argv, config: nativeGate.readEarlyConfig(path.join(app.getPath('userData'), 'config.json'), fs) });
@@ -3543,6 +3544,16 @@ app.whenReady().then(() => {
   }
 
   applyStartupRegistration();
+  // The desktop and Start Menu shortcuts say ARMGDDN Browser while the native window is on for this member, ARMGDDN Companion otherwise (installed Windows app only).
+  try {
+    if (process.platform === 'win32' && app.isPackaged) {
+      const dirs = [app.getPath('desktop'), process.env.APPDATA ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs') : ''].filter(Boolean);
+      shortcutNames.syncShortcutNames({
+        dirs, native: !!NATIVE_PREVIEW, fs, log: logToFile,
+        opensThisApp: (file) => { try { return String(shell.readShortcutLink(file).target || '').toLowerCase() === String(process.execPath).toLowerCase(); } catch (e) { return false; } }
+      });
+    }
+  } catch (e) { logToFile('[Shortcut] sync failed: ' + (e && e.message ? e.message : e)); }
   try { scheduleNativeGateCheck(5000); const gateTimer = setInterval(() => { nativeGateCheck(false); }, 10 * 60 * 1000); if (gateTimer.unref) gateTimer.unref(); } catch (e) { }
   loadHistory();
   loadOrphanedDownloads();
@@ -9593,7 +9604,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                     // icon (via the shortcut's AppUserModelID) and foreground rights. Launching
                     // the bare exe from the detached runner loses both. Fall back to the exe.
                     const startMenuShortcut = (process.platform === 'win32' && process.env.APPDATA)
-                      ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs', `${app.name}.lnk`)
+                      ? shortcutNames.startMenuShortcutPath(path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs'), fs)
                       : '';
 
                     // Escape single quotes for PowerShell single-quoted strings by doubling them
