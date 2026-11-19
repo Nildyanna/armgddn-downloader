@@ -11,7 +11,7 @@ const wrap = (fn) => async (_event, ...args) => {
   catch (e) { return { ok: false, error: { kind: e && e.kind ? e.kind : 'error', message: e && e.message ? e.message : String(e), status: e && e.status ? e.status : 0 } }; }
 };
 
-const LINK_HOSTS = new Set(['store.steampowered.com', 'steamdb.info', '7-zip.org', 't.me', 'telegram.me', 'github.com']);
+const LINK_HOSTS = new Set(['store.steampowered.com', 'steamdb.info', 'comicvine.gamespot.com', '7-zip.org', 't.me', 'telegram.me', 'github.com']);
 const SAFE_REMOTE = /^[A-Za-z0-9 _.\-]{1,60}$/;
 function browsePath(remote, folder) {
   if (!SAFE_REMOTE.test(String(remote || ''))) throw Object.assign(new Error('Bad remote name'), { kind: 'http', status: 400 });
@@ -85,6 +85,20 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     error: d.error || '' }))));
   // Requests (My Requests, comments, a new Music/Comics request). Writes clear the cached list so it refreshes.
   const reqId = (id) => { const n = Number(id); if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error('Bad request id'), { kind: 'http', status: 400 }); return n; };
+  // Watchlist ("Tell me when it is added"): the same lists the website keeps, so a title watched in either place shows in both.
+  // The publisher collections on the Comics page (Marvel Collection, DC Collection ...): worked out by the site, one download each.
+  ipcMain.handle('native:comicBundles', wrap(() => api.get('/api/comic-bundles', { ttlMs: 5 * 60 * 1000 })));
+  ipcMain.handle('native:watchlist', wrap(() => api.get('/api/watchlist', { ttlMs: 0, fresh: true })));
+  ipcMain.handle('native:watchAdd', wrap((title) => {
+    const t = String(title || '').trim().slice(0, 120);
+    if (t.length < 2) throw Object.assign(new Error('Type a game title first'), { kind: 'http', status: 400 });
+    return api.post('/api/watchlist', { title: t }, { invalidate: ['/api/watchlist'] });
+  }));
+  ipcMain.handle('native:watchRemove', wrap((id) => {
+    const n = String(id || '');
+    if (!/^[A-Za-z0-9_-]{1,64}$/.test(n)) throw Object.assign(new Error('Bad watchlist id'), { kind: 'http', status: 400 });
+    return api.del('/api/watchlist/' + n, undefined, { invalidate: ['/api/watchlist'] });
+  }));
   ipcMain.handle('native:requests', wrap(() => api.get('/api/requests/my', { ttlMs: 15000 })));
   ipcMain.handle('native:thread', wrap((id) => api.get(`/api/requests/${reqId(id)}/thread?markSeen=1`, { ttlMs: 0, fresh: true })));
   ipcMain.handle('native:comment', wrap((id, message) => {

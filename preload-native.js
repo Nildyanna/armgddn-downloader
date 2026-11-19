@@ -19,5 +19,7 @@ contextBridge.exposeInMainWorld('nativeAPI', {
   getWhatsNew: call('get-whats-new'), pendingWhatsNew: call('native-pending-whats-new'), getHelp7zVideoSrc: call('get-help-7z-video-src'),
   checkUpdates: call('check-updates'), installUpdate: (options) => ipcRenderer.invoke('install-update', null, options),
   onUpdateAvailable: (cb) => ipcRenderer.on('native:updateAvailable', (_e, info) => cb(info)),
+  comicBundles: call('native:comicBundles'),
+  watchlist: call('native:watchlist'), watchAdd: call('native:watchAdd'), watchRemove: call('native:watchRemove'),
   requests: call('native:requests'), thread: call('native:thread'), comment: call('native:comment'), submitRequest: call('native:submitRequest'),
 });

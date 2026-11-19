@@ -1,5 +1,5 @@
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -42,8 +42,15 @@ function tabsFrom(remotes) {
   return out;
 }
 
-function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, inList, onToggleList, batch, listMode }) {
+function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, inList, onToggleList, batch, listMode, badge, onStub }) {
   const [broken, setBroken] = useState(false);
+  const stub = onStub ? stubNotice(remote, folder, item) : null;   // a folder under 1 KB points to the other server
+  const canDl = canDownload(remote, folder, item) && !stub;
+  const shownTitle = comicTitle(item);
+  const cv = item.comic && item.comic.comicvine;
+  const badgeEl = badge ? html`<span class=${'vbadge ' + badge}>${badge === 'newest' ? 'Newest' : 'Older'}</span>` : '';
+  const cvEl = cv ? html`<a class="cvbadge" href="#" title="Details on ComicVine" onClick=${(e) => { e.preventDefault(); e.stopPropagation(); api.openLink(cv); }}>ComicVine</a>` : '';
+  const stubEl = stub ? html`<div class="stubnote">${stub.message} <button class="dl ghost" onClick=${(e) => { e.stopPropagation(); onStub(stub); }}>Go there</button></div>` : '';
   const cover = !broken && ((item.coverArt && item.coverArt.cover && item.coverArt.cover.url) || collectionCoverPath(remote, folder, item));
   const year = releaseYear(item);
   const gameSection = ['PC Games', 'PCVR Games', 'Testing'].includes(remote);
@@ -52,23 +59,24 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
     // The list view: one line per title, no art, like the legacy browser.
     return html`<div class=${'lrow' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
       ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
-      <span class="ltitle" onClick=${item.isDir ? () => onOpen(item) : undefined}>${cleanTitle(item.name)}</span>
-      <span class="lsub">${[year, formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}</span>
+      <span class="ltitle" onClick=${item.isDir ? () => onOpen(item) : undefined}>${shownTitle}${badgeEl}</span>
+      <span class="lsub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</span>
+      ${stub ? html`<span class="stubnote inline">${stub.message} <button class="dl ghost" onClick=${(e) => { e.stopPropagation(); onStub(stub); }}>Go there</button></span>` : ''}
       <span class="lbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
-      ${item.isDir && canDownload(remote, folder, item) && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
-      ${canDownload(remote, folder, item) ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</span>
+      ${item.isDir && canDl && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
+      ${canDl ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</span>
     </div>`;
   }
   return html`<div class=${'card' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
     ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
     <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img class="cbg" aria-hidden="true" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="cfg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onLoad=${(e) => { const im = e.target; im.classList.toggle('fill', coverFills(im.naturalWidth, im.naturalHeight, shapeFor(remote))); }} onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
-    <div class="meta"><div class="title">${cleanTitle(item.name)}</div>
-      <div class="sub">${[year, formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}</div>
+    <div class="meta"><div class="title">${shownTitle}${badgeEl}</div>
+      <div class="sub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</div>${stubEl}
       <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
-      ${item.isDir && canDownload(remote, folder, item) && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
-      ${canDownload(remote, folder, item) ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div></div>
+      ${item.isDir && canDl && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
+      ${canDl ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div></div>
   </div>`;
 }
 
@@ -261,12 +269,40 @@ function WikiView() {
   </div>`;
 }
 
-function EverywhereResults({ index, query, render }) {
-  const found = useMemo(() => (index ? searchEverywhere(index, query) : []), [index, query]);
+function EverywhereResults({ index, query, render, onWatch, onWatchlist }) {
+  const exact = useMemo(() => (index ? searchEverywhere(index, query) : []), [index, query]);
+  const fuzzy = useMemo(() => (index && !exact.length ? searchFuzzy(index, query) : []), [index, query, exact]);
+  const found = exact.length ? exact : fuzzy;
+  const badges = useMemo(() => versionBadges(found), [found]);
   if (!index) return html`<div class="loading">Loading every section so it can be searched...</div>`;
   if (!query.trim()) return html`<div class="empty">Type to search every section (PC, PCVR, Testing, Apps, 3D, Comics, Music).</div>`;
-  if (!found.length) return html`<div class="empty">Nothing matches that.</div>`;
-  return html`<main class="grid wide"><div class="count" style="grid-column:1/-1">${found.length} found</div>${found.map(render)}</main>`;
+  const watch = html`<${WatchBar} query=${query} onWatch=${onWatch} onWatchlist=${onWatchlist} />`;
+  if (!found.length) return html`<div><div class="empty">Nothing matches that.</div>${watch}</div>`;
+  return html`<main class="grid wide"><div class="count" style="grid-column:1/-1">${exact.length ? '' : 'No exact match, closest: '}${found.length} found${watch}</div>${found.map((it) => render(it, badges.get(it)))}</main>`;
+}
+
+// "Tell me when it is added": a Telegram message when the title shows up (or a newer build appears), plus the member's watchlist.
+function WatchBar({ query, onWatch, onWatchlist }) {
+  return html`<span class="watchbar"><button class="dbtn" title="Get a Telegram message when this game is added or a newer build appears" onClick=${() => onWatch(query)}>Tell me when it is added</button><button class="dbtn" onClick=${onWatchlist}>My watchlist</button></span>`;
+}
+function WatchlistModal({ onClose, say, startTitle }) {
+  const [items, setItems] = useState(null);
+  const [title, setTitle] = useState(startTitle || '');
+  const load = async () => { const r = await api.watchlist(); setItems(r && r.ok && r.data && Array.isArray(r.data.items) ? r.data.items : []); if (r && !r.ok) say((r.error && r.error.message) || 'Could not load the watchlist'); };
+  useEffect(() => { load(); }, []);
+  const add = async () => {
+    const t = title.trim(); if (t.length < 2) return;
+    const r = await api.watchAdd(t);
+    if (r && r.ok && r.data) { say(r.data.message || 'Added'); setTitle(''); load(); } else say((r && r.error && r.error.message) || 'Could not add it');
+  };
+  const remove = async (id) => { const r = await api.watchRemove(id); if (r && r.ok) load(); else say((r && r.error && r.error.message) || 'Could not remove it'); };
+  return html`<div class="overlay" onClick=${onClose}><div class="modal" onClick=${(e) => e.stopPropagation()}>
+    <h3>My watchlist</h3>
+    <p class="sval">You get a Telegram message when a title on this list is added to the library, or when a newer build of it appears.</p>
+    <div class="srow"><input class="wide" type="text" placeholder="Game title" value=${title} onInput=${(e) => setTitle(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') add(); }} /><button class="dbtn go" onClick=${add}>Watch</button></div>
+    ${items === null ? html`<div class="loading">Loading...</div>` : !items.length ? html`<div class="empty">You are not watching anything yet.</div>` : items.map((w) => html`<div class="srow" key=${w.id}><span class="slabel">${w.title}${w.notifiedAt ? html` <span class="sval">(told you on ${shortDate(w.notifiedAt)})</span>` : ''}</span><button class="dbtn" onClick=${() => remove(w.id)}>Stop watching</button></div>`)}
+    <div class="dbtns"><button class="dbtn" onClick=${onClose}>Close</button></div>
+  </div></div>`;
 }
 
 // Settings that used to live only in the classic window: the common ones are here; the rest (history, scans, schedule) are one button away.
@@ -799,6 +835,10 @@ class PageGuard extends Component {
 function App() {
   const [status, setStatus] = useState(null);
   const [tabs, setTabs] = useState([]);
+  const [bundles, setBundles] = useState(null);       // publisher collections for the Comics page
+  const [quota, setQuota] = useState(() => new Set());     // sections whose download quota is used up
+  const [watchOpen, setWatchOpen] = useState(false);
+  const [watchStart, setWatchStart] = useState('');
   const [remote, setRemote] = useState('');
   const [folder, setFolder] = useState('');
   // The list belongs to the section and folder it was loaded for. Without that tag, the first draw after opening a folder shows the old
@@ -854,7 +894,7 @@ function App() {
   const [everywhere, setEverywhere] = useState(false);
   const [index, setIndex] = useState(null);     // every section's library list, loaded once when searching everywhere
   useEffect(() => {
-    if (!everywhere || index || !tabs.length) return;
+    if ((!everywhere && query.trim().length < 3) || index || !tabs.length) return;
     let live = true;
     (async () => {
       const all = [];
@@ -870,7 +910,7 @@ function App() {
       if (live) setIndex(all);
     })();
     return () => { live = false; };
-  }, [everywhere, tabs]);
+  }, [everywhere, tabs, query.trim().length >= 3]);
   const ctxRemote = (it) => (it && it._remote != null ? it._remote : remote);
   const ctxFolder = (it) => (it && it._folder != null ? it._folder : folder);
   const itemPath = (it) => [ctxFolder(it), it.name].filter(Boolean).join('/');
@@ -952,6 +992,12 @@ function App() {
     window.addEventListener('keydown', key); window.addEventListener('mouseup', mouse);
     return () => { window.removeEventListener('keydown', key); window.removeEventListener('mouseup', mouse); };
   });
+  const watchTitle = async (title) => {
+    const t = String(title || '').trim();
+    if (t.length < 2) return;
+    const r = await api.watchAdd(t);
+    say(r && r.ok && r.data ? (r.data.message || 'Added to your watchlist.') : ((r && r.error && r.error.message) || 'Could not add it to your watchlist'));
+  };
   const goTo = (rem, path) => { setView('library'); autoOk.current = false; setQuery(''); setCategory(''); setRemote(rem); setFolder(path); };
   const [patchQ, setPatchQ] = useState(null);
   const askPatch = (oldLabel, patch) => new Promise((resolve) => setPatchQ({ oldLabel, patch, resolve: (v) => { setPatchQ(null); resolve(v); } }));
@@ -1029,6 +1075,7 @@ function App() {
     const r = await api.remotes();
     if (!r.ok) return fail(r.error);
     const t = tabsFrom(r.data.remotes); setTabs(t); if (t.length) setRemote(t[0]);
+    try { setQuota(quotaTabs(r.data.remoteStatus)); } catch (e) { }
     // The website copies each member's preferences to the server; the first time here they come over by themselves, and later visits only add
     // new My List entries. Nothing for the member to do. They are read first, because they also say whether the member has seen the intro.
     let pulled = null;
@@ -1093,6 +1140,19 @@ function App() {
     const r = await api.downloadBatch(rem, paths, []);
     if (r.ok) { say('Started ' + paths.length + ' item' + (paths.length === 1 ? '' : 's')); setBatch(false); setView('downloads'); } else say(r.error.message || 'Could not start the batch download');
   };
+  useEffect(() => {
+    if (remote !== 'Comics' || bundles) return;
+    let live = true;
+    api.comicBundles().then((r) => { if (live) setBundles(r && r.ok && r.data && Array.isArray(r.data.bundles) ? r.data.bundles : []); }).catch(() => { if (live) setBundles([]); });
+    return () => { live = false; };
+  }, [remote]);
+  // One click: every series of a publisher's collection that is in this list, as one batch.
+  const downloadBundle = async (b) => {
+    const paths = b.present;
+    for (let i = 0; i < paths.length; i++) { if (!(await passGates(paths[i], 'Comics', i > 0))) { say('Download cancelled'); return; } }
+    const r = await api.downloadBatch('Comics', paths, []);
+    if (r.ok) { say('Started ' + b.title); setView('downloads'); } else say(r.error.message || 'Could not start the download');
+  };
   const signIn = async () => { await api.login(); boot(true); };
 
   if (status && !status.signedIn) return html`<div class="center"><h1>ARMGDDN</h1><p>Sign in to browse the library.</p><button class="primary" onClick=${signIn}>Sign in with Telegram</button></div>`;
@@ -1110,7 +1170,7 @@ function App() {
     </div>
     <header class="topbar">
       <button class=${view === 'home' ? 'tab on' : 'tab'} onClick=${() => setView('home')}>Home</button>
-      <nav>${tabs.map((t) => html`<button class=${view === 'library' && t === remote ? 'tab on' : 'tab'} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
+      <nav>${tabs.map((t) => html`<button class=${(view === 'library' && t === remote ? 'tab on' : 'tab') + (quota.has(t) ? ' quota' : '')} title=${quota.has(t) ? 'This section has used up its download quota. Try again later (it usually resets within 24 hours).' : ''} disabled=${quota.has(t)} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
       <button class=${view === 'tools' ? 'tab on' : 'tab'} title="Only what I'm missing, Komga" onClick=${() => setView('tools')}>Tools</button>
       <button class=${view === 'settings' ? 'tab on' : 'tab'} title="Settings" onClick=${() => setView('settings')}>Settings</button>
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
@@ -1140,16 +1200,19 @@ function App() {
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${view === 'library' && !everywhere && (remote === 'Music' || remote === 'Comics') && !noticeOff ? html`<div class="notice soft">Some albums and comic collections may be missing tracks or issues that haven't been sourced yet. If you'd like to contribute, please contact Old Man of the Hills. Some releases are left out on purpose (remixes, live versions, compilations and the like), so these lists are not a complete or official catalogue. <button class="dbtn" onClick=${() => setNoticeOff(true)}>Got it</button></div>` : ''}
+    ${view === 'library' && !everywhere && query.trim().length >= 3 && items !== null ? html`<div class="notice soft searchhint"><${WatchBar} query=${query} onWatch=${watchTitle} onWatchlist=${() => setWatchOpen(true)} />${(() => { const more = index ? otherSectionMatches(index, query, remote) : []; return more.length ? html` <span>Also matches in ${more.map((m) => m.remote + ' (' + m.count + ')').join(', ')}.</span> <button class="dbtn" onClick=${() => setEverywhere(true)}>Search all sections</button>` : ''; })()}</div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
     ${view === 'library' && remote === 'Comics' && !everywhere && !folder && !query ? html`<section class="komgabox"><div><strong>Komga</strong> - free comic server and reader. It runs on your PC and reads the comics you download here, with covers, series and reading progress.</div><div class="dbtns"><button class="dbtn go" onClick=${() => api.openExternal('https://komga.org/docs/installation/desktop')}>Download Komga</button><button class="dbtn" onClick=${() => setView('wiki')}>Setup guide</button><button class="dbtn" onClick=${() => setView('tools')}>Add reading orders</button></div></section>` : ''}
-    ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}
-    ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${viewMode === 'list' ? 'list' : "grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { recordVisit(x, remote, folder); setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
+    ${view === 'library' && remote === 'Comics' && !everywhere && !folder && !query && items !== null ? html`<section class="bundles">${bundlesPresent(bundles, items).map((b) => html`<div class="bundle" key=${b.id}><div class="bcover"><img loading="lazy" decoding="async" src=${coverSrc(b.cover)} alt="" /></div><div class="binfo"><strong>${b.title}</strong><span class="sval">${formatSize(b.total)} · ${b.present.length} series: ${b.present.slice(0, 3).join(', ')}${b.present.length > 3 ? ' and ' + (b.present.length - 3) + ' more' : ''}</span><span class="sval">Downloads everything copied so far. Series still being added join in later.</span></div><button class="primary" onClick=${() => downloadBundle(b)}>Download All</button></div>`)}</section>` : ''}
+    ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} onWatch=${watchTitle} onWatchlist=${() => setWatchOpen(true)} render=${(it, badge) => html`<${Card} badge=${badge} listMode=${viewMode === 'list'} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}
+    ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${viewMode === 'list' ? 'list' : "grid " + shapeFor(remote)}>${shown.map((it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onStub=${(st) => goTo(st.remote, st.folder)} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { recordVisit(x, remote, folder); setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
     </${PageGuard}>
     ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}
+    ${watchOpen ? html`<${WatchlistModal} onClose=${() => setWatchOpen(false)} say=${say} startTitle=${watchStart} />` : ''}
     ${whatsNew ? html`<${WhatsNewBox} entry=${whatsNew} onClose=${() => setWhatsNew(null)} />` : ''}
     ${toast ? html`<div class="toast">${toast}</div>` : ''}
   </div>`;

@@ -235,3 +235,65 @@ test('update housekeeping files are never listed, and cover art fills the tile o
   assert.equal(coverFills(500, 500, 'square'), true);
   assert.equal(coverFills(0, 0, 'wide'), false);
 });
+
+test('Newest / Older tags, typo-forgiving search, other-section hint, stubs, quota and comics details', async () => {
+  const f = await import('../renderer/native/format.mjs');
+  // Newest / Older: only titles that appear with two different builds
+  const a = { name: 'Dave the Diver v20260101 -ARMGDDN' }, b = { name: 'Dave the Diver v20260301 -ARMGDDN' }, c = { name: 'Other Game v20260101 -ARMGDDN' }, d = { name: 'No Build Here' };
+  const m = f.versionBadges([a, b, c, d]);
+  assert.equal(m.get(a), 'older'); assert.equal(m.get(b), 'newest'); assert.equal(m.has(c), false); assert.equal(m.has(d), false);
+  assert.equal(f.versionBadges([a, { name: 'Dave the Diver v20260101 -ARMGDDN' }]).size, 0, 'the same build twice is not a newer one');
+  assert.equal(f.searchBuildNumber('Game v1.5 -X'), null); assert.equal(f.searchBuildNumber('Game v20260101'), 20260101);
+  // typo search: one slip per word of five or more letters
+  assert.equal(f.withinOneEdit('spiderman', 'spidermam'), true); assert.equal(f.withinOneEdit('cat', 'cut'), false);
+  assert.equal(f.fuzzyMatches("Assassin's Creed Mirage", 'assasins mirage'), true);
+  assert.equal(f.fuzzyMatches('Halo Infinite', 'zelda'), false);
+  assert.deepEqual(f.searchFuzzy([{ name: 'Cyberpunk 2077' }, { name: 'Hades' }], 'cyberpnk'), [{ name: 'Cyberpunk 2077' }]);
+  assert.deepEqual(f.searchFuzzy([{ name: 'Hades' }], 'hade'), [], 'short queries are never guessed at');
+  // other sections that also match
+  const idx = [{ name: 'Dave the Diver', isDir: true, _remote: 'PC Games' }, { name: 'Dave the Diver v2', isDir: true, _remote: 'Testing' }, { name: 'Dave the Diver v3', isDir: true, _remote: 'Testing' }];
+  assert.deepEqual(f.otherSectionMatches(idx, 'dave diver', 'PC Games'), [{ remote: 'Testing', count: 2 }]);
+  // stubs
+  assert.deepEqual(f.stubNotice('PC Games', 'PC1', { isDir: true, size: 0 }), { message: 'You must download from PCVR server', remote: 'PCVR Games', folder: '' });
+  assert.equal(f.stubNotice('PCVR Games', '', { isDir: true, size: 10 }).message, 'You must download from PC server');
+  assert.deepEqual(f.stubNotice('Testing', 'PC', { isDir: true, size: 0 }), { message: 'You must download from PCVR server', remote: 'Testing', folder: 'PCVR' });
+  assert.equal(f.stubNotice('PC Games', '', { isDir: true, size: 5000 }), null); assert.equal(f.stubNotice('Music', '', { isDir: true, size: 0 }), null); assert.equal(f.stubNotice('PC Games', '', { isDir: false, size: 0 }), null);
+  // quota: a game group only when every mirror is used up
+  assert.deepEqual([...f.quotaTabs({ 'PC-1': 'at-quota', 'PC-2': 'at-quota', 'PC-3': 'at-quota', 'PCVR-1': 'at-quota', 'PCVR-2': 'healthy', 'PCVR-3': 'at-quota', Comics: 'at-quota' })].sort(), ['Comics', 'PC Games']);
+  assert.equal(f.quotaTabs(null).size, 0);
+  // comics: proper title, issue and date, and release order inside a series
+  const c1 = { name: 'b.cbz', comic: { title: 'Batman', number: '2', date: '2020-02-01' } }, c2 = { name: 'a.cbz', comic: { title: 'Batman', number: '1', date: '2020-01-01' } }, c3 = { name: 'c.cbz', comic: { title: 'Batman', number: '10', date: '2020-01-01' } }, plain = { name: 'z.cbz' };
+  assert.deepEqual(f.filterAndSort([c1, c3, c2], { sort: 'name' }).map((x) => x.name), ['a.cbz', 'c.cbz', 'b.cbz']);
+  assert.equal(f.comicTitle(c1), 'Batman'); assert.equal(f.comicTitle(plain), 'z.cbz');
+  assert.deepEqual(f.comicParts(c1), ['Issue #2', '2020-02-01']); assert.deepEqual(f.comicParts(plain), []);
+  assert.equal(f.filterAndSort([c1, plain], { query: 'batman' }).length, 1, 'a comic is found by its proper title');
+});
+
+test('the app wires in the watchlist, Newest/Older, typo suggestions, other-section hint, stubs, quota and ComicVine', () => {
+  const fs = require('fs'), path = require('path');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
+  const pre = fs.readFileSync(path.join(__dirname, '..', 'preload-native.js'), 'utf8');
+  for (const piece of ['<${WatchlistModal}', 'Tell me when it is added', 'My watchlist', 'versionBadges(found)', "No exact match, closest: ", 'otherSectionMatches(index, query, remote)', 'Search all sections', 'stubNotice(remote, folder, item)', 'Go there', 'quotaTabs(r.data.remoteStatus)', "' quota'", 'cvbadge']) assert.ok(app.includes(piece), piece);
+  for (const piece of ["'native:watchlist'", "'native:watchAdd'", "'native:watchRemove'", "'/api/watchlist'", 'comicvine.gamespot.com']) assert.ok(bridge.includes(piece), piece);
+  for (const piece of ['watchlist: call', 'watchAdd: call', 'watchRemove: call']) assert.ok(pre.includes(piece), piece);
+});
+
+test('publisher collections: members present in the list, total size, and the cover', async () => {
+  const f = await import('../renderer/native/format.mjs');
+  const items = [{ name: 'Batman Collection', isDir: true, size: 100 }, { name: 'Superman Collection', isDir: true, size: 50 }, { name: 'Other', isDir: true, size: 7 }, { name: 'Spider-Man Collection', isDir: false, size: 9 }];
+  const live = [{ id: 'dc', title: 'DC Collection', members: ['Batman Collection', 'Superman Collection', 'Missing One'], art: 'Superman Collection/Superman Vol. 1 (1939)' }, { id: 'x', title: 'Nothing', members: ['Nope'], art: '' }];
+  const out = f.bundlesPresent(live, items);
+  assert.equal(out.length, 1); assert.deepEqual(out[0].present, ['Batman Collection', 'Superman Collection']); assert.equal(out[0].total, 150);
+  assert.ok(out[0].cover.startsWith('/api/collection-cover?remote=Comics&path=Superman%20Collection'));
+  assert.equal(f.bundlesPresent(null, items).map((b) => b.id).join(), 'dc', 'built-in bundles are used while the site has none');
+});
+test('the Comics page shows the publisher collections right under the Komga box', () => {
+  const fs = require('fs'), path = require('path');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  const k = app.indexOf('class="komgabox"'), b = app.indexOf('class="bundles"');
+  assert.ok(k > 0 && b > k, 'bundles come after the Komga box');
+  assert.ok(app.indexOf("view === 'library' && remote === 'Comics' && !everywhere && !folder && !query ? html`<section class=\"komgabox\"") < b);
+  assert.ok(app.includes('api.comicBundles()') && app.includes('downloadBundle') && app.includes('Download All'));
+  assert.ok(fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8').includes("'/api/comic-bundles'"));
+});

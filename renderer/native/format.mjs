@@ -29,9 +29,17 @@ export function coverFills(w, h, shape) {
 export function filterAndSort(items, { query = '', sort = 'name', reverse = false } = {}) {
   items = (items || []).filter((x) => !isHiddenItem(x));
   const q = String(query).trim().toLowerCase();
-  let out = (items || []).filter((x) => x && (!q || String(x.name || '').toLowerCase().includes(q)));
+  let out = (items || []).filter((x) => x && (!q || String(x.name || '').toLowerCase().includes(q) || String((x.comic && x.comic.title) || '').toLowerCase().includes(q)));
   const by = {
-    name: (a, b) => cleanTitle(a.name).localeCompare(cleanTitle(b.name), undefined, { sensitivity: 'base', numeric: true }),
+    name: (a, b) => {
+      // Comics whose details are known are listed in release order (date, then issue number), as on the website.
+      const ca = a.comic, cb = b.comic;
+      if (ca && cb) {
+        if (ca.date && cb.date && ca.date !== cb.date) return ca.date < cb.date ? -1 : 1;
+        if (ca.number != null && cb.number != null) { const x = parseFloat(ca.number), y = parseFloat(cb.number); if (Number.isFinite(x) && Number.isFinite(y) && x !== y) return x - y; }
+      }
+      return cleanTitle(a.name).localeCompare(cleanTitle(b.name), undefined, { sensitivity: 'base', numeric: true });
+    },
     newest: (a, b) => String(b.firstSeenAt || b.modTime || '').localeCompare(String(a.firstSeenAt || a.modTime || '')) || by.name(a, b),
     size: (a, b) => (Number(b.size) || 0) - (Number(a.size) || 0) || by.name(a, b),
     popularity: (a, b) => (Number(b.downloadCount) || 0) - (Number(a.downloadCount) || 0) || by.name(a, b),
@@ -408,4 +416,109 @@ export function introDecision({ afterSignIn = false, seenHere = false, off = fal
   const play = !!afterSignIn && !seenHere && !off && !quiet && !seenOnWebsite;
   const markSeen = play || !afterSignIn || !!seenOnWebsite;
   return { play, markSeen };
+}
+
+// ---- Newest / Older: the same game in several places with different builds ----
+export function searchTitleKey(name) {
+  let t = String(name || '').replace(/^(PCVR\d*|PC\d*)\s*\/\s*/i, '');
+  t = t.replace(/\s+-?\s*ARMGDDN.*$/i, '').replace(/\s+\+[A-Z0-9].*$/i, '');
+  t = t.replace(/\s+v(?:er\.?\s*)?\d[\dA-Za-z.\-]*\s*$/i, '').replace(/\s+-[A-Z0-9]{2,}\s*$/i, '');
+  return looseKey(t);
+}
+export function searchBuildNumber(name) {
+  const m = String(name || '').match(/\bv(?:er\.?\s*)?(\d{4,})\b/i);
+  return m ? Number(m[1]) : null;
+}
+// Map of item -> 'newest' | 'older' for titles that appear with two or more different builds; items without a build number get nothing.
+export function versionBadges(list) {
+  const by = new Map();
+  for (const it of list || []) {
+    const n = searchBuildNumber(it && it.name), key = searchTitleKey(it && it.name);
+    if (n && key) { if (!by.has(key)) by.set(key, []); by.get(key).push(n); }
+  }
+  const out = new Map();
+  for (const it of list || []) {
+    const n = searchBuildNumber(it && it.name), all = by.get(searchTitleKey(it && it.name));
+    if (!n || !all || new Set(all).size < 2) continue;
+    out.set(it, n === Math.max(...all) ? 'newest' : 'older');
+  }
+  return out;
+}
+
+// ---- Search that forgives one typo per word (5+ letters), used when nothing matches exactly ----
+export function withinOneEdit(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1 || a.length < 5) return false;
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (a.length === b.length) return a.slice(i + 1) === b.slice(i + 1) || (a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2));
+  return a.length > b.length ? a.slice(i + 1) === b.slice(i) : b.slice(i + 1) === a.slice(i);
+}
+export function fuzzyMatches(name, query) {
+  const words = looseKey(name).split(' ').filter(Boolean);
+  const q = looseKey(query).split(' ').filter(Boolean);
+  return q.length > 0 && q.every((w) => words.some((x) => x.includes(w) || withinOneEdit(w, x)));
+}
+export function searchFuzzy(entries, query, limit = 200) {
+  if (looseKey(query).replace(/ /g, '').length < 5) return [];
+  const out = [];
+  for (const it of entries || []) { if (fuzzyMatches(it.name, query)) { out.push(it); if (out.length >= limit) break; } }
+  return out;
+}
+// Which other sections also have a match for the query: [{ remote, count }].
+export function otherSectionMatches(index, query, currentRemote) {
+  const counts = new Map();
+  for (const it of index || []) {
+    if (!it || !it.isDir || it._remote === currentRemote || !searchMatches(it.name, query)) continue;
+    counts.set(it._remote, (counts.get(it._remote) || 0) + 1);
+  }
+  return [...counts.entries()].map(([remote, count]) => ({ remote, count }));
+}
+
+// ---- A folder under 1 KB in a game section is a stub that points to the other server ----
+export function stubNotice(remote, folder, item) {
+  if (!item || !item.isDir || !(Number(item.size) < 1024)) return null;
+  const top = String(folder || '').replace(/^\/+/, '').split('/')[0] || '';
+  const pcvrRoot = /^PCVR\d*$/i.test(top), pcRoot = /^PC\d*$/i.test(top);
+  if (remote === 'PC Games') return { message: 'You must download from PCVR server', remote: 'PCVR Games', folder: '' };
+  if (remote === 'PCVR Games') return { message: 'You must download from PC server', remote: 'PC Games', folder: '' };
+  if (remote === 'Testing' && pcRoot) return { message: 'You must download from PCVR server', remote: 'Testing', folder: 'PCVR' };
+  if (remote === 'Testing' && pcvrRoot) return { message: 'You must download from PC server', remote: 'Testing', folder: 'PC' };
+  return null;
+}
+
+// ---- Sections whose download quota is used up (a game group counts only when every mirror in it is) ----
+const QUOTA_GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
+export function quotaTabs(remoteStatus) {
+  const st = remoteStatus && typeof remoteStatus === 'object' ? remoteStatus : {};
+  const out = new Set();
+  for (const [g, mirrors] of Object.entries(QUOTA_GROUPS)) if (mirrors.every((m) => st[m] === 'at-quota')) out.add(g);
+  const grouped = new Set(Object.values(QUOTA_GROUPS).flat());
+  for (const [k, v] of Object.entries(st)) if (!grouped.has(k) && v === 'at-quota') out.add(k);
+  return out;
+}
+
+// ---- Comics with checked details: proper title, issue number, release date, ComicVine page ----
+export function comicTitle(item) { return item && item.comic && item.comic.title ? String(item.comic.title) : cleanTitle(item && item.name); }
+export function comicParts(item) {
+  const c = item && item.comic;
+  if (!c) return [];
+  return [c.number != null && c.number !== '' ? 'Issue #' + c.number : '', c.date || ''].filter(Boolean);
+}
+
+// ---- Publisher collections on the Comics page: which members of each bundle are in this list, the total size, and the cover to show ----
+export const FALLBACK_COMIC_BUNDLES = [
+  { id: 'marvel', title: 'Marvel Collection', members: ['Daredevil Collection', 'Spider-Man Collection'], art: 'Spider-Man Collection/Amazing Fantasy (1962)' },
+  { id: 'dc', title: 'DC Collection', members: ['Batman Collection', 'Superman Collection'], art: 'Superman Collection/Superman Vol. 1 (1939)' },
+];
+export function bundlesPresent(bundles, items) {
+  const have = new Map((items || []).filter((f) => f && f.isDir).map((f) => [f.name, f]));
+  const list = Array.isArray(bundles) && bundles.length ? bundles : FALLBACK_COMIC_BUNDLES;
+  const out = [];
+  for (const b of list) {
+    const present = (b.members || []).filter((m) => have.has(m));
+    if (!present.length) continue;
+    out.push({ id: b.id, title: b.title, present, total: present.reduce((n, m) => n + (Number(have.get(m).size) || 0), 0), cover: '/api/collection-cover?remote=Comics&path=' + encodeURIComponent(b.art || present[0]) + '&w=480' });
+  }
+  return out;
 }
