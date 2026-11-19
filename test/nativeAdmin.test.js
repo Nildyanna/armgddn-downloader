@@ -97,3 +97,15 @@ test('the owner view toggle is a setting that hides the owner pages and the dock
   assert.ok(app.includes("const ownerToggle = realAdmin && realAdmin.role === 'owner' ?"), 'only an owner is offered the switch');
   assert.ok(app.includes('Owner view: show the Admin tab and the status dock') && app.includes('ownerToggle=${ownerToggle}'));
 });
+
+test('long single-column pages scroll inside their own box so the dock stays at the bottom of the window', () => {
+  const css = read('renderer', 'native', 'native.css');
+  assert.ok(css.includes('.shell > main.settings, .shell > main.adminpage { flex: 1; min-height: 0; overflow-y: auto;'), 'Settings, Tools and Admin are scroll boxes');
+  assert.ok(css.includes('.ownerdock { position: relative; flex: none;'), 'the dock is the last row, not an overlay');
+  assert.ok(css.includes('.shell:has(.ownerdock) .toast'), 'the toast lifts clear of the dock');
+});
+
+test('the Admin view does not also draw the library list underneath it', () => {
+  const app = read('renderer', 'native', 'app.mjs');
+  assert.ok(app.includes(" : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView}"), 'admin is one of the views in the page chain, so the library fragment is not the fallback for it');
+});
