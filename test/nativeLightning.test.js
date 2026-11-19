@@ -159,3 +159,10 @@ test('the themed backdrop is a single fixed layer behind the window, not a tiled
   assert.ok(/body::before \{[^}]*position: fixed; inset: 0; z-index: -1;[^}]*background: var\(--page, var\(--bg\)\); background-attachment: scroll;/.test(css));
   assert.ok(/body \{[^}]*background: none; background-color: var\(--page-color/.test(css), 'the body itself paints only the colour');
 });
+
+test('Help has an About item that shows the version and can copy the details', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const menu = main.slice(main.indexOf('function createAppMenu()'), main.indexOf('Menu.setApplicationMenu(menu)'));
+  assert.ok(menu.includes("'About ARMGDDN Browser' : 'About ARMGDDN Companion'") && menu.includes('showAboutDialog()'));
+  assert.ok(main.includes('function showAboutDialog()') && main.includes("buttons: ['OK', 'Copy details']") && main.includes('app.getVersion()'));
+});

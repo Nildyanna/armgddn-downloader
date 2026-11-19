@@ -3259,7 +3259,9 @@ function createAppMenu() {
             await shell.openExternal('https://t.me/+xuCOd3HqpGdmZjFh');
           }
         },
-        { label: 'Open the log folder', click: () => { try { shell.openPath(path.dirname(getDebugLogPath())); } catch (e) { } } }
+        { label: 'Open the log folder', click: () => { try { shell.openPath(path.dirname(getDebugLogPath())); } catch (e) { } } },
+        { type: 'separator' },
+        { label: NATIVE_PREVIEW ? 'About ARMGDDN Browser' : 'About ARMGDDN Companion', click: () => showAboutDialog() }
       ]
     }
   ];
@@ -3693,6 +3695,16 @@ function switchWindowMode() {
     settings.useNativeWindow = !NATIVE_PREVIEW; saveSettings();
     relaunchInto('the member switched windows (menu)');
   } catch (e) { logToFile('switchWindowMode failed: ' + e.message); }
+}
+// Help > About: the version and what it runs on, with a button that copies those details for a support message.
+function showAboutDialog() {
+  try {
+    const name = NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion';
+    const details = [name + ' v' + app.getVersion(), 'Electron ' + process.versions.electron + ', Chromium ' + process.versions.chrome, process.platform + ' ' + process.arch + (NATIVE_PREVIEW ? ', built-in window' : ', classic window')].join('\n');
+    const win = (NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()) ? nativeWindow : ((mainWindow && !mainWindow.isDestroyed()) ? mainWindow : null);
+    const opts = { type: 'info', title: 'About ' + name, message: name, detail: 'Version ' + app.getVersion() + '\nCreated by Old Man of the Hills\n\n' + details.split('\n').slice(1).join('\n'), buttons: ['OK', 'Copy details'], defaultId: 0, cancelId: 0 };
+    (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts)).then((r) => { if (r && r.response === 1) { try { require('electron').clipboard.writeText(details); } catch (e) { } } }).catch(() => { });
+  } catch (e) { logToFile('showAboutDialog failed: ' + e.message); }
 }
 async function nativeGateCheck(force) {
   try {
