@@ -476,3 +476,17 @@ header select + select { margin-left: 0; }
 .arankn { color: var(--dim); text-align: right; } .aranklabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arankbar { height: 8px; border-radius: 4px; background: var(--inset); overflow: hidden; } .arankbar i { display: block; height: 100%; background: var(--accent, #6cf); }
 .arankval { text-align: right; color: var(--dim); }
+
+/* Owner status dock */
+.ownerdock { position: fixed; left: 0; right: 0; bottom: 0; z-index: 15; display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; padding: 5px 12px; background: var(--panel, #0d1320); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0,0,0,.35); }
+.dockspace { height: 46px; }
+.dtitle { background: none; border: 0; color: var(--dim); font-size: 11px; letter-spacing: .1em; text-transform: uppercase; cursor: pointer; padding: 4px 8px; }
+.dtitle:hover, .dcell:hover { color: var(--accent, #6cf); }
+.dcell { display: inline-flex; align-items: center; gap: 6px; background: none; border: 1px solid transparent; border-radius: 8px; color: inherit; cursor: pointer; padding: 3px 9px; font: inherit; }
+.dcell:hover { border-color: var(--line); }
+.dlabel { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
+.dvalue { font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
+.dspark { width: 64px; height: 18px; color: var(--accent, #6cf); display: inline-block; }
+.dstate.ok .dvalue, .dstatus.ok { color: #22c55e; } .dstate.issue .dvalue, .dstatus.issue { color: #f59e0b; } .dstate.down .dvalue, .dstatus.down { color: #ef4444; }
+.dstatus { font-weight: 700; }
+.dbreak { margin-left: auto; font-size: 11px; color: var(--dim); }

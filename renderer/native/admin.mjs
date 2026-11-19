@@ -5,7 +5,7 @@ import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, re
 const api = window.nativeAPI;
 
 // Loads one admin page and refreshes it every `every` seconds (0 = once).
-function useAdminData(kind, params, every) {
+export function useAdminData(kind, params, every) {
   const [state, setState] = useState({ loading: true, data: null, error: '' });
   const key = kind + JSON.stringify(params || {});
   const load = async () => {
@@ -55,7 +55,7 @@ function Cards({ items }) {
 }
 
 const MAX_ROWS = 200;
-function DataTable({ rows, columns, empty, extra, extraLabel }) {
+export function DataTable({ rows, columns, empty, extra, extraLabel }) {
   const all = Array.isArray(rows) ? rows : [];
   const list = all.slice(0, MAX_ROWS);
   if (!list.length) return html`<div class="empty">${empty || 'Nothing to show.'}</div>`;
@@ -320,19 +320,24 @@ function AccessPage() {
 
 function ControlsPage() {
   const [actionUi, act] = useAdminAction(null);
+  const [job, reloadJob] = useAdminData('refetchStatus', {}, 4);
+  const j = job.data && job.data.status ? job.data.status : null;
   return html`<div>
     ${actionUi}
     <div class="acontrols">
       <div class="acard"><div class="alabel">Mirror quota</div><div class="ahint">Mark every PC and PCVR mirror as available again after the storage provider's limit resets.</div><button class="dbtn" onClick=${() => act('resetQuota', {})}>Reset mirror quota</button></div>
+      <div class="acard"><div class="alabel">Game art</div><div class="ahint">Look every game up again on Steam and SteamGridDB. A long job on the server: one run at a time.</div>
+        ${j && j.running ? html`<div class="ahint">Running: ${Number(j.processed || 0).toLocaleString('en-US')} of ${Number(j.total || 0).toLocaleString('en-US')} done, ${Number(j.updated || 0).toLocaleString('en-US')} updated, ${Number(j.failures || 0).toLocaleString('en-US')} failed.</div>` : j && j.finishedAt ? html`<div class="ahint">Last run finished: ${Number(j.processed || 0).toLocaleString('en-US')} checked, ${Number(j.updated || 0).toLocaleString('en-US')} updated, ${Number(j.failures || 0).toLocaleString('en-US')} failed${j.error ? '. Error: ' + j.error : ''}.</div>` : ''}
+        <div class="dbtns"><button class="dbtn" disabled=${!!(j && j.running)} onClick=${() => { act('refetchArt', { force: false }); setTimeout(reloadJob, 1500); }}>Re-fetch all art</button><button class="dbtn" disabled=${!!(j && j.running)} onClick=${() => { act('refetchArt', { force: true }); setTimeout(reloadJob, 1500); }}>Force re-fetch everything</button></div></div>
       <div class="acard"><div class="alabel">Art overrides</div><div class="ahint">Re-read the override list and clear the browse cache, so art changes show up without a restart.</div><button class="dbtn" onClick=${() => act('reloadOverrides', {})}>Reload overrides</button></div>
       <div class="acard"><div class="alabel">Server</div><div class="ahint">Restart the website. Everyone is disconnected for about a minute.</div><button class="primary danger" onClick=${() => act('restartServer', {})}>Restart the server</button></div>
     </div>
   </div>`;
 }
 
-export function AdminView({ admin }) {
+export function AdminView({ admin, initialTab }) {
   const tabs = useMemo(() => adminTabs(admin && admin.role, admin && admin.canManage), [admin]);
-  const [tab, setTab] = useState(() => (tabs[0] ? tabs[0][0] : ''));
+  const [tab, setTab] = useState(() => (initialTab && tabs.some((t) => t[0] === initialTab) ? initialTab : (tabs[0] ? tabs[0][0] : '')));
   if (!tabs.length) return html`<div class="empty">The admin pages are for owners and admins.</div>`;
   const cur = tabs.some((t) => t[0] === tab) ? tab : tabs[0][0];
   return html`<main class="adminpage">

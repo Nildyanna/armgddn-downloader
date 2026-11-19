@@ -17,6 +17,20 @@ test('admin formatting helpers', async () => {
   const cards = f.statCards({ uptimeMs: 3600000, overhead: { level: 'ok', eventLoopMeanMs: 3, eventLoopP99Ms: 9, rssMb: 410 }, concurrency: { activeTotalStreams: 12, maxGlobalRcloneStreams: 40, globalStreamQueueLength: 0, peaksSinceBoot: { globalStreamQueueLength: 5 } }, api: { uniqueDownloads: 99, auth: { success: 7, failure: 1 } } });
   assert.equal(cards.find((c) => c.label === 'Uptime').value, '1h 0m'); assert.equal(cards.find((c) => c.label === 'Active streams').hint, 'limit 40'); assert.equal(cards.find((c) => c.label === 'Logins').hint, '1 failed');
   assert.deepEqual(f.statCards(null), []);
+  const dv = f.dockValues({ overhead: { level: 'ok', eventLoopMeanMs: 3, eventLoopP99Ms: 9, eventLoopMaxMs: 40 }, concurrency: { globalStreamQueueLength: 2, heldRedirectCount: 1, appQueuedDownloads: 4, activeTotalStreams: 7, userActiveStreamsUsers: 3 }, appProgressActive: { activeStreams: 12, activeUsers: 5, totalBytesPerSec: 25000000 }, appProgressRecent: { activeStreams: 14, activeUsers: 5 } });
+  assert.equal(dv.overhead, 'ok'); assert.equal(dv.loop, '3/9'); assert.equal(dv.streams, '12/14'); assert.equal(dv.users, '5'); assert.equal(dv.queue, '7'); assert.equal(dv.queueBreakdown, 'Global 2 · Held 1 · App 4'); assert.equal(dv.speed, '200 Mbit/s');
+  assert.equal(f.dockValues({}).queue, '0'); assert.equal(f.dockValues({ appProgressActive: { totalBytesPerSec: 250000000 } }).speed, '2.00 Gbit/s');
+  assert.equal(f.dockValues({ concurrency: { activeTotalStreams: 6 } }).streams, '6', 'falls back to the concurrency count when the app progress has none');
+  assert.deepEqual(f.statusSummary({ components: [{ id: 'a', status: 'ok' }] }), { text: 'OK', state: 'ok', bad: [], down: false });
+  const ss = f.statusSummary({ components: [{ id: 'a', status: 'ok' }, { id: 'b', status: 'degraded', label: 'B' }, { id: 'c', status: 'down' }] }); assert.equal(ss.text, 'OUTAGE (2)'); assert.equal(ss.state, 'down');
+  assert.equal(f.statusSummary({ components: [{ id: 'b', status: 'degraded' }] }).text, 'Issue (1)'); assert.equal(f.statusSummary(null).text, 'OK');
+  let hist = []; for (let i = 0; i < 5; i++) hist = f.pushSample(hist, i, 1000 * i, 2500); assert.deepEqual(hist.map((x) => x.v), [2, 3, 4], 'older than the window is dropped'); assert.equal(f.pushSample([], 'x', 1).length, 0);
+  assert.equal(f.sparkPoints([{ t: 0, v: 1 }]), ''); assert.equal(f.sparkPoints([{ t: 0, v: 5 }, { t: 1000, v: 5 }]).split(' ').length, 2); assert.ok(f.sparkPoints([{ t: 0, v: 0 }, { t: 1800000, v: 10 }]).endsWith('100.00,1.00'));
+  const ds = f.detailSections('streams', { streams: [{ user: 'u', filename: 'f', remote: 'PC-1', path: 'a', userStreams: 2, perFileStreams: 1, capExceeded: true }], mirrorLoad: { 'PC-2': { activeStreams: 3, status: 'healthy' }, 'PC-1': { activeStreams: 1, status: 'at-quota' } } });
+  assert.equal(ds[0].rows[0].overCap, 'YES'); assert.equal(ds[0].rows[0].location, 'PC-1/a'); assert.deepEqual(ds[1].rows.map((r) => r.mirror), ['PC-1', 'PC-2']);
+  assert.equal(f.detailSections('queue', { queue: { global: [{ user: 'x', position: 1 }] } })[1].rows[0].user, 'x'); assert.equal(f.detailSections('queue', {}).length, 4);
+  assert.deepEqual(f.detailSections('speed', { users: [{ user: 'a', bytesPerSec: 0 }, { user: 'b', bytesPerSec: 2097152 }, { user: 'c', bytesPerSec: 1048576 }] })[0].rows.map((r) => r.user), ['b', 'c']);
+  assert.equal(f.detailSections('nonsense', {}).length, 0);
   assert.deepEqual(f.uptimeRows([{ label: 'Website (browser)', d1: 100, d7: 99.123, d30: null }]), [{ service: 'Website', last24h: '100%', last7days: '99.12%', last30days: '-' }]);
   assert.deepEqual(f.outageRows([{ label: 'Gateway', level: 'down', start: 'x', lengthMs: 120000, ongoing: true }]), [{ service: 'Gateway', type: 'Down', started: 'x', length: '2m (ongoing)' }]);
   const du = f.dailyUptime([{ day: '2026-11-18T00:00:00Z', pct: 100 }, { day: '2026-11-19T00:00:00Z', pct: 95 }, { day: '2026-11-20T00:00:00Z', pct: 50 }, { day: '2026-11-21', pct: null }]);
@@ -34,7 +48,7 @@ test('admin formatting helpers', async () => {
   assert.deepEqual(f.loyaltyRows({ t1: 5, t3: 2 }).map((r) => r.n), [5, 0, 2, 0, 0]);
   assert.deepEqual(f.topRows([{ title: 'A', total: 10 }, { title: 'B', total: 5 }], 'title', 'total'), [{ label: 'A', value: 10, pct: 100 }, { label: 'B', value: 5, pct: 50 }]); assert.deepEqual(f.topRows(null, 'a', 'b'), []);
   assert.deepEqual(f.moverRows([{ title: 'X', recent_n: 9, prior_n: 3, pct_change: 200 }]), [{ title: 'X', now: 9, before: 3, change: '+200%' }]);
-  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer']) { const c = f.confirmText(a, { ip: '1.2.3.4', id: 5, title: 'T', status: 'approved', gameKey: 'k' }); assert.ok(c && c.title && c.text && c.ok, a); }
+  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer', 'refetchArt']) { const c = f.confirmText(a, { ip: '1.2.3.4', id: 5, title: 'T', status: 'approved', gameKey: 'k' }); assert.ok(c && c.title && c.text && c.ok, a); }
   assert.equal(f.confirmText('somethingElse'), null); assert.ok(f.confirmText('accessAdd', { id: '123456', list: 'channel' }).text.includes('full admin')); assert.ok(f.confirmText('addCover', { title: 'Halo', coverUrl: 'https://x/y.jpg' }).text.includes('https://x/y.jpg'));
   assert.ok(f.confirmText('banIp', { ip: '1.2.3.4' }).text.includes('1.2.3.4')); assert.ok(f.confirmText('requestStatus', { id: 5, title: 'Halo', status: 'rejected' }).text.includes('"rejected"'));
   const miss = { count: 2, trailerCount: 1, trailerUnavailableCount: 3, totalUniqueGames: 10, gamesWithStatus: [{ gameKey: 'PC1/Halo', cleanTitle: 'Halo', missingCover: true, missingTrailer: false }, { gameKey: 'PC1/Doom', cleanTitle: 'Doom', missingCover: false, missingTrailer: true }] };
@@ -53,7 +67,7 @@ test('admin actions are a fixed list, validated, each behind a confirmation, and
   for (const route of ['/api/admin/stats', '/api/admin/system-details', '/api/admin/user-activity', '/api/admin/queue', '/api/admin/requests', '/api/admin/missing-covers', '/api/admin/report-data', '/api/admin/report-collections', '/api/admin/status-report']) assert.ok(block.includes("'" + route + "'"), route);
   assert.ok(block.includes('Unknown admin page') && block.includes('A-Za-z_ -'));
   const acts = bridge.slice(bridge.indexOf("ipcMain.handle('native:adminDo'"), bridge.indexOf("// The publisher collections"));
-  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer']) assert.ok(acts.includes("case '" + a + "'"), a);
+  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer', 'refetchArt']) assert.ok(acts.includes("case '" + a + "'"), a);
   assert.ok(acts.includes('Unknown admin action') && acts.includes('A-Fa-f') || acts.includes('a-fA-F'));
   assert.ok(!/api\.(put|del)\(/.test(acts) && !acts.includes('/api/admin/requests/' + '${id}`)' + ', {}'), 'no delete or free-form write');
   assert.ok(view.includes('useAdminAction') && view.includes('confirmText(') && view.includes('api.adminDo('), 'every action goes through the confirmation');
@@ -61,4 +75,13 @@ test('admin actions are a fixed list, validated, each behind a confirmation, and
   assert.ok(app.includes("a.data.role === 'owner' || a.data.role === 'admin'") && app.includes("view === 'admin' && admin"), 'the tab and the page need the role the site reported');
   assert.ok(view.includes('export function AdminView') && view.includes('adminTabs('));
   assert.ok(read('preload-native.js').includes("adminGet: call('native:adminGet')"));
+});
+
+test('the owner dock is for owners only, polls like the website widget and opens the same places', () => {
+  const dock = read('renderer', 'native', 'ownerDock.mjs'), app = read('renderer', 'native', 'app.mjs'), bridge = read('native', 'bridge.js');
+  assert.ok(app.includes("admin && admin.role === 'owner' ? html`<${OwnerDock}"), 'only owners get it');
+  assert.ok(dock.includes('setInterval(poll, 5000)') && dock.includes("api.adminGet('stats'") && dock.includes("api.adminGet('siteStatus'"));
+  for (const piece of ["setDetail('streams')", "setDetail('users')", "setDetail('speed')", "setDetail('queue')", 'setStatusOpen(true)', 'onOpenAnalytics']) assert.ok(dock.includes(piece), piece);
+  assert.ok(app.includes("setAdminStart({ tab: 'analytics'") && read('renderer', 'native', 'admin.mjs').includes('initialTab'));
+  assert.ok(bridge.includes("siteStatus: '/api/status'") && bridge.includes("refetchStatus: '/api/admin/refetch-all-game-art/status'") && bridge.includes("case 'refetchArt'"));
 });

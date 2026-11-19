@@ -110,6 +110,7 @@ export function confirmText(action, a = {}) {
     case 'accessAdd': return { title: 'Give admin access', text: `Add ${a.id} to the ${a.list === 'channel' ? 'full admin' : 'request admin'} list. They can use the admin pages (${a.list === 'channel' ? 'all of them except the owner-only ones' : 'requests only'}) from their next visit.`, ok: 'Add them' };
     case 'accessRemove': return { title: 'Remove admin access', text: `Take ${a.id} off the ${a.list === 'channel' ? 'full admin' : 'request admin'} list.`, ok: 'Remove them' };
     case 'banUser': return { title: 'Ban a member by Telegram id', text: `Ban every IP address that Telegram id ${a.telegramId} has used. Other members on those addresses are blocked too, and the admins get a Telegram alert.`, ok: 'Ban them' };
+    case 'refetchArt': return { title: a.force ? 'Force re-fetch ALL game art' : 'Re-fetch all game art', text: (a.force ? 'Throws away the stored art entry of every game and fetches it again from Steam and SteamGridDB. ' : 'Looks every game up again on Steam and SteamGridDB and updates what changed. ') + 'It runs on the server for a long time (every title in the library), makes thousands of requests to those services and can briefly slow the site. Only one run at a time.', ok: a.force ? 'Force re-fetch everything' : 'Start the re-fetch' };
     case 'reloadOverrides': return { title: 'Reload the art overrides', text: 'Re-read the override list now and clear the browse cache so changes show up without restarting the site.', ok: 'Reload' };
     case 'addCover': return { title: 'Set a cover', text: `Use this picture as the cover for "${a.title || a.gameKey}": ${a.coverUrl}`, ok: 'Set the cover' };
     case 'addTrailer': return { title: 'Set a trailer', text: `Use this YouTube video as the trailer for "${a.title || a.gameKey}": ${a.trailerYoutube}`, ok: 'Set the trailer' };
@@ -181,4 +182,73 @@ export function outageRows(list) { return (list || []).map((o) => ({ service: o.
 export function dailyUptime(list) {
   const r = list || [];
   return { labels: r.map((x) => String(x.day || '').slice(5, 10)), values: r.map((x) => (x.pct == null ? 0 : Math.round(num(x.pct) * 10) / 10)), colors: r.map((x) => (x.pct == null ? 'transparent' : x.pct >= 99.9 ? '#4ade80' : x.pct >= 90 ? '#fb923c' : '#ef4444')) };
+}
+
+// ---- The owner status dock (the website's "System" widget): same numbers, same rules ----
+export const DOCK_WINDOW_MS = 30 * 60 * 1000;
+const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
+export function dockValues(d) {
+  const o = (d && d.overhead) || {}, c = (d && d.concurrency) || {}, live = (d && d.appProgressActive) || {}, rec = (d && d.appProgressRecent) || {};
+  const loopMean = isNum(o.eventLoopMeanMs) ? o.eventLoopMeanMs : 0, loopMax = isNum(o.eventLoopMaxMs) ? o.eventLoopMaxMs : 0;
+  const loopP99 = isNum(o.eventLoopP99Ms) ? o.eventLoopP99Ms : loopMax;
+  const liveStreams = isNum(live.activeStreams) ? live.activeStreams : isNum(o.activeStreams) ? o.activeStreams : isNum(c.activeTotalStreams) ? c.activeTotalStreams : isNum(c.activeRcloneStreams) ? c.activeRcloneStreams : 0;
+  const recentStreams = isNum(rec.activeStreams) ? rec.activeStreams : liveStreams;
+  const liveUsers = isNum(live.activeUsers) ? live.activeUsers : isNum(c.userActiveStreamsUsers) ? c.userActiveStreamsUsers : 0;
+  const recentUsers = isNum(rec.activeUsers) ? rec.activeUsers : liveUsers;
+  const q = Math.max(0, Math.round(isNum(c.globalStreamQueueLength) ? c.globalStreamQueueLength : 0)), h = Math.max(0, Math.round(isNum(c.heldRedirectCount) ? c.heldRedirectCount : 0)), a = Math.max(0, Math.round(isNum(c.appQueuedDownloads) ? c.appQueuedDownloads : 0));
+  const pair = (l, r) => { const lt = String(Math.max(0, Math.round(l))), rt = String(Math.max(0, Math.round(r))); return rt !== lt ? lt + '/' + rt : lt; };
+  const mbps = (Number(live.totalBytesPerSec) || 0) * 8 / 1e6;
+  return {
+    overhead: o.level ? String(o.level) : '-',
+    loop: loopMean + '/' + loopP99, loopTitle: `mean ${loopMean}ms, p99 ${loopP99}ms, worst tick ${loopMax}ms (last 60s)`,
+    streams: pair(liveStreams, recentStreams), users: pair(liveUsers, recentUsers),
+    speed: mbps >= 1000 ? (mbps / 1000).toFixed(2) + ' Gbit/s' : mbps.toFixed(mbps >= 100 ? 0 : 1) + ' Mbit/s', speedTitle: `combined download speed, all users (${(mbps / 8).toFixed(1)} MB/s)`,
+    queue: String(q + h + a), queueBreakdown: `Global ${q} · Held ${h} · App ${a}`,
+    raw: { streams: liveStreams, users: liveUsers, speed: mbps, loop: loopP99 },
+  };
+}
+// The site's status window data (/api/status): what is down, since when.
+export function statusSummary(s) {
+  const bad = ((s && s.components) || []).filter((c) => c && c.status !== 'ok');
+  const down = bad.some((c) => c.status === 'down');
+  return { text: bad.length ? (down ? 'OUTAGE (' + bad.length + ')' : 'Issue (' + bad.length + ')') : 'OK', state: bad.length ? (down ? 'down' : 'issue') : 'ok', bad, down };
+}
+// A rolling 30 minute history for the little graphs.
+export function pushSample(list, value, now, windowMs = DOCK_WINDOW_MS) {
+  const out = (list || []).slice();
+  if (Number.isFinite(Number(value))) out.push({ t: now, v: Number(value) });
+  while (out.length && out[0].t < now - windowMs) out.shift();
+  return out;
+}
+export function sparkPoints(list, w = 100, h = 20, windowMs = DOCK_WINDOW_MS) {
+  const l = list || [];
+  if (l.length < 2) return '';
+  const tMax = l[l.length - 1].t, tMin = l[0].t;
+  let vMin = Infinity, vMax = -Infinity;
+  for (const p of l) { if (p.v < vMin) vMin = p.v; if (p.v > vMax) vMax = p.v; }
+  const range = vMax - vMin;
+  return l.map((p) => {
+    const x = Math.max(0, Math.min(w, ((p.t - tMin) / Math.max(1, windowMs)) * w));
+    const y = range === 0 ? h / 2 : h - (((p.v - vMin) / range) * (h - 2)) - 1;
+    return x.toFixed(2) + ',' + Math.max(0, Math.min(h, y)).toFixed(2);
+  }).join(' ');
+}
+// The detail pages the dock opens: which lists of system-details each mode shows.
+export const DETAIL_TITLES = { streams: 'Active Streams', queue: 'Stream Queue', users: 'Streaming Users', speed: 'Download Speed by User' };
+export function detailSections(mode, d) {
+  const data = d || {};
+  const q = data.queue || {};
+  const arr = (x) => (Array.isArray(x) ? x : []);
+  const mirrorRows = Object.entries(data.mirrorLoad && typeof data.mirrorLoad === 'object' ? data.mirrorLoad : {}).sort(([a], [b]) => a.localeCompare(b)).map(([name, m]) => ({ mirror: name, active: m && m.activeStreams, status: m && m.status, gamesAtQuota: data.mirrorGamesAtQuota && data.mirrorGamesAtQuota[name] != null ? (Array.isArray(data.mirrorGamesAtQuota[name]) ? data.mirrorGamesAtQuota[name].length : data.mirrorGamesAtQuota[name]) : '' }));
+  if (mode === 'streams') return [
+    { title: 'Streams', rows: arr(data.streams).map((s) => ({ user: s.user, file: s.filename, location: (s.remote || '') + (s.path ? '/' + s.path : ''), userPool: s.userStreams, thisFile: s.perFileStreams, overCap: s.capExceeded ? 'YES' : '' })), empty: 'No active streams.' },
+    { title: 'Mirrors', rows: mirrorRows, empty: '' },
+  ];
+  if (mode === 'queue') {
+    const qrows = (l) => arr(l).map((x) => ({ position: x.position, user: x.user, file: x.file, location: (x.remote || '') + (x.path ? '/' + x.path : ''), status: x.status, updated: x.updatedAt }));
+    return [{ title: 'Held redirects', rows: qrows(q.held), empty: 'None held.' }, { title: 'Global queue', rows: qrows(q.global), empty: 'Nothing waiting.' }, { title: 'App queue', rows: qrows(q.app), empty: 'Nothing queued by the app.' }, { title: 'Per-user queue', rows: qrows(q.perUser), empty: 'No per-user queue.' }];
+  }
+  if (mode === 'users') return [{ title: 'Streaming users', rows: arr(data.users).map((u) => ({ user: u.user, activeStreams: u.activeStreams })), empty: 'No active streaming users.' }];
+  if (mode === 'speed') return [{ title: 'Download speed by user', rows: arr(data.users).filter((u) => Number(u.bytesPerSec) > 0).sort((a, b) => Number(b.bytesPerSec) - Number(a.bytesPerSec)).map((u) => ({ user: u.user, speed: (Number(u.bytesPerSec) / 1048576).toFixed(1) + ' MB/s', mbit: (Number(u.bytesPerSec) * 8 / 1e6).toFixed(1) + ' Mbit/s' })), empty: 'Nobody is downloading right now.' }];
+  return [];
 }
