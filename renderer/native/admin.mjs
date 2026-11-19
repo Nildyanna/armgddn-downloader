@@ -202,16 +202,37 @@ function MissingPage() {
 }
 
 // Charts are drawn here as plain SVG (no chart library): bars with a hover note, a heat grid, and ranked lists with inline bars.
-function BarChart({ labels, values, height = 150, every, colors }) {
-  const W = 640, H = height, pad = 22, n = values.length || 1;
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const prettyLabel = (l) => {
+  const t = String(l == null ? '' : l);
+  let m;
+  if ((m = /^(\d{4})-W(\d{1,2})$/.exec(t))) return 'W' + Number(m[2]);
+  if ((m = /^(\d{4})-(\d{2})$/.exec(t))) return MONTHS[Number(m[2]) - 1] + " '" + m[1].slice(2);
+  if ((m = /^(\d{2})-(\d{2})$/.exec(t))) return Number(m[1]) + '/' + Number(m[2]);
+  return t;
+};
+const hourLabel = (h) => { h = Number(h); return h === 0 ? '12a' : h < 12 ? h + 'a' : h === 12 ? '12p' : (h - 12) + 'p'; };
+
+// A bar chart drawn as plain boxes, so the text stays sharp. Says what each bar is (`what`), the unit, the peak and where it was,
+// puts the number on every bar when there are few of them, and gives each bar a hover note with its full label and value.
+function BarChart({ labels, values, every, colors, unit = '', what = '', fmt, hours }) {
+  const f = fmt || ((v) => Number(v).toLocaleString('en-US'));
+  const n = values.length;
+  if (!n) return html`<div class="empty">Nothing to show.</div>`;
+  const small = (v) => (!fmt && n > 8 && v >= 1000 ? (v >= 1e6 ? (v / 1e6).toFixed(1) + 'M' : (v / 1000).toFixed(v >= 1e4 ? 0 : 1) + 'k') : f(v));
   const max = Math.max(1, ...values);
-  const bw = (W - pad) / n;
-  const step = every || Math.max(1, Math.ceil(n / 12));
-  return html`<svg class="achart" viewBox=${'0 0 ' + W + ' ' + (H + 18)} role="img" preserveAspectRatio="none">
-    ${values.map((v, i) => { const h = Math.max(v ? 1 : 0, Math.round((H - 6) * v / max)); return html`<rect key=${i} x=${pad + i * bw + 1} y=${H - h} width=${Math.max(1, bw - 2)} height=${h} rx="1.5" class="abar" style=${colors && colors[i] ? 'fill:' + colors[i] + ';opacity:.9' : ''}><title>${labels[i]}: ${v.toLocaleString('en-US')}</title></rect>`; })}
-    ${labels.map((l, i) => (i % step === 0 ? html`<text key=${'t' + i} x=${pad + i * bw + bw / 2} y=${H + 13} text-anchor="middle" class="atick">${l}</text>` : ''))}
-    <text x="0" y="10" class="atick">${max.toLocaleString('en-US')}</text>
-  </svg>`;
+  const peakAt = values.indexOf(Math.max(...values));
+  const step = every || Math.max(1, Math.ceil(n / 10));
+  const nice = (l) => (hours ? hourLabel(l) : prettyLabel(l));
+  const full = (l) => (hours ? hourLabel(l) + ' (hour ' + l + ')' : String(l));
+  return html`<div class="bchart">
+    <div class="bmeta"><span>${what}</span><span class="bpeak">Peak ${f(values[peakAt] || 0)}${unit ? ' ' + unit : ''}${labels[peakAt] != null ? ' - ' + nice(labels[peakAt]) : ''}</span></div>
+    <div class="bplot">
+      <span class="byt">${f(max)}</span><span class="byb">0</span>
+      <div class="bbars">${values.map((v, i) => html`<div class="bcol" key=${i} title=${full(labels[i]) + ': ' + f(v) + (unit ? ' ' + unit : '')}>${n <= 16 ? html`<span class="bval">${small(v)}</span>` : ''}<i class="bbar" style=${'height:' + (v ? Math.max(1.5, 100 * v / max) : 0) + '%;' + (colors && colors[i] ? 'background:' + colors[i] : '')}></i></div>`)}</div>
+    </div>
+    <div class="blabels">${labels.map((l, i) => html`<span key=${i}>${i % step === 0 ? nice(l) : ''}</span>`)}</div>
+  </div>`;
 }
 function Heatmap({ rows }) {
   const { grid, max } = heatmapGrid(rows);
@@ -237,13 +258,13 @@ function AnalyticsPage() {
   return html`<div>
     <${Cards} items=${analyticsCards(d)} />
     <div class="agrid">
-      <${Panel} title="Daily downloads, last 60 days" wide=${true}><${BarChart} labels=${daily.labels} values=${daily.values} /><//>
-      <${Panel} title="Weekly downloads, last 12 weeks"><${BarChart} labels=${weekly.labels} values=${weekly.values} every=${2} /><//>
-      <${Panel} title="New members per week (first download)"><${BarChart} labels=${nuw.labels} values=${nuw.values} every=${3} /><//>
-      <${Panel} title="New members per month"><${BarChart} labels=${num.labels} values=${num.values} every=${2} /><//>
-      <${Panel} title="Downloads by hour of day (Eastern)"><${BarChart} labels=${hours.labels} values=${hours.values} every=${3} /><//>
-      <${Panel} title="Downloads by day of week"><${BarChart} labels=${dows.labels} values=${dows.values} every=${1} /><//>
-      <${Panel} title="Hour of day by day of week (Eastern, all time)" wide=${true}><${Heatmap} rows=${d.heatmapRaw} /><//>
+      <${Panel} title="Daily downloads, last 60 days" wide=${true}><${BarChart} labels=${daily.labels} values=${daily.values} every=${5} unit="downloads" what="Each bar is one day." /><//>
+      <${Panel} title="Weekly downloads, last 12 weeks"><${BarChart} labels=${weekly.labels} values=${weekly.values} unit="downloads" what="Each bar is one week (W45 = week 45 of the year). Height is downloads." /><//>
+      <${Panel} title="New members per week (first download)"><${BarChart} labels=${nuw.labels} values=${nuw.values} every=${3} unit="new members" what="Each bar is one week. Height is members who made their first download that week." /><//>
+      <${Panel} title="New members per month"><${BarChart} labels=${num.labels} values=${num.values} unit="new members" what="Each bar is one month. Height is members who made their first download that month." /><//>
+      <${Panel} title="Downloads by hour of day (Eastern)"><${BarChart} labels=${hours.labels} values=${hours.values} every=${3} hours=${true} unit="downloads" what="Each bar is one hour of the day, in Eastern time (12a = midnight). All time." /><//>
+      <${Panel} title="Downloads by day of week"><${BarChart} labels=${dows.labels} values=${dows.values} every=${1} unit="downloads" what="Each bar is one day of the week. All time." /><//>
+      <${Panel} title="Hour of day by day of week (Eastern, all time)" wide=${true}><div class="bmeta"><span>Each square is one hour of one weekday. A brighter square means more downloads. Hover a square for the count.</span></div><${Heatmap} rows=${d.heatmapRaw} /><//>
       <${Panel} title="Top genres"><${RankList} rows=${topRows(d.genres, 'name', 'count', 8)} /><//>
       <${Panel} title="Top 10 games, last 30 days"><${RankList} rows=${topRows(d.topGames30d, 'title', 'total', 10)} /><//>
       <${Panel} title="Member loyalty (downloads per member, all time)"><${RankList} rows=${(() => { const l = loyaltyRows(d.loyaltyTiers); const m = Math.max(1, ...l.map((x) => x.n)); return l.map((x) => ({ label: x.label, value: x.n, pct: Math.round(100 * x.n / m) })); })()} unit="members" /><//>
@@ -269,9 +290,9 @@ function CollectionKind({ kind, o }) {
     <h4 class="asub">${kind}</h4>
     <${Cards} items=${collectionCards(o, kind)} />
     <div class="agrid">
-      <${Panel} title=${'Downloaded per day, last 30 days (' + (kind === 'Music' ? 'albums' : 'issues') + ')'} wide=${true}><${BarChart} labels=${daily.labels} values=${daily.values} every=${3} /><//>
-      <${Panel} title="By hour of day (Eastern)"><${BarChart} labels=${hours.labels} values=${hours.values} every=${3} /><//>
-      <${Panel} title="By day of week"><${BarChart} labels=${dows.labels} values=${dows.values} every=${1} /><//>
+      <${Panel} title=${'Downloaded per day, last 30 days (' + (kind === 'Music' ? 'albums' : 'issues') + ')'} wide=${true}><${BarChart} labels=${daily.labels} values=${daily.values} every=${5} unit=${kind === 'Music' ? 'albums' : 'issues'} what="Each bar is one day." /><//>
+      <${Panel} title="By hour of day (Eastern)"><${BarChart} labels=${hours.labels} values=${hours.values} every=${3} hours=${true} unit=${kind === 'Music' ? 'albums' : 'issues'} what="Each bar is one hour of the day, Eastern (12a = midnight)." /><//>
+      <${Panel} title="By day of week"><${BarChart} labels=${dows.labels} values=${dows.values} every=${1} unit=${kind === 'Music' ? 'albums' : 'issues'} what="Each bar is one day of the week." /><//>
       <${Panel} title=${kind === 'Music' ? 'Most downloaded artists, 30 days' : 'Most downloaded series, 30 days'}><${RankList} rows=${names(kind === 'Music' ? o.topArtists : o.topSeries, 10)} /><//>
       <${Panel} title=${kind === 'Music' ? 'Most downloaded albums, 30 days' : 'Most downloaded volumes, 30 days'}><${RankList} rows=${names(o.topUnits, 10)} /><//>
       <${Panel} title=${'Top ' + kind + ' collectors, 30 days'}><${RankList} rows=${topRows(o.topUsers, 'username', 'items', 10)} /><//>
@@ -302,7 +323,7 @@ function ReliabilityPage() {
     <p class="sval">Monitoring since ${d.monitoringSince ? new Date(d.monitoringSince).toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' }) : 'unknown'}. Each service is checked every minute.</p>
     <h4 class="asub">Uptime by service</h4>
     <${DataTable} rows=${uptimeRows(d.uptime)} columns=${['service', 'last24h', 'last7days', 'last30days']} empty="No data yet." />
-    <div class="agrid"><${Panel} title="Percent of each day with every service up" wide=${true}><${BarChart} labels=${daily.labels} values=${daily.values} colors=${daily.colors} every=${3} /><//></div>
+    <div class="agrid"><${Panel} title="Percent of each day with every service up" wide=${true}><${BarChart} labels=${daily.labels} values=${daily.values} colors=${daily.colors} every=${3} fmt=${(v) => v + '%'} what="Each bar is one day. Height is the share of that day with every service up. Green is 99.9% or better, orange 90% or better, red below." /><//></div>
     <h4 class="asub">Outages</h4>
     <${DataTable} rows=${outageRows(d.outages)} columns=${['service', 'type', 'started', 'length']} empty="No outages recorded since monitoring began." />
   </div>`;
