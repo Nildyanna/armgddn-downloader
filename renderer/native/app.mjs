@@ -4,6 +4,7 @@ import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
 
+import { AdminView } from './admin.mjs';
 const api = window.nativeAPI;
 
 // Themes: the website's palettes (renderer/native/themes.json, made by scripts/extract_themes.py). The choice is remembered on this PC; "System" follows the computer's light or dark setting.
@@ -835,6 +836,7 @@ class PageGuard extends Component {
 function App() {
   const [status, setStatus] = useState(null);
   const [tabs, setTabs] = useState([]);
+  const [admin, setAdmin] = useState(null);           // { role, canManage } for owners and admins, null for everyone else
   const [bundles, setBundles] = useState(null);       // publisher collections for the Comics page
   const [quota, setQuota] = useState(() => new Set());     // sections whose download quota is used up
   const [watchOpen, setWatchOpen] = useState(false);
@@ -1061,7 +1063,7 @@ function App() {
     return () => { live = false; clearInterval(t); };
   }, []);
   const activeCount = downloads.filter(isActiveDownload).length;
-  const pageLabel = view === 'library' ? (everywhere ? 'Search everywhere' : (remote || 'Library')) : ({ home: 'Home', tools: 'Tools', settings: 'Settings', wiki: 'Wiki', mylist: 'My List', requests: 'Requests', downloads: 'Downloads' }[view] || '');
+  const pageLabel = view === 'library' ? (everywhere ? 'Search everywhere' : (remote || 'Library')) : ({ home: 'Home', tools: 'Tools', settings: 'Settings', wiki: 'Wiki', mylist: 'My List', requests: 'Requests', downloads: 'Downloads', admin: 'Admin' }[view] || '');
   const prevActive = useRef(0); const [pulse, setPulse] = useState(false);
   useEffect(() => { if (activeCount > prevActive.current) { setPulse(true); const id = setTimeout(() => setPulse(false), 1700); prevActive.current = activeCount; return () => clearTimeout(id); } prevActive.current = activeCount; }, [activeCount]);
   const autoOk = useRef(true);   // step into the library folder when a tab is opened, but not when the member clicks back to the top
@@ -1076,6 +1078,8 @@ function App() {
     if (!r.ok) return fail(r.error);
     const t = tabsFrom(r.data.remotes); setTabs(t); if (t.length) setRemote(t[0]);
     try { setQuota(quotaTabs(r.data.remoteStatus)); } catch (e) { }
+    // Owners and admins get an Admin tab; the site answers 403 to everyone else, so nobody else ever sees it.
+    try { const a = await api.adminGet('stats', {}); if (a && a.ok && a.data && (a.data.role === 'owner' || a.data.role === 'admin')) setAdmin({ role: a.data.role, canManage: !!a.data.canManageRequests }); } catch (e) { }
     // The website copies each member's preferences to the server; the first time here they come over by themselves, and later visits only add
     // new My List entries. Nothing for the member to do. They are read first, because they also say whether the member has seen the intro.
     let pulled = null;
@@ -1176,6 +1180,7 @@ function App() {
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
       <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>
       <button class=${view === 'requests' ? 'tab on' : 'tab'} onClick=${() => setView('requests')}>Requests</button>
+      ${admin ? html`<button class=${view === 'admin' ? 'tab on' : 'tab'} onClick=${() => setView('admin')}>Admin</button>` : ''}
       <button class=${(view === 'downloads' ? 'tab on' : 'tab') + (pulse ? ' pulse' : '')} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
     </header>
     <div class="subbar">
@@ -1195,6 +1200,7 @@ function App() {
     </div>
     ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN Browser ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${activeCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN Browser.</span>` : ''}<button class="dbtn go" disabled=${updating || activeCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
+    ${view === 'admin' && admin ? html`<${AdminView} admin=${admin} />` : ''}
     ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>

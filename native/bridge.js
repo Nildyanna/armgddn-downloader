@@ -86,6 +86,15 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   // Requests (My Requests, comments, a new Music/Comics request). Writes clear the cached list so it refreshes.
   const reqId = (id) => { const n = Number(id); if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error('Bad request id'), { kind: 'http', status: 400 }); return n; };
   // Watchlist ("Tell me when it is added"): the same lists the website keeps, so a title watched in either place shows in both.
+  // Admin pages (read only). The site decides who may see what from the member's own role; these are the only admin addresses the app will ask for.
+  const ADMIN_GET = { stats: '/api/admin/stats', system: '/api/admin/system-details', activity: '/api/admin/user-activity', queue: '/api/admin/queue', requests: '/api/admin/requests' };
+  ipcMain.handle('native:adminGet', wrap((kind, params) => {
+    const base = ADMIN_GET[String(kind)];
+    if (!base) throw Object.assign(new Error('Unknown admin page'), { kind: 'http', status: 400 });
+    const q = new URLSearchParams();
+    if (kind === 'requests' && params && typeof params === 'object') for (const k of ['status', 'category']) { const v = String(params[k] || ''); if (/^[A-Za-z_ -]{1,30}$/.test(v)) q.set(k, v); }
+    return api.get(base + (q.toString() ? '?' + q.toString() : ''), { ttlMs: 0, fresh: true });
+  }));
   // The publisher collections on the Comics page (Marvel Collection, DC Collection ...): worked out by the site, one download each.
   ipcMain.handle('native:comicBundles', wrap(() => api.get('/api/comic-bundles', { ttlMs: 5 * 60 * 1000 })));
   ipcMain.handle('native:watchlist', wrap(() => api.get('/api/watchlist', { ttlMs: 0, fresh: true })));

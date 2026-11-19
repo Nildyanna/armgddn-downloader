@@ -434,3 +434,27 @@ header select + select { margin-left: 0; }
 .bundle .bcover { width: 54px; height: 80px; flex: none; border-radius: 6px; overflow: hidden; background: var(--inset); }
 .bundle .bcover img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .bundle .binfo { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+
+/* Admin pages */
+.adminpage { max-width: 1200px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; }
+.adminpage h2 { margin: 0; }
+.atabs { display: flex; gap: 6px; flex-wrap: wrap; }
+.acards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.acard { padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card, var(--card2)); }
+.acard .alabel { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
+.acard .avalue { font-size: 22px; font-weight: 600; margin-top: 2px; }
+.acard .ahint { font-size: 12px; color: var(--dim); margin-top: 2px; }
+.asub { margin: 14px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.atable { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--card, var(--card2)); }
+.atable table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.atable th { text-align: left; padding: 8px 10px; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--dim); border-bottom: 1px solid var(--line); white-space: nowrap; }
+.atable td { padding: 7px 10px; border-top: 1px solid var(--line); vertical-align: top; }
+.atable tbody tr:first-child td { border-top: 0; }
+.atree { display: flex; flex-direction: column; gap: 10px; }
+.akv { border: 1px solid var(--line); border-radius: 10px; background: var(--card, var(--card2)); padding: 4px 12px; }
+.arow { display: flex; gap: 12px; justify-content: space-between; padding: 6px 0; border-top: 1px solid var(--line); }
+.arow:first-child { border-top: 0; }
+.arow .ak { color: var(--dim); } .arow .av { text-align: right; word-break: break-word; }
+.agroup h4 { margin: 8px 0 6px; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--dim); }
+.afilters { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin: 6px 0; }
+.afilters select { background: var(--inset); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; }
