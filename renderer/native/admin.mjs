@@ -1,6 +1,6 @@
 // The Admin pages of the built-in window (phase 1: read only). Shown only to owners and admins; the site decides what each role may see.
 import { html, useState, useEffect, useMemo } from '../../native/vendor/ui.mjs';
-import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows } from './adminFormat.mjs';
+import { labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -115,6 +115,23 @@ function RequestsPage({ audit }) {
   </div>`;
 }
 
+function MissingPage() {
+  const [st, reload] = useAdminData('missing', {}, 0);
+  const [what, setWhat] = useState('all');
+  const [query, setQuery] = useState('');
+  if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
+  const rows = missingRows(st.data, { what, query });
+  return html`<div>
+    <${Cards} items=${missingCards(st.data)} />
+    <div class="afilters">
+      <label>Show <select value=${what} onChange=${(e) => setWhat(e.target.value)}><option value="all">Everything missing</option><option value="cover">Missing a cover</option><option value="trailer">Missing a trailer</option></select></label>
+      <input class="search" type="search" placeholder="Search titles" value=${query} onInput=${(e) => setQuery(e.target.value)} />
+      <span class="sval">${rows.length} shown</span><button class="dbtn" onClick=${reload}>Refresh</button>
+    </div>
+    <${DataTable} rows=${rows} columns=${['title', 'cover', 'trailer', 'folder']} empty="Nothing is missing." />
+  </div>`;
+}
+
 export function AdminView({ admin }) {
   const tabs = useMemo(() => adminTabs(admin && admin.role, admin && admin.canManage), [admin]);
   const [tab, setTab] = useState(() => (tabs[0] ? tabs[0][0] : ''));
@@ -123,6 +140,6 @@ export function AdminView({ admin }) {
   return html`<main class="adminpage">
     <h2>Admin <span class="sval">read only for now</span></h2>
     <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${id === cur ? 'tab on' : 'tab'} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
-    ${cur === 'overview' ? html`<${Overview} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
+    ${cur === 'overview' ? html`<${Overview} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;
 }

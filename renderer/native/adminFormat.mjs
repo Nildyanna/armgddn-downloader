@@ -43,7 +43,7 @@ export function tableColumns(rows, max = 8) {
 export function adminTabs(role, canManage) {
   const tabs = [];
   if (role === 'owner' || role === 'admin') tabs.push(['overview', 'Overview']);
-  if (role === 'owner') tabs.push(['system', 'System'], ['activity', 'Activity']);
+  if (role === 'owner') tabs.push(['system', 'System'], ['activity', 'Activity'], ['missing', 'Missing art']);
   if (canManage) tabs.push(['queue', 'Queue'], ['requests', 'Requests'], ['audit', 'Audit']);
   return tabs;
 }
@@ -77,4 +77,21 @@ export function requestRows(list, { audit = false, processedBy = '' } = {}) {
   if (audit) rows = rows.filter((r) => r.processedBy);
   if (processedBy) rows = rows.filter((r) => r.processedBy === processedBy);
   return rows.map((r) => ({ id: r.id, title: r.gameTitle || r.title || '', by: r.username || '', category: r.category || '', status: r.status || '', requested: r.createdAt || '', handledBy: r.processedBy || '', handledAt: r.processedAt || '', votes: r.popularity || 1 }));
+}
+
+// Games with no cover and/or no trailer (the site's missing-covers answer): the summary cards and the rows, filtered by what is missing and by a search.
+export function missingCards(d) {
+  if (!d || typeof d !== 'object') return [];
+  return [
+    { label: 'Missing a cover', value: Number(d.count || 0).toLocaleString('en-US'), hint: '' },
+    { label: 'Missing a trailer', value: Number(d.trailerCount || 0).toLocaleString('en-US'), hint: Number(d.trailerUnavailableCount) ? d.trailerUnavailableCount + ' marked unavailable' : '' },
+    { label: 'Games in the library', value: Number(d.totalUniqueGames || 0).toLocaleString('en-US'), hint: '' },
+  ];
+}
+export function missingRows(d, { what = 'all', query = '' } = {}) {
+  const q = String(query || '').trim().toLowerCase();
+  return ((d && d.gamesWithStatus) || [])
+    .filter((g) => g && (what === 'cover' ? g.missingCover : what === 'trailer' ? g.missingTrailer : true))
+    .filter((g) => !q || String(g.cleanTitle || '').toLowerCase().includes(q) || String(g.gameKey || '').toLowerCase().includes(q))
+    .map((g) => ({ title: g.cleanTitle || g.gameKey, folder: g.gameKey, cover: g.missingCover ? 'Missing' : 'Has one', trailer: g.missingTrailer ? 'Missing' : 'Has one' }));
 }
