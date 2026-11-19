@@ -2,7 +2,7 @@
 // Same numbers (refreshed every 5 seconds), same 30 minute graphs, same click patterns: the title, Overhead and Loop open the analytics report,
 // Status opens the site status window, and Streams, Users, Speed and Queue open their detail pages.
 import { html, useState, useEffect, useRef } from '../../native/vendor/ui.mjs';
-import { dockValues, statusSummary, pushSample, sparkPoints, DETAIL_TITLES, detailSections, labelOf } from './adminFormat.mjs';
+import { dockValues, statusSummary, pushSample, sparkPoints, DETAIL_TITLES, detailSections, DOCK_WINDOW_MS } from './adminFormat.mjs';
 import { DataTable, useAdminData } from './admin.mjs';
 
 const api = window.nativeAPI;
@@ -37,7 +37,8 @@ function DetailsModal({ mode, onClose }) {
 }
 
 export function OwnerDock({ onOpenAnalytics }) {
-  const hist = useRef({ streams: [], users: [], speed: [], loop: [] });
+  // The graphs keep their last 30 minutes across restarts of the app, so they are never empty after a restart.
+  const hist = useRef((() => { try { const h = JSON.parse(localStorage.getItem('native.dockHist') || 'null'); const now = Date.now(); if (h && typeof h === 'object') { const out = {}; for (const k of ['streams', 'users', 'speed', 'loop']) out[k] = (Array.isArray(h[k]) ? h[k] : []).filter((p) => p && now - p.t < DOCK_WINDOW_MS && Number.isFinite(p.v)); return out; } } catch (e) { } return { streams: [], users: [], speed: [], loop: [] }; })());
   const [vals, setVals] = useState(null);
   const [site, setSite] = useState(null);
   const [detail, setDetail] = useState(null);
@@ -49,6 +50,7 @@ export function OwnerDock({ onOpenAnalytics }) {
       if (!alive || !(r && r.ok && r.data)) return;
       const v = dockValues(r.data), now = Date.now();
       for (const k of ['streams', 'users', 'speed', 'loop']) hist.current[k] = pushSample(hist.current[k], v.raw[k], now);
+      try { localStorage.setItem('native.dockHist', JSON.stringify(hist.current)); } catch (e) { }
       setVals(v);
     };
     poll();
@@ -66,6 +68,8 @@ export function OwnerDock({ onOpenAnalytics }) {
   const cell = (cls, label, value, title, onClick, spark) => html`<button class=${'dcell ' + cls} title=${title || ''} onClick=${onClick}><span class="dlabel">${label}</span><span class="dvalue">${value}</span>${spark ? html`<${Spark} list=${spark} />` : ''}</button>`;
   return html`<div>
     <div class="ownerdock" role="status" aria-label="System status">
+      <span></span>
+      <div class="dcenter">
       <button class="dtitle" title="Open the analytics report" onClick=${onOpenAnalytics}>System</button>
       ${cell('dstate ' + sum.state, 'Status', site ? sum.text : '-', sum.bad.length ? sum.bad.map((c) => c.label + ' since ' + whenText(c.since)).join('\n') : 'Everything is working. Click for details.', () => setStatusOpen(true))}
       ${cell('', 'Overhead', vals ? vals.overhead : '-', 'Open the analytics report', onOpenAnalytics)}
@@ -74,6 +78,7 @@ export function OwnerDock({ onOpenAnalytics }) {
       ${cell('', 'Users', vals ? vals.users : '-', 'Open the streaming users', () => setDetail('users'), hist.current.users)}
       ${cell('', 'Speed', vals ? vals.speed : '-', vals ? vals.speedTitle : '', () => setDetail('speed'), hist.current.speed)}
       ${cell('', 'Queue', vals ? vals.queue : '-', vals ? vals.queueBreakdown : '', () => setDetail('queue'))}
+      </div>
       <span class="dbreak">${vals ? vals.queueBreakdown : ''}</span>
     </div>
     <div class="dockspace"></div>

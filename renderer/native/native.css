@@ -486,7 +486,11 @@ header select + select { margin-left: 0; }
 .dcell:hover { border-color: var(--line); }
 .dlabel { font-size: 11px; color: var(--dim); text-transform: uppercase; letter-spacing: .05em; }
 .dvalue { font-weight: 600; font-size: 13px; font-variant-numeric: tabular-nums; }
-.dspark { width: 64px; height: 18px; color: var(--accent, #6cf); display: inline-block; }
+.dspark { width: 72px; height: 20px; color: var(--accent, #6cf); display: inline-block; }
 .dstate.ok .dvalue, .dstatus.ok { color: #22c55e; } .dstate.issue .dvalue, .dstatus.issue { color: #f59e0b; } .dstate.down .dvalue, .dstatus.down { color: #ef4444; }
 .dstatus { font-weight: 700; }
 .dbreak { margin-left: auto; font-size: 11px; color: var(--dim); }
+.dcenter { flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px 6px; flex-wrap: wrap; }
+.ownerdock { display: grid; grid-template-columns: 1fr auto 1fr; }
+.ownerdock .dbreak { justify-self: end; margin-left: 0; }
+@media (max-width: 1100px) { .ownerdock { display: flex; } .ownerdock .dbreak { margin-left: auto; } .ownerdock > span:first-child { display: none; } }

@@ -224,11 +224,13 @@ export function sparkPoints(list, w = 100, h = 20, windowMs = DOCK_WINDOW_MS) {
   const l = list || [];
   if (l.length < 2) return '';
   const tMax = l[l.length - 1].t, tMin = l[0].t;
+  // The line spreads across the width over the time it actually has (at least 30 seconds, at most the 30 minute window), so a freshly opened app still shows a line.
+  const span = Math.max(30000, Math.min(windowMs, tMax - tMin));
   let vMin = Infinity, vMax = -Infinity;
   for (const p of l) { if (p.v < vMin) vMin = p.v; if (p.v > vMax) vMax = p.v; }
   const range = vMax - vMin;
   return l.map((p) => {
-    const x = Math.max(0, Math.min(w, ((p.t - tMin) / Math.max(1, windowMs)) * w));
+    const x = Math.max(0, Math.min(w, ((p.t - tMin) / span) * w));
     const y = range === 0 ? h / 2 : h - (((p.v - vMin) / range) * (h - 2)) - 1;
     return x.toFixed(2) + ',' + Math.max(0, Math.min(h, y)).toFixed(2);
   }).join(' ');

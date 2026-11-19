@@ -31,6 +31,8 @@ test('admin formatting helpers', async () => {
   assert.equal(f.detailSections('queue', { queue: { global: [{ user: 'x', position: 1 }] } })[1].rows[0].user, 'x'); assert.equal(f.detailSections('queue', {}).length, 4);
   assert.deepEqual(f.detailSections('speed', { users: [{ user: 'a', bytesPerSec: 0 }, { user: 'b', bytesPerSec: 2097152 }, { user: 'c', bytesPerSec: 1048576 }] })[0].rows.map((r) => r.user), ['b', 'c']);
   assert.equal(f.detailSections('nonsense', {}).length, 0);
+  const pts = f.sparkPoints([{ t: 0, v: 1 }, { t: 60000, v: 9 }]).split(' '); assert.ok(pts[1].startsWith('100.00,'), 'a short history still spreads across the whole graph');
+  assert.ok(!f.sparkPoints([{ t: 0, v: 1 }, { t: 1000, v: 2 }]).includes('NaN'));
   assert.deepEqual(f.uptimeRows([{ label: 'Website (browser)', d1: 100, d7: 99.123, d30: null }]), [{ service: 'Website', last24h: '100%', last7days: '99.12%', last30days: '-' }]);
   assert.deepEqual(f.outageRows([{ label: 'Gateway', level: 'down', start: 'x', lengthMs: 120000, ongoing: true }]), [{ service: 'Gateway', type: 'Down', started: 'x', length: '2m (ongoing)' }]);
   const du = f.dailyUptime([{ day: '2026-11-18T00:00:00Z', pct: 100 }, { day: '2026-11-19T00:00:00Z', pct: 95 }, { day: '2026-11-20T00:00:00Z', pct: 50 }, { day: '2026-11-21', pct: null }]);
