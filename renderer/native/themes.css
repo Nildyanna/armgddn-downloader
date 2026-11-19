@@ -391,7 +391,7 @@ html[data-theme="desert-dusk"] .search { background: rgba(29, 18, 34, 0.92) !imp
 html[data-theme="desert-dusk"] .card, html[data-theme="desert-dusk"] .card { background: rgba(38, 23, 40, 0.9) !important; border-color: rgba(240, 131, 90, 0.34) !important; box-shadow: 0 14px 34px rgba(240,131,90,0.28) !important; border-radius: 18px !important; }
 html[data-theme="desert-dusk"] .card:hover, html[data-theme="desert-dusk"] .card:hover { border-color: rgba(240, 131, 90, 0.7) !important; box-shadow: 0 18px 38px rgba(240, 131, 90, 0.26) !important; transform: translateY(-2px) !important; }
 html[data-theme="desert-dusk"] .strip, html[data-theme="desert-dusk"] .strip { background: rgba(38, 23, 40, 0.9) !important; border-color: rgba(240, 131, 90, 0.34) !important; border-radius: 18px !important; }
-html[data-theme="desert-dusk"] .banner { border-radius: 90px 90px 20px 20px !important; padding-top: 28px; text-align: center; border-width: 2px !important; }
+html[data-theme="desert-dusk"] .banner { border-radius: 34px 34px 20px 20px !important; padding-top: 28px; text-align: center; border-width: 2px !important; }
 html[data-theme="desert-dusk"] .card { border-radius: 64px 64px 16px 16px !important; text-align: center; border-width: 1px !important; }
 html[data-theme="desert-dusk"] .card:first-child { border-width: 2px !important; border-color: rgba(242, 192, 120, 0.85) !important; }
 html[data-theme="desert-dusk"] .card { border-radius: 22px !important; }
