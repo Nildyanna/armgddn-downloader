@@ -76,7 +76,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
   return html`<div class=${'card' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
     ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
     <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img class="cbg" aria-hidden="true" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="cfg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onLoad=${(e) => { const im = e.target; im.classList.toggle('fill', coverFills(im.naturalWidth, im.naturalHeight, shapeFor(remote))); }} onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
-    <div class="meta"><div class=${'title' + (platform ? ' withp' : '')}>${platform ? html`<span class="ttext">${shownTitle}${badgeEl}</span>${platformEl}` : html`${shownTitle}${badgeEl}`}</div>
+    <div class="meta"><div class=${'title' + (platform ? ' withp' : '') + (item.isDir ? ' clickable' : '')} onClick=${item.isDir ? () => onOpen(item) : undefined}>${platform ? html`<span class="ttext">${shownTitle}${badgeEl}</span>${platformEl}` : html`${shownTitle}${badgeEl}`}</div>
       <div class="sub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</div>${stubEl}
       <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
@@ -973,34 +973,79 @@ function App() {
     setMyList(next); try { localStorage.setItem(MY_LIST_KEY, JSON.stringify(next)); } catch (e) { }
     say('Added to My List');
   };
+  // Back and Forward remember where you were: the section and folder, the search, filter and sort, and how far the list was scrolled (Dirk, Nov 20:
+  // Back from a game's folder dropped you at the top of the list, and there was no way forward).
+  const fwdStack = useRef([]);
+  const scrollMemo = useRef(new Map());     // nav key -> scrollTop of the list while that page was open
+  const extraMemo = useRef(new Map());      // nav key -> { query, category, sort, reverse }
+  const pendingTop = useRef(null);
+  const [canFwd, setCanFwd] = useState(false);
+  useEffect(() => {
+    const onScroll = (e) => { const t = e.target; if (t && t.classList && (t.classList.contains('grid') || t.classList.contains('list')) && navNow.current) scrollMemo.current.set(navNow.current.key, t.scrollTop); };
+    document.addEventListener('scroll', onScroll, true);
+    return () => document.removeEventListener('scroll', onScroll, true);
+  }, []);
+  useEffect(() => { if (navNow.current) extraMemo.current.set(navNow.current.key, { query, category, sort, reverse }); }, [query, category, sort, reverse]);
+  const snapshot = (st, key) => ({ ...st, scroll: scrollMemo.current.get(key) || 0, extra: extraMemo.current.get(key) || null });
   useEffect(() => {
     const lib = view === 'library';
     const state = { view, remote: lib ? remote : '', folder: lib ? folder : '', everywhere: lib ? everywhere : false };
     const key = JSON.stringify(state);
     const prev = navNow.current;
     if (prev && prev.key !== key && !navRestoring.current) {
-      navStack.current.push(prev.state);
+      navStack.current.push(snapshot(prev.state, prev.key));
       if (navStack.current.length > 60) navStack.current.shift();
+      fwdStack.current = [];                  // a new step forgets the old "forward" pages, like a browser
     }
     navRestoring.current = false;
     navNow.current = { key, state };
+    extraMemo.current.set(key, { query, category, sort, reverse });
     setCanBack(navStack.current.length > 0);
+    setCanFwd(fwdStack.current.length > 0);
   }, [view, remote, folder, everywhere]);
+  const restoreScroll = () => {
+    if (pendingTop.current == null) return;
+    const t = pendingTop.current;
+    for (const ms of [150, 600]) setTimeout(() => { const el = document.querySelector('main.grid, main.list'); if (el && t != null) el.scrollTop = t; }, ms);
+    setTimeout(() => { pendingTop.current = null; }, 700);
+  };
+  const applyNav = (e) => {
+    navRestoring.current = true;
+    setEverywhere(e.everywhere);
+    setView(e.view);
+    if (e.view === 'library') {
+      autoOk.current = false;
+      const x = e.extra || {};
+      setCategory(x.category || ''); setQuery(x.query || '');
+      if (x.sort) setSort(x.sort);
+      setReverse(!!x.reverse);
+      pendingTop.current = e.scroll || 0;
+      setRemote(e.remote); setFolder(e.folder);
+      restoreScroll();                        // also when the folder did not change (the list is already there)
+    }
+  };
   const goBack = () => {
     const cur = navNow.current && navNow.current.state;
+    const curKey = navNow.current && navNow.current.key;
     let prev = navStack.current.pop();
     // skip the app's own step into a game group's root folder ("PC Games" -> "PC1")
     while (prev && cur && prev.view === 'library' && cur.view === 'library' && prev.remote === cur.remote && prev.folder === '' && /^PC(VR)?\d$/.test(cur.folder || '') && navStack.current.length) prev = navStack.current.pop();
     setCanBack(navStack.current.length > 0);
     if (!prev) return;
-    navRestoring.current = true;
-    setEverywhere(prev.everywhere);
-    setView(prev.view);
-    if (prev.view === 'library') { autoOk.current = false; setCategory(''); setQuery(''); setRemote(prev.remote); setFolder(prev.folder); }
+    if (cur) { fwdStack.current.push(snapshot(cur, curKey)); setCanFwd(true); }
+    applyNav(prev);
+  };
+  const goForward = () => {
+    const next = fwdStack.current.pop();
+    setCanFwd(fwdStack.current.length > 0);
+    if (!next) return;
+    const cur = navNow.current && navNow.current.state;
+    if (cur) { navStack.current.push(snapshot(cur, navNow.current.key)); setCanBack(true); }
+    applyNav(next);
   };
   useEffect(() => {
-    const key = (e) => { if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); goBack(); } };
-    const mouse = (e) => { if (e.button === 3) { e.preventDefault(); goBack(); } };
+    const key = (e) => { if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); goBack(); } else if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); goForward(); } };
+    const mouse = (e) => { if (e.button === 3) { e.preventDefault(); goBack(); } else if (e.button === 4) { e.preventDefault(); goForward(); } };
     window.addEventListener('keydown', key); window.addEventListener('mouseup', mouse);
     return () => { window.removeEventListener('keydown', key); window.removeEventListener('mouseup', mouse); };
   });
@@ -1126,6 +1171,7 @@ function App() {
       const into = folder === '' && autoOk.current ? autoEnter(remote, files) : null;
       if (into) { setFolder(into); return; }
       setItems(visibleItems(remote, folder, files), myKey);
+      restoreScroll();
       if (pendingScroll.current) { const n = pendingScroll.current; pendingScroll.current = ''; setTimeout(() => { const el = [...document.querySelectorAll('.card')].find((c) => c.getAttribute('title') === n); if (el) el.scrollIntoView({ block: 'center' }); }, 400); }
     });
     return () => { live = false; };
@@ -1197,6 +1243,7 @@ function App() {
     </header>
     <div class="subbar">
       <button class="tab backbtn" title="Go back (Alt+Left)" disabled=${!canBack} onClick=${goBack}>\u2190 Back</button>
+      <button class="tab backbtn" title="Go forward (Alt+Right)" disabled=${!canFwd} onClick=${goForward}>Forward \u2192</button>
       <span class="subtitle">${pageLabel}</span>
       ${view === 'library' ? html`<${Fragment}>
       <label class="everywhere" title="Search every section, not just this list"><input type="checkbox" checked=${everywhere} onChange=${(e) => { setEverywhere(e.target.checked); setView('library'); }} /> Everywhere</label>

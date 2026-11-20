@@ -1,4 +1,12 @@
 {
+  "5.37.0": {
+    "title": "Easier navigating",
+    "highlights": [
+      "Back now returns you to the same spot in the list, with your search, filter and scroll position kept, and there's a new Forward button (also Alt+Right).",
+      "Clicking a game's name opens its page, like the Browse button.",
+      "The window is now titled ARMGDDN Browser."
+    ]
+  },
   "5.36.3": {
     "title": "No more frozen prompts",
     "highlights": [

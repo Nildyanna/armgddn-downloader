@@ -21,3 +21,16 @@ test('the 3D Printer Models section says that missing covers are expected', () =
   const app = read('renderer', 'native', 'app.mjs');
   assert.ok(app.includes("remote === '3D Printer Models'") && app.includes('Missing covers in this section are expected and are not a bug'));
 });
+
+test('Back remembers the scroll position and filters, and there is a Forward button', () => {
+  const app = read('renderer', 'native', 'app.mjs');
+  assert.ok(app.includes('scrollMemo') && app.includes('extraMemo') && app.includes('const goForward'));
+  assert.ok(app.includes('Forward \\u2192') && app.includes("e.altKey && e.key === 'ArrowRight'") && app.includes('e.button === 4'));
+  assert.ok(app.includes('fwdStack.current = []'));
+});
+
+test('clicking a folder card name opens its page, and the window is titled ARMGDDN Browser', () => {
+  const app = read('renderer', 'native', 'app.mjs');
+  assert.ok(app.includes("(item.isDir ? ' clickable' : '')} onClick=${item.isDir ? () => onOpen(item) : undefined}"));
+  assert.ok(read('renderer', 'native', 'index.html').includes('<title>ARMGDDN Browser</title>'));
+});

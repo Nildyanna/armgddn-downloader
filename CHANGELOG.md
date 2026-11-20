@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.37.0] - 2026-11-20
+
+### Added
+- A Forward button (Alt+Right, or the mouse forward button) next to Back.
+
+### Changed
+- Back returns to the same spot: the folder, the search, filter and sort, and how far the list was scrolled.
+- Clicking the name of a folder card opens its page, like the Browse button.
+- The window is titled ARMGDDN Browser.
+
 ## [5.36.3] - 2026-11-20
 
 ### Fixed
