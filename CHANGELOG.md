@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.41.6] - 2026-11-20
+
+### Fixed
+- Admin Requests: clicking a box in the request flow filters the list below it, and there is a Category filter next to Status.
+
 ## [5.41.5] - 2026-11-20
 
 ### Fixed
