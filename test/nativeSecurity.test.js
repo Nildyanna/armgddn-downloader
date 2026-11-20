@@ -49,3 +49,8 @@ test('a message box asked for by the hidden classic window belongs to the native
   assert.ok(h.includes('dialog.showMessageBox(parent, safeOptions)') && !h.includes('showMessageBoxSync'));
   assert.ok(main.includes("!(NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed())) mainWindow.webContents.send('update-available'"));
 });
+
+test('the software-rendering marker expires after 24 hours so one GPU crash does not leave the app slow for good', () => {
+  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes('24 * 3600 * 1000') && main.includes('trying the graphics card again'));
+});

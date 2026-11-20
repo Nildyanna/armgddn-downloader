@@ -700,8 +700,17 @@ const GPU_FALLBACK_MARKER = (() => {
 })();
 try {
   if (GPU_FALLBACK_MARKER && fs.existsSync(GPU_FALLBACK_MARKER)) {
-    app.disableHardwareAcceleration();
-    console.log('[gpu] hardware acceleration disabled (earlier GPU process failure)');
+    // One crash used to switch the graphics card off for good, and software drawing made the whole app very slow (Nov 20: a GPU process crash during a
+    // memory shortage on the PC, and every later launch ran on the processor). The marker now lasts 24 hours; after that the next start tries the
+    // graphics card again, and a new crash writes a new marker.
+    let fresh = true;
+    try { fresh = Date.now() - fs.statSync(GPU_FALLBACK_MARKER).mtimeMs < 24 * 3600 * 1000; } catch (e2) { }
+    if (fresh) {
+      app.disableHardwareAcceleration();
+      console.log('[gpu] hardware acceleration disabled (earlier GPU process failure)');
+    } else {
+      try { fs.unlinkSync(GPU_FALLBACK_MARKER); console.log('[gpu] the software-rendering marker was older than 24 hours: trying the graphics card again'); } catch (e2) { }
+    }
   }
 } catch (e) { }
 // Sentry tag so a GPU crash on a PC already in software mode (fallback not
