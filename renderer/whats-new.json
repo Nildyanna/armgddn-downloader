@@ -1,4 +1,11 @@
 {
+  "5.42.1": {
+    "title": "Allowance credited after interrupted downloads",
+    "highlights": [
+      "If a download is cut off because the app closes, crashes or the PC restarts, the part that was never downloaded no longer counts against your daily download allowance. It's credited back when you reopen the app.",
+      "\"Go there\" on a game that lives in the other category (PC or PCVR) now opens that game, not the top of the section."
+    ]
+  },
   "5.41.8": {
     "title": "Covers that fit your window",
     "highlights": [

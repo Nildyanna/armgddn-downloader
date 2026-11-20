@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.42.1] - 2026-11-20
+
+### Fixed
+
+- A download that was cut off by the app closing now tells the site its Drive grant ended, when the app starts again or when you press Resume or Cancel on it, so the part not downloaded is credited back to the daily allowance. Before, it stayed charged for 24 hours.
+- The Go there button on a stub game folder opens the other section filtered to that game, not its root.
+
 ## [5.42.0] - 2026-11-20
 
 ### Added
