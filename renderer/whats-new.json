@@ -1,4 +1,10 @@
 {
+  "5.41.5": {
+    "title": "Type numbers in settings",
+    "highlights": [
+      "You can now type a number into settings like \"Downloads at the same time\". It used to snap back to the old value unless you used the little arrows."
+    ]
+  },
   "5.41.4": {
     "title": "A tidier tab bar in narrow windows",
     "highlights": [

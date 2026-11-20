@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.41.5] - 2026-11-20
+
+### Fixed
+- Number settings such as Downloads at the same time can be typed into. A typed number used to snap back to the old value unless the little arrows were used.
+
 ## [5.41.4] - 2026-11-20
 
 ### Fixed
