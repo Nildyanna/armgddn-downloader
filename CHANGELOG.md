@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.35.0] - 2026-11-20
+
+### Added
+- Home cards, including Hidden Gems, show a PC or PCVR badge.
+
+### Changed
+- Desktop and Start Menu shortcuts (Windows) are named ARMGDDN Browser while the native window is on, and ARMGDDN Companion when it is off. The native window is titled ARMGDDN Browser.
+
 ## [5.34.0] - 2026-11-19
 
 ### Security

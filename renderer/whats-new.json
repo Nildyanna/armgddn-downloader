@@ -1,4 +1,11 @@
 {
+  "5.35.0": {
+    "title": "ARMGDDN Browser, PC or VR",
+    "highlights": [
+      "Home cards, including Hidden Gems, now show a PC or PCVR badge.",
+      "When the new window is on for you, your desktop and Start Menu shortcuts are named ARMGDDN Browser."
+    ]
+  },
   "5.34.0": {
     "title": "Safer Links and Covers",
     "highlights": [
