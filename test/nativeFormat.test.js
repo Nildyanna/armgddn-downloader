@@ -327,3 +327,12 @@ test('a paused download does not hold up an update, a running one does', async (
   assert.equal(isRunningDownload({ status: 'starting' }), true);
   assert.equal(isRunningDownload(null), false);
 });
+
+test('the MiB/s option formats a byte rate', async () => {
+  const { formatMiBps } = await import('../renderer/native/format.mjs');
+  assert.equal(formatMiBps(58.6 * 1048576), '58.6 MiB/s');
+  assert.equal(formatMiBps(5 * 1048576), '5.00 MiB/s');
+  assert.equal(formatMiBps(120 * 1048576), '120 MiB/s');
+  assert.equal(formatMiBps(0), '');
+  assert.equal(formatMiBps('x'), '');
+});

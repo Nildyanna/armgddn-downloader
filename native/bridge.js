@@ -110,7 +110,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     return { started: true };
   }));
   ipcMain.handle('native:downloads', wrap(async () => (getDownloads ? getDownloads() : []).map((d) => ({
-    id: d.id, name: d.name, status: d.status, progress: d.progress, speed: d.speed, totalSpeed: d.totalSpeed, eta: d.eta, totalSize: d.totalSize, downloadedSize: d.downloadedSize,
+    id: d.id, name: d.name, status: d.status, progress: d.progress, speed: d.speed, totalSpeed: d.totalSpeed, totalSpeedBytes: Number(d.totalSpeedBytes) || 0, eta: d.eta, totalSize: d.totalSize, downloadedSize: d.downloadedSize,
     fileCount: d.fileCount, completedFiles: d.completedFiles, activeFiles: d.activeFiles,
     error: d.error || '' }))));
   // Requests (My Requests, comments, a new Music/Comics request). Writes clear the cached list so it refreshes.

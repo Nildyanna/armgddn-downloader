@@ -542,3 +542,11 @@ export function etaShown(eta) {
   const d = /^(\d+)d\b/.exec(s);
   return d && Number(d[1]) >= 30 ? '' : s;
 }
+
+// Speed shown in MiB/s (an option; the default stays the Companion's bits per second): "58.6 MiB/s".
+export function formatMiBps(bytesPerSec) {
+  const n = Number(bytesPerSec);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  const m = n / 1048576;
+  return (m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m.toFixed(2)) + ' MiB/s';
+}

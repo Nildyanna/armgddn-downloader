@@ -4422,6 +4422,7 @@ function downloadToRenderer(download) {
     completedFiles: download.completedFiles,
     activeFiles: download.activeFiles,
     totalSpeed: download.totalSpeed,
+    totalSpeedBytes: download.totalSpeedBytes || 0,
     peakSpeedBytes: download.peakSpeedBytes,
     startTime: download.startTime,
     cancelled: download.cancelled,
@@ -7823,6 +7824,7 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     const bytesSoFar = total > 0 ? Math.min(total, Math.max(0, doneBytes + activeBytes)) : doneBytes + activeBytes;
     const est = require('./downloadRate').rateEstimate(download, bytesSoFar, total, now);
     if (est.speed > totalSpeedBytes) download.totalSpeed = formatSpeed(est.speed);
+    download.totalSpeedBytes = Math.max(totalSpeedBytes, est.speed || 0);     // the same speed as a number, for the MiB/s option in the new window
     download.eta = est.etaSec != null ? formatEtaSeconds(est.etaSec) : '';
   } catch (e) {
     download.eta = '';

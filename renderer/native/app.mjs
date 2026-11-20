@@ -1,6 +1,6 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -818,13 +818,17 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
 }
 
 function DownloadsView({ list, onClear }) {
+  // Speed in bits per second as the Companion has always shown it; MiB/s is an option, remembered, switched from any download.
+  const [mib, setMib] = useState(() => { try { return localStorage.getItem('native.speedUnit') === 'mib'; } catch (e) { return false; } });
+  const flip = () => { const n = !mib; setMib(n); try { localStorage.setItem('native.speedUnit', n ? 'mib' : 'bits'); } catch (e) { } };
+  const speedText = (d) => (mib && Number(d.totalSpeedBytes) > 0 ? formatMiBps(d.totalSpeedBytes) : (d.totalSpeed || formatSpeed(d.speed)));
   if (!list.length) return html`<div class="empty">No downloads yet. Press Download on any game, album or comic collection.</div>`;
   return html`<div class="dlist"><div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
     <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
-    <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(d.downloadedSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), (d.totalSpeed || formatSpeed(d.speed)), etaShown(d.eta) ? 'ETA ' + etaShown(d.eta) : '', d.fileCount > 1 ? (d.completedFiles || 0) + ' of ' + d.fileCount + ' files' : ''].filter(Boolean).join(' · ')}</div>
+    <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(d.downloadedSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), speedText(d), etaShown(d.eta) ? 'ETA ' + etaShown(d.eta) : '', d.fileCount > 1 ? (d.completedFiles || 0) + ' of ' + d.fileCount + ' files' : ''].filter(Boolean).join(' · ')}</div>
     ${d.error ? html`<div class="derr">${d.error}</div>` : ''}
-    <div class="dbtns">${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>
+    <div class="dbtns">${isActiveDownload(d) ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${flip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>
   </div>`)}</div>`;
 }
 
