@@ -1455,6 +1455,7 @@ let settings = {
   autoHashCheckDefaultedOn: false,
   comicsFolder: '',
   musicFolder: '',
+  extractFolder: '',
   hashGateNoticeSeen: false,
   showNotifications: true,
   minimizeToTrayOnMinimize: false,
@@ -1557,6 +1558,7 @@ function normalizeSettings() {
     settings.hashGateNoticeSeen = !!settings.hashGateNoticeSeen;
     settings.comicsFolder = typeof settings.comicsFolder === 'string' ? settings.comicsFolder.slice(0, 500) : '';
     settings.musicFolder = typeof settings.musicFolder === 'string' ? settings.musicFolder.slice(0, 500) : '';
+    settings.extractFolder = typeof settings.extractFolder === 'string' ? settings.extractFolder.slice(0, 500) : '';
     settings.showNotifications = settings.showNotifications !== false;
     settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
     settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
@@ -3894,6 +3896,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'hashGateNoticeSeen',
     'comicsFolder',
     'musicFolder',
+    'extractFolder',
     'showNotifications',
     'minimizeToTrayOnMinimize',
     'minimizeToTrayOnClose',
@@ -5270,9 +5273,13 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
       // Check 2: If auto-extract is on, do we have enough for download + extract?
       // Heuristic: Extraction needs roughly same size again (total * 2).
       const autoExtractOn = !!(settings && settings.autoExtract7z);
+      const extractElsewhere = autoExtractOn && settings.extractFolder && path.isAbsolute(settings.extractFolder) && fs.existsSync(settings.extractFolder) && !toComics;
+      let extractFree = freeBytes;
+      if (extractElsewhere) { try { const ef = getFreeDiskSpace(path.resolve(settings.extractFolder)); if (ef !== -1) extractFree = ef; } catch (e) { } }
       if (autoExtractOn) {
-        const requiredForExtract = (totalSize * 2) + SAFETY_BUFFER;
-        if (freeBytes < requiredForExtract) {
+        // Extracting to another drive: the unpacked game needs room there; the download drive only needs the archives.
+        const requiredForExtract = extractElsewhere ? (totalSize + SAFETY_BUFFER) : (totalSize * 2) + SAFETY_BUFFER;
+        if ((extractElsewhere ? extractFree : freeBytes) < requiredForExtract) {
           // We have enough to download (passed Check 1) but not enough to extract.
           // Ask user what to do.
           const { response } = await withDialogFocus(() => dialog.showMessageBox(getDialogParentWindow(), {
@@ -5282,7 +5289,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
             cancelId: 1,
             title: 'Insufficient Disk Space for Extraction',
             message: 'Not enough disk space for automatic extraction.',
-            detail: `You have enough space to download the files, but not enough to extract them automatically.\n\nSpace Available: ${formatBytes(freeBytes)}\nRequired for Download + Extraction: ~${formatBytes(requiredForExtract)}\n\nDo you want to proceed with the download only? You will need to extract the files manually later or free up space.`
+            detail: `You have enough space to download the files, but not enough to extract them automatically.\n\nSpace Available: ${formatBytes(extractElsewhere ? extractFree : freeBytes)}\nRequired for ${extractElsewhere ? 'Extraction' : 'Download + Extraction'}: ~${formatBytes(requiredForExtract)}\n\nDo you want to proceed with the download only? You will need to extract the files manually later or free up space.`
           }));
 
           if (response === 1) {
@@ -7334,6 +7341,16 @@ function find7zArchivesInDir(rootDir) {
   return results;
 }
 
+// Where an archive is unpacked: beside the download, or, when the member set an Extract folder that exists, into a folder of the same name there.
+function extractTarget(downloadDir) {
+  try {
+    const f = settings && typeof settings.extractFolder === 'string' ? settings.extractFolder.trim() : '';
+    if (f && path.isAbsolute(f) && fs.existsSync(f)) return path.join(f, path.basename(downloadDir));
+    if (f) logToFile('[extract] Extract folder is not available; unpacking beside the download instead');
+  } catch (e) { }
+  return downloadDir;
+}
+
 function run7zExtract(archivePath, outputDir, onProgress) {
   return new Promise((resolve, reject) => {
     const bundledExe = get7zPath();
@@ -8834,7 +8851,9 @@ function completeDownload(downloadId, afterHashCheck) {
             // folder level made paths long enough (with our long folder
             // names) to hit Windows' 260-char limit, and installers then
             // "finish" instantly with every file missing.
-            const extractDir = downloadDir;
+            // Unless the member chose an Extract folder (another drive, say): then the game is unpacked into a folder of the same name there.
+            const extractDir = extractTarget(downloadDir);
+            try { fs.mkdirSync(extractDir, { recursive: true }); } catch (e) { }
             logToFile(`[extract] ${archiveBase} -> ${extractDir}`);
             const idx = archiveIndex;
             await run7zExtract(a, extractDir, (pct) => {

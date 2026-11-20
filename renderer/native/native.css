@@ -625,3 +625,5 @@ header select + select { margin-left: 0; }
 
 .dfsrc { display: inline-block; padding: 0 5px; border-radius: 5px; font-size: 9px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; vertical-align: middle; border: 1px solid var(--line); color: var(--dim); }
 .dfsrc.drive { color: #8cc4ff; border-color: rgba(80,150,230,.5); }
+
+.dfnote { margin-top: 4px; font-size: 11px; color: var(--dim); }
