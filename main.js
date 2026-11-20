@@ -5408,6 +5408,7 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
   }
   download.toComics = toComics;
   download.rootDir = toComics ? downloadDir : '';
+  download.openDir = commonOpenDir(downloadDir, toComics ? files : null);   // what "Open folder" shows: the album or series folder, not the whole library
   if (toComics) download.forceDisableAutoExtract = true;
   download.downloadDir = downloadDir; // Stored for the periodic mid-download disk-space check in updateProgress()
   try {
@@ -8528,6 +8529,7 @@ function finalizeCompletedDownload(downloadId) {
     totalSize: download.totalSize,
     startTime: download.startTime,
     endTime: download.endTime,
+    folder: download.extractedTo || download.openDir || download.downloadDir || '',
     status: 'completed'
   });
   saveHistory();
@@ -8886,6 +8888,7 @@ function completeDownload(downloadId, afterHashCheck) {
             });
             archiveIndex++;
           }
+          if (extractTarget(downloadDir) !== downloadDir) download.extractedTo = extractTarget(downloadDir);
           download.extractPercent = 100;
         } catch (e) {
           download.extractionError = e && e.message ? e.message : String(e);
@@ -8916,8 +8919,32 @@ function completeDownload(downloadId, afterHashCheck) {
   finalizeCompletedDownload(downloadId);
 }
 
-// Open folder
-ipcMain.handle('open-folder', (event, folderPath) => {
+// The folder that holds what a download wrote. For Music and Comics the files go below the library folder (Artist/Album, Series/Volume), so
+// it is the deepest folder they all share; anything else (or no shared folder) is the base folder itself.
+function commonOpenDir(baseDir, files) {
+  try {
+    if (!Array.isArray(files) || !files.length) return baseDir;
+    let common = null;
+    for (const f of files) {
+      const parts = String((f && f.name) || '').split('/').filter(Boolean).slice(0, -1);
+      if (common === null) common = parts;
+      else { let i = 0; while (i < common.length && i < parts.length && common[i] === parts[i]) i++; common = common.slice(0, i); }
+      if (!common.length) break;
+    }
+    if (!common || !common.length) return baseDir;
+    return resolveInside(baseDir, common.join('/')) || baseDir;
+  } catch (e) { return baseDir; }
+}
+
+// Open folder: the folder of the download whose id the window passes (its real folder: an album, a series, the unpacked game); the main
+// download folder when the id is not known (older entries, the classic window).
+ipcMain.handle('open-folder', async (event, arg) => {
+  try {
+    const id = typeof arg === 'string' ? arg : '';
+    const src = id ? (activeDownloads.get(id) || (Array.isArray(downloadHistory) ? downloadHistory.find((x) => x && x.id === id) : null)) : null;
+    const dir = src ? String(src.extractedTo || src.openDir || src.folder || '') : '';
+    if (dir && fs.existsSync(dir)) { await shell.openPath(dir); return; }
+  } catch (e) { }
   shell.openPath(settings.downloadPath);
 });
 

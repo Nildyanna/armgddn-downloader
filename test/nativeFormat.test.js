@@ -383,3 +383,11 @@ test('each file in the list carries its speed in bytes so the MiB/s toggle can c
   const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
   assert.ok(app.includes('mib && r.bytes > 0 ? formatMiBps(r.bytes) : r.speed'));
 });
+
+test('Open folder opens the real folder of the download (the album, the series, the unpacked game)', () => {
+  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes("ipcMain.handle('open-folder', async (event, arg) =>"));
+  assert.ok(main.includes('src.extractedTo || src.openDir || src.folder'));
+  assert.ok(main.includes('folder: download.extractedTo || download.openDir || download.downloadDir'));
+  assert.ok(main.includes('download.openDir = commonOpenDir(downloadDir, toComics ? files : null)'));
+});
