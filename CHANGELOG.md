@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.41.1] - 2026-11-20
+
+### Added
+- Downloads of several picked items (a whole collection, several albums) also come back as Paused after a restart, and Resume carries on with the same items.
+
 ## [5.41.0] - 2026-11-20
 
 ### Added

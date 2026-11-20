@@ -1,4 +1,10 @@
 {
+  "5.41.1": {
+    "title": "Picked items survive a restart too",
+    "highlights": [
+      "Downloads of several picked items (a whole collection, several albums) now also come back as Paused after a restart, and Resume carries on with the same items."
+    ]
+  },
   "5.41.0": {
     "title": "Downloads survive a restart",
     "highlights": [
