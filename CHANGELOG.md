@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.40.3] - 2026-11-20
+
+### Fixed
+- "Open folder" on a Music or Comics download opens the folder with that album or series in it, and on a game extracted to another drive it opens the extracted game, not the main download folder.
+
 ## [5.40.2] - 2026-11-20
 
 ### Fixed

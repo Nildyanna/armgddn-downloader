@@ -1,4 +1,10 @@
 {
+  "5.40.3": {
+    "title": "Open folder goes to the right place",
+    "highlights": [
+      "\"Open folder\" on a Music or Comics download now opens the folder with that album or series in it, and on a game extracted to another drive it opens the extracted game, not the main download folder."
+    ]
+  },
   "5.40.2": {
     "title": "MiB/s on every file",
     "highlights": [
