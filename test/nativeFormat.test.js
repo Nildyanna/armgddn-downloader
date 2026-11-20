@@ -309,3 +309,12 @@ test('a file in a game folder shows the part of its name that tells the pieces a
   assert.equal(fileSuffix('archive.part03.rar'), '.part03.rar');
   assert.equal(fileSuffix('No extension at all'), '');
 });
+
+test('an absurd ETA is not shown, a sensible one is', async () => {
+  const { etaShown } = await import('../renderer/native/format.mjs');
+  assert.equal(etaShown('1990010d 0h'), '');
+  assert.equal(etaShown('45d 3h'), '');
+  assert.equal(etaShown('2h 14m'), '2h 14m');
+  assert.equal(etaShown('3d 4h'), '3d 4h');
+  assert.equal(etaShown(''), '');
+});

@@ -43,6 +43,7 @@
       "komgaImport.js",
       "nativeGate.js",
       "shortcutNames.js",
+      "downloadRate.js",
       "driveDirectClient.js",
       "resumeDownload.js",
       "segmentedDownload.js",

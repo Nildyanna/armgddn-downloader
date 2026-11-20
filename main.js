@@ -7800,28 +7800,22 @@ function parseRcloneProgress(downloadId, fileKey, output) {
     download.peakSpeedBytes = totalSpeedBytes;
   }
 
-  // Update overall ETA for the download.
+  // Overall speed and ETA from the bytes done over the last minute, not from the current file's rate or an average of it: a collection of many small
+  // files finishes each file in a moment, so the per-file speed reads 0 between files and the ETA came out as 1,990,010 days (Dirk's Batman Collection, Nov 20).
   try {
     const total = Number(download.totalSize) || 0;
     const doneBytes = Number(download.downloadedSize) || 0;
-    const ema = Number(download.__emaSpeedBytesPerSec) || 0;
-    if (total > 0 && ema > 0) {
-      let activeBytes = 0;
-      for (const f of activeFilesList) {
-        if (!f) continue;
-        const size = typeof f.size === 'number' ? f.size : 0;
-        const p = typeof f.progress === 'number' ? f.progress : 0;
-        if (size > 0 && p > 0 && p < 100) {
-          activeBytes += Math.round((p / 100) * size);
-        }
-      }
-      const bytesSoFar = Math.min(total, Math.max(0, doneBytes + activeBytes));
-      const remainingBytes = Math.max(0, total - bytesSoFar);
-      const etaSec = remainingBytes / Math.max(1, ema);
-      download.eta = formatEtaSeconds(etaSec);
-    } else {
-      download.eta = '';
+    let activeBytes = 0;
+    for (const f of activeFilesList) {
+      if (!f) continue;
+      const size = typeof f.size === 'number' ? f.size : 0;
+      const p2 = typeof f.progress === 'number' ? f.progress : 0;
+      if (size > 0 && p2 > 0 && p2 < 100) activeBytes += Math.round((p2 / 100) * size);
     }
+    const bytesSoFar = total > 0 ? Math.min(total, Math.max(0, doneBytes + activeBytes)) : doneBytes + activeBytes;
+    const est = require('./downloadRate').rateEstimate(download, bytesSoFar, total, now);
+    if (est.speed > totalSpeedBytes) download.totalSpeed = formatSpeed(est.speed);
+    download.eta = est.etaSec != null ? formatEtaSeconds(est.etaSec) : '';
   } catch (e) {
     download.eta = '';
   }

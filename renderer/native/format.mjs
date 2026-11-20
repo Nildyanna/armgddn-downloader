@@ -531,3 +531,11 @@ export function bundlesPresent(bundles, items) {
   }
   return out;
 }
+
+// "ETA 1990010d 0h" came from a rate of nearly nothing; an estimate of a month or more is not shown.
+export function etaShown(eta) {
+  const s = String(eta || '').trim();
+  if (!s) return '';
+  const d = /^(\d+)d\b/.exec(s);
+  return d && Number(d[1]) >= 30 ? '' : s;
+}
