@@ -1,4 +1,11 @@
 {
+  "5.39.1": {
+    "title": "Where files come from",
+    "highlights": [
+      "The list of files being downloaded now tags each one Drive or Gateway.",
+      "The Comics panel shows the size of the library, like Music does."
+    ]
+  },
   "5.39.0": {
     "title": "Speeds and files, your way",
     "highlights": [

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.39.1] - 2026-11-20
+
+### Added
+- Each file in the list of files being downloaded is tagged Drive (straight from Google Drive) or Gateway.
+- The Comics panel shows the size of the library next to the number of comics, like Music does.
+
 ## [5.39.0] - 2026-11-20
 
 ### Added
