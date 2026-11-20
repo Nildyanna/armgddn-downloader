@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.41.0] - 2026-11-20
+
+### Added
+- Downloads that were paused or interrupted (an update, a restart, a crash) come back in the Downloads tab as Paused. Resume asks the site for a fresh link and carries on; files already downloaded are kept. Downloads made by picking several items are not kept.
+
 ## [5.40.3] - 2026-11-20
 
 ### Fixed

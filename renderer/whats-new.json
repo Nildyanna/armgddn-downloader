@@ -1,4 +1,10 @@
 {
+  "5.41.0": {
+    "title": "Downloads survive a restart",
+    "highlights": [
+      "Downloads you paused (or that were interrupted by an update or a restart) now come back in the Downloads tab as Paused. Press Resume to continue; files already downloaded are kept."
+    ]
+  },
   "5.40.3": {
     "title": "Open folder goes to the right place",
     "highlights": [
