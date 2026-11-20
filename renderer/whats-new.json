@@ -1,4 +1,12 @@
 {
+  "5.38.1": {
+    "title": "Collections, done right",
+    "highlights": [
+      "Collections with many small files no longer show \"0 bps\" and an impossible time left.",
+      "Download All on very large collections (such as the DC Collection) now works instead of saying \"Nothing to download\".",
+      "Music and Comics downloads now go to the folders you chose in Settings."
+    ]
+  },
   "5.38.0": {
     "title": "Pick a single piece",
     "highlights": [

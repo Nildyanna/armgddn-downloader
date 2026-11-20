@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.38.1] - 2026-11-20
+
+### Fixed
+- Downloads of collections with many small files showed 0 bps and an impossible time left. Speed and time left now come from the overall progress over the last minute.
+- Download All on very large collections (the DC Collection has 106 series) said Nothing to download: the limit of 50 folders is now 500.
+- Music and Comics downloads from the new window ignored the folders chosen in Settings; they now go to the Comics and Music folders (with none chosen they still go to the download folder).
+
 ## [5.38.0] - 2026-11-20
 
 ### Added
