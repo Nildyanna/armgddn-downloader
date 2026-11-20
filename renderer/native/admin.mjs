@@ -153,10 +153,35 @@ function QueuePage() {
 }
 
 const REQUEST_STATUSES = ['', 'pending', 'approved', 'completed', 'rejected'];
+// The comments on one request: read the thread and add to it (staff can do both on any request, the same thread the member sees on their Requests page).
+function RequestThread({ req, onClose }) {
+  const [thread, setThread] = useState(null);
+  const [text, setText] = useState('');
+  const [note, setNote] = useState('');
+  const load = async () => {
+    const r = await api.thread(req.id);
+    if (r.ok) { setThread((r.data && r.data.comments) || []); setNote(''); } else { setThread([]); setNote((r.error && r.error.message) || 'Could not load the comments'); }
+  };
+  useEffect(() => { setThread(null); load(); }, [req.id]);
+  const send = async () => {
+    const m = text.trim();
+    if (!m) return;
+    const r = await api.comment(req.id, m);
+    if (r.ok) { setText(''); setNote(''); load(); } else setNote((r.error && r.error.message) || 'Could not send');
+  };
+  const when = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
+  return html`<div class="apanel reqthread">
+    <div class="dtools"><strong>#${req.id} ${req.title}</strong> <span class="sval">${req.category} · ${req.status} · by ${req.by ? '@' + req.by : 'unknown'}</span><button class="dbtn" onClick=${onClose}>Close</button></div>
+    <div class="thread">${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'Member')} · ${when(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="empty">No comments yet.</div>`}</div>
+    ${note ? html`<div class="notice soft">${note}</div>` : ''}
+    <div class="compose"><input type="text" maxlength="500" placeholder="Write a comment…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
+  </div>`;
+}
 function RequestsPage({ audit }) {
   const [status, setStatus] = useState('');
   const [by, setBy] = useState('');
   const [category, setCategory] = useState('');
+  const [openReq, setOpenReq] = useState(null);
   const [st, reload] = useAdminData('requests', status ? { status } : {}, 60);
   const [actionUi, act] = useAdminAction(() => reload());
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
@@ -183,8 +208,9 @@ function RequestsPage({ audit }) {
       <span class="sval">${rows.length} shown</span>
     </div>
     ${actionUi}
+    ${openReq ? html`<${RequestThread} key=${openReq.id} req=${openReq} onClose=${() => setOpenReq(null)} />` : ''}
     <${DataTable} rows=${rows} columns=${audit ? ['id', 'title', 'status', 'handledBy', 'handledAt', 'by', 'category'] : ['id', 'title', 'by', 'category', 'status', 'votes', 'requested']} empty=${audit ? 'No handled requests.' : 'No requests.'}
-      extra=${audit ? null : (r) => html`<select value="" onChange=${(e) => { const v = e.target.value; e.target.value = ''; if (v) act('requestStatus', { id: r.id, title: r.title, status: v }); }}><option value="">Set to...</option>${REQUEST_STATUS_CHOICES.filter((x) => x !== r.status).map((x) => html`<option value=${x}>${x}</option>`)}</select>`} extraLabel="Change" />
+      extra=${audit ? null : (r) => html`<button class="dbtn" title="Read and add comments on this request" onClick=${() => setOpenReq(r)}>Comments</button> <select value="" onChange=${(e) => { const v = e.target.value; e.target.value = ''; if (v) act('requestStatus', { id: r.id, title: r.title, status: v }); }}><option value="">Set to...</option>${REQUEST_STATUS_CHOICES.filter((x) => x !== r.status).map((x) => html`<option value=${x}>${x}</option>`)}</select>`} extraLabel="Change" />
   </div>`;
 }
 

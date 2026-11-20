@@ -473,3 +473,11 @@ test('the very smallest window shows covers as thumbnails beside the title, so s
   assert.ok(b.includes('aspect-ratio: auto; height: auto; min-height: 72px;'));
   assert.ok(b.includes('-webkit-line-clamp: 1;') && b.includes('minmax(300px, 1fr)'));
 });
+
+test('the admin Requests table has a Comments button that opens the thread with an add box', () => {
+  const a = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
+  assert.ok(a.includes('function RequestThread({ req, onClose })'));
+  assert.ok(a.includes('await api.thread(req.id)') && a.includes('await api.comment(req.id, m)'));
+  assert.ok(a.includes('onClick=${() => setOpenReq(r)}>Comments</button>'));
+  assert.ok(a.includes('<${RequestThread} key=${openReq.id} req=${openReq}'));
+});
