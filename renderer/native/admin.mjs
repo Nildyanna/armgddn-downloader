@@ -441,10 +441,10 @@ function AccessPage() {
   const eff = st.data.effective || {};
   const rows = [].concat((eff.channelAdminIds || []).map((x) => ({ id: String(x), list: 'channel', role: 'Full admin' })), (eff.requestAdminIds || []).map((x) => ({ id: String(x), list: 'request', role: 'Request admin' })));
   return html`<div>
-    <p class="sval">Who counts as an admin. Owners are set in the site's own settings and are not changed here.</p>
+    <p class="sval">Who counts as an admin. The list below shows the list chosen in the box, and Add puts a new id on that same list. Owners are set in the site's own settings and are not changed here.</p>
     ${actionUi}
-    <div class="afilters"><label>List <select value=${list} onChange=${(e) => setList(e.target.value)}><option value="request">Request admin (requests only)</option><option value="channel">Full admin</option></select></label><input class="search" type="text" placeholder="Telegram id (digits)" value=${id} onInput=${(e) => setId(e.target.value)} /><button class="dbtn" disabled=${!/^\d{3,20}$/.test(id.trim())} onClick=${() => { act('accessAdd', { list, id: id.trim() }); setId(''); }}>Add</button></div>
-    <${DataTable} rows=${rows} columns=${['id', 'role']} empty="Nobody is on the lists." extra=${(r) => html`<button class="dbtn" onClick=${() => act('accessRemove', { list: r.list, id: r.id })}>Remove</button>`} />
+    <div class="afilters"><label>List <select value=${list} onChange=${(e) => setList(e.target.value)}><option value="request">Request admin (requests only) - ${(eff.requestAdminIds || []).length}</option><option value="channel">Full admin - ${(eff.channelAdminIds || []).length}</option></select></label><input class="search" type="text" placeholder="Telegram id (digits)" value=${id} onInput=${(e) => setId(e.target.value)} /><button class="dbtn" disabled=${!/^\d{3,20}$/.test(id.trim())} onClick=${() => { act('accessAdd', { list, id: id.trim() }); setId(''); }}>Add</button></div>
+    <${DataTable} rows=${rows.filter((r) => r.list === list)} columns=${['id', 'role']} empty=${'Nobody is on the ' + (list === 'channel' ? 'Full admin' : 'Request admin') + ' list.'} extra=${(r) => html`<button class="dbtn" onClick=${() => act('accessRemove', { list: r.list, id: r.id })}>Remove</button>`} />
   </div>`;
 }
 

@@ -500,3 +500,10 @@ test('the first entry of a request thread lists everything in the request', asyn
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
   assert.ok(src.includes('class="msg reqinfo"') && src.includes('requestInfoLines(req.raw'));
 });
+
+test('the admin access page shows only the list chosen in the box, with counts, and Add uses the same list', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
+  assert.ok(src.includes('rows.filter((r) => r.list === list)'));
+  assert.ok(src.includes("(eff.channelAdminIds || []).length}</option>"));
+  assert.ok(src.includes("act('accessAdd', { list, id: id.trim() })"));
+});
