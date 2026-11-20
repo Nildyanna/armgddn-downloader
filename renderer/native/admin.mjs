@@ -2,7 +2,7 @@
 import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
 import './ownerRouting.js';
 import { runCommand, HELP } from './ownerConsole.mjs';
-import { NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -172,7 +172,7 @@ function RequestThread({ req, onClose }) {
   const when = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
   return html`<div class="apanel reqthread">
     <div class="dtools"><strong>#${req.id} ${req.title}</strong> <span class="sval">${req.category} · ${req.status} · by ${req.by ? '@' + req.by : 'unknown'}</span><button class="dbtn" onClick=${onClose}>Close</button></div>
-    <div class="thread">${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'Member')} · ${when(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="empty">No comments yet.</div>`}</div>
+    <div class="thread"><div class="msg reqinfo"><div class="who">The request</div>${requestInfoLines(req.raw || { id: req.id, gameTitle: req.title, category: req.category, status: req.status, username: req.by, createdAt: req.requested }).map(([k, v]) => html`<div class="ri"><span class="rk">${k}</span> ${k === 'Link' && /^https:\/\//i.test(v) ? html`<a href="#" onClick=${(e) => { e.preventDefault(); api.openLink(v); }}>${v}</a>` : v}</div>`)}</div>${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'Member')} · ${when(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="empty">No comments yet.</div>`}</div>
     ${note ? html`<div class="notice soft">${note}</div>` : ''}
     <div class="compose"><input type="text" maxlength="500" placeholder="Write a comment…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
   </div>`;

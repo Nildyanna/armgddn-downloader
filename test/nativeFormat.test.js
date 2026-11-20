@@ -488,3 +488,15 @@ test('Go there on a stub carries the game name so the other section opens on tha
   const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
   assert.ok(app.includes('if (st.name) setQuery(st.name)'));
 });
+
+test('the first entry of a request thread lists everything in the request', async () => {
+  const a = await import('../renderer/native/adminFormat.mjs');
+  const rows = a.requestRows([{ id: 5, gameTitle: 'Some Game', username: 'bob', category: 'PC', status: 'pending', createdAt: '2026-11-19T19:30:00Z', notes: 'v2 please', gameUrl: 'https://store.steampowered.com/app/1', steamAppId: '1', requestType: 'new', existingFolder: '', adminNotes: 'checking', allRequesters: [{ username: 'bob' }, { username: 'amy' }] }]);
+  assert.equal(rows[0].raw.notes, 'v2 please');
+  const lines = Object.fromEntries(a.requestInfoLines(rows[0].raw));
+  assert.equal(lines.Title, 'Some Game'); assert.equal(lines.Link, 'https://store.steampowered.com/app/1'); assert.equal(lines.Notes, 'v2 please');
+  assert.equal(lines['Staff notes'], 'checking'); assert.ok(lines['Asked for by'].startsWith('2 members')); assert.ok(!('Existing folder' in lines));
+  assert.deepEqual(a.requestInfoLines(null), []);
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
+  assert.ok(src.includes('class="msg reqinfo"') && src.includes('requestInfoLines(req.raw'));
+});

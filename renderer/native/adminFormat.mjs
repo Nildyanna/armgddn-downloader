@@ -109,7 +109,30 @@ export function requestRows(list, { audit = false, processedBy = '' } = {}) {
   let rows = (list || []).filter((r) => r && !r.linkedTo);
   if (audit) rows = rows.filter((r) => r.processedBy);
   if (processedBy) rows = rows.filter((r) => r.processedBy === processedBy);
-  return rows.map((r) => ({ id: r.id, title: r.gameTitle || r.title || '', by: r.username || '', category: r.category || '', status: r.status || '', requested: r.createdAt || '', handledBy: r.processedBy || '', handledAt: r.processedAt || '', votes: r.popularity || 1 }));
+  return rows.map((r) => ({ id: r.id, title: r.gameTitle || r.title || '', by: r.username || '', category: r.category || '', status: r.status || '', requested: r.createdAt || '', handledBy: r.processedBy || '', handledAt: r.processedAt || '', votes: r.popularity || 1, raw: r }));
+}
+
+// Everything the member put in the request, as label/value pairs for the first entry of its comment thread (empty fields are left out).
+export function requestInfoLines(r) {
+  if (!r || typeof r !== 'object') return [];
+  const when = (iso) => { try { return iso ? new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''; } catch (e) { return ''; } };
+  const names = Array.isArray(r.allRequesters) ? r.allRequesters.map((x) => x && x.username ? '@' + x.username : '').filter(Boolean) : [];
+  const rows = [
+    ['Title', r.gameTitle || r.title],
+    ['Link', r.gameUrl],
+    ['Steam app', r.steamAppId],
+    ['Category', r.category],
+    ['Type', r.requestType],
+    ['Existing folder', r.existingFolder],
+    ['Notes', r.notes],
+    ['Requested by', [r.username ? '@' + r.username : '', when(r.createdAt)].filter(Boolean).join(' · ')],
+    ['Status', r.status],
+    ['Asked for by', names.length > 1 ? names.length + ' members: ' + names.slice(0, 20).join(', ') : ''],
+    ['Possible match', typeof r.possibleGame === 'string' ? r.possibleGame : ''],
+    ['Staff notes', r.adminNotes],
+    ['Handled by', [r.processedBy, when(r.processedAt)].filter(Boolean).join(' · ')],
+  ];
+  return rows.filter(([, v]) => v !== undefined && v !== null && String(v).trim() !== '').map(([k, v]) => [k, String(v)]);
 }
 
 // Games with no cover and/or no trailer (the site's missing-covers answer): the summary cards and the rows, filtered by what is missing and by a search.

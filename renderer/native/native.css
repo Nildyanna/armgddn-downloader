@@ -675,3 +675,6 @@ header select + select { margin-left: 0; }
   .grid > .card .cbtns { margin-top: 4px; }
   .grid > .card .bsel { top: 4px; left: 4px; }
 }
+.msg.reqinfo { border-color: var(--accent); }
+.msg.reqinfo .ri { display: flex; gap: 10px; padding: 2px 0; overflow-wrap: anywhere; }
+.msg.reqinfo .rk { flex: 0 0 120px; opacity: .7; }
