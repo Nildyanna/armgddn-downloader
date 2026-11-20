@@ -30,10 +30,15 @@ test('saving the same download again replaces it, and finishing or cancelling dr
   assert.equal(store.drop(f, 'nope'), false);
 });
 
-test('a download of picked items (a batch) is not kept, since its list cannot be asked for again', () => {
+test('a download of picked items (a batch) is kept as its item list, never as the expired batch id', () => {
   const f = tmp();
-  assert.equal(store.upsert(f, entry('c3', { resume: { remote: 'Comics', path: '__batch__/abc', dest: 'comics' } })), false);
-  assert.deepEqual(store.load(f), []);
+  assert.equal(store.upsert(f, entry('c3', { resume: { remote: 'Comics', path: '__batch__/abc', dest: 'comics' } })), false, 'an old batch id alone cannot be asked for again');
+  assert.equal(store.upsert(f, entry('c4', { resume: { remote: 'Comics', paths: ['Comix/Series A/Vol 1', 'Comix/Series A/Vol 2'], exclude: ['Update.7z'], dest: 'comics' } })), true);
+  const [e] = store.load(f);
+  assert.deepEqual(e.resume, { remote: 'Comics', paths: ['Comix/Series A/Vol 1', 'Comix/Series A/Vol 2'], exclude: ['Update.7z'], dest: 'comics' });
+  const many = Array.from({ length: 800 }, (_, i) => 'Comix/S/' + i);
+  store.upsert(f, entry('c5', { resume: { remote: 'Comics', paths: many, exclude: [], dest: 'comics' } }));
+  assert.equal(store.load(f).find((z) => z.id === 'c5').resume.paths.length, 500, 'a very large batch is capped');
 });
 
 test('Music and Comics keep their destination; anything else is dropped', () => {
@@ -60,6 +65,13 @@ test('the app saves a download when it starts or is paused, restores it as pause
   assert.ok(main.includes("download.status = 'paused';\n  persistInflight(download);"));
   assert.ok(main.includes("dropInflight(downloadId);\n"));
   assert.ok(main.includes('if (download.restored) return resumeRestoredDownload(downloadId);'));
-  assert.ok(main.includes("/api/external-download-token', { remote: d.resume.remote, path: d.resume.path }"));
+  assert.ok(main.includes("/api/external-download-token', { remote: d.resume.remote, path: tokenPath }"));
   assert.ok(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).build.files.includes('inflightStore.js'));
+});
+
+test('Resume of a batch makes the batch again, then asks for a token for it', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes("/api/batch-manifest', { remote: d.resume.remote, paths: d.resume.paths, exclude: d.resume.exclude || [] }"));
+  assert.ok(main.includes("tokenPath = '__batch__/' + b.json.batchId;"));
+  assert.ok(main.includes('manifest.batchExclude'));
 });

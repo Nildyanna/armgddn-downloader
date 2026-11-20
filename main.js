@@ -2457,9 +2457,19 @@ async function resumeRestoredDownload(downloadId) {
   const say = (m) => { d.statusMessage = m; try { if (mainWindowAlive()) sendToMain('download-progress', { id: downloadId, status: 'paused', progress: d.progress, statusMessage: m }); } catch (e) { } };
   const token = savedSessionToken();
   if (!token) { say('Sign in first, then press Resume.'); return false; }
-  if (!d.resume || !d.resume.remote || !d.resume.path) { say('This one cannot be resumed. Press Download on the game again.'); return false; }
+  const isBatch = !!(d.resume && Array.isArray(d.resume.paths) && d.resume.paths.length);
+  if (!d.resume || !d.resume.remote || (!isBatch && !d.resume.path)) { say('This one cannot be resumed. Press Download on the game again.'); return false; }
   try {
-    const t = await postJsonWithBearer('https://www.armgddnbrowser.com/api/external-download-token', { remote: d.resume.remote, path: d.resume.path }, token);
+    let tokenPath = d.resume.path;
+    if (isBatch) {           // the picked items are put together again as a new batch on the site
+      const b = await postJsonWithBearer('https://www.armgddnbrowser.com/api/batch-manifest', { remote: d.resume.remote, paths: d.resume.paths, exclude: d.resume.exclude || [] }, token);
+      if (b.statusCode !== 200 || !b.json || !b.json.batchId) {
+        say(b.statusCode === 401 ? 'Your sign-in expired. Sign in again, then press Resume.' : ((b.json && b.json.error) || `The site answered ${b.statusCode}. Try again in a moment.`));
+        return false;
+      }
+      tokenPath = '__batch__/' + b.json.batchId;
+    }
+    const t = await postJsonWithBearer('https://www.armgddnbrowser.com/api/external-download-token', { remote: d.resume.remote, path: tokenPath }, token);
     if (t.statusCode !== 200 || !t.json || !t.json.downloadToken) {
       say(t.statusCode === 401 ? 'Your sign-in expired. Sign in again, then press Resume.' : ((t.json && t.json.error) || `The site answered ${t.statusCode}. Try again in a moment, or press Download on the game again.`));
       return false;
@@ -5397,7 +5407,13 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
   try {
     const mu = new URL(String(download.manifestUrl || ''));
     const r = mu.searchParams.get('remote'), pth = mu.searchParams.get('path');
-    if (r && pth) download.resume = { remote: r, path: pth, dest: (dest === 'music' || dest === 'comics') ? dest : '' };
+    const d2 = (dest === 'music' || dest === 'comics') ? dest : '';
+    if (manifest && manifest.batch && Array.isArray(manifest.batchItems) && manifest.batchItems.length && Array.isArray(manifest.batchExclude)) {
+      // a download of picked items: remember the items, so the same batch can be made again
+      download.resume = { remote: String(manifest.batchRemote || manifest.remote || r || ''), paths: manifest.batchItems.map(String).slice(0, 500), exclude: manifest.batchExclude.map(String), dest: d2 };
+    } else if (r && pth && !String(pth).startsWith('__batch__/')) {
+      download.resume = { remote: r, path: pth, dest: d2 };
+    }
   } catch (e) { }
   activeDownloads.set(downloadId, download);
   persistInflight(download);

@@ -7,6 +7,7 @@ const path = require('path');
 
 const KEEP_MS = 14 * 24 * 60 * 60 * 1000;
 const MAX_ENTRIES = 50;
+const MAX_BATCH_ITEMS = 500;
 
 function clean(e) {
   if (!e || typeof e !== 'object') return null;
@@ -14,13 +15,15 @@ function clean(e) {
   const r = e.resume && typeof e.resume === 'object' ? e.resume : null;
   if (!id || id.length > 100 || !r) return null;
   const remote = typeof r.remote === 'string' ? r.remote.slice(0, 200) : '';
-  const p = typeof r.path === 'string' ? r.path.slice(0, 1000) : '';
-  if (!remote || !p || p.startsWith('__batch__/')) return null;     // a batch of picked items cannot be asked for again
   const dest = r.dest === 'music' || r.dest === 'comics' ? r.dest : '';
+  const strs = (a, n, len) => (Array.isArray(a) ? a.filter((x) => typeof x === 'string' && x && x.length <= len).slice(0, n) : []);
+  const paths = strs(r.paths, MAX_BATCH_ITEMS, 1000);           // a batch of picked items: the items themselves are asked for again
+  const p = typeof r.path === 'string' ? r.path.slice(0, 1000) : '';
+  if (!remote || (!paths.length && (!p || p.startsWith('__batch__/')))) return null;
   return {
     id,
     name: String(e.name || 'Download').slice(0, 300),
-    resume: { remote, path: p, dest },
+    resume: paths.length ? { remote, paths, exclude: strs(r.exclude, 20, 300), dest } : { remote, path: p, dest },
     totalSize: Math.max(0, Number(e.totalSize) || 0),
     progress: Math.max(0, Math.min(99, Math.round(Number(e.progress) || 0))),
     fileCount: Math.max(0, Math.round(Number(e.fileCount) || 0)),
