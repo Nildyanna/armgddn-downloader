@@ -101,3 +101,16 @@ test('main.js: the page cannot grant itself the native window, a window switch w
   assert.ok(src.includes("if (process.argv.includes('--native') || isolatedDevRun) {\n  protocolClientRegisterError = 'skipped (native preview)';"));
   assert.ok(src.includes("const isolatedDevRun = !app.isPackaged && process.argv.some((a) => String(a).startsWith('--user-data-dir'));"));
 });
+
+test('the sign-in check tells the site whether the member uses the native window', async () => {
+  const seen = [];
+  const request = (opts, cb) => {
+    seen.push(opts.headers['X-Native-Window']);
+    const res = new EventEmitter(); res.statusCode = 200;
+    const req = new EventEmitter(); req.end = () => { cb(res); res.emit('data', JSON.stringify({ authenticated: true, nativePreview: true })); res.emit('end'); }; req.destroy = () => { };
+    return req;
+  };
+  await checkAllowed('tok', { request });
+  await checkAllowed('tok', { request, nativeWindowOn: false });
+  assert.deepEqual(seen, ['on', 'off']);
+});

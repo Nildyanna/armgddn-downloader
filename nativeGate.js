@@ -24,13 +24,13 @@ function readEarlyConfig(file, fsImpl = fs) {
 }
 
 // Asks the site. true / false, or null when it could not be told (offline, signed out, an old site that does not know the field): keep what we have.
-function checkAllowed(token, { request = https.request, host = 'www.armgddnbrowser.com', timeoutMs = 15000 } = {}) {
+function checkAllowed(token, { request = https.request, host = 'www.armgddnbrowser.com', timeoutMs = 15000, nativeWindowOn = true } = {}) {
   return new Promise((resolve) => {
     if (!token) return resolve(null);
     let done = false; const finish = (v) => { if (!done) { done = true; resolve(v); } };
     try {
       const req = request({ hostname: host, port: 443, path: '/api/auth-status', method: 'GET', family: 4, timeout: timeoutMs,
-        headers: { Authorization: 'Bearer ' + token, 'User-Agent': 'ARMGDDN-Companion' } }, (res) => {
+        headers: { Authorization: 'Bearer ' + token, 'User-Agent': 'ARMGDDN-Companion', 'X-Native-Window': nativeWindowOn ? 'on' : 'off' } }, (res) => {
         let s = ''; res.on('data', (c) => { s += c; if (s.length > 20000) { try { res.destroy(); } catch (e) { } } });
         res.on('end', () => {
           if (res.statusCode !== 200) return finish(null);

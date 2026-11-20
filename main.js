@@ -2817,6 +2817,14 @@ function handleDeepLink(url) {
       runHashCheck(vid).catch(() => { });
       return;
     }
+    if (u.hostname === 'open') {
+      // armgddn://open: the website's "Open ARMGDDN Browser" button. Brings the window forward (the native one when it is on); nothing is changed.
+      try {
+        const w = (nativeWindow && !nativeWindow.isDestroyed()) ? nativeWindow : (mainWindowAlive() ? mainWindow : null);
+        if (w) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); if (process.platform === 'linux') { try { w.moveTop(); } catch (e2) { } } }
+      } catch (e) { }
+      return;
+    }
     if (u.hostname === 'request') {
       // armgddn://request/<id>: the link in a Telegram request notice. Opens that request in the native window.
       const rid = Number(String(u.pathname || '').replace(/^\/+/, ''));
@@ -3744,7 +3752,7 @@ async function nativeGateCheck(force) {
     const token = savedSessionToken();
     if (!token) return;
     lastNativeGateCheck = Date.now();
-    const answer = await nativeGate.checkAllowed(token);
+    const answer = await nativeGate.checkAllowed(token, { nativeWindowOn: settings.useNativeWindow !== false });
     const d = nativeGate.decide({ answer, config: settings, argv: process.argv, runningNative: NATIVE_PREVIEW });
     if (d.update) {
       Object.assign(settings, d.update); saveSettings();

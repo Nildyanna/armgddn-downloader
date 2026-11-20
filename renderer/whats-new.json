@@ -1,4 +1,11 @@
 {
+  "5.36.2": {
+    "title": "Website and app, working together",
+    "highlights": [
+      "The website's Open ARMGDDN Browser button now brings the app forward.",
+      "The app lets the website know when you've switched back to the classic window, so the website only goes informational for people using the new window."
+    ]
+  },
   "5.36.1": {
     "title": "3D covers note",
     "highlights": [

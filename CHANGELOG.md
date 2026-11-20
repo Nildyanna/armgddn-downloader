@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.36.2] - 2026-11-20
+
+### Changed
+- The website's Open ARMGDDN Browser button (armgddn://open) brings the app forward.
+- The app tells the website when it is set to the classic window, so the website only becomes informational for people using the new window.
+
 ## [5.36.1] - 2026-11-20
 
 ### Changed
