@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.40.1] - 2026-11-20
+
+### Fixed
+- Empty files in a download are created on the PC directly instead of being requested from a server.
+- Removed the file-list note about small files using the gateway: they now come from Google Drive like everything else.
+
 ## [5.40.0] - 2026-11-20
 
 ### Added

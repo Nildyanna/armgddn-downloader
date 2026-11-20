@@ -1,4 +1,11 @@
 {
+  "5.40.1": {
+    "title": "Small files and empty files",
+    "highlights": [
+      "Empty files in a download are now created on your PC directly, instead of being requested from a server.",
+      "Removed a note in the file list that no longer applies: small files now come from Google Drive like everything else."
+    ]
+  },
   "5.40.0": {
     "title": "Extract to another drive",
     "highlights": [
