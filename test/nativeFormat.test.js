@@ -298,3 +298,14 @@ test('the Comics page shows the publisher collections right under the Komga box'
   assert.ok(app.includes('api.comicBundles()') && app.includes('downloadBundle') && app.includes('Download All'));
   assert.ok(fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8').includes("'/api/comic-bundles'"));
 });
+
+test('a file in a game folder shows the part of its name that tells the pieces apart', async () => {
+  const { fileSuffix } = await import('../renderer/native/format.mjs');
+  assert.equal(fileSuffix('A Plague Tale - Innocence v4336652 -ARMGDDN.part1.rar'), '.part1.rar');
+  assert.equal(fileSuffix('A Plague Tale - Innocence v4336652 -ARMGDDN.part12.rar'), '.part12.rar');
+  assert.equal(fileSuffix('Game -ARMGDDN.7z.001'), '.7z.001');
+  assert.equal(fileSuffix('Game -ARMGDDN.zip'), '.zip');
+  assert.equal(fileSuffix('Setup.exe'), '.exe');
+  assert.equal(fileSuffix('archive.part03.rar'), '.part03.rar');
+  assert.equal(fileSuffix('No extension at all'), '');
+});

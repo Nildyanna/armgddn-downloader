@@ -15,6 +15,15 @@ export function releaseYear(item) {
 export function cleanTitle(name) {
   return String(name || '').replace(/\s*-ARMGDDN\b.*$/i, '').replace(/\s+v\d[\w.()\-]*\s*$/i, '').trim() || String(name || '');
 }
+// The part of a file's name that tells the pieces of one game apart: "A Game v123 -ARMGDDN.part2.rar" -> ".part2.rar", "x.7z.001" -> ".7z.001", "Setup.exe" -> ".exe".
+// cleanTitle drops it, so three archive parts would all read the same (Nov 20: a user could not tell which piece to grab).
+export function fileSuffix(name) {
+  const n = String(name || '').trim();
+  const g = /-ARMGDDN\b(.*)$/i.exec(n);
+  if (g && g[1].trim()) return g[1].trim();
+  const m = /(\.part\d+\.rar|\.7z\.\d+|\.zip\.\d+|\.r\d{2}|\.[A-Za-z0-9]{1,6})$/i.exec(n);
+  return m ? m[1] : '';
+}
 // Housekeeping files the collections carry (updatePCVR-FTP.txt and its siblings) are never listed.
 export function isHiddenItem(item) { return !!item && !item.isDir && /^update.*\.(txt|ftp)$/i.test(String(item.name || '').trim()); }
 // Whether the art should fill its tile (crop) or sit whole over the blurred backdrop, as on the website: game art close to the 616:353 tile fills it

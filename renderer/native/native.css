@@ -610,3 +610,6 @@ header select + select { margin-left: 0; }
 
 .title.clickable { cursor: pointer; }
 .title.clickable:hover { color: var(--accent, #4fe0c2); }
+
+.fextrow { margin: 2px 0 2px; }
+.fext { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 7px; border-radius: 6px; font: 600 11px/1.5 Consolas, monospace; color: var(--accent, #4fe0c2); border: 1px solid rgba(79, 224, 194, .4); background: rgba(79, 224, 194, .08); vertical-align: middle; }

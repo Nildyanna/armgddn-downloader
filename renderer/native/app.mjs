@@ -1,6 +1,6 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts } from './format.mjs';
+import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -50,6 +50,8 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
   const stub = onStub ? stubNotice(remote, folder, item) : null;   // a folder under 1 KB points to the other server
   const canDl = canDownload(remote, folder, item) && !stub;
   const shownTitle = comicTitle(item);
+  const suffix = !item.isDir && !item.comic ? fileSuffix(item.name) : '';   // a file inside a game folder says which piece it is
+  const suffixEl = suffix ? html`<span class="fext">${suffix}</span>` : '';
   const cv = item.comic && item.comic.comicvine;
   const badgeEl = badge ? html`<span class=${'vbadge ' + badge}>${badge === 'newest' ? 'Newest' : 'Older'}</span>` : '';
   // On the Home strips a card does not sit under a PC Games or PCVR Games tab, so it says which one it is.
@@ -64,7 +66,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
     // The list view: one line per title, no art, like the legacy browser.
     return html`<div class=${'lrow' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
       ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
-      <span class="ltitle" onClick=${item.isDir ? () => onOpen(item) : undefined}>${shownTitle}${badgeEl}</span>${platformEl}
+      <span class="ltitle" onClick=${item.isDir ? () => onOpen(item) : undefined}>${shownTitle}${badgeEl}</span>${suffixEl}${platformEl}
       <span class="lsub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</span>
       ${stub ? html`<span class="stubnote inline">${stub.message} <button class="dl ghost" onClick=${(e) => { e.stopPropagation(); onStub(stub); }}>Go there</button></span>` : ''}
       <span class="lbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
@@ -77,6 +79,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
     ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
     <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img class="cbg" aria-hidden="true" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="cfg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onLoad=${(e) => { const im = e.target; im.classList.toggle('fill', coverFills(im.naturalWidth, im.naturalHeight, shapeFor(remote))); }} onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class=${'title' + (platform ? ' withp' : '') + (item.isDir ? ' clickable' : '')} onClick=${item.isDir ? () => onOpen(item) : undefined}>${platform ? html`<span class="ttext">${shownTitle}${badgeEl}</span>${platformEl}` : html`${shownTitle}${badgeEl}`}</div>
+      ${suffixEl ? html`<div class="fextrow">${suffixEl}</div>` : ''}
       <div class="sub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</div>${stubEl}
       <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
