@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.41.7] - 2026-11-20
+
+### Fixed
+- In small windows the title strip and bars are more compact, so the list has more room; the Music and Comics notices and the Komga box take less space too.
+
+### Added
+- Hand-made themes load from their own files (themes-custom.json and themes-custom.css), separate from the themes taken from the website.
+
 ## [5.41.6] - 2026-11-20
 
 ### Fixed

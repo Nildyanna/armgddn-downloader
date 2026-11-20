@@ -1,4 +1,10 @@
 {
+  "5.41.7": {
+    "title": "More room in small windows",
+    "highlights": [
+      "In small windows the title strip and bars are more compact, so the list has more room. The Music and Comics notices and the Komga box take less space too."
+    ]
+  },
   "5.41.5": {
     "title": "Type numbers in settings",
     "highlights": [
