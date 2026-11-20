@@ -654,3 +654,11 @@ header select + select { margin-left: 0; }
   .komgabox { margin: 4px 12px; padding: 6px 10px; font-size: 12px; gap: 6px 10px; }
   .grid { padding: 6px 40px 16px 12px; gap: 10px; }
 }
+
+/* The tiles shrink and grow with the window height (Dirk, Nov 20): in a short window a tile no longer stays so tall that only the middle of a cover is visible.
+   At full size (a window about 770 px tall or more) they are exactly the sizes they were. Scrolling also settles on a whole row instead of stopping mid-tile. */
+.grid { grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 22vh, 170px), 1fr)); scroll-snap-type: y proximity; scroll-padding-top: 6px; }
+.grid.wide { grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 30vh, 230px), 1fr)); }
+.grid.square { grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 25vh, 190px), 1fr)); }
+.grid.tall { grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 22vh, 170px), 1fr)); }
+.grid > .card { scroll-snap-align: start; }

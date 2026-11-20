@@ -456,3 +456,10 @@ test('small windows compact the title strip, bars and notices so the list keeps 
   const block = css.slice(i);
   for (const piece of ['.banner { margin: 6px 12px 0; padding: 4px 12px !important;', '.banner p { display: none; }', '.banner-text { text-align: left;', '.subbar { padding: 3px 12px 4px;', '.notice, .notice.soft {', '.komgabox { margin: 4px 12px;']) assert.ok(block.includes(piece), piece);
 });
+
+test('tiles scale with the window height and scrolling settles on a whole row', () => {
+  const css = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  assert.ok(css.includes('.grid { grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 22vh, 170px), 1fr)); scroll-snap-type: y proximity;'));
+  assert.ok(css.includes('.grid.wide { grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 30vh, 230px), 1fr)); }'));
+  assert.ok(css.includes('.grid > .card { scroll-snap-align: start; }'));
+});
