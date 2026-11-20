@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.36.3] - 2026-11-20
+
+### Fixed
+- The app could appear frozen when a new-version prompt opened behind the window: the prompt came from the hidden classic window as a blocking box. Prompts now belong to the window in use, never block the app, and the hidden window no longer pops its own update prompt.
+
 ## [5.36.2] - 2026-11-20
 
 ### Changed

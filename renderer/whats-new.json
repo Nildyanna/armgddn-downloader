@@ -1,4 +1,10 @@
 {
+  "5.36.3": {
+    "title": "No more frozen prompts",
+    "highlights": [
+      "Fixed: the app could appear frozen when a \"new version\" prompt popped up behind the window. Prompts now appear on top and never lock the app."
+    ]
+  },
   "5.36.2": {
     "title": "Website and app, working together",
     "highlights": [

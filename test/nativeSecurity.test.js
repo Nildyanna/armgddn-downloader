@@ -41,3 +41,11 @@ test('the actions that change the site for everyone are confirmed by the app, no
   assert.ok(f.NATIVE_CONFIRMED.includes('restartServer') && f.NATIVE_CONFIRMED.includes('accessAdd') && f.NATIVE_CONFIRMED.includes('banUser'));
   assert.ok(!f.NATIVE_CONFIRMED.includes('requestStatus'), 'frequent request changes keep their quick in-page confirmation');
 });
+
+test('a message box asked for by the hidden classic window belongs to the native window and does not block the main process', () => {
+  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  const h = main.slice(main.indexOf("ipcMain.handle('show-message-box'"), main.indexOf("ipcMain.handle('show-message-box'") + 1800);
+  assert.ok(h.includes('parent = nativeWindow'));
+  assert.ok(h.includes('dialog.showMessageBox(parent, safeOptions)') && !h.includes('showMessageBoxSync'));
+  assert.ok(main.includes("!(NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed())) mainWindow.webContents.send('update-available'"));
+});

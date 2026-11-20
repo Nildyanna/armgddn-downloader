@@ -4334,6 +4334,10 @@ ipcMain.handle('send-support-log', async () => {
 // Show native message box (Yes/No)
 ipcMain.handle('show-message-box', async (event, options) => {
   let parent = getDialogParentWindow();
+  // While the native window is the one on screen, the classic window is hidden: a box owned by it appeared behind everything (the update prompt of the
+  // hourly check, Nov 20) and, being synchronous, stopped the main process answering the native window until someone found and closed it. The box now
+  // belongs to the window in use and does not block anything.
+  try { if (NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed() && !progressWin) parent = nativeWindow; } catch (e) { }
   if (!parent || parent.isDestroyed()) return 0;
   // Allowlist options to prevent a compromised renderer from spoofing arbitrary dialogs
   const safeOptions = {
@@ -4344,8 +4348,8 @@ ipcMain.handle('show-message-box', async (event, options) => {
     defaultId: options && options.defaultId != null ? Number(options.defaultId) : undefined,
     cancelId: options && options.cancelId != null ? Number(options.cancelId) : undefined,
   };
-  const result = withDialogFocusSync(() => dialog.showMessageBoxSync(parent, safeOptions));
-  return result;
+  const r = await withDialogFocus(() => dialog.showMessageBox(parent, safeOptions));
+  return r && Number.isInteger(r.response) ? r.response : 0;
 });
 
 // Get 7z help video file URL for renderer
@@ -9114,7 +9118,8 @@ async function pollForUpdateOnce() {
     logToFile(`[Update] hourly check: version ${raw.latestVersion} is available (running ${app.getVersion()})`);
     showDownloadNotification(NATIVE_PREVIEW ? 'ARMGDDN Browser update available' : 'ARMGDDN Companion update available', `Version ${raw.latestVersion} is ready. Open ${NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'the Companion'} to install it.`);
     const info = safeUpdateResult(raw);
-    try { if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('update-available', info); } catch (e) { }
+    // The native window has its own update bar; the hidden classic window must not pop a prompt of its own (Nov 20).
+    try { if (mainWindow && !mainWindow.isDestroyed() && !(NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed())) mainWindow.webContents.send('update-available', info); } catch (e) { }
     try { if (nativeWindow && !nativeWindow.isDestroyed()) nativeWindow.webContents.send('native:updateAvailable', info); } catch (e) { }
   } catch (e) { logToFile('[Update] hourly check failed: ' + (e && e.message ? e.message : e)); }
 }
