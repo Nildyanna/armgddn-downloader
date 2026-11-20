@@ -646,8 +646,7 @@ body::after {
     rgba(46, 242, 255, 0.95),
     rgba(255, 59, 212, 0.92),
     rgba(46, 242, 255, 0.95));
-  background-size: 200% 100%;
-  animation: progress-shimmer 1.8s linear infinite;
+  background-size: 200% 100%;   /* no endless shimmer: it kept the graphics card busy for the whole download */
 }
 
 .download-item .progress-fill.progress-fill--extract {

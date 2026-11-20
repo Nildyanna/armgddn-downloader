@@ -6,6 +6,8 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'">
   <title>ARMGDDN Companion</title>
   <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="gpu-saver.css">
+  <script src="gpu-saver.js"></script>
 </head>
 <body>
   <div class="app-container">
@@ -249,6 +251,13 @@
               <input type="checkbox" id="minimize-to-tray-on-exit" class="toggle-input">
               <span class="toggle-track"><span class="toggle-thumb"></span></span>
               <span>Close button hides to tray instead of exiting</span>
+            </label>
+          </div>
+          <div class="form-group">
+            <label class="toggle-switch">
+              <input type="checkbox" id="light-graphics" class="toggle-input">
+              <span class="toggle-track"><span class="toggle-thumb"></span></span>
+              <span>Lighter graphics (turns off blur and animations)</span>
             </label>
           </div>
           <div class="form-group">

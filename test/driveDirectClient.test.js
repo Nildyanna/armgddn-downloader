@@ -92,3 +92,14 @@ test('main.js closes the saved grant on resume and on cancel of a restored downl
   assert.ok(src.includes("download.directGrant ? (download.directGrant.finished ? '' : download.directGrant.grantId) : (download.grantId || '')"));
   assert.equal((src.match(/endOrphanedGrant\(/g) || []).length, 4);   // the definition, the startup pass and its two callers
 });
+
+test('graphics saver: idle pause, Lighter graphics setting in both windows, no endless progress shimmer', () => {
+  const fs = require('fs'), p = (...a) => require('path').join(__dirname, '..', ...a);
+  const main = fs.readFileSync(p('main.js'), 'utf8');
+  assert.ok(main.includes('lightGraphics: false') && main.includes("settings.lightGraphics = !!settings.lightGraphics") && main.includes("    'lightGraphics',\n"));
+  for (const f of ['renderer/index.html', 'renderer/native/index.html']) assert.ok(/gpu-saver\.js/.test(fs.readFileSync(p(f), 'utf8')) && /gpu-saver\.css/.test(fs.readFileSync(p(f), 'utf8')), f);
+  assert.ok(fs.readFileSync(p('renderer/gpu-saver.css'), 'utf8').includes('animation-play-state: paused'));
+  assert.ok(!/animation: progress-shimmer/.test(fs.readFileSync(p('renderer/styles.css'), 'utf8')));
+  assert.ok(fs.readFileSync(p('renderer/native/app.mjs'), 'utf8').includes("settingRow('lightGraphics')"));
+  assert.ok(fs.readFileSync(p('renderer/renderer.js'), 'utf8').includes("getElementById('light-graphics')"));
+});

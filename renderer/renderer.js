@@ -1519,6 +1519,7 @@ async function showAlertDialog(title, message) {
     document.getElementById('show-notifications').checked = settings.showNotifications !== false;
     document.getElementById('minimize-to-tray-on-minimize').checked = !!settings.minimizeToTrayOnMinimize;
     document.getElementById('minimize-to-tray-on-exit').checked = !!settings.minimizeToTrayOnClose;
+    { const lg = document.getElementById('light-graphics'); if (lg) lg.checked = !!settings.lightGraphics; if (window.setLiteGraphics) window.setLiteGraphics(!!settings.lightGraphics); }
 
     const autoUpdateEl = document.getElementById('auto-update');
     if (autoUpdateEl) {
@@ -1588,6 +1589,7 @@ async function showAlertDialog(title, message) {
     settings.showNotifications = document.getElementById('show-notifications').checked;
     settings.minimizeToTrayOnMinimize = document.getElementById('minimize-to-tray-on-minimize').checked;
     settings.minimizeToTrayOnClose = document.getElementById('minimize-to-tray-on-exit').checked;
+    { const lg = document.getElementById('light-graphics'); if (lg) { settings.lightGraphics = lg.checked; if (window.setLiteGraphics) window.setLiteGraphics(lg.checked); } }
 
     const autoUpdateEl = document.getElementById('auto-update');
     if (autoUpdateEl) {

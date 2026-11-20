@@ -8,6 +8,7 @@ import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, r
 import { AdminView } from './admin.mjs';
 import { OwnerDock } from './ownerDock.mjs';
 const api = window.nativeAPI;
+try { api.getSettings().then((r) => { if (r && window.setLiteGraphics) window.setLiteGraphics(!!r.lightGraphics); }).catch(() => { }); } catch (e) { }   // the Lighter graphics setting, applied as the window opens
 
 // Themes: the website's palettes (renderer/native/themes.json, made by scripts/extract_themes.py). The choice is remembered on this PC; "System" follows the computer's light or dark setting.
 let THEMES = {};
@@ -345,6 +346,7 @@ const SETTING_ROWS = [
   ['check', 'showNotifications', 'Show notifications'],
   ['check', 'minimizeToTrayOnMinimize', 'Minimize to the tray'],
   ['check', 'minimizeToTrayOnClose', 'Keep running in the tray when the window is closed'],
+  ['check', 'lightGraphics', 'Lighter graphics (turns off blur and animations; use it if the app makes your graphics card work hard)'],
   ['check', 'autoUpdate', 'Update automatically'],
   ['check', 'startWithOsStartup', 'Start with the computer'],
   ['check', 'startWithOsMinimized', 'Start minimized'],
@@ -608,7 +610,7 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
   const [prefsOpen, setPrefsOpen] = useState(false);
   useEffect(() => { api.getSettings().then((r) => setS(r && typeof r === 'object' ? r : {})).catch(() => setS({})); }, []);
   if (!s) return html`<div class="loading">Loading settings...</div>`;
-  const save = async (patch) => { const next = { ...s, ...patch }; setS(next); try { await api.saveSettings(patch); } catch (e) { say('Could not save'); } };
+  const save = async (patch) => { const next = { ...s, ...patch }; setS(next); if ('lightGraphics' in patch && window.setLiteGraphics) window.setLiteGraphics(patch.lightGraphics); try { await api.saveSettings(patch); } catch (e) { say('Could not save'); } };
   const pickFolder = async (key) => { const r = await api.browseFolder(); if (r) save({ [key]: r }); };
   const folderRow = (key, label) => html`<div class="srow"><span class="slabel">${label}</span><span class="sval">${s[key] || 'Not set'}</span><button class="dbtn" onClick=${() => pickFolder(key)}>Change</button></div>`;
   const settingRow = (k) => { const [kind, key, label, min, max] = SETTING_ROWS.find((r) => r[1] === k); return kind === 'select'
@@ -647,6 +649,7 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
     ${settingRow('showNotifications')}
     ${settingRow('minimizeToTrayOnMinimize')}
     ${settingRow('minimizeToTrayOnClose')}
+    ${settingRow('lightGraphics')}
     ${settingRow('startWithOsStartup')}
     ${settingRow('startWithOsMinimized')}
     <div class="srow"><span class="slabel">Login animation (lightning and thunder, loud)</span><button class="dbtn" onClick=${() => mountLoginLightning()}>Replay</button></div>

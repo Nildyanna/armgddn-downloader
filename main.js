@@ -1460,6 +1460,7 @@ let settings = {
   showNotifications: true,
   minimizeToTrayOnMinimize: false,
   minimizeToTrayOnClose: false,
+  lightGraphics: false,
   autoUpdate: false,
   startWithOsStartup: false,
   startWithOsMinimized: false,
@@ -1562,6 +1563,7 @@ function normalizeSettings() {
     settings.showNotifications = settings.showNotifications !== false;
     settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
     settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
+    settings.lightGraphics = !!settings.lightGraphics;
 
     settings.autoUpdate = !!settings.autoUpdate;
     settings.startWithOsStartup = !!settings.startWithOsStartup;
@@ -3945,6 +3947,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'showNotifications',
     'minimizeToTrayOnMinimize',
     'minimizeToTrayOnClose',
+    'lightGraphics',
     'autoUpdate',
     'startWithOsStartup',
     'startWithOsMinimized',
