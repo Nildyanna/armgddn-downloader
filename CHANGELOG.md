@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.38.0] - 2026-11-20
+
+### Added
+- Files inside a game folder show the part of their name that tells the pieces apart (.part2.rar, .7z.001, .zip), so a single piece can be picked.
+
 ## [5.37.1] - 2026-11-20
 
 ### Fixed

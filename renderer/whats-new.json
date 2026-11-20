@@ -1,4 +1,10 @@
 {
+  "5.38.0": {
+    "title": "Pick a single piece",
+    "highlights": [
+      "Files inside a game folder now show their ending (like .part2.rar), so you can tell the pieces apart and download just one."
+    ]
+  },
   "5.37.1": {
     "title": "Back to full speed",
     "highlights": [
