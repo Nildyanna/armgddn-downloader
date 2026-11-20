@@ -375,3 +375,11 @@ test('an empty file is created on the PC without being downloaded', () => {
   assert.ok(main.includes("typeof file.size === 'number' && file.size === 0"));
   assert.ok(main.includes('fs.writeFileSync(outputPath, \'\')'));
 });
+
+test('each file in the list carries its speed in bytes so the MiB/s toggle can change it too', async () => {
+  const { activeFileRows } = await import('../renderer/native/format.mjs');
+  const r = activeFileRows({ a: { name: 'a', progress: 5, status: 'downloading', speed: '115 Mbit/s', speedBytes: 14680064 }, b: { name: 'b', progress: 5, status: 'downloading', speed: '' } }).rows;
+  assert.deepEqual(r.map((x) => x.bytes), [14680064, 0]);
+  const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes('mib && r.bytes > 0 ? formatMiBps(r.bytes) : r.speed'));
+});
