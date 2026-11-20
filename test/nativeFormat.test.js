@@ -364,8 +364,14 @@ test('the Comics panel shows the size of the library next to the count', () => {
 test('Settings has an Extract folder row and the file list explains small files', () => {
   const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
   assert.ok(app.includes("pickFolder('extractFolder')"));
-  assert.ok(app.includes('Small files (under 1 MB) always come through the gateway.'));
+  assert.ok(!app.includes('Small files (under 1 MB)'), 'small files go to Drive now, so the note is gone');
   const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
   assert.ok(main.includes("'extractFolder',"));
   assert.ok(main.includes('extractTarget(downloadDir)'));
+});
+
+test('an empty file is created on the PC without being downloaded', () => {
+  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes("typeof file.size === 'number' && file.size === 0"));
+  assert.ok(main.includes('fs.writeFileSync(outputPath, \'\')'));
 });

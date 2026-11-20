@@ -6026,6 +6026,21 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         return;
       }
 
+    // An empty file has nothing to download (and cannot go through the download engine): create it here. Nothing is asked of any server.
+    if (typeof file.size === 'number' && file.size === 0) {
+      try {
+        fs.mkdirSync(path.dirname(outputPath), { recursive: true });
+        if (!fs.existsSync(outputPath)) fs.writeFileSync(outputPath, '');
+        download.completedFiles++;
+        updateProgress(downloadId);
+        try { reportFileProgressToServer(download, download.token, file, 'completed', 0); } catch (e) { }
+        done();
+      } catch (e) {
+        done(new Error(`Could not create the empty file ${safeRel}: ${e && e.message ? e.message : e}`));
+      }
+      return;
+    }
+
     if (isFileCompleteOnDisk(downloadDir, file)) {
       download.downloadedSize += normalizeFileSize(file.size);
       download.completedFiles++;
