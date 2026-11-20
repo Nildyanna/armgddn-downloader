@@ -156,18 +156,29 @@ const REQUEST_STATUSES = ['', 'pending', 'approved', 'completed', 'rejected'];
 function RequestsPage({ audit }) {
   const [status, setStatus] = useState('');
   const [by, setBy] = useState('');
+  const [category, setCategory] = useState('');
   const [st, reload] = useAdminData('requests', status ? { status } : {}, 60);
   const [actionUi, act] = useAdminAction(() => reload());
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
   const all = requestRows(st.data.requests, { audit });
   const people = [...new Set(all.map((r) => r.handledBy).filter(Boolean))];
-  const rows = audit && by ? all.filter((r) => r.handledBy === by) : all;
+  const byWho = audit && by ? all.filter((r) => r.handledBy === by) : all;
+  const rows = !audit && category ? byWho.filter((r) => r.category === category) : byWho;
   const stats = st.data.stats || {};
+  const categories = [...new Set([...Object.keys(stats.byCategory || {}), ...all.map((r) => r.category).filter(Boolean)])].sort();
+  // A click on a box of the request flow filters the list below, like it does on the website: a category sets the category, a status sets the status.
+  const flowClick = (kind, key) => {
+    if (kind === 'reqCat') { setCategory(key); setStatus(''); return true; }
+    if (kind === 'reqStatus') { setStatus(key); setCategory(''); return true; }
+    if (kind === 'reqAll') { setCategory(''); setStatus(''); return true; }
+    return false;
+  };
   return html`<div>
-    ${!audit ? html`<${LiveMap} kind="requests" data=${stats} />` : ''}
+    ${!audit ? html`<${LiveMap} kind="requests" data=${stats} onOpen=${flowClick} />` : ''}
     ${!audit ? html`<${Cards} items=${['pending', 'approved', 'completed', 'rejected'].map((k) => ({ label: labelOf(k), value: String(stats[k] || 0), hint: '' })).concat([{ label: 'New in 7 days', value: String(stats.arrivals7 || 0), hint: '' }])} />` : ''}
     <div class="afilters">
       <label>Status <select value=${status} onChange=${(e) => setStatus(e.target.value)}>${REQUEST_STATUSES.map((s) => html`<option value=${s}>${s ? labelOf(s) : 'All'}</option>`)}</select></label>
+      ${audit ? '' : html`<label>Category <select value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All</option>${categories.map((c) => html`<option value=${c}>${c}</option>`)}</select></label>`}
       ${audit ? html`<label>Handled by <select value=${by} onChange=${(e) => setBy(e.target.value)}><option value="">All</option>${people.map((p) => html`<option value=${p}>@${p}</option>`)}</select></label>` : ''}
       <span class="sval">${rows.length} shown</span>
     </div>

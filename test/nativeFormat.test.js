@@ -420,3 +420,12 @@ test('number settings keep what you type until you press Enter, click away or us
   assert.ok(app.includes('<${NumField} min=${min} max=${max} value=${Number(s[key]) || 0} onCommit=${(n) => save({ [key]: n })} />'));
   assert.ok(!/type="number" min=\$\{min\} max=\$\{max\} value=\$\{Number\(s\[key\]\)/.test(app), 'the controlled box is gone');
 });
+
+test('clicking a box of the request flow filters the requests list (category sets the category, status sets the status, Requests clears both)', () => {
+  const a = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
+  assert.ok(a.includes('<${LiveMap} kind="requests" data=${stats} onOpen=${flowClick} />'));
+  assert.ok(a.includes("if (kind === 'reqCat') { setCategory(key); setStatus(''); return true; }"));
+  assert.ok(a.includes("if (kind === 'reqStatus') { setStatus(key); setCategory(''); return true; }"));
+  assert.ok(a.includes("if (kind === 'reqAll') { setCategory(''); setStatus(''); return true; }"));
+  assert.ok(a.includes('byWho.filter((r) => r.category === category)') && a.includes('<label>Category <select'));
+});
