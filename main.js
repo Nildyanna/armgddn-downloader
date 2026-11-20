@@ -2418,49 +2418,63 @@ function loadHistory() {
   }
 }
 
-// Load orphaned downloads from history that were in-progress when the app quit
+// Downloads that were unfinished when the app closed (an update, a crash, a restart) come back as "Paused" in the Downloads tab. Resume asks
+// the site for a fresh link to the same item, and the files already on disk are picked up as before. See inflightStore.js.
+const inflightStore = require('./inflightStore');
+const inflightFile = () => path.join(path.dirname(getHistoryPath()), 'inflight-downloads.json');
+function persistInflight(download) {
+  try {
+    if (!download || !download.id || !download.resume) return;
+    inflightStore.upsert(inflightFile(), {
+      id: download.id, name: download.name, resume: download.resume, totalSize: download.totalSize,
+      progress: Math.min(99, Math.round(Number(download.progress) || 0)), fileCount: download.fileCount, startTime: download.startTime
+    });
+  } catch (e) { }
+}
+function dropInflight(id) { try { inflightStore.drop(inflightFile(), id); } catch (e) { } }
 function loadOrphanedDownloads() {
   try {
-    const historyPath = getHistoryPath();
-    if (!fs.existsSync(historyPath)) return;
-    const data = fs.readFileSync(historyPath, 'utf8');
-    const history = JSON.parse(data);
-    if (!Array.isArray(history)) return;
-
-    const now = Date.now();
-    for (const entry of history) {
-      if (!entry || !entry.id || typeof entry.id !== 'string') continue;
-      // Only rehydrate entries that look like in-progress (no endTime, or recent startTime)
-      if (entry.endTime) continue;
-      const ageMs = now - (entry.startTime ? new Date(entry.startTime).getTime() : 0);
-      // Ignore entries older than 24 hours to avoid rehydrating stale state
-      if (ageMs > 24 * 60 * 60 * 1000) continue;
-      // Rehydrate as a minimal download object so UI can show it and user can resume
-      const orphaned = {
-        id: entry.id,
-        name: entry.name || 'Unknown',
-        totalSize: entry.totalSize || 0,
-        bytesDownloaded: entry.bytesDownloaded || 0,
-        status: 'paused',
-        paused: true,
-        error: null,
-        cancelled: false,
-        startTime: entry.startTime,
-        endTime: null,
-        files: entry.files || [],
-        activeFiles: entry.activeFiles || {},
-        activeProcesses: [],
-        token: entry.token || null,
-        manifestUrl: entry.manifestUrl || null,
-        remote: entry.remote || null,
-        targetDir: entry.targetDir || null,
-        statusMessage: 'Download was interrupted. Click Resume to continue.'
-      };
-      activeDownloads.set(entry.id, orphaned);
-      logToFile(`[orphan] Rehydrated orphaned download ${entry.id} (${orphaned.name})`);
+    for (const e of inflightStore.load(inflightFile())) {
+      if (activeDownloads.has(e.id)) continue;
+      activeDownloads.set(e.id, {
+        id: e.id, name: e.name, itemKey: '', manifestUrl: '', remotePath: '', actualRemote: '', status: 'paused', paused: true, restored: true,
+        progress: e.progress, speed: '', eta: '', totalSize: e.totalSize, downloadedSize: Math.round(e.totalSize * e.progress / 100), files: [],
+        fileCount: e.fileCount, completedFiles: 0, activeFiles: {}, activeProcesses: [], pendingTaskCount: 0, cancelWaiters: [], totalSpeed: 0,
+        peakSpeedBytes: 0, startTime: e.startTime, endTime: null, token: null, cancelled: false, failedFiles: [], resume: e.resume,
+        statusMessage: 'Paused when the app closed. Press Resume to continue; files already downloaded are kept.'
+      });
+      logToFile(`[restore] ${e.name} is back in the list as paused`);
     }
   } catch (e) {
-    logToFile(`[orphan] Failed to load orphaned downloads: ${e && e.message ? e.message : e}`);
+    logToFile(`[restore] Failed to restore unfinished downloads: ${e && e.message ? e.message : e}`);
+  }
+}
+
+// Resume of a restored download: ask the site for a fresh download token for the same item, then start it the way a click on Download does.
+async function resumeRestoredDownload(downloadId) {
+  const d = activeDownloads.get(downloadId);
+  if (!d || !d.restored) return false;
+  const say = (m) => { d.statusMessage = m; try { if (mainWindowAlive()) sendToMain('download-progress', { id: downloadId, status: 'paused', progress: d.progress, statusMessage: m }); } catch (e) { } };
+  const token = savedSessionToken();
+  if (!token) { say('Sign in first, then press Resume.'); return false; }
+  if (!d.resume || !d.resume.remote || !d.resume.path) { say('This one cannot be resumed. Press Download on the game again.'); return false; }
+  try {
+    const t = await postJsonWithBearer('https://www.armgddnbrowser.com/api/external-download-token', { remote: d.resume.remote, path: d.resume.path }, token);
+    if (t.statusCode !== 200 || !t.json || !t.json.downloadToken) {
+      say(t.statusCode === 401 ? 'Your sign-in expired. Sign in again, then press Resume.' : ((t.json && t.json.error) || `The site answered ${t.statusCode}. Try again in a moment, or press Download on the game again.`));
+      return false;
+    }
+    const q = { downloadToken: t.json.downloadToken, token };
+    if (d.resume.dest) q.dest = d.resume.dest;
+    activeDownloads.delete(downloadId);
+    dropInflight(downloadId);
+    try { sendToMain('download-cancelled', { id: downloadId, cleanupWarning: false }); } catch (e) { }
+    logToFile(`[restore] resuming ${d.name} with a fresh link`);
+    handleDeepLink('armgddn://download?' + new URLSearchParams(q).toString());
+    return true;
+  } catch (e) {
+    say('Could not reach the site: ' + (e && e.message ? e.message : e));
+    return false;
   }
 }
 
@@ -5380,7 +5394,13 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
     download.statusMessage = 'Starfield detected: auto-extract disabled for this download.';
   }
 
+  try {
+    const mu = new URL(String(download.manifestUrl || ''));
+    const r = mu.searchParams.get('remote'), pth = mu.searchParams.get('path');
+    if (r && pth) download.resume = { remote: r, path: pth, dest: (dest === 'music' || dest === 'comics') ? dest : '' };
+  } catch (e) { }
   activeDownloads.set(downloadId, download);
+  persistInflight(download);
   sendToMain('download-started', downloadToRenderer(download));
 
   download.statusMessage = 'Preparing download...';
@@ -8106,9 +8126,15 @@ ipcMain.handle('cancel-download', async (event, downloadId) => {
   const download = activeDownloads.get(downloadId);
   if (!download) return true;
   if (download.cancelCleanupPromise) return await download.cancelCleanupPromise;
+  if (download.restored) {          // a download brought back after a restart: nothing is running and nothing is known to delete, so it only leaves the list
+    activeDownloads.delete(downloadId); dropInflight(downloadId);
+    try { sendToMain('download-cancelled', { id: downloadId, cleanupWarning: false }); } catch (e) { }
+    return { success: true, cleanupWarning: false };
+  }
 
   download.cancelled = true;
   download.status = 'cancelled';
+  dropInflight(downloadId);
   download.statusMessage = 'Cancelling and removing downloaded files...';
   try { if (download.directGrant && download.manifestUrl) driveDirectClient.finish(download.directGrant, String(download.manifestUrl), download.token); } catch (e) { }
 
@@ -8221,6 +8247,7 @@ function pauseDownloadById(downloadId) {
 
   download.paused = true;
   download.status = 'paused';
+  persistInflight(download);
 
   if (download.activeProcesses && download.activeProcesses.length > 0) {
     for (const proc of download.activeProcesses) {
@@ -8454,6 +8481,7 @@ ipcMain.handle('resume-download', async (event, downloadId) => {
   if (!download.paused) {
     return false;
   }
+  if (download.restored) return resumeRestoredDownload(downloadId);
 
   try {
     await resumeDownloadFiles(downloadId);
@@ -8481,6 +8509,7 @@ function finalizeCompletedDownload(downloadId) {
 
   logToFile(`[completeDownload] Setting status to completed and sending event`);
   download.status = 'completed';
+  dropInflight(downloadId);
   try { if (download.directGrant && download.manifestUrl) driveDirectClient.finish(download.directGrant, String(download.manifestUrl), download.token); } catch (e) { }
   download.progress = 100;
   download.downloadedSize = download.totalSize;

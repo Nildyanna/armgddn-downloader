@@ -44,6 +44,7 @@
       "nativeGate.js",
       "shortcutNames.js",
       "downloadRate.js",
+      "inflightStore.js",
       "driveDirectClient.js",
       "resumeDownload.js",
       "segmentedDownload.js",
