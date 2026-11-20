@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.36.1] - 2026-11-20
+
+### Changed
+- 3D Printer Models shows a short note that many models do not have a cover picture yet and that missing covers there are expected.
+
 ## [5.36.0] - 2026-11-20
 
 ### Added

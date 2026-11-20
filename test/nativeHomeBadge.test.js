@@ -16,3 +16,8 @@ test('Home cards (Hidden Gems and the other strips) say whether a title is PC or
   assert.ok(read('renderer', 'native', 'native.css').includes('.title.withp'));
   assert.ok(read('renderer', 'native', 'native.css').includes('.pbadge.pcvr'));
 });
+
+test('the 3D Printer Models section says that missing covers are expected', () => {
+  const app = read('renderer', 'native', 'app.mjs');
+  assert.ok(app.includes("remote === '3D Printer Models'") && app.includes('Missing covers in this section are expected and are not a bug'));
+});

@@ -1,4 +1,10 @@
 {
+  "5.36.1": {
+    "title": "3D covers note",
+    "highlights": [
+      "3D Printer Models now says that many models don't have a cover picture yet, and that missing covers there are expected."
+    ]
+  },
   "5.36.0": {
     "title": "Admin, tidied up",
     "highlights": [
