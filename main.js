@@ -3172,9 +3172,11 @@ function createWindow() {
       return;
     }
 
-    // If there are active downloads, ask for confirmation before quitting
-    const activeCount = activeDownloads.size;
-    if (activeCount > 0) {
+    // If downloads are running, ask for confirmation before quitting. A paused download is not running (Dirk paused his and was still asked), and when the
+    // app is quitting to install an update the question was asked before the installer started: asking again, and cancelling, left the old app open next to
+    // an installer that went ahead (Dirk, Nov 20).
+    const activeCount = Array.from(activeDownloads.values()).filter((d) => d && ['in_progress', 'downloading', 'starting'].includes(d.status)).length;
+    if (activeCount > 0 && !_installUpdateInProgress) {
       const result = withDialogFocusSync(() => dialog.showMessageBoxSync(getDialogParentWindow(), {
         type: 'question',
         buttons: ['Cancel', 'Quit Anyway'],
@@ -9163,6 +9165,11 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
       return { success: false, error: 'An update is already installing' };
     }
   } catch (e) { }
+  // Updating restarts the app: with a download running, say so now and change nothing (the installer must not start and then be argued with at quit time).
+  if (anyDownloadRunning()) {
+    logToFile('install-update: a download is running; not updating now');
+    return { success: false, error: 'A download is running. Pause or finish it, then update.' };
+  }
   _installUpdateInProgress = true;
 
   const opts = (options && typeof options === 'object') ? options : {};

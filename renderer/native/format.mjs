@@ -124,6 +124,9 @@ export function formatSpeed(bytesPerSec) {
 // Statuses the Companion uses for a download that is still running.
 export function isActiveDownload(d) { return !!d && !['completed', 'cancelled', 'error', 'failed'].includes(String(d.status || '').toLowerCase()); }
 
+// A download that is moving right now. A paused one is not: pausing is how a member gets out of the way of an update.
+export function isRunningDownload(d) { return !!d && ['in_progress', 'downloading', 'starting', 'queued', 'pending'].includes(String(d.status || '').toLowerCase()); }
+
 // Where a Download button belongs. Files always get one. A folder gets one only when it is something you download as a whole (a game, an
 // album or artist, a comic series): the grouping folders in 3D Printer Models (Bambu / X1C ...) and the PC / PCVR buckets at the top of
 // Testing only lead to the things inside them.

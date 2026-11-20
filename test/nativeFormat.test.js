@@ -318,3 +318,12 @@ test('an absurd ETA is not shown, a sensible one is', async () => {
   assert.equal(etaShown('3d 4h'), '3d 4h');
   assert.equal(etaShown(''), '');
 });
+
+test('a paused download does not hold up an update, a running one does', async () => {
+  const { isRunningDownload } = await import('../renderer/native/format.mjs');
+  assert.equal(isRunningDownload({ status: 'paused' }), false);
+  assert.equal(isRunningDownload({ status: 'completed' }), false);
+  assert.equal(isRunningDownload({ status: 'downloading' }), true);
+  assert.equal(isRunningDownload({ status: 'starting' }), true);
+  assert.equal(isRunningDownload(null), false);
+});

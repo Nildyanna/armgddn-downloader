@@ -65,3 +65,9 @@ test('Music and Comics downloads from the native window go to the folder chosen 
   assert.ok(main.includes('destFor: (remote) =>') && main.includes("remote === 'Music' ? settings.musicFolder : remote === 'Comics' ? settings.comicsFolder"));
   assert.ok(bridge.includes('const MAX_BATCH_PATHS = 500;') && !bridge.includes('paths.length > 50'));
 });
+
+test('updating never starts the installer while a download runs, and quitting for an update does not ask again', () => {
+  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes("if (anyDownloadRunning()) {\n    logToFile('install-update: a download is running; not updating now');"));
+  assert.ok(main.includes("['in_progress', 'downloading', 'starting'].includes(d.status)).length;\n    if (activeCount > 0 && !_installUpdateInProgress) {"));
+});
