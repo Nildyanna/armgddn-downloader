@@ -613,3 +613,12 @@ header select + select { margin-left: 0; }
 
 .fextrow { margin: 2px 0 2px; }
 .fext { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 1px 7px; border-radius: 6px; font: 600 11px/1.5 Consolas, monospace; color: var(--accent, #4fe0c2); border: 1px solid rgba(79, 224, 194, .4); background: rgba(79, 224, 194, .08); vertical-align: middle; }
+
+.dfiles { margin: 8px 0 2px; padding: 6px 8px; border-radius: 8px; background: rgba(0,0,0,.18); font-size: 11px; display: flex; flex-direction: column; gap: 4px; }
+.dfhead { color: var(--dim); text-transform: uppercase; letter-spacing: .04em; font-size: 10px; }
+.dfile { display: grid; grid-template-columns: minmax(0, 1fr) 42px 120px 80px; gap: 8px; align-items: center; }
+.dfname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.dfpct { text-align: right; font-variant-numeric: tabular-nums; }
+.dfspeed { text-align: right; color: var(--dim); font-variant-numeric: tabular-nums; }
+.dfmore { color: var(--dim); }
+.bar.small { height: 5px; }

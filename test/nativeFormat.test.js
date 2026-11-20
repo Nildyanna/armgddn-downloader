@@ -336,3 +336,16 @@ test('the MiB/s option formats a byte rate', async () => {
   assert.equal(formatMiBps(0), '');
   assert.equal(formatMiBps('x'), '');
 });
+
+test('the files a download is working on are listed with their own percent', async () => {
+  const { activeFileRows } = await import('../renderer/native/format.mjs');
+  const m = { a: { name: 'Half-Life Alyx/a.part1.rar', progress: 47.6, speed: '120 Mbp/s', status: 'downloading' }, b: { name: 'b.part2.rar', progress: 3, status: 'downloading' }, c: { name: 'done.rar', progress: 100, status: 'completed' } };
+  const r = activeFileRows(m);
+  assert.deepEqual(r.rows.map((x) => [x.name, x.pct]), [['a.part1.rar', 48], ['b.part2.rar', 3]]);
+  assert.equal(r.total, 2); assert.equal(r.more, 0);
+  const many = {}; for (let i = 0; i < 12; i++) many['k' + i] = { name: 'f' + i, progress: i, status: 'downloading' };
+  const big = activeFileRows(many, 8);
+  assert.equal(big.rows.length, 8); assert.equal(big.more, 4); assert.equal(big.total, 12);
+  assert.deepEqual(activeFileRows(null), { rows: [], more: 0, total: 0 });
+  assert.deepEqual(activeFileRows([{ name: 'x', progress: 150, status: 'downloading' }]).rows.map((x) => x.pct), [100]);
+});

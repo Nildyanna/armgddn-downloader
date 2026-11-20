@@ -550,3 +550,12 @@ export function formatMiBps(bytesPerSec) {
   const m = n / 1048576;
   return (m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m.toFixed(2)) + ' MiB/s';
 }
+
+// The files a download is working on right now, each with its own percent (DMP, Nov 20: the overall percent alone does not show whether the files go one at a time
+// or several at once). `activeFiles` is the Companion's map or list of per-file records; only files still downloading are listed, at most `max`.
+export function activeFileRows(activeFiles, max = 8) {
+  const list = Array.isArray(activeFiles) ? activeFiles : (activeFiles && typeof activeFiles === 'object' ? Object.values(activeFiles) : []);
+  const rows = list.filter((x) => x && String(x.status || 'downloading').toLowerCase() === 'downloading')
+    .map((x) => ({ name: String(x.name || '').split('/').pop() || String(x.name || ''), pct: Math.max(0, Math.min(100, Math.round(Number(x.progress) || 0))), speed: String(x.speed || '') }));
+  return { rows: rows.slice(0, max), more: Math.max(0, rows.length - max), total: rows.length };
+}
