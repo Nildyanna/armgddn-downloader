@@ -1,4 +1,12 @@
 {
+  "5.39.0": {
+    "title": "Speeds and files, your way",
+    "highlights": [
+      "Every download now has a Show MiB/s button next to its speed, if you'd rather see megabytes than bits (it's remembered; bits stay the default).",
+      "Each running download lists the files being downloaded right now, each with its own percent, so you can see whether they run one at a time or several at once.",
+      "Fixed: updating while a download was paused asked whether to quit anyway, and cancelling left the old window open. Paused downloads no longer block an update, and the app tells you first if a running download needs to finish."
+    ]
+  },
   "5.38.1": {
     "title": "Collections, done right",
     "highlights": [

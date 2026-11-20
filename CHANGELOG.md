@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.39.0] - 2026-11-20
+
+### Added
+- Every running or paused download has a Show MiB/s button next to its speed (bits per second stay the default; the choice is remembered).
+- Each running download lists the files being downloaded right now, each with its own percent, speed and bar.
+
+### Fixed
+- Updating while a download was paused asked whether to quit anyway, and cancelling left the old window open next to the installer. Paused downloads no longer block an update, a running download makes the update say so first, and quitting for an update no longer asks again.
+
 ## [5.38.1] - 2026-11-20
 
 ### Fixed
