@@ -6263,6 +6263,11 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       const shown = full ? urlStr : redactUrlQueryStrings(urlStr);
       logToFile(`[rclone-copyurl] url=${shown}`);
     } catch (e) { }
+    // Where this file comes from, for the file list in the new window: Google Drive directly, or the download gateway.
+    try {
+      const info = download && download.activeFiles && download.activeFiles[fileKey];
+      if (info) info.source = /(^|\.)googleapis\.com$/i.test(new URL(file && file.url ? String(file.url) : 'https://x.invalid').hostname) ? 'drive' : 'gateway';
+    } catch (e) { }
 
     // Retries after a failure (expired link, dropped connection, mirror change) run
     // through the resumable downloader: rclone copyurl deletes its partial file on

@@ -556,6 +556,6 @@ export function formatMiBps(bytesPerSec) {
 export function activeFileRows(activeFiles, max = 8) {
   const list = Array.isArray(activeFiles) ? activeFiles : (activeFiles && typeof activeFiles === 'object' ? Object.values(activeFiles) : []);
   const rows = list.filter((x) => x && String(x.status || 'downloading').toLowerCase() === 'downloading')
-    .map((x) => ({ name: String(x.name || '').split('/').pop() || String(x.name || ''), pct: Math.max(0, Math.min(100, Math.round(Number(x.progress) || 0))), speed: String(x.speed || '') }));
+    .map((x) => ({ name: String(x.name || '').split('/').pop() || String(x.name || ''), pct: Math.max(0, Math.min(100, Math.round(Number(x.progress) || 0))), speed: String(x.speed || ''), source: x.source === 'drive' ? 'Drive' : (x.source === 'gateway' ? 'Gateway' : '') }));
   return { rows: rows.slice(0, max), more: Math.max(0, rows.length - max), total: rows.length };
 }

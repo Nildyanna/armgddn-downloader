@@ -349,3 +349,14 @@ test('the files a download is working on are listed with their own percent', asy
   assert.deepEqual(activeFileRows(null), { rows: [], more: 0, total: 0 });
   assert.deepEqual(activeFileRows([{ name: 'x', progress: 150, status: 'downloading' }]).rows.map((x) => x.pct), [100]);
 });
+
+test('each active file says whether it comes from Google Drive or the gateway', async () => {
+  const { activeFileRows } = await import('../renderer/native/format.mjs');
+  const r = activeFileRows({ a: { name: 'a.7z.001', progress: 5, status: 'downloading', source: 'drive' }, b: { name: 'b.bat', progress: 5, status: 'downloading', source: 'gateway' }, c: { name: 'c', progress: 5, status: 'downloading' } }).rows;
+  assert.deepEqual(r.map((x) => x.source), ['Drive', 'Gateway', '']);
+});
+
+test('the Comics panel shows the size of the library next to the count', () => {
+  const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes("comics${Number(t.bytes) > 0 ? ' (' + formatSize(t.bytes) + ')' : ''}."));
+});
