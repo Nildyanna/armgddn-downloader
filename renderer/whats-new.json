@@ -1,4 +1,10 @@
 {
+  "5.41.2": {
+    "title": "Tabs never get cut off",
+    "highlights": [
+      "In a narrow window the tab bar now wraps onto a second row, so tabs like Music and Tools are no longer cut off."
+    ]
+  },
   "5.41.1": {
     "title": "Picked items survive a restart too",
     "highlights": [

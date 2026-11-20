@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.41.2] - 2026-11-20
+
+### Fixed
+- In a narrow window the tab bar wraps onto a second row, so tabs like Music and Tools are no longer cut off.
+
 ## [5.41.1] - 2026-11-20
 
 ### Added
