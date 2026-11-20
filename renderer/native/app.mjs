@@ -12,6 +12,8 @@ const api = window.nativeAPI;
 // Themes: the website's palettes (renderer/native/themes.json, made by scripts/extract_themes.py). The choice is remembered on this PC; "System" follows the computer's light or dark setting.
 let THEMES = {};
 try { THEMES = (await import('./themes.json', { with: { type: 'json' } })).default || {}; } catch (e) { THEMES = {}; }
+// Hand-made themes live in their own files (themes-custom.json and themes-custom.css), so the script that rewrites themes.json and themes.css never touches them.
+try { THEMES = { ...THEMES, ...((await import('./themes-custom.json', { with: { type: 'json' } })).default || {}) }; } catch (e) { }
 const themeKeyOk = (id) => id === 'system' || Object.prototype.hasOwnProperty.call(THEMES, id);
 function applyTheme(choice) {
   const id = themeKeyOk(choice) ? choice : 'dark';

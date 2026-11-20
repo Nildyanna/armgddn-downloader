@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ARMGDDN theme preview</title>
+<link rel="stylesheet" href="fonts.css">
+<link rel="stylesheet" href="native.css">
+<link rel="stylesheet" href="themes.css">
+<link rel="stylesheet" href="themes-custom.css">
+<style id="kit-user-css"></style>
+<style>
+  /* The preview's own controls: neutral on purpose, so no theme restyles them. */
+  #kitbar { position: fixed; right: 12px; bottom: 12px; z-index: 99999; background: #111; color: #eee; border: 1px solid #555; border-radius: 10px; padding: 10px 12px; font: 13px/1.4 system-ui, sans-serif; width: 300px; box-shadow: 0 8px 30px rgba(0,0,0,.6); }
+  #kitbar h4 { margin: 0 0 6px; font-size: 13px; }
+  #kitbar label { display: block; margin: 6px 0 2px; color: #bbb; }
+  #kitbar select, #kitbar input[type=file] { width: 100%; font: inherit; color: #eee; background: #222; border: 1px solid #555; border-radius: 6px; padding: 4px; box-sizing: border-box; }
+  #kitbar small { color: #999; display: block; margin-top: 6px; }
+  #kitbar .row { display: flex; gap: 6px; }
+  #kitbar button { font: inherit; color: #eee; background: #2b2b2b; border: 1px solid #666; border-radius: 6px; padding: 4px 8px; cursor: pointer; }
+  #kitmsg { color: #8fd18f; min-height: 1.2em; }
+  #kitbar.min { width: auto; }
+  #kitbar.min .body { display: none; }
+</style>
+</head>
+<body>
+<div class="shell" id="app">
+  <div class="banner">
+    <div class="header-stars"><div class="header-star header-star-1"></div><div class="header-star header-star-2"></div><div class="header-star header-star-3"></div></div>
+    <div class="banner-actions">
+      <button class="dbtn">&#10024; Animations on</button>
+      <select class="themesel" id="themesel"></select>
+      <button class="dbtn">Logout</button>
+    </div>
+    <div class="banner-credit"><div class="fire-particles"><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i></div><span class="fire-text">Created by Old Man of the Hills v5.41</span></div>
+    <img class="banner-logo" src="skull-logo.png" alt="ARMGDDN">
+    <div class="banner-text"><h1>ARMGDDN BROWSER</h1><p>Secure Multi-Remote Game Browser</p></div>
+  </div>
+  <header class="topbar" id="tabs">
+    <button class="tab on" data-page="home">Home</button>
+    <nav>
+      <button class="tab" data-page="library">PC Games</button><button class="tab" data-page="library">PCVR Games</button><button class="tab">3D Printer Models</button><button class="tab">Pirated PC Apps</button><button class="tab">Comics</button><button class="tab">Music</button>
+    </nav>
+    <button class="tab">Tools</button>
+    <button class="tab" data-page="settings">Settings</button>
+    <button class="tab" data-page="wiki">Wiki</button>
+    <button class="tab">My List <span class="badge">3</span></button>
+    <button class="tab">Requests</button>
+    <button class="tab" data-page="downloads">Downloads <span class="badge">1</span></button>
+  </header>
+  <div class="subbar">
+    <button class="tab backbtn">&larr; Back</button>
+    <button class="tab backbtn" disabled>Forward &rarr;</button>
+    <span class="subtitle" id="subtitle">Home</span>
+    <label class="everywhere"><input type="checkbox"> Everywhere</label>
+    <input class="search" type="search" placeholder="Search this list">
+    <select><option>All categories</option><option>Action (120)</option></select>
+    <select><option>Name</option><option>Popularity</option></select>
+    <button class="tab">&darr;</button>
+    <span class="viewsel"><button class="tab on">Grid</button><button class="tab">List</button></span>
+  </div>
+  <div class="notice soft">This is a preview with sample content. Click the tabs above to switch between the pages.</div>
+
+  <!-- HOME -->
+  <main class="home page" data-name="home">
+    <section class="strip"><div class="strip-head"><span class="strip-title">&#128293; Trending Downloads</span><span class="strip-right"><button class="dbtn">Hide</button></span></div>
+      <div class="hrow" data-cards="5"></div>
+      <div class="strip-note">Download counts are from the last 7 or 30 days, not all-time totals.</div>
+    </section>
+    <section class="strip"><div class="strip-head"><span class="strip-title">Game Radar</span><span class="strip-sub">Personalized picks</span><span class="strip-right"><button class="dbtn">Hide</button></span></div>
+      <div class="hrow" data-cards="3" data-platform="1"></div>
+    </section>
+  </main>
+
+  <!-- LIBRARY -->
+  <div class="crumbs page" data-name="library" hidden><button>PC Games</button><span class="count">12 items</span></div>
+  <main class="grid page" data-name="library" hidden id="gridpage"></main>
+
+  <!-- SETTINGS -->
+  <main class="settings page" data-name="settings" hidden>
+    <section class="sgroup"><h3>Updates</h3>
+      <div class="srow"><span class="slabel">ARMGDDN Browser updates <span class="sval">It checks once an hour by itself.</span></span><button class="dbtn">Check for updates</button></div>
+      <div class="srow"><span class="slabel">Update automatically</span><input type="checkbox" checked></div>
+    </section>
+    <section class="sgroup"><h3>Folders</h3>
+      <div class="srow"><span class="slabel">Download folder</span><span class="sval">E:\ARMGDDN</span><button class="dbtn">Change</button></div>
+      <div class="srow"><span class="slabel">Extract folder</span><span class="sval">Same as the download folder</span><button class="dbtn">Change</button></div>
+    </section>
+    <section class="sgroup"><h3>Downloads</h3>
+      <div class="srow"><span class="slabel">Downloads at the same time</span><input type="number" min="1" max="6" value="2"></div>
+      <div class="srow"><span class="slabel">Speed limit in MB/s (0 = no limit)</span><input type="number" min="0" value="0"></div>
+      <div class="srow"><span class="slabel">Extract .7z files automatically</span><input type="checkbox"></div>
+    </section>
+  </main>
+
+  <!-- DOWNLOADS -->
+  <main class="dlist page" data-name="downloads" hidden>
+    <div class="dtools"><button class="dbtn">Clear history</button></div>
+    <div class="drow">
+      <div class="dname">The Elder Scrolls V - Skyrim VR<span class="dstat">downloading</span></div>
+      <div class="bar"><div class="fill" style="width:64%"></div></div>
+      <div class="dmeta">64% · 58.1 GB of 90.8 GB · 36.8 MiB/s · ETA 12m · 3 of 20 files</div>
+      <div class="dfiles"><div class="dfhead">4 files at once</div>
+        <div class="dfile"><span class="dfname">SkyrimVR.7z.001 <span class="dfsrc drive">Drive</span></span><span class="dfpct">54%</span><div class="bar small"><div class="fill" style="width:54%"></div></div><span class="dfspeed">9.2 MiB/s</span></div>
+        <div class="dfile"><span class="dfname">SkyrimVR.7z.002 <span class="dfsrc drive">Drive</span></span><span class="dfpct">71%</span><div class="bar small"><div class="fill" style="width:71%"></div></div><span class="dfspeed">9.4 MiB/s</span></div>
+      </div>
+      <div class="dbtns"><button class="dbtn">Show Mbps</button><button class="dbtn">Pause</button><button class="dbtn">Cancel</button></div>
+    </div>
+    <div class="drow">
+      <div class="dname">Cyberpunk 2077<span class="dstat">paused</span></div>
+      <div class="bar"><div class="fill" style="width:22%"></div></div>
+      <div class="dmeta">22% · 15.4 GB of 70.1 GB</div>
+      <div class="derr">Google Drive did not answer. Please try again in a minute.</div>
+      <div class="dbtns"><button class="dbtn">Resume</button><button class="dbtn">Cancel</button></div>
+    </div>
+    <div class="drow">
+      <div class="dname">Metro Exodus<span class="dstat">completed</span></div>
+      <div class="bar"><div class="fill" style="width:100%"></div></div>
+      <div class="dmeta">100% · 56.2 GB of 56.2 GB</div>
+      <div class="dbtns"><button class="dbtn">Open folder</button></div>
+    </div>
+  </main>
+
+  <!-- WIKI -->
+  <main class="wiki page" data-name="wiki" hidden style="display:flex; gap:16px; padding:14px 18px">
+    <nav class="wikitoc"><button class="on">Getting started</button><button>Downloads</button><button>Troubleshooting</button><button>Rules</button></nav>
+    <article class="wikibody"><h2>Getting started</h2><p>Sign in with Telegram, pick a section, and press Download. Files come straight from Google Drive.</p><p>This is sample text to check how body copy, <a href="#">links</a> and <code>code</code> look in your theme.</p></article>
+  </main>
+</div>
+
+<div id="kitbar">
+  <h4>Theme preview <button id="kitmin" style="float:right">&minus;</button></h4>
+  <div class="body">
+    <label for="kitpick">Theme</label>
+    <select id="kitpick"></select>
+    <label for="kitjson">Load your palette (.json)</label>
+    <input type="file" id="kitjson" accept=".json,application/json">
+    <label for="kitcss">Load your CSS (.css)</label>
+    <input type="file" id="kitcss" accept=".css,text/css">
+    <div class="row" style="margin-top:8px"><button id="kitreset">Remove my files</button></div>
+    <div id="kitmsg"></div>
+    <small>Narrow layout: make this browser window narrower than 900 px. Your images go in the themes folder next to this page.</small>
+  </div>
+</div>
+
+<script src="preview-data.js"></script>
+<script>
+(function () {
+  var THEMES = Object.assign({}, window.KIT_THEMES || {});
+  var root = document.documentElement;
+  var lastVars = [];
+  var msg = document.getElementById('kitmsg');
+  var say = function (t) { msg.textContent = t || ''; };
+
+  // The same steps the app takes when a theme is chosen.
+  function applyTheme(id) {
+    var t = THEMES[id] || THEMES.dark; if (!t) return;
+    var st = root.style;
+    function set(k, v) { if (v) st.setProperty(k, v); else st.removeProperty(k); }
+    set('--bg', t.bg); set('--panel', t.panel); set('--fg', t.fg); set('--dim', t.dim); set('--line', t.line); set('--accent', t.accent); set('--accent2', t.accent2);
+    set('--on-accent', t.onAccent); set('--rc', t.radius || '10px'); set('--page', t.page); set('--page-color', t.pageColor);
+    lastVars.forEach(function (k) { st.removeProperty(k); });
+    lastVars = Object.keys(t.vars || {});
+    lastVars.forEach(function (k) { st.setProperty(k, t.vars[k]); });
+    root.dataset.theme = id;
+    st.setProperty('color-scheme', t.mode === 'light' ? 'light' : 'dark');
+  }
+
+  function fillPickers() {
+    var ids = Object.keys(THEMES).sort(function (a, b) { return String(THEMES[a].label || a).localeCompare(String(THEMES[b].label || b)); });
+    [document.getElementById('themesel'), document.getElementById('kitpick')].forEach(function (sel) {
+      var cur = sel.value; sel.innerHTML = '';
+      ids.forEach(function (id) { var o = document.createElement('option'); o.value = id; o.textContent = (THEMES[id].icon || '') + ' ' + (THEMES[id].label || id); sel.appendChild(o); });
+      sel.value = cur && THEMES[cur] ? cur : 'dark';
+      sel.onchange = function () { choose(sel.value); };
+    });
+  }
+  function choose(id) { applyTheme(id); document.getElementById('themesel').value = id; document.getElementById('kitpick').value = id; }
+
+  // Sample cards, built with the app's own class names.
+  var NAMES = ['Skyrim VR', 'Cyberpunk 2077', 'Metro Exodus', 'Hades', 'Half-Life Alyx', 'Beat Saber', 'Elden Ring', 'Portal 2', 'Doom Eternal', 'Subnautica', 'Blade and Sorcery', 'Alien Isolation'];
+  var HUES = [200, 330, 20, 140, 260, 50, 170, 300, 0, 100, 230, 80];
+  function cover(h) {
+    var svg = "<svg xmlns='http://www.w3.org/2000/svg' width='616' height='353'><defs><linearGradient id='g' x1='0' y1='0' x2='1' y2='1'><stop offset='0' stop-color='hsl(" + h + ",70%,45%)'/><stop offset='1' stop-color='hsl(" + ((h + 60) % 360) + ",60%,18%)'/></linearGradient></defs><rect width='100%' height='100%' fill='url(#g)'/><circle cx='460' cy='110' r='80' fill='rgba(255,255,255,.18)'/></svg>";
+    return 'data:image/svg+xml,' + encodeURIComponent(svg);
+  }
+  function card(i, platform) {
+    var n = NAMES[i % NAMES.length], h = HUES[i % HUES.length], none = (i === 7);
+    var c = document.createElement('div'); c.className = 'card';
+    c.innerHTML = '<div class="cover clickable">' + (none ? '<div class="nocover">' + n[0] + '</div>' : '<img class="cbg" aria-hidden="true" src="' + cover(h) + '" alt=""><img class="cfg" src="' + cover(h) + '" alt="">') + '</div>' +
+      '<div class="meta"><div class="title clickable">' + (platform ? '<span class="ttext">' + n + (i % 3 === 0 ? '<span class="vbadge newest">Newest</span>' : '') + '</span><span class="pbadge ' + (i % 2 ? 'pcvr' : 'pc') + '">' + (i % 2 ? 'PCVR' : 'PC') + '</span>' : n + (i % 3 === 0 ? '<span class="vbadge newest">Newest</span>' : '')) + '</div>' +
+      '<div class="sub">' + (2015 + (i % 9)) + ' · ' + (8 + i * 7) + '.' + (i % 10) + ' GB · ' + (40 + i * 13) + ' downloads</div>' +
+      '<div class="cbtns"><button class="dl heart ' + (i % 4 === 0 ? 'on' : '') + '">' + (i % 4 === 0 ? '\u2665' : '\u2661') + '</button><button class="dl ghost">Browse</button><button class="dl ghost">Details</button><button class="dl">Download</button></div></div>';
+    return c;
+  }
+  document.querySelectorAll('[data-cards]').forEach(function (el, k) { var n = +el.getAttribute('data-cards'); for (var i = 0; i < n; i++) el.appendChild(card(i + k * 5, !!el.getAttribute('data-platform'))); });
+  var grid = document.getElementById('gridpage'); for (var i = 0; i < 12; i++) grid.appendChild(card(i, false));
+
+  // Page switching
+  var tabs = document.querySelectorAll('#tabs [data-page]');
+  tabs.forEach(function (b) { b.onclick = function () {
+    var pg = b.getAttribute('data-page');
+    document.querySelectorAll('#tabs .tab').forEach(function (x) { x.classList.remove('on'); }); b.classList.add('on');
+    document.querySelectorAll('.page').forEach(function (p) { p.hidden = p.getAttribute('data-name') !== pg; });
+    document.getElementById('subtitle').textContent = b.textContent.replace(/\s*\d+$/, '').trim();
+  }; });
+
+  // The user's own files (read in this page only; nothing is uploaded anywhere)
+  var userStyle = document.getElementById('kit-user-css');
+  document.getElementById('kitcss').onchange = function (e) {
+    var f = e.target.files[0]; if (!f) return; var r = new FileReader();
+    r.onload = function () { userStyle.textContent = String(r.result || ''); say('Loaded ' + f.name + ' (' + String(r.result).length + ' characters of CSS)'); }; r.readAsText(f);
+  };
+  document.getElementById('kitjson').onchange = function (e) {
+    var f = e.target.files[0]; if (!f) return; var r = new FileReader();
+    r.onload = function () {
+      try {
+        var j = JSON.parse(String(r.result)), added = [];
+        if (j && typeof j === 'object' && (j.mode || j.bg || j.accent)) { var id = f.name.replace(/\.json$/i, '').replace(/[^a-z0-9-]/gi, '-').toLowerCase(); THEMES[id] = j; added.push(id); }
+        else if (j && typeof j === 'object') { Object.keys(j).forEach(function (k) { if (j[k] && typeof j[k] === 'object') { THEMES[k] = j[k]; added.push(k); } }); }
+        if (!added.length) { say('That file does not look like a palette.'); return; }
+        fillPickers(); choose(added[0]); say('Loaded theme: ' + added[0]);
+      } catch (err) { say('Could not read that file: ' + err.message); }
+    }; r.readAsText(f);
+  };
+  document.getElementById('kitreset').onclick = function () {
+    THEMES = Object.assign({}, window.KIT_THEMES || {}); userStyle.textContent = ''; document.getElementById('kitjson').value = ''; document.getElementById('kitcss').value = '';
+    fillPickers(); choose('dark'); say('Back to the built-in themes.');
+  };
+  document.getElementById('kitmin').onclick = function () { document.getElementById('kitbar').classList.toggle('min'); };
+
+  fillPickers(); choose('dark');
+})();
+</script>
+</body>
+</html>

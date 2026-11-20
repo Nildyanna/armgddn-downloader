@@ -429,3 +429,22 @@ test('clicking a box of the request flow filters the requests list (category set
   assert.ok(a.includes("if (kind === 'reqAll') { setCategory(''); setStatus(''); return true; }"));
   assert.ok(a.includes('byWho.filter((r) => r.category === category)') && a.includes('<label>Category <select'));
 });
+
+test('hand-made themes load from their own files, which the theme generator never rewrites', () => {
+  const fs = require('fs'), path = require('path');
+  const dir = path.join(__dirname, '..', 'renderer', 'native');
+  const app = fs.readFileSync(path.join(dir, 'app.mjs'), 'utf8');
+  assert.ok(app.includes("import('./themes-custom.json', { with: { type: 'json' } })"));
+  assert.ok(fs.readFileSync(path.join(dir, 'index.html'), 'utf8').includes('<link rel="stylesheet" href="themes-custom.css">'));
+  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'themes-custom.json'), 'utf8')), {});
+  const gen = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'extract_themes.py'), 'utf8');
+  assert.ok(!gen.includes('themes-custom'), 'the generator does not touch the custom files');
+});
+
+test('the theme kit page uses the same markup classes as the app and has the file loaders', () => {
+  const fs = require('fs'), path = require('path');
+  const kit = fs.readFileSync(path.join(__dirname, '..', 'tools', 'theme-kit', 'preview.html'), 'utf8');
+  for (const c of ['banner-actions', 'topbar', 'subbar', 'drow', 'dfile', 'sgroup', 'wikitoc', 'cbtns']) assert.ok(kit.includes(c), c);
+  assert.ok(kit.includes('id="kitjson"') && kit.includes('id="kitcss"'));
+  assert.ok(kit.includes("dataset.theme = id"));
+});
