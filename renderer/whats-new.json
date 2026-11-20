@@ -1,4 +1,10 @@
 {
+  "5.37.1": {
+    "title": "Back to full speed",
+    "highlights": [
+      "Fixed: after a graphics hiccup the app could stay slow until it was reinstalled. It now tries the graphics card again after a day."
+    ]
+  },
   "5.37.0": {
     "title": "Easier navigating",
     "highlights": [

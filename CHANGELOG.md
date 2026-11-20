@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.37.1] - 2026-11-20
+
+### Fixed
+- After a graphics hiccup the app could stay slow for good (one GPU crash switched hardware drawing off permanently). The setting now lasts 24 hours, then the next start tries the graphics card again.
+
 ## [5.37.0] - 2026-11-20
 
 ### Added
