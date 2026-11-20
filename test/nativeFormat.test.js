@@ -463,3 +463,13 @@ test('tiles scale with the window height and scrolling settles on a whole row', 
   assert.ok(css.includes('.grid.wide { grid-template-columns: repeat(auto-fill, minmax(clamp(150px, 30vh, 230px), 1fr)); }'));
   assert.ok(css.includes('.grid > .card { scroll-snap-align: start; }'));
 });
+
+test('the very smallest window shows covers as thumbnails beside the title, so several titles fit', () => {
+  const css = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  const i = css.indexOf('@media (max-height: 640px) {');
+  assert.ok(i > 0);
+  const b = css.slice(i);
+  assert.ok(b.includes('.grid > .card { display: grid; grid-template-columns: 70px minmax(0, 1fr);'));
+  assert.ok(b.includes('aspect-ratio: auto; height: auto; min-height: 72px;'));
+  assert.ok(b.includes('-webkit-line-clamp: 1;') && b.includes('minmax(300px, 1fr)'));
+});

@@ -662,3 +662,16 @@ header select + select { margin-left: 0; }
 .grid.square { grid-template-columns: repeat(auto-fill, minmax(clamp(120px, 25vh, 190px), 1fr)); }
 .grid.tall { grid-template-columns: repeat(auto-fill, minmax(clamp(110px, 22vh, 170px), 1fr)); }
 .grid > .card { scroll-snap-align: start; }
+
+/* The very smallest window (about 640 px tall or less): the covers become small thumbnails beside the title, size and buttons, one tile per line or two per row,
+   so several titles are visible at once instead of one tall cover. Larger windows keep the tiles above. */
+@media (max-height: 640px) {
+  .grid, .grid.wide, .grid.square, .grid.tall { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 8px; }
+  .grid > .card { display: grid; grid-template-columns: 70px minmax(0, 1fr); align-items: stretch; }
+  .grid > .card .cover, .grid.square .cover, .grid.tall .cover { aspect-ratio: auto; height: auto; min-height: 72px; }
+  .grid > .card .meta { padding: 6px 10px; min-width: 0; }
+  .grid > .card .title { min-height: 0; -webkit-line-clamp: 1; font-size: 13px; }
+  .grid > .card .sub { min-height: 0; margin-top: 0; font-size: 11px; }
+  .grid > .card .cbtns { margin-top: 4px; }
+  .grid > .card .bsel { top: 4px; left: 4px; }
+}
