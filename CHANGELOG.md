@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.40.0] - 2026-11-20
+
+### Added
+- Extract folder setting (Settings, Folders): automatic extraction can unpack games into a folder of the same name on another drive. Empty keeps extracting next to the download.
+- The file list in Downloads explains that small files (under 1 MB) come through the gateway.
+
 ## [5.39.1] - 2026-11-20
 
 ### Added

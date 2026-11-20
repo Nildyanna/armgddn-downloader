@@ -1,4 +1,11 @@
 {
+  "5.40.0": {
+    "title": "Extract to another drive",
+    "highlights": [
+      "New setting: Extract folder. Choose another drive or folder for automatic extraction, so a game downloaded to C: can be unpacked to D:. Settings, Folders, Extract folder. Empty keeps extracting next to the download.",
+      "The file list in Downloads explains that small files (under 1 MB) come through the gateway, not Google Drive."
+    ]
+  },
   "5.39.1": {
     "title": "Where files come from",
     "highlights": [
