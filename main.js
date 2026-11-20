@@ -3054,6 +3054,7 @@ function createWindow() {
     show: false
   });
 
+  try { require('./native/hangWatch').watchWindow(mainWindow, debugLog, 'Classic'); } catch (e) { }
   mainWindowDidFinishLoad = false;
 
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));

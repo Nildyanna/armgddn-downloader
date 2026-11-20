@@ -1,4 +1,10 @@
 {
+  "5.35.1": {
+    "title": "No more lock-ups",
+    "highlights": [
+      "Fixed: the window locking up after running a long time. If it stops responding, it now recovers by itself after a few seconds, and it writes down what was going on so we can find the cause."
+    ]
+  },
   "5.35.0": {
     "title": "ARMGDDN Browser, PC or VR",
     "highlights": [

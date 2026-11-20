@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.35.1] - 2026-11-20
+
+### Fixed
+- The window no longer stays locked up after running for a long time: a window that stops responding reloads itself after 20 seconds, and debug.log records the freeze with memory and processor figures so the cause can be found.
+
 ## [5.35.0] - 2026-11-20
 
 ### Added
