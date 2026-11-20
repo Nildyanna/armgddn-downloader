@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.42.3] - 2026-11-20
+
+### Changed
+
+- Admin Requests: the first entry of a request's comment thread now shows everything in the request (link, Steam app, type, notes, who asked, staff notes), not just the summary row.
+- Admin access lists: the box now chooses which list the table shows (with the number of people on each), and Add puts the new id on that same list. Before, the table always showed both lists together.
+
 ## [5.42.2] - 2026-11-20
 
 ### Changed
