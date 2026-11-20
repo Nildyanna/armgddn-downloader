@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.42.0] - 2026-11-20
+
+### Added
+
+- Admin Requests: a Comments button opens the request's thread so staff can read and add comments.
+
 ## [5.41.8] - 2026-11-20
 
 ### Changed
