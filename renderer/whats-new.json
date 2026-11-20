@@ -1,4 +1,10 @@
 {
+  "5.41.3": {
+    "title": "Updates keep your downloads",
+    "highlights": [
+      "Updating no longer cancels your downloads. Paused downloads no longer block or trigger the update question, and \"Update Now\" pauses running downloads, which come back as Paused after the update."
+    ]
+  },
   "5.41.2": {
     "title": "Tabs never get cut off",
     "highlights": [

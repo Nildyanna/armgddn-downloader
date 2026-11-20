@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.41.3] - 2026-11-20
+
+### Fixed
+- Updating no longer cancels downloads. Paused downloads no longer block or trigger the update question, and Update Now pauses running downloads, which come back as Paused after the update.
+
 ## [5.41.2] - 2026-11-20
 
 ### Fixed
