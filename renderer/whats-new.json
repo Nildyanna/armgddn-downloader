@@ -1,4 +1,11 @@
 {
+  "5.41.8": {
+    "title": "Covers that fit your window",
+    "highlights": [
+      "In shorter windows the covers shrink and grow with the window height, and scrolling the list settles on a whole row instead of stopping in the middle of a cover.",
+      "In the very smallest window, titles show as compact tiles with a small cover beside the name and buttons, so several fit on screen at once."
+    ]
+  },
   "5.41.7": {
     "title": "More room in small windows",
     "highlights": [

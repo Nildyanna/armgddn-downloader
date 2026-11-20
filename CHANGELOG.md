@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.41.8] - 2026-11-20
+
+### Changed
+- In shorter windows the covers shrink and grow with the window height, and scrolling the list settles on a whole row instead of stopping mid-cover.
+- In the very smallest window, titles show as compact tiles with a small cover beside the name and buttons, so several fit on screen at once.
+
 ## [5.41.7] - 2026-11-20
 
 ### Fixed
