@@ -448,3 +448,11 @@ test('the theme kit page uses the same markup classes as the app and has the fil
   assert.ok(kit.includes('id="kitjson"') && kit.includes('id="kitcss"'));
   assert.ok(kit.includes("dataset.theme = id"));
 });
+
+test('small windows compact the title strip, bars and notices so the list keeps room', () => {
+  const css = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  const i = css.indexOf('@media (max-width: 1100px), (max-height: 760px) {');
+  assert.ok(i > 0, 'the compact rules are there');
+  const block = css.slice(i);
+  for (const piece of ['.banner { margin: 6px 12px 0; padding: 4px 12px !important;', '.banner p { display: none; }', '.banner-text { text-align: left;', '.subbar { padding: 3px 12px 4px;', '.notice, .notice.soft {', '.komgabox { margin: 4px 12px;']) assert.ok(block.includes(piece), piece);
+});

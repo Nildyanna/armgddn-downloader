@@ -633,3 +633,24 @@ header select + select { margin-left: 0; }
 .dfsrc.drive { color: #8cc4ff; border-color: rgba(80,150,230,.5); }
 
 .dfnote { margin-top: 4px; font-size: 11px; color: var(--dim); }
+
+/* Small windows (Dirk and Sir gal, Nov 20): the title strip, two tab rows, the sub bar and the notices used most of the height and left a few lines for the list.
+   In a small window everything above the list is compacted: a slim title strip (logo and title on the left, buttons on the right, the version small below them),
+   tighter bars and notices. The rules are !important where a theme's own banner padding would otherwise win. */
+@media (max-width: 1100px), (max-height: 760px) {
+  .banner { margin: 6px 12px 0; padding: 4px 12px !important; min-height: 52px; }
+  .banner h1 { font-size: 1.05rem !important; margin: 0; letter-spacing: .1em; }
+  .banner p { display: none; }
+  .banner > .banner-logo { width: 34px; height: 34px; left: 12px; }
+  .banner-text { text-align: left; margin-left: 44px; }
+  .banner-actions { top: 3px; right: 10px; gap: 6px; }
+  .banner-credit { font-size: .6rem; bottom: 2px; right: 12px; }
+  header.topbar { padding: 4px 12px 2px; }
+  header.topbar .tab, header.topbar nav .tab { padding: 3px 6px; }
+  .subbar { padding: 3px 12px 4px; gap: 6px; min-height: 0; }
+  .subbar .subtitle { min-width: 0; }
+  .crumbs { padding: 3px 12px; }
+  .notice, .notice.soft { margin: 4px 12px; padding: 5px 10px; font-size: 11px; }
+  .komgabox { margin: 4px 12px; padding: 6px 10px; font-size: 12px; gap: 6px 10px; }
+  .grid { padding: 6px 40px 16px 12px; gap: 10px; }
+}
