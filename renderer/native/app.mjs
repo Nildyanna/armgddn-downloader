@@ -64,7 +64,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
     // The list view: one line per title, no art, like the legacy browser.
     return html`<div class=${'lrow' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
       ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
-      <span class="ltitle" onClick=${item.isDir ? () => onOpen(item) : undefined}>${shownTitle}${badgeEl}${platformEl}</span>
+      <span class="ltitle" onClick=${item.isDir ? () => onOpen(item) : undefined}>${shownTitle}${badgeEl}</span>${platformEl}
       <span class="lsub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</span>
       ${stub ? html`<span class="stubnote inline">${stub.message} <button class="dl ghost" onClick=${(e) => { e.stopPropagation(); onStub(stub); }}>Go there</button></span>` : ''}
       <span class="lbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
@@ -76,7 +76,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
   return html`<div class=${'card' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
     ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
     <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img class="cbg" aria-hidden="true" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="cfg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onLoad=${(e) => { const im = e.target; im.classList.toggle('fill', coverFills(im.naturalWidth, im.naturalHeight, shapeFor(remote))); }} onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
-    <div class="meta"><div class="title">${shownTitle}${badgeEl}${platformEl}</div>
+    <div class="meta"><div class=${'title' + (platform ? ' withp' : '')}>${platform ? html`<span class="ttext">${shownTitle}${badgeEl}</span>${platformEl}` : html`${shownTitle}${badgeEl}`}</div>
       <div class="sub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</div>${stubEl}
       <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}

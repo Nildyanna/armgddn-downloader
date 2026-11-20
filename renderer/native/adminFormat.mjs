@@ -61,7 +61,7 @@ export function tableColumns(rows, max = 8) {
 export function adminTabs(role, canManage) {
   const tabs = [];
   if (role === 'owner' || role === 'admin') tabs.push(['overview', 'Overview'], ['analytics', 'Analytics'], ['collections', 'Music and Comics'], ['reliability', 'Reliability']);
-  if (role === 'owner') tabs.push(['system', 'System'], ['activity', 'Activity'], ['missing', 'Missing art'], ['ipbans', 'IP bans'], ['access', 'Access'], ['controls', 'Controls']);
+  if (role === 'owner') tabs.push(['system', 'System'], ['activity', 'Activity'], ['missing', 'Missing art'], ['ipbans', 'IP bans'], ['access', 'Access'], ['console', 'Console'], ['controls', 'Controls']);
   if (canManage) tabs.push(['queue', 'Queue'], ['requests', 'Requests'], ['audit', 'Audit']);
   return tabs;
 }
@@ -188,6 +188,16 @@ export function loyaltyRows(t) {
 }
 export function topRows(list, labelKey, valueKey, limit = 25) {
   const rows = (list || []).slice(0, limit).map((x) => ({ label: String(x[labelKey] || ''), value: num(x[valueKey]) }));
+  const max = rows.reduce((m, r) => Math.max(m, r.value), 0);
+  return rows.map((r) => ({ ...r, pct: max ? Math.round(100 * r.value / max) : 0 }));
+}
+// Members: the @name when they have one, otherwise their Telegram ID. `copy` is what a click puts on the clipboard (handy for messaging them).
+export function userRows(list, valueKey, limit = 25) {
+  const rows = (list || []).slice(0, limit).map((x) => {
+    const handle = String(x.username || '').replace(/^@/, '').trim();
+    const label = handle ? '@' + handle : String(x.userId == null ? '' : x.userId);
+    return { label, copy: label, value: num(x[valueKey]) };
+  });
   const max = rows.reduce((m, r) => Math.max(m, r.value), 0);
   return rows.map((r) => ({ ...r, pct: max ? Math.round(100 * r.value / max) : 0 }));
 }

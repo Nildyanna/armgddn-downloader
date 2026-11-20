@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.36.0] - 2026-11-20
+
+### Added
+- Admin has a Console tab for owners with the website's owner commands (admins, admin+/-, req+/-, both+/-, ban, unban, bans, lookup, reload, help). Bans and admin changes ask for confirmation first.
+- Every bar in the Admin charts shows its number.
+- In the reports, members show as @name (or their Telegram ID when they have none), and clicking a name copies it.
+
+### Changed
+- Game titles in the reports read as full names, and the same game under two spellings is counted once.
+
+### Fixed
+- The PC or PCVR badge on Home cards was hidden behind long titles.
+
 ## [5.35.1] - 2026-11-20
 
 ### Fixed

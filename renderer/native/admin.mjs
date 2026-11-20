@@ -1,7 +1,8 @@
 // The Admin pages of the built-in window (phase 1: read only). Shown only to owners and admins; the site decides what each role may see.
 import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
 import './ownerRouting.js';
-import { NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { runCommand, HELP } from './ownerConsole.mjs';
+import { NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -232,7 +233,7 @@ function BarChart({ labels, values, every, colors, unit = '', what = '', fmt, ho
     <div class="bmeta"><span>${what}</span><span class="bpeak">Peak ${f(values[peakAt] || 0)}${unit ? ' ' + unit : ''}${labels[peakAt] != null ? ' - ' + nice(labels[peakAt]) : ''}</span></div>
     <div class="bplot">
       <span class="byt">${f(max)}</span><span class="byb">0</span>
-      <div class="bbars">${values.map((v, i) => html`<div class="bcol" key=${i} title=${full(labels[i]) + ': ' + f(v) + (unit ? ' ' + unit : '')}>${n <= 16 ? html`<span class="bval">${small(v)}</span>` : ''}<i class="bbar" style=${'height:' + (v ? Math.max(1.5, 100 * v / max) : 0) + '%;' + (colors && colors[i] ? 'background:' + colors[i] : '')}></i></div>`)}</div>
+      <div class="bbars">${values.map((v, i) => html`<div class="bcol" key=${i} title=${full(labels[i]) + ': ' + f(v) + (unit ? ' ' + unit : '')}><span class=${'bval' + (n > 20 ? ' dense' : '')}>${small(v)}</span><i class="bbar" style=${'height:' + (v ? Math.max(1.5, 100 * v / max) : 0) + '%;' + (colors && colors[i] ? 'background:' + colors[i] : '')}></i></div>`)}</div>
     </div>
     <div class="blabels">${labels.map((l, i) => html`<span key=${i}>${i % step === 0 ? nice(l) : ''}</span>`)}</div>
   </div>`;
@@ -246,8 +247,10 @@ function Heatmap({ rows }) {
   </svg>`;
 }
 function RankList({ rows, unit }) {
+  const [copied, setCopied] = useState('');
   if (!rows.length) return html`<div class="empty">Nothing to show.</div>`;
-  return html`<div class="arank">${rows.map((r, i) => html`<div class="arankrow" key=${i}><span class="arankn">${i + 1}</span><span class="aranklabel" title=${r.label}>${r.label}</span><span class="arankbar"><i style=${'width:' + r.pct + '%'}></i></span><span class="arankval">${r.value.toLocaleString('en-US')}${unit ? ' ' + unit : ''}</span></div>`)}</div>`;
+  const copy = async (text) => { try { const r = await api.copy(text); if (r && r.ok) { setCopied(text); setTimeout(() => setCopied(''), 1200); } } catch (e) { } };
+  return html`<div class="arank">${rows.map((r, i) => html`<div class="arankrow" key=${i}><span class="arankn">${i + 1}</span>${r.copy ? html`<span class="aranklabel copyable" role="button" tabindex="0" title="Click to copy" onClick=${() => copy(r.copy)} onKeyDown=${(e) => { if (e.key === 'Enter') copy(r.copy); }}>${copied === r.copy ? 'Copied' : r.label}</span>` : html`<span class="aranklabel" title=${r.label}>${r.label}</span>`}<span class="arankbar"><i style=${'width:' + r.pct + '%'}></i></span><span class="arankval">${r.value.toLocaleString('en-US')}${unit ? ' ' + unit : ''}</span></div>`)}</div>`;
 }
 function Panel({ title, children, wide }) { return html`<section class=${'apanel' + (wide ? ' wide' : '')}><h4>${title}</h4>${children}</section>`; }
 
@@ -279,7 +282,7 @@ function AnalyticsPage() {
     <${DataTable} rows=${moverRows(d.biggestMovers)} columns=${['title', 'now', 'before', 'change']} empty="No movers yet." />
     <div class="agrid">
       <${Panel} title="Top 25 games, all time" wide=${true}><${RankList} rows=${topRows(d.topGames, 'title', 'total', 25)} /><//>
-      <${Panel} title="Top 25 members, all time" wide=${true}><${RankList} rows=${topRows(d.topUsers, 'username', 'downloads', 25)} /><//>
+      <${Panel} title="Top 25 members, all time" wide=${true}><${RankList} rows=${userRows(d.topUsers, 'downloads', 25)} /><//>
     </div>
   </div>`;
 }
@@ -298,7 +301,7 @@ function CollectionKind({ kind, o }) {
       <${Panel} title="By day of week"><${BarChart} labels=${dows.labels} values=${dows.values} every=${1} unit=${kind === 'Music' ? 'albums' : 'issues'} what="Each bar is one day of the week." /><//>
       <${Panel} title=${kind === 'Music' ? 'Most downloaded artists, 30 days' : 'Most downloaded series, 30 days'}><${RankList} rows=${names(kind === 'Music' ? o.topArtists : o.topSeries, 10)} /><//>
       <${Panel} title=${kind === 'Music' ? 'Most downloaded albums, 30 days' : 'Most downloaded volumes, 30 days'}><${RankList} rows=${names(o.topUnits, 10)} /><//>
-      <${Panel} title=${'Top ' + kind + ' collectors, 30 days'}><${RankList} rows=${topRows(o.topUsers, 'username', 'items', 10)} /><//>
+      <${Panel} title=${'Top ' + kind + ' collectors, 30 days'}><${RankList} rows=${userRows(o.topUsers, 'items', 10)} /><//>
     </div>
   </div>`;
 }
@@ -357,6 +360,41 @@ function IpBansPage() {
   </div>`;
 }
 
+function ConsolePage() {
+  const [text, setText] = useState('');
+  const [log, setLog] = useState([{ cmd: 'help', out: HELP }]);
+  const [busy, setBusy] = useState(false);
+  const hist = useRef({ list: [], at: -1 });
+  const box = useRef(null);
+  useEffect(() => { if (box.current) box.current.scrollTop = box.current.scrollHeight; }, [log]);
+  const run = async () => {
+    const cmd = text.trim();
+    if (!cmd || busy) return;
+    hist.current.list.push(cmd); hist.current.at = -1;
+    setText(''); setBusy(true);
+    let out;
+    try { out = await runCommand(api, cmd); } catch (e) { out = 'Did not work: ' + (e && e.message ? e.message : e); }
+    setBusy(false);
+    setLog((l) => (cmd.toLowerCase() === 'clear' ? [] : l.concat([{ cmd, out }]).slice(-60)));
+  };
+  const key = (e) => {
+    if (e.key === 'Enter') run();
+    else if (e.key === 'ArrowUp' || e.key === 'ArrowDown') {
+      const h = hist.current; if (!h.list.length) return;
+      e.preventDefault();
+      h.at = e.key === 'ArrowUp' ? (h.at < 0 ? h.list.length - 1 : Math.max(0, h.at - 1)) : (h.at < 0 ? -1 : h.at + 1);
+      if (h.at >= h.list.length) h.at = -1;
+      setText(h.at < 0 ? '' : h.list[h.at]);
+    }
+  };
+  return html`<div>
+    <${Panel} title="Owner console" wide=${true}>
+      <p class="sub">The same commands as the website's owner console. Bans and admin changes ask you to confirm first. Type help for the list.</p>
+      <div class="arow"><input class="search wide" type="text" style="flex:1 1 auto;width:auto;max-width:none;min-width:0" placeholder="Type a command (try: lookup @name)" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${key} disabled=${busy} /><button class="primary" disabled=${busy || !text.trim()} onClick=${run}>${busy ? 'Working...' : 'Run'}</button></div>
+      <pre class="aconsole" ref=${box}>${log.map((x) => '> ' + x.cmd + '\n' + x.out).join('\n\n') || 'Cleared.'}</pre>
+    <//>
+  </div>`;
+}
 function AccessPage() {
   const [st, reload] = useAdminData('access', {}, 0);
   const [actionUi, act] = useAdminAction(() => reload());
@@ -400,6 +438,6 @@ export function AdminView({ admin, initialTab }) {
   return html`<main class="adminpage">
     <div class="adminhead"><h2>Admin</h2><button class="dbtn" onClick=${savePdf}>Save this page as PDF</button>${pdfMsg ? html`<span class="sval">${pdfMsg}</span>` : ''}</div>
     <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${id === cur ? 'tab on' : 'tab'} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
-    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'reliability' ? html`<${ReliabilityPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
+    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'reliability' ? html`<${ReliabilityPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'console' ? html`<${ConsolePage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;
 }

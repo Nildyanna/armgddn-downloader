@@ -10,7 +10,7 @@ test('admin formatting helpers', async () => {
   assert.ok(f.formatCell('x'.repeat(200)).endsWith('...') && f.formatCell('x'.repeat(200)).length === 90);
   assert.deepEqual(f.tableColumns([{ id: 1, name: 'a', meta: { x: 1 } }, { id: 2, extra: 'y', tags: ['t'] }]), ['id', 'name', 'extra', 'tags'], 'nested objects are skipped');
   assert.equal(f.tableColumns([{ a: 1, b: 2, c: 3 }], 2).length, 2);
-  assert.deepEqual(f.adminTabs('owner', true).map((t) => t[0]), ['overview', 'analytics', 'collections', 'reliability', 'system', 'activity', 'missing', 'ipbans', 'access', 'controls', 'queue', 'requests', 'audit']);
+  assert.deepEqual(f.adminTabs('owner', true).map((t) => t[0]), ['overview', 'analytics', 'collections', 'reliability', 'system', 'activity', 'missing', 'ipbans', 'access', 'console', 'controls', 'queue', 'requests', 'audit']);
   assert.deepEqual(f.adminTabs('admin', false).map((t) => t[0]), ['overview', 'analytics', 'collections', 'reliability']);
   assert.deepEqual(f.adminTabs('admin', true).map((t) => t[0]), ['overview', 'analytics', 'collections', 'reliability', 'queue', 'requests', 'audit']);
   assert.deepEqual(f.adminTabs('user', false), []); assert.deepEqual(f.adminTabs(undefined, false), []);
@@ -114,4 +114,17 @@ test('usage cards show totals, all-time and the cache', async () => {
   const f = await import('../renderer/native/adminFormat.mjs');
   const cards = f.usageCards({ api: { browseRequests: 5, remotesRequests: 2, downloadManifestRequests: 3, uniqueDownloads: 4 }, apiAllTime: { browseRequests: 50, uniqueDownloads: 40 }, downloadCache: { enabled: true, totalBytes: 2048, maxBytes: 1048576, totalEntries: 2, activeEntries: 0 } });
   assert.equal(cards[0].value, '10'); assert.equal(cards[0].hint, 'all time 50'); assert.ok(cards[1].hint.includes('all time 40')); assert.equal(cards[2].value, '2.0 KB'); assert.deepEqual(f.usageCards(null), []);
+});
+
+test('member rows show the @name, or the ID when there is none, and carry what a click copies', async () => {
+  const f = await import('../renderer/native/adminFormat.mjs');
+  const rows = f.userRows([{ userId: 11, username: 'pat', downloads: 10 }, { userId: 22, username: null, downloads: 5 }, { userId: 33, username: '@kim', downloads: 1 }], 'downloads');
+  assert.deepEqual(rows.map((r) => [r.label, r.copy, r.value]), [['@pat', '@pat', 10], ['22', '22', 5], ['@kim', '@kim', 1]]);
+  assert.equal(rows[0].pct, 100);
+});
+
+test('every bar of a chart carries its number', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
+  assert.ok(!src.includes('n <= 16 ? html`<span class="bval">'));
+  assert.ok(src.includes("'bval' + (n > 20 ? ' dense' : '')"));
 });

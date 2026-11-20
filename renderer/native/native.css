@@ -591,10 +591,19 @@ header select + select { margin-left: 0; }
 .bcol { flex: 1 1 0; min-width: 0; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; }
 .bbar { display: block; width: 100%; background: var(--accent, #7fd0e8); border-radius: 3px 3px 0 0; }
 .bcol:hover .bbar { filter: brightness(1.25); }
+.bval.dense { font-size: 9px; letter-spacing: -.03em; }
+.aranklabel.copyable { cursor: pointer; }
+.aranklabel.copyable:hover { color: var(--accent, #4fe0c2); text-decoration: underline; }
 .bval { font-size: 10px; color: var(--dim); line-height: 1.4; white-space: nowrap; }
 .blabels { display: flex; gap: 3px; padding-left: 38px; font-size: 10px; color: var(--dim); }
 .blabels span { flex: 1 1 0; min-width: 0; text-align: center; white-space: nowrap; overflow: visible; }
 
+.title.withp { display: flex; align-items: flex-start; gap: 6px; -webkit-line-clamp: unset; }
+.title.withp .ttext { min-width: 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.title.withp .pbadge { margin-left: 0; flex: none; margin-top: 2px; }
 .pbadge { margin-left: 6px; padding: 1px 6px; border-radius: 8px; font-size: 10px; font-weight: 700; letter-spacing: .05em; vertical-align: middle; }
 .pbadge.pc { background: rgba(80, 150, 230, .2); color: #8cc4ff; border: 1px solid rgba(80, 150, 230, .5); }
 .pbadge.pcvr { background: rgba(170, 110, 240, .2); color: #cfa4ff; border: 1px solid rgba(170, 110, 240, .5); }
+
+.aconsole { margin: 10px 0 0; padding: 10px 12px; max-height: 420px; min-height: 160px; overflow: auto; white-space: pre-wrap; word-break: break-word; font: 12px/1.5 ui-monospace, Consolas, monospace; background: rgba(0,0,0,.25); border: 1px solid var(--line, rgba(255,255,255,.12)); border-radius: 8px; }
+.arow { display: flex; gap: 8px; align-items: center; }

@@ -1,4 +1,13 @@
 {
+  "5.36.0": {
+    "title": "Admin, tidied up",
+    "highlights": [
+      "New Console tab for owners, with the website's owner commands.",
+      "Every bar chart now shows its number.",
+      "Reports show full game names, and members appear as @name or ID (click to copy).",
+      "Fixed: the PC or PCVR badge was hidden on long titles."
+    ]
+  },
   "5.35.1": {
     "title": "No more lock-ups",
     "highlights": [

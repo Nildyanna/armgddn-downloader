@@ -10,6 +10,9 @@ test('Home cards (Hidden Gems and the other strips) say whether a title is PC or
   const homeRender = app.slice(app.indexOf('onOpenTrend=${openTrend} render='), app.indexOf('onOpenTrend=${openTrend} render=') + 700);
   assert.ok(homeRender.includes("platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''}"), 'only the Home cards pass the platform');
   assert.equal(app.split("platform=${it._remote === 'PCVR Games'").length - 1, 1, 'library and search cards are unchanged');
-  assert.ok(app.includes('${shownTitle}${badgeEl}${platformEl}'));
+  // the badge sits beside the title text (never inside the clamped text, where a long title such as Transformers - Fall of Cybertron hid it)
+  assert.ok(app.includes('<span class="ttext">${shownTitle}${badgeEl}</span>${platformEl}'));
+  assert.ok(app.includes('</span>${platformEl}'));
+  assert.ok(read('renderer', 'native', 'native.css').includes('.title.withp'));
   assert.ok(read('renderer', 'native', 'native.css').includes('.pbadge.pcvr'));
 });
