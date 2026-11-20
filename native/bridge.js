@@ -14,6 +14,7 @@ const wrap = (fn) => async (_event, ...args) => {
 
 const LINK_HOSTS = new Set(['store.steampowered.com', 'steamdb.info', 'comicvine.gamespot.com', '7-zip.org', 't.me', 'telegram.me', 'github.com']);
 const SAFE_REMOTE = /^[A-Za-z0-9 _.\-]{1,60}$/;
+const MAX_BATCH_PATHS = 500;
 function browsePath(remote, folder) {
   if (!SAFE_REMOTE.test(String(remote || ''))) throw Object.assign(new Error('Bad remote name'), { kind: 'http', status: 400 });
   const f = String(folder || '');
@@ -39,7 +40,7 @@ function registerSchemes(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'armgddn-img', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 }
 
-function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, showClassic }) {
+function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, showClassic, destFor }) {
   const api = createApiClient({ getToken, version });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
@@ -92,12 +93,20 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   ipcMain.handle('native:browse', wrap((remote, folder) => api.get(browsePath(remote, folder), { ttlMs: 2 * 60 * 1000, headers: { 'X-User-Browse': 'true' } })));
   // Download: the same path the website's "Download with App" takes (a download token from the site, then the Companion's own deep-link handler),
   // so the existing download engine, checks and progress reporting all apply.
+  // The parameters of the armgddn://download link: the token, and where it goes when its section has a folder chosen in Settings.
+  const downloadParams = (downloadToken, remote) => {
+    const q = { downloadToken, token: getToken() };
+    let dest = '';
+    try { dest = destFor ? destFor(String(remote || '')) : ''; } catch (e) { dest = ''; }
+    if (dest === 'music' || dest === 'comics') q.dest = dest;
+    return q;
+  };
   ipcMain.handle('native:download', wrap(async (remote, folderPath) => {
     browsePath(remote, folderPath);   // validates both
     if (!String(folderPath || '')) throw Object.assign(new Error('Nothing to download here'), { kind: 'http', status: 400 });
     const t = await api.post('/api/external-download-token', { remote, path: folderPath });
     if (!t || !t.downloadToken) throw Object.assign(new Error((t && t.error) || 'The site did not give a download token'), { kind: 'http', status: 502 });
-    startDeepLink('armgddn://download?' + new URLSearchParams({ downloadToken: t.downloadToken, token: getToken() }).toString());
+    startDeepLink('armgddn://download?' + new URLSearchParams(downloadParams(t.downloadToken, remote)).toString());
     return { started: true };
   }));
   ipcMain.handle('native:downloads', wrap(async () => (getDownloads ? getDownloads() : []).map((d) => ({
@@ -242,14 +251,16 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   }));
   // A download of chosen folders with some names left out (the game folder without its update patches): the same batch manifest the website builds.
   ipcMain.handle('native:downloadBatch', wrap(async (remote, paths, exclude) => {
-    if (!Array.isArray(paths) || !paths.length || paths.length > 50) throw Object.assign(new Error('Nothing to download'), { kind: 'http', status: 400 });
+    if (!Array.isArray(paths) || !paths.length) throw Object.assign(new Error('Nothing to download'), { kind: 'http', status: 400 });
+    // The 50 that used to be the limit refused the DC Collection (106 series) with "Nothing to download" (Dirk, Nov 20); the site takes any number.
+    if (paths.length > MAX_BATCH_PATHS) throw Object.assign(new Error('That is more than ' + MAX_BATCH_PATHS + ' folders at once. Download it in parts.'), { kind: 'http', status: 400 });
     const cleanPaths = paths.map((x) => { const f = String(x || '').replace(/^\/+|\/+$/g, ''); browsePath(remote, f); return f; }).filter(Boolean);
     const cleanExclude = (Array.isArray(exclude) ? exclude : []).map((x) => String(x || '').trim()).filter((x) => x && x.length <= 300 && !x.includes('/')).slice(0, 20);
     const made = await api.post('/api/batch-manifest', { remote, paths: cleanPaths, exclude: cleanExclude });
     if (!made || !made.batchId) throw Object.assign(new Error((made && made.error) || 'Could not prepare the download'), { kind: 'http', status: 502 });
     const t = await api.post('/api/external-download-token', { remote, path: `__batch__/${made.batchId}` });
     if (!t || !t.downloadToken) throw Object.assign(new Error((t && t.error) || 'The site did not give a download token'), { kind: 'http', status: 502 });
-    startDeepLink('armgddn://download?' + new URLSearchParams({ downloadToken: t.downloadToken, token: getToken() }).toString());
+    startDeepLink('armgddn://download?' + new URLSearchParams(downloadParams(t.downloadToken, remote)).toString());
     return { started: true };
   }));
   // README of a title (the same lookup the website's Read README and the download notice use).

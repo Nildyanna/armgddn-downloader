@@ -3531,7 +3531,13 @@ app.whenReady().then(() => {
         BrowserWindow, ipcMain, shell, dialog, clipboard: require('electron').clipboard, clearSession, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
         openLogin: () => openAuthWindow(), log: logToFile,
         showClassic: () => { try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e) { } } else { mainWindow.focus(); } } } catch (e) { } },
-        startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer)
+        startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer),
+        // A Music or Comics download goes to the folder chosen for it in Settings (the website's links carry dest=music|comics for the same reason);
+        // with no folder chosen it goes to the download folder as before.
+        destFor: (remote) => {
+          const f = remote === 'Music' ? settings.musicFolder : remote === 'Comics' ? settings.comicsFolder : '';
+          try { return (typeof f === 'string' && f.trim() && path.isAbsolute(f) && fs.existsSync(f)) ? remote.toLowerCase() : ''; } catch (e) { return ''; }
+        }
       });
       // Closing the native window keeps the app in the tray when that setting is on (like the classic window), so opening the Companion again
       // or clicking the tray icon brings this window back instead of the hidden classic one.

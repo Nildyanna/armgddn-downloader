@@ -54,3 +54,14 @@ test('the software-rendering marker expires after 24 hours so one GPU crash does
   const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
   assert.ok(main.includes('24 * 3600 * 1000') && main.includes('trying the graphics card again'));
 });
+
+test('Music and Comics downloads from the native window go to the folder chosen in Settings, and a big collection is not refused', () => {
+  const fs = require('fs'), path = require('path');
+  const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(bridge.includes('new URLSearchParams(downloadParams(t.downloadToken, remote))'));
+  assert.equal((bridge.match(/downloadParams\(t\.downloadToken, remote\)/g) || []).length, 2);     // the single download and the batch
+  assert.ok(bridge.includes("if (dest === 'music' || dest === 'comics') q.dest = dest;"));
+  assert.ok(main.includes('destFor: (remote) =>') && main.includes("remote === 'Music' ? settings.musicFolder : remote === 'Comics' ? settings.comicsFolder"));
+  assert.ok(bridge.includes('const MAX_BATCH_PATHS = 500;') && !bridge.includes('paths.length > 50'));
+});
