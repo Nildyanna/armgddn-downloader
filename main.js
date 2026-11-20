@@ -2427,7 +2427,7 @@ function persistInflight(download) {
     if (!download || !download.id || !download.resume) return;
     inflightStore.upsert(inflightFile(), {
       id: download.id, name: download.name, resume: download.resume, totalSize: download.totalSize,
-      grantId: download.directGrant && !download.directGrant.finished ? download.directGrant.grantId : '',
+      grantId: download.directGrant ? (download.directGrant.finished ? '' : download.directGrant.grantId) : (download.grantId || ''),
       progress: Math.min(99, Math.round(Number(download.progress) || 0)), fileCount: download.fileCount, startTime: download.startTime
     });
   } catch (e) { }
@@ -2445,6 +2445,7 @@ function loadOrphanedDownloads() {
         statusMessage: 'Paused when the app closed. Press Resume to continue; files already downloaded are kept.'
       });
       logToFile(`[restore] ${e.name} is back in the list as paused`);
+      if (e.grantId) endOrphanedGrant(activeDownloads.get(e.id));
     }
   } catch (e) {
     logToFile(`[restore] Failed to restore unfinished downloads: ${e && e.message ? e.message : e}`);
@@ -2453,15 +2454,20 @@ function loadOrphanedDownloads() {
 
 // A download that was cut off by the app closing never told the site how much of its direct-from-Drive grant it did not use. Resume and cancel
 // of a restored download say so now, so the member's daily allowance is credited (the estimate is the part that was not reached, from the saved progress).
-function endOrphanedGrant(d) {
+// It also runs for every restored download when the app starts, so a crash that is never followed by Resume or Cancel is credited as soon as the app
+// is opened again. The id is forgotten only once the site has accepted the report; offline or signed out, it is kept and tried again later.
+async function endOrphanedGrant(d) {
   try {
-    if (!d || !d.grantId) return;
+    if (!d || !d.grantId || d.__endingGrant) return;
     const token = savedSessionToken();
-    const grantId = d.grantId; d.grantId = '';
     if (!token) return;
+    d.__endingGrant = true;
+    const grantId = d.grantId;
     const remaining = Math.max(0, Math.round((Number(d.totalSize) || 0) * (100 - (Number(d.progress) || 0)) / 100));
-    driveDirectClient.reportOrphan(grantId, remaining, 'https://www.armgddnbrowser.com', token);
-  } catch (e) { }
+    const ok = await driveDirectClient.reportOrphan(grantId, remaining, 'https://www.armgddnbrowser.com', token);
+    d.__endingGrant = false;
+    if (ok) { d.grantId = ''; if (activeDownloads.has(d.id)) persistInflight(d); }
+  } catch (e) { try { d.__endingGrant = false; } catch (e2) { } }
 }
 
 // Resume of a restored download: ask the site for a fresh download token for the same item, then start it the way a click on Download does.

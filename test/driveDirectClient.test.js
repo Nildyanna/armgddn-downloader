@@ -89,6 +89,6 @@ test('reportOrphan sends the estimate for a grant the app never closed, and refu
 
 test('main.js closes the saved grant on resume and on cancel of a restored download', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
-  assert.ok(src.includes("grantId: download.directGrant && !download.directGrant.finished ? download.directGrant.grantId : ''"));
-  assert.equal((src.match(/endOrphanedGrant\(/g) || []).length, 3);   // the definition and its two callers
+  assert.ok(src.includes("download.directGrant ? (download.directGrant.finished ? '' : download.directGrant.grantId) : (download.grantId || '')"));
+  assert.equal((src.match(/endOrphanedGrant\(/g) || []).length, 4);   // the definition, the startup pass and its two callers
 });
