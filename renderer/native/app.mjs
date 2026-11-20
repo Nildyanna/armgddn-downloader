@@ -314,6 +314,25 @@ function WatchlistModal({ onClose, say, startTitle }) {
 }
 
 // Settings that used to live only in the classic window: the common ones are here; the rest (history, scans, schedule) are one button away.
+// A number box you can type in. The old one took its value from the saved setting on every redraw, so a typed number was put back to the old one
+// before it could be committed (the window redraws all the time while downloads run). Here what is typed is kept while the box has focus, and it
+// is saved when you press Enter, click away, or use the little arrows.
+function NumField({ value, min, max, onCommit, style, step }) {
+  const [draft, setDraft] = useState(String(value));
+  const [focused, setFocused] = useState(false);
+  useEffect(() => { if (!focused) setDraft(String(value)); }, [value, focused]);
+  const commit = (raw) => {
+    const n = Math.max(min, Math.min(max, Math.round(Number(raw)) || min));
+    setDraft(String(n));
+    if (n !== Number(value)) onCommit(n);
+  };
+  return html`<input type="number" min=${min} max=${max} step=${step || 1} style=${style || ''} value=${draft}
+    onInput=${(e) => setDraft(e.target.value)} onFocus=${() => setFocused(true)}
+    onChange=${(e) => commit(e.target.value)}
+    onBlur=${(e) => { setFocused(false); commit(e.target.value); }}
+    onKeyDown=${(e) => { if (e.key === 'Enter') e.target.blur(); }} />`;
+}
+
 const SETTING_ROWS = [
   ['number', 'maxConcurrentDownloads', 'Downloads at the same time', 1, 6],
   ['select', 'connectionsPerFile', 'Connections per file', [[0, 'Automatic'], [1, '1'], [2, '2'], [4, '4'], [8, '8'], [16, '16']]],
@@ -537,7 +556,7 @@ function ScheduleRow({ s, save }) {
     <div class="srow"><span class="slabel">Download schedule <span class="sval">Pause or slow downloads at set times.</span></span><label class="chk"><input type="checkbox" checked=${!!sch.enabled} onChange=${(e) => put({ enabled: e.target.checked })} /> On</label></div>
     ${sch.enabled ? html`<div class="srow schedfields"><span class="slabel">From <input type="time" value=${sch.start || '23:00'} onChange=${(e) => put({ start: e.target.value || '23:00' })} /> to <input type="time" value=${sch.end || '07:00'} onChange=${(e) => put({ end: e.target.value || '07:00' })} />
       <select value=${sch.action === 'limit' ? 'limit' : 'pause'} onChange=${(e) => put({ action: e.target.value })}><option value="pause">Pause downloads</option><option value="limit">Limit speed to</option></select>
-      ${sch.action === 'limit' ? html`<input type="number" min="1" step="1" style="width:70px" value=${sch.limitMBps || 5} onChange=${(e) => put({ limitMBps: parseInt(e.target.value, 10) || 5 })} /> MB/s` : ''}</span></div>
+      ${sch.action === 'limit' ? html`<${NumField} min=${1} max=${10000} style="width:70px" value=${sch.limitMBps || 5} onCommit=${(n) => put({ limitMBps: n })} /> MB/s` : ''}</span></div>
       <div class="srow"><span class="slabel">${DAY_LABELS.map(([d, l]) => html`<label class="chk" key=${d}><input type="checkbox" checked=${days.includes(d)} onChange=${() => toggleDay(d)} /> ${l}</label>`)}</span></div>` : ''}
     ${banner ? html`<div class="note">${banner}</div>` : ''}
   </div>`;
@@ -594,7 +613,7 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
       ? html`<label class="srow"><span class="slabel">${label}</span><select value=${Number(s[key]) || 0} onChange=${(e) => save({ [key]: Number(e.target.value) })}>${min.map(([v, t]) => html`<option value=${v}>${t}</option>`)}</select></label>`
       : kind === 'check'
       ? html`<label class="srow"><input type="checkbox" checked=${!!s[key]} onChange=${(e) => save({ [key]: e.target.checked })} /> <span class="slabel">${label}</span></label>`
-      : html`<label class="srow"><span class="slabel">${label}</span><input type="number" min=${min} max=${max} value=${Number(s[key]) || 0} onChange=${(e) => { const n = Math.max(min, Math.min(max, Number(e.target.value) || 0)); save({ [key]: n }); }} /></label>`; };
+      : html`<label class="srow"><span class="slabel">${label}</span><${NumField} min=${min} max=${max} value=${Number(s[key]) || 0} onCommit=${(n) => save({ [key]: n })} /></label>`; };
   return html`<main class="settings">
     <h2>Settings</h2>
     <section class="sgroup"><h3>Updates</h3>
