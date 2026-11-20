@@ -391,3 +391,9 @@ test('Open folder opens the real folder of the download (the album, the series, 
   assert.ok(main.includes('folder: download.extractedTo || download.openDir || download.downloadDir'));
   assert.ok(main.includes('download.openDir = commonOpenDir(downloadDir, toComics ? files : null)'));
 });
+
+test('a narrow window wraps the tab bar instead of cutting the last tabs off', () => {
+  const css = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  assert.ok(/header\s*\{[^}]*flex-wrap:\s*wrap/.test(css));
+  assert.ok(/header nav\s*\{[^}]*flex-wrap:\s*wrap/.test(css) && /header nav\s*\{[^}]*overflow:\s*visible/.test(css));
+});

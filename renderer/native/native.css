@@ -6,10 +6,13 @@ body::before { content: ''; position: fixed; inset: 0; z-index: -1; pointer-even
 body { margin: 0; background: none; background-color: var(--page-color, var(--bg)); color: var(--fg); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
 button { font: inherit; color: inherit; cursor: pointer; }
 .shell { display: flex; flex-direction: column; height: 100vh; }
-header { display: flex; align-items: center; gap: 10px; padding: 10px 18px; background: var(--surface); border-bottom: 1px solid var(--line); flex-wrap: nowrap; }
+header { display: flex; align-items: center; gap: 6px 10px; padding: 10px 18px; background: var(--surface); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
 .brand { font-weight: 800; letter-spacing: .12em; color: var(--accent); }
 nav { display: flex; gap: 2px; flex: 1; min-width: 0; overflow-x: auto; scrollbar-width: none; }
 nav::-webkit-scrollbar { display: none; }
+/* A narrow window no longer cuts the last tabs off (Music, Tools...): the tab bar takes its own row and its tabs wrap. */
+header nav { flex: 1 1 520px; overflow: visible; flex-wrap: wrap; row-gap: 2px; }
+header nav .tab { flex: none; }
 .tab { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 6px 10px; color: var(--dim); white-space: nowrap; }
 .tab:hover { color: var(--fg); }
 .tab.on { color: var(--fg); border-color: var(--accent); background: rgba(34, 211, 238, .08); }
