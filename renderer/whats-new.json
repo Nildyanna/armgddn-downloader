@@ -1,4 +1,10 @@
 {
+  "5.42.2": {
+    "title": "Easier on your graphics card",
+    "highlights": [
+      "The app now pauses its animations when its window isn't in front and no longer animates the progress bar endlessly. If it still makes your graphics card work hard, turn on Settings > Lighter graphics to switch off blur and animations."
+    ]
+  },
   "5.42.1": {
     "title": "Allowance credited after interrupted downloads",
     "highlights": [

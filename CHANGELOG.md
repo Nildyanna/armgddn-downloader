@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.42.2] - 2026-11-20
+
+### Changed
+
+- Animations pause while the window is minimised, hidden or not in front, and the classic window's progress bar no longer shimmers endlessly, which kept the graphics card busy during a download.
+- New Settings option "Lighter graphics" (both windows) turns off blur effects and animations.
+
 ## [5.42.1] - 2026-11-20
 
 ### Fixed
