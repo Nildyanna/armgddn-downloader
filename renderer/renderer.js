@@ -183,18 +183,19 @@ async function showAlertDialog(title, message) {
         console.error('Failed to get downloads list:', downloads);
         // Proceed without prompting if we can't determine active downloads
       } else {
-        const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
+        // Only downloads that are running count. A paused one is kept on disk and comes back as Paused after the update, so it never needs to stop the update.
+        const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting');
         if (activeDownloads.length > 0) {
           const proceed = await showConfirmDialog(
             'Update Available',
-            `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
+            `You have ${activeDownloads.length} download(s) running. Updating now will pause them; they come back in the Downloads tab as Paused after the update, and Resume carries on. Do you want to update now or wait until downloads are complete?`,
             'Update Now',
             'Wait'
           );
           if (!proceed) return; // User chose to wait
-          // User chose to update now; abandon active downloads
+          // User chose to update now: pause the running downloads (nothing is deleted)
           for (const d of activeDownloads) {
-            await api.cancelDownload(d.id);
+            await api.pauseDownload(d.id);
           }
         }
       }
@@ -1763,11 +1764,11 @@ async function showAlertDialog(title, message) {
           // Proceed without prompting if we can't determine active downloads
           showUpdateNotification(result);
         } else {
-          const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'paused');
+          const activeDownloads = downloads.filter(d => d.status === 'downloading' || d.status === 'in_progress' || d.status === 'starting');
           if (activeDownloads.length > 0) {
             const proceed = await showConfirmDialog(
               'Update Available',
-              `You have ${activeDownloads.length} download(s) in progress. Updating now will abandon these downloads. Do you want to update now or wait until downloads are complete?`,
+              `You have ${activeDownloads.length} download(s) running. Updating now will pause them; they come back in the Downloads tab as Paused after the update, and Resume carries on. Do you want to update now or wait until downloads are complete?`,
               'Update Now',
               'Wait'
             );
@@ -1776,9 +1777,9 @@ async function showAlertDialog(title, message) {
               showUpdateNotification(result);
               return;
             }
-            // User chose to update now; abandon active downloads
+            // User chose to update now: pause the running downloads (nothing is deleted)
             for (const d of activeDownloads) {
-              await api.cancelDownload(d.id);
+              await api.pauseDownload(d.id);
             }
           }
           showUpdateNotification(result);

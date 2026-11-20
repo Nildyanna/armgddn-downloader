@@ -397,3 +397,12 @@ test('a narrow window wraps the tab bar instead of cutting the last tabs off', (
   assert.ok(/header\s*\{[^}]*flex-wrap:\s*wrap/.test(css));
   assert.ok(/header nav\s*\{[^}]*flex-wrap:\s*wrap/.test(css) && /header nav\s*\{[^}]*overflow:\s*visible/.test(css));
 });
+
+test('the update prompt counts only running downloads and pauses them, so a paused or restored download is never cancelled by an update', () => {
+  const r = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'renderer.js'), 'utf8');
+  assert.ok(!r.includes("d.status === 'downloading' || d.status === 'paused'"), 'paused downloads no longer count as in progress');
+  assert.ok(!r.includes('Updating now will abandon these downloads'));
+  assert.equal((r.match(/await api\.pauseDownload\(d\.id\);/g) || []).length >= 2, true);
+  const prompt = r.slice(r.indexOf('autoInstallUpdatesOnStartup'), r.indexOf('autoInstallUpdatesOnStartup') + 2200);
+  assert.ok(!prompt.includes('api.cancelDownload'), 'Update Now no longer cancels');
+});
