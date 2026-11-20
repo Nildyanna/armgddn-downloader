@@ -1,4 +1,10 @@
 {
+  "5.41.4": {
+    "title": "A tidier tab bar in narrow windows",
+    "highlights": [
+      "In narrow windows the tabs are smaller, so the whole tab bar fits on one or two rows and the header takes up less of the window."
+    ]
+  },
   "5.41.3": {
     "title": "Updates keep your downloads",
     "highlights": [

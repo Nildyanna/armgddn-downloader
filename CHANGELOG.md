@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.41.4] - 2026-11-20
+
+### Fixed
+- In narrow windows the tabs are smaller, so the whole tab bar fits on one or two rows and the header takes up less of the window.
+
 ## [5.41.3] - 2026-11-20
 
 ### Fixed
