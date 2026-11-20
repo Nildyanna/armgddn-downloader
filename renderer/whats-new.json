@@ -1,4 +1,10 @@
 {
+  "5.40.2": {
+    "title": "MiB/s on every file",
+    "highlights": [
+      "The MiB/s option now also changes the speed shown next to each file being downloaded, not just the total at the top."
+    ]
+  },
   "5.40.1": {
     "title": "Small files and empty files",
     "highlights": [

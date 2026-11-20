@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.40.2] - 2026-11-20
+
+### Fixed
+- The MiB/s option now also changes the speed shown next to each file being downloaded, not only the total at the top.
+
 ## [5.40.1] - 2026-11-20
 
 ### Fixed
