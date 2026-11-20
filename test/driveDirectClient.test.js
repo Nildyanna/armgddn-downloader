@@ -77,3 +77,18 @@ test('the app reports a finally failed download, not a paused one, and not while
   const pause = src.slice(src.indexOf("download.paused = true;\n  download.status = 'paused';"), src.indexOf("download.paused = true;\n  download.status = 'paused';") + 1500);
   assert.ok(!pause.includes('driveDirectClient.finish') && !pause.includes('reportDirectGrantEnd'));                        // pausing sends nothing
 });
+
+test('reportOrphan sends the estimate for a grant the app never closed, and refuses a bad id', async () => {
+  const seen = [];
+  const opts = { request: fakeRequest({ status: 200, json: { success: true } }, seen) };
+  assert.equal(await c.reportOrphan('ab12cd34ef56ab12cd34ef56', 123456.4, 'https://www.armgddnbrowser.com', 's', opts), true);
+  assert.equal(seen[0].path, '/api/drive-direct/finish'); assert.equal(seen[0].body.notDownloaded, 123456); assert.deepEqual(seen[0].body.completedPaths, []);
+  assert.equal(await c.reportOrphan('../x', 1, 'https://www.armgddnbrowser.com', 's', opts), false);
+  assert.equal(seen.length, 1);
+});
+
+test('main.js closes the saved grant on resume and on cancel of a restored download', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(src.includes("grantId: download.directGrant && !download.directGrant.finished ? download.directGrant.grantId : ''"));
+  assert.equal((src.match(/endOrphanedGrant\(/g) || []).length, 3);   // the definition and its two callers
+});

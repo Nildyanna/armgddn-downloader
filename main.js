@@ -2427,6 +2427,7 @@ function persistInflight(download) {
     if (!download || !download.id || !download.resume) return;
     inflightStore.upsert(inflightFile(), {
       id: download.id, name: download.name, resume: download.resume, totalSize: download.totalSize,
+      grantId: download.directGrant && !download.directGrant.finished ? download.directGrant.grantId : '',
       progress: Math.min(99, Math.round(Number(download.progress) || 0)), fileCount: download.fileCount, startTime: download.startTime
     });
   } catch (e) { }
@@ -2440,7 +2441,7 @@ function loadOrphanedDownloads() {
         id: e.id, name: e.name, itemKey: '', manifestUrl: '', remotePath: '', actualRemote: '', status: 'paused', paused: true, restored: true,
         progress: e.progress, speed: '', eta: '', totalSize: e.totalSize, downloadedSize: Math.round(e.totalSize * e.progress / 100), files: [],
         fileCount: e.fileCount, completedFiles: 0, activeFiles: {}, activeProcesses: [], pendingTaskCount: 0, cancelWaiters: [], totalSpeed: 0,
-        peakSpeedBytes: 0, startTime: e.startTime, endTime: null, token: null, cancelled: false, failedFiles: [], resume: e.resume,
+        peakSpeedBytes: 0, startTime: e.startTime, endTime: null, token: null, cancelled: false, failedFiles: [], resume: e.resume, grantId: e.grantId || '',
         statusMessage: 'Paused when the app closed. Press Resume to continue; files already downloaded are kept.'
       });
       logToFile(`[restore] ${e.name} is back in the list as paused`);
@@ -2448,6 +2449,19 @@ function loadOrphanedDownloads() {
   } catch (e) {
     logToFile(`[restore] Failed to restore unfinished downloads: ${e && e.message ? e.message : e}`);
   }
+}
+
+// A download that was cut off by the app closing never told the site how much of its direct-from-Drive grant it did not use. Resume and cancel
+// of a restored download say so now, so the member's daily allowance is credited (the estimate is the part that was not reached, from the saved progress).
+function endOrphanedGrant(d) {
+  try {
+    if (!d || !d.grantId) return;
+    const token = savedSessionToken();
+    const grantId = d.grantId; d.grantId = '';
+    if (!token) return;
+    const remaining = Math.max(0, Math.round((Number(d.totalSize) || 0) * (100 - (Number(d.progress) || 0)) / 100));
+    driveDirectClient.reportOrphan(grantId, remaining, 'https://www.armgddnbrowser.com', token);
+  } catch (e) { }
 }
 
 // Resume of a restored download: ask the site for a fresh download token for the same item, then start it the way a click on Download does.
@@ -2476,6 +2490,7 @@ async function resumeRestoredDownload(downloadId) {
     }
     const q = { downloadToken: t.json.downloadToken, token };
     if (d.resume.dest) q.dest = d.resume.dest;
+    endOrphanedGrant(d);
     activeDownloads.delete(downloadId);
     dropInflight(downloadId);
     try { sendToMain('download-cancelled', { id: downloadId, cleanupWarning: false }); } catch (e) { }
@@ -8143,6 +8158,7 @@ ipcMain.handle('cancel-download', async (event, downloadId) => {
   if (!download) return true;
   if (download.cancelCleanupPromise) return await download.cancelCleanupPromise;
   if (download.restored) {          // a download brought back after a restart: nothing is running and nothing is known to delete, so it only leaves the list
+    endOrphanedGrant(download);
     activeDownloads.delete(downloadId); dropInflight(downloadId);
     try { sendToMain('download-cancelled', { id: downloadId, cleanupWarning: false }); } catch (e) { }
     return { success: true, cleanupWarning: false };

@@ -64,4 +64,14 @@ async function finish(grant, manifestUrl, token, opts) {
   } catch (e) { return false; }
 }
 
-module.exports = { grantFromManifest, renew, finish, notDownloaded };
+// The end of a grant whose download was cut off by the app closing: nothing is known about its files any more, so only the estimate of the
+// bytes not reached is sent. The site credits it once and ignores a repeat.
+async function reportOrphan(grantId, remainingBytes, manifestUrl, token, opts) {
+  if (typeof grantId !== 'string' || !/^[a-f0-9]{8,64}$/.test(grantId)) return false;
+  try {
+    const r = await post(manifestUrl, '/api/drive-direct/finish', token, { grantId, notDownloaded: Math.max(0, Math.round(Number(remainingBytes) || 0)), completedPaths: [] }, opts);
+    return r.status === 200;
+  } catch (e) { return false; }
+}
+
+module.exports = { grantFromManifest, renew, finish, notDownloaded, reportOrphan };

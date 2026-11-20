@@ -24,6 +24,7 @@ function clean(e) {
     id,
     name: String(e.name || 'Download').slice(0, 300),
     resume: paths.length ? { remote, paths, exclude: strs(r.exclude, 20, 300), dest } : { remote, path: p, dest },
+    grantId: typeof e.grantId === 'string' && /^[a-f0-9]{8,64}$/.test(e.grantId) ? e.grantId : '',   // the site's direct-from-Drive grant, so a resume or cancel can close it
     totalSize: Math.max(0, Number(e.totalSize) || 0),
     progress: Math.max(0, Math.min(99, Math.round(Number(e.progress) || 0))),
     fileCount: Math.max(0, Math.round(Number(e.fileCount) || 0)),

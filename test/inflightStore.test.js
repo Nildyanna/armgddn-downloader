@@ -75,3 +75,12 @@ test('Resume of a batch makes the batch again, then asks for a token for it', ()
   assert.ok(main.includes("tokenPath = '__batch__/' + b.json.batchId;"));
   assert.ok(main.includes('manifest.batchExclude'));
 });
+
+test('the direct-from-Drive grant id is kept, and a malformed one is dropped', () => {
+  const f = tmp();
+  store.upsert(f, entry('a', { grantId: 'ab12cd34ef56ab12cd34ef56' }));
+  store.upsert(f, entry('b', { grantId: '../evil' }));
+  const l = store.load(f);
+  assert.equal(l.find((x) => x.id === 'a').grantId, 'ab12cd34ef56ab12cd34ef56');
+  assert.equal(l.find((x) => x.id === 'b').grantId, '');
+});
