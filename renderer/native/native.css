@@ -13,6 +13,9 @@ nav::-webkit-scrollbar { display: none; }
 /* A narrow window no longer cuts the last tabs off (Music, Tools...): the tab bar takes its own row and its tabs wrap. */
 header nav { flex: 1 1 520px; overflow: visible; flex-wrap: wrap; row-gap: 2px; }
 header nav .tab { flex: none; }
+/* Narrow windows: smaller tabs, so the whole tab bar fits on one or two rows and the header does not take over the window. */
+@media (max-width: 1100px) { header { padding: 8px 12px; gap: 4px 8px; } .brand { letter-spacing: .06em; } header nav .tab { padding: 4px 7px; font-size: 13px; } .search { width: 150px; } }
+@media (max-width: 900px) { header nav { flex-basis: 100%; order: 3; } header nav .tab { padding: 3px 5px; font-size: 12px; } .search { width: 120px; } }
 .tab { background: transparent; border: 1px solid transparent; border-radius: 8px; padding: 6px 10px; color: var(--dim); white-space: nowrap; }
 .tab:hover { color: var(--fg); }
 .tab.on { color: var(--fg); border-color: var(--accent); background: rgba(34, 211, 238, .08); }

@@ -406,3 +406,9 @@ test('the update prompt counts only running downloads and pauses them, so a paus
   const prompt = r.slice(r.indexOf('autoInstallUpdatesOnStartup'), r.indexOf('autoInstallUpdatesOnStartup') + 2200);
   assert.ok(!prompt.includes('api.cancelDownload'), 'Update Now no longer cancels');
 });
+
+test('narrow windows get smaller tabs so the tab bar fits on one or two rows', () => {
+  const css = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  assert.ok(/@media \(max-width: 1100px\) \{ header \{[^}]*\} \.brand \{[^}]*\} header nav \.tab \{[^}]*font-size: 13px/.test(css));
+  assert.ok(/@media \(max-width: 900px\) \{ header nav \{ flex-basis: 100%; order: 3; \} header nav \.tab \{[^}]*font-size: 12px/.test(css));
+});
