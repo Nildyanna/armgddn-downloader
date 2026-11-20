@@ -489,6 +489,10 @@ export function otherSectionMatches(index, query, currentRemote) {
 
 // ---- A folder under 1 KB in a game section is a stub that points to the other server ----
 export function stubNotice(remote, folder, item) {
+  const r = stubTarget(remote, folder, item);
+  return r ? { ...r, name: String(item.name || '') } : null;   // name: the game to look for once the other section is open
+}
+function stubTarget(remote, folder, item) {
   if (!item || !item.isDir || !(Number(item.size) < 1024)) return null;
   const top = String(folder || '').replace(/^\/+/, '').split('/')[0] || '';
   const pcvrRoot = /^PCVR\d*$/i.test(top), pcRoot = /^PC\d*$/i.test(top);

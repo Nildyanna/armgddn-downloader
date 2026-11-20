@@ -254,9 +254,9 @@ test('Newest / Older tags, typo-forgiving search, other-section hint, stubs, quo
   const idx = [{ name: 'Dave the Diver', isDir: true, _remote: 'PC Games' }, { name: 'Dave the Diver v2', isDir: true, _remote: 'Testing' }, { name: 'Dave the Diver v3', isDir: true, _remote: 'Testing' }];
   assert.deepEqual(f.otherSectionMatches(idx, 'dave diver', 'PC Games'), [{ remote: 'Testing', count: 2 }]);
   // stubs
-  assert.deepEqual(f.stubNotice('PC Games', 'PC1', { isDir: true, size: 0 }), { message: 'You must download from PCVR server', remote: 'PCVR Games', folder: '' });
+  assert.deepEqual(f.stubNotice('PC Games', 'PC1', { isDir: true, size: 0 }), { message: 'You must download from PCVR server', remote: 'PCVR Games', folder: '', name: '' });
   assert.equal(f.stubNotice('PCVR Games', '', { isDir: true, size: 10 }).message, 'You must download from PC server');
-  assert.deepEqual(f.stubNotice('Testing', 'PC', { isDir: true, size: 0 }), { message: 'You must download from PCVR server', remote: 'Testing', folder: 'PCVR' });
+  assert.deepEqual(f.stubNotice('Testing', 'PC', { isDir: true, size: 0 }), { message: 'You must download from PCVR server', remote: 'Testing', folder: 'PCVR', name: '' });
   assert.equal(f.stubNotice('PC Games', '', { isDir: true, size: 5000 }), null); assert.equal(f.stubNotice('Music', '', { isDir: true, size: 0 }), null); assert.equal(f.stubNotice('PC Games', '', { isDir: false, size: 0 }), null);
   // quota: a game group only when every mirror is used up
   assert.deepEqual([...f.quotaTabs({ 'PC-1': 'at-quota', 'PC-2': 'at-quota', 'PC-3': 'at-quota', 'PCVR-1': 'at-quota', 'PCVR-2': 'healthy', 'PCVR-3': 'at-quota', Comics: 'at-quota' })].sort(), ['Comics', 'PC Games']);
@@ -480,4 +480,11 @@ test('the admin Requests table has a Comments button that opens the thread with 
   assert.ok(a.includes('await api.thread(req.id)') && a.includes('await api.comment(req.id, m)'));
   assert.ok(a.includes('onClick=${() => setOpenReq(r)}>Comments</button>'));
   assert.ok(a.includes('<${RequestThread} key=${openReq.id} req=${openReq}'));
+});
+
+test('Go there on a stub carries the game name so the other section opens on that game, not its root', () => {
+  const f = require('../renderer/native/format.mjs');
+  assert.equal(f.stubNotice('PC Games', '', { isDir: true, size: 0, name: 'Some Game v1.2 -ARMGDDN' }).name, 'Some Game v1.2 -ARMGDDN');
+  const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes('if (st.name) setQuery(st.name)'));
 });
