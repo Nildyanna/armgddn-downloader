@@ -281,6 +281,11 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     browsePath(remote, folderPath);
     return api.get(`/api/readme-preview?remote=${encodeURIComponent(remote)}&path=${encodeURIComponent(folderPath || '')}`, { ttlMs: 5 * 60 * 1000 });
   }));
+  // One small text file (readme, nfo, txt...) shown inside the app instead of downloaded.
+  ipcMain.handle('native:textFile', wrap((remote, filePath) => {
+    browsePath(remote, filePath);
+    return api.get(`/api/text-file?remote=${encodeURIComponent(remote)}&path=${encodeURIComponent(filePath || '')}`, { ttlMs: 5 * 60 * 1000 });
+  }));
   // Home page strips: the same data the website's Trending Downloads and Hidden Gems strips show.
   ipcMain.handle('native:trending', wrap(() => api.get('/api/trending-downloads', { ttlMs: 5 * 60 * 1000 })));
   ipcMain.handle('native:gems', wrap(() => api.get('/api/hidden-gems', { ttlMs: 10 * 60 * 1000 })));

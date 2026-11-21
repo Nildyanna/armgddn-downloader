@@ -48,8 +48,21 @@ function tabsFrom(remotes) {
   return out;
 }
 
+const TEXT_FILE_RE = /\.(txt|md|nfo|log|ini|cfg|conf|diz)$/i;
+function isReadableText(item) { return !item.isDir && TEXT_FILE_RE.test(String(item.name || '')) && item.size !== 0; }   // a 0 KB file has nothing to read
+
+function TextFileModal({ remote, path, name, onClose }) {
+  const [r, setR] = useState(null);
+  useEffect(() => { api.textFile(remote, path).then((x) => setR(x && x.ok && x.data && x.data.success ? x.data : { error: (x && x.data && x.data.error) || 'This file could not be read.' })).catch(() => setR({ error: 'This file could not be read.' })); }, []);
+  return html`<${Modal} title=${name} onClose=${onClose} wide=${true}>${r === null ? html`<div class="loading">Loading…</div>` : r.error ? html`<div class="notice">${r.error}</div>` : html`<pre class="readme">${r.content}${r.truncated ? '\n\n[SHOWING THE FIRST 1 MB ONLY]' : ''}</pre>`}</${Modal}>`;
+}
+
 function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, inList, onToggleList, batch, listMode, badge, onStub, platform }) {
   const [broken, setBroken] = useState(false);
+  const [reading, setReading] = useState(false);
+  const canRead = isReadableText(item);
+  const readEl = canRead ? html`<button class="dl" title="Read this file" onClick=${(e) => { e.stopPropagation(); setReading(true); }}>Read</button>` : '';
+  const readModal = reading ? html`<${TextFileModal} remote=${remote} path=${[folder, item.name].filter(Boolean).join('/')} name=${item.name} onClose=${() => setReading(false)} />` : '';
   const stub = onStub ? stubNotice(remote, folder, item) : null;   // a folder under 1 KB points to the other server
   const canDl = canDownload(remote, folder, item) && !stub;
   const shownTitle = comicTitle(item);
@@ -75,7 +88,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
       <span class="lbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
       ${item.isDir && canDl && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
-      ${canDl ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</span>
+      ${canRead ? readEl : canDl ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</span>${readModal}
     </div>`;
   }
   return html`<div class=${'card' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
@@ -87,7 +100,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
       <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
       ${item.isDir && canDl && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
-      ${canDl ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div></div>
+      ${canRead ? readEl : canDl ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div></div>${readModal}
   </div>`;
 }
 
