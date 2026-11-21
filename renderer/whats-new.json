@@ -1,4 +1,10 @@
 {
+  "6.2.0": {
+    "title": "Read text files without downloading",
+    "highlights": [
+      "README, NFO and other small text files in a folder now have a Read button instead of Download, and open right inside the app. The full-folder download still includes them. Thanks to Delicious Meatpop for the idea."
+    ]
+  },
   "6.1.2": {
     "title": "Search all sections behaves",
     "highlights": [

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.0] - 2026-11-21
+
+### Added
+
+- Small text files (README, NFO, TXT, LOG, INI, CFG and similar) in a folder now show a Read button instead of Download and open inside the app. Full-folder downloads still include them. Suggested by Delicious Meatpop.
+
 ## [6.1.2] - 2026-11-21
 
 ### Fixed
