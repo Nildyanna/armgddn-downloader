@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.1] - 2026-11-21
+
+### Fixed
+
+- The theme name in the header is no longer cut off (Midnight Ocean lost its last letter behind the dropdown arrow).
+
 ## [6.0.0] - 2026-11-21
 
 ### Changed

@@ -1,4 +1,10 @@
 {
+  "6.0.1": {
+    "title": "Theme name no longer cut off",
+    "highlights": [
+      "The theme name in the header now fits in full, including Midnight Ocean."
+    ]
+  },
   "6.0.0": {
     "title": "One app for the whole library",
     "highlights": [
