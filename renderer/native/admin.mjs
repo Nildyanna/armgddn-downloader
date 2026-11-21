@@ -2,7 +2,7 @@
 import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
 import './ownerRouting.js';
 import { runCommand, HELP } from './ownerConsole.mjs';
-import { NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, requestCard, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -177,7 +177,34 @@ function RequestThread({ req, onClose }) {
     <div class="compose"><input type="text" maxlength="500" placeholder="Write a comment…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
   </div>`;
 }
-function RequestsPage({ audit }) {
+// One request, laid out like the website's request list: the same details, the status box, Comments, Send requester link, Copy /warn and (owner) Delete.
+function RequestCard({ r, owner, onComments, act }) {
+  const c = requestCard(r.raw || {});
+  const [copied, setCopied] = useState('');
+  const date = (() => { try { return c.date ? new Date(c.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : ''; } catch (e) { return ''; } })();
+  const copyWarn = async () => { const x = await api.copy(c.warn); setCopied(x && x.ok ? 'Copied. Paste it in the group.' : 'Could not copy'); setTimeout(() => setCopied(''), 2500); };
+  return html`<div class=${'rqcard st-' + c.status + (c.pop > 1 ? ' hot' : '')}>
+    <div class="rqmain">
+      <div class="rqtitle">${c.pop > 1 ? html`<span class="rqpop" title=${c.pop + ' members asked for this'}>\u{1F525} ${c.pop}</span>` : ''}<strong>#${c.id} - ${c.title}</strong><span class=${'rqtype ' + (c.isUpdate ? 'upd' : 'new')}>${c.isUpdate ? '\u{1F504} UPDATE' : '\u{1F195} NEW'}</span>${c.possible ? html`<span class="rqwarn" title=${'Game requests are paused. ' + c.possible + '.'}>\u26A0\uFE0F Possible game request</span>` : ''}</div>
+      <div class="rqmeta" title=${c.others.length ? 'Requested by: ' + c.others.join(', ') : ''}>${c.category} \u00B7 Requested by ${c.handle}${c.extra ? ' \u00B7 +' + c.extra : ''} \u00B7 ${date}</div>
+      ${c.existing ? html`<div class="rqexist">\u{1F4C1} Existing: ${c.existing}</div>` : ''}
+      ${c.url ? html`<a href="#" class="rqlink" onClick=${(e) => { e.preventDefault(); api.openLink(c.url); }}>View on Steam \u2192</a>` : ''}
+      ${c.notes ? html`<div class="rqnotes">\u201C${c.notes}\u201D</div>` : ''}
+      ${c.reason ? html`<div class="rqreason"><strong>Decision reason:</strong> ${c.reason}</div>` : ''}
+      <div class="rqbtns">
+        <button class="dbtn" onClick=${() => onComments(r)}>\u{1F4AC} Comments${c.unread ? html`<span class="rqunread">${c.unread}</span>` : ''}</button>
+        ${c.who ? html`<button class="dbtn" title="Sends you a Telegram message with a clickable requester link" onClick=${() => act('requesterLink', { id: r.id })}>\u{1F517} Send requester link</button>` : ''}
+        ${c.possible && c.warn ? html`<button class="dbtn" title="Copies a /warn line with the member's Telegram id to paste in the group. Nothing is sent." onClick=${copyWarn}>\u26A0\uFE0F Copy /warn</button>` : ''}
+        ${copied ? html`<span class="sval">${copied}</span>` : ''}
+      </div>
+    </div>
+    <div class="rqside">
+      <select class=${'rqstatus st-' + c.status} value=${c.status} onChange=${(e) => { const v = e.target.value; if (v && v !== c.status) act('requestStatus', { id: r.id, title: r.title, status: v }); }}>${REQUEST_STATUS_CHOICES.map((x) => html`<option value=${x}>${({ pending: '\u23F3 Pending', approved: '\u{1F44D} Approved', completed: '\u2705 Completed', rejected: '\u274C Rejected', duplicate: 'Duplicate' })[x] || x}</option>`)}</select>
+      ${owner ? html`<button class="rqdel" onClick=${() => act('requestDelete', { id: r.id, title: r.title })}>Delete</button>` : ''}
+    </div>
+  </div>`;
+}
+function RequestsPage({ audit, owner }) {
   const [status, setStatus] = useState('');
   const [by, setBy] = useState('');
   const [category, setCategory] = useState('');
@@ -209,8 +236,7 @@ function RequestsPage({ audit }) {
     </div>
     ${actionUi}
     ${openReq ? html`<${RequestThread} key=${openReq.id} req=${openReq} onClose=${() => setOpenReq(null)} />` : ''}
-    <${DataTable} rows=${rows} columns=${audit ? ['id', 'title', 'status', 'handledBy', 'handledAt', 'by', 'category'] : ['id', 'title', 'by', 'category', 'status', 'votes', 'requested']} empty=${audit ? 'No handled requests.' : 'No requests.'}
-      extra=${audit ? null : (r) => html`<button class="dbtn" title="Read and add comments on this request" onClick=${() => setOpenReq(r)}>Comments</button> <select value="" onChange=${(e) => { const v = e.target.value; e.target.value = ''; if (v) act('requestStatus', { id: r.id, title: r.title, status: v }); }}><option value="">Set to...</option>${REQUEST_STATUS_CHOICES.filter((x) => x !== r.status).map((x) => html`<option value=${x}>${x}</option>`)}</select>`} extraLabel="Change" />
+    ${audit ? html`<${DataTable} rows=${rows} columns=${['id', 'title', 'status', 'handledBy', 'handledAt', 'by', 'category']} empty="No handled requests." />` : rows.length ? html`<div class="rqlist">${rows.map((r) => html`<${RequestCard} key=${r.id} r=${r} owner=${owner} onComments=${setOpenReq} act=${act} />`)}</div>` : html`<div class="empty">No requests.</div>`}
   </div>`;
 }
 
@@ -475,6 +501,6 @@ export function AdminView({ admin, initialTab }) {
   return html`<main class="adminpage">
     <div class="adminhead"><h2>Admin</h2><button class="dbtn" onClick=${savePdf}>Save this page as PDF</button>${pdfMsg ? html`<span class="sval">${pdfMsg}</span>` : ''}</div>
     <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${id === cur ? 'tab on' : 'tab'} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
-    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'reliability' ? html`<${ReliabilityPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'console' ? html`<${ConsolePage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} />` : html`<${RequestsPage} audit=${true} />`}
+    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'reliability' ? html`<${ReliabilityPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'console' ? html`<${ConsolePage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} owner=${!!(admin && admin.role === 'owner')} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;
 }

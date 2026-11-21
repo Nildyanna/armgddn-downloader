@@ -112,6 +112,25 @@ export function requestRows(list, { audit = false, processedBy = '' } = {}) {
   return rows.map((r) => ({ id: r.id, title: r.gameTitle || r.title || '', by: r.username || '', category: r.category || '', status: r.status || '', requested: r.createdAt || '', handledBy: r.processedBy || '', handledAt: r.processedAt || '', votes: r.popularity || 1, raw: r }));
 }
 
+// What a request card shows, the same as the website's request list: the popularity flame, NEW/UPDATE, the possible-game flag, who asked (and how many others),
+// the folder it already has, the Steam link, the notes, the decision reason and the unseen-comment count. `warn` is the /warn line the Copy /warn button copies.
+export function requestCard(r, { hideSystem = false } = {}) {
+  r = r && typeof r === 'object' ? r : {};
+  const id = r.telegramId || r.userId;
+  const who = /^\d+$/.test(String(id || '')) ? String(id) : '';
+  const handle = r.username ? '@' + String(r.username).replace(/^@/, '') : (id != null && id !== '' ? 'id: ' + id : 'Unknown');
+  const pop = Number(r.popularity) || 1;
+  const others = Array.isArray(r.allRequesters) ? r.allRequesters.map((x) => x && (x.username || x.userId) ? '@' + (x.username || x.userId) : '').filter(Boolean) : [];
+  const unread = Number(hideSystem ? r.unreadNonSystemCount : r.unreadCount) || 0;
+  return {
+    id: r.id, title: r.gameTitle || r.title || '', category: r.category || '', status: r.status || 'pending', date: r.createdAt || '',
+    isUpdate: r.requestType === 'update', pop, others: pop > 1 ? others : [], extra: Math.max(0, pop - 1), handle, who,
+    possible: typeof r.possibleGame === 'string' ? r.possibleGame : '', existing: r.existingFolder || '', url: /^https:\/\//i.test(String(r.gameUrl || '')) ? String(r.gameUrl) : '',
+    notes: r.notes || '', reason: r.decisionReason || '', unread,
+    warn: who ? '/warn ' + who + ' Filing a game as a ' + (r.category || 'Music') + ' request to get around the closed game requests.' : '',
+  };
+}
+
 // Everything the member put in the request, as label/value pairs for the first entry of its comment thread (empty fields are left out).
 export function requestInfoLines(r) {
   if (!r || typeof r !== 'object') return [];
@@ -153,7 +172,7 @@ export function missingRows(d, { what = 'all', query = '' } = {}) {
 }
 
 // Confirmed by the app in a system dialog (see native/bridge.js), not by the page: the actions that change the site for everyone.
-export const NATIVE_CONFIRMED = ['restartServer', 'resetQuota', 'resetApiStats', 'resetDownloadCache', 'refetchArt', 'autofixArt', 'banIp', 'unbanIp', 'banUser', 'accessAdd', 'accessRemove'];
+export const NATIVE_CONFIRMED = ['restartServer', 'resetQuota', 'resetApiStats', 'resetDownloadCache', 'refetchArt', 'autofixArt', 'banIp', 'unbanIp', 'banUser', 'accessAdd', 'accessRemove', 'requestDelete'];
 export const REQUEST_STATUS_CHOICES = ['pending', 'approved', 'rejected', 'completed', 'duplicate'];
 
 // What the member is asked to confirm before an admin action runs. Every action has one; the wording says what will happen and what it cannot undo.
@@ -167,6 +186,7 @@ export function confirmText(action, a = {}) {
     case 'banIp': return { title: 'Ban an IP address', text: `Ban ${a.ip || 'this address'}. Anyone on it is blocked from the site, and the other admins get a Telegram alert.`, ok: 'Ban it' };
     case 'unbanIp': return { title: 'Unban an IP address', text: `Let ${a.ip || 'this address'} use the site again.`, ok: 'Unban it' };
     case 'requestStatus': return { title: 'Change a request', text: `Set request ${a.id} (${a.title || 'untitled'}) to "${a.status}". The member who asked may be told.`, ok: 'Change it' };
+    case 'requestDelete': return { title: 'Delete a request', text: `Delete request ${a.id} (${a.title || 'untitled'}) for good. This cannot be undone.`, ok: 'Delete it' };
     case 'clearMissing': return { title: 'Stop listing a game', text: `Mark "${a.title || a.gameKey}" as having no cover or trailer available, so it stops showing in the missing list and future checks do not add it back.`, ok: 'Mark it' };
     case 'accessAdd': return { title: 'Give admin access', text: `Add ${a.id} to the ${a.list === 'channel' ? 'full admin' : 'request admin'} list. They can use the admin pages (${a.list === 'channel' ? 'all of them except the owner-only ones' : 'requests only'}) from their next visit.`, ok: 'Add them' };
     case 'accessRemove': return { title: 'Remove admin access', text: `Take ${a.id} off the ${a.list === 'channel' ? 'full admin' : 'request admin'} list.`, ok: 'Remove them' };

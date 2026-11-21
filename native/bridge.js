@@ -149,6 +149,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     unbanIp: ['Unban an IP address', (a) => `Let ${text(a.ip, 45)} use the site again.`, 'Unban it'],
     banUser: ['Ban a member', (a) => `Ban the member with Telegram id ${text(a.id || a.telegramId, 20)} from the site.`, 'Ban them'],
     accessAdd: ['Add an admin', (a) => `Add Telegram id ${text(a.id, 20)} to the ${a.list === 'request' ? 'request admin' : 'full admin'} list.`, 'Add them'],
+    requestDelete: ['Delete a request', (a) => `Delete request ${Number(a.id) || ''}${a.title ? ' (' + text(a.title, 80) + ')' : ''} for good. This cannot be undone.`, 'Delete it'],
     accessRemove: ['Remove an admin', (a) => `Remove Telegram id ${text(a.id, 20)} from the ${a.list === 'request' ? 'request admin' : 'full admin'} list.`, 'Remove them'],
   };
   async function confirmAdminAction(action, a) {
@@ -186,6 +187,17 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
         if (!Number.isInteger(id) || id < 1) throw bad('Bad request id');
         if (!REQUEST_STATUSES.includes(String(a.status))) throw bad('Bad status');
         return api.post(`/api/admin/requests/${id}/status`, { status: String(a.status), adminNotes: text(a.adminNotes, 500), decisionReason: text(a.decisionReason, 500) }, { invalidate: ['/api/admin/requests'] });
+      }
+      case 'requestDelete': {
+        const id = Number(a.id);
+        if (!Number.isInteger(id) || id < 1) throw bad('Bad request id');
+        return api.del(`/api/admin/requests/${id}`, undefined, { invalidate: ['/api/admin/requests'] });
+      }
+      case 'requesterLink': {
+        const id = Number(a.id);
+        if (!Number.isInteger(id) || id < 1) throw bad('Bad request id');
+        const r = await api.post(`/api/admin/requests/${id}/requester-link`, {});
+        return { ...r, message: 'Sent you a Telegram message with the requester link.' };
       }
       case 'clearMissing': {
         const gameKey = text(a.gameKey, 300).trim();

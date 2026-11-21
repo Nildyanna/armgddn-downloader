@@ -678,3 +678,29 @@ header select + select { margin-left: 0; }
 .msg.reqinfo { border-color: var(--accent); }
 .msg.reqinfo .ri { display: flex; gap: 10px; padding: 2px 0; overflow-wrap: anywhere; }
 .msg.reqinfo .rk { flex: 0 0 120px; opacity: .7; }
+
+/* Admin request cards (the same details as the website's request list) */
+.rqlist { display: flex; flex-direction: column; gap: 8px; }
+.rqcard { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px; background: var(--card2); border: 1px solid var(--line); border-radius: 8px; }
+.rqcard.hot { border-color: rgba(168, 85, 247, .4); }
+.rqmain { flex: 1; min-width: 220px; display: flex; flex-direction: column; gap: 4px; }
+.rqtitle { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rqpop { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(168, 85, 247, .2); color: #a855f7; font-weight: 600; }
+.rqtype { font-size: 11px; padding: 2px 6px; border-radius: 4px; font-weight: 600; }
+.rqtype.new { background: rgba(34, 197, 94, .15); color: #22c55e; }
+.rqtype.upd { background: rgba(34, 211, 238, .12); color: var(--accent); }
+.rqwarn { font-size: 11px; padding: 2px 6px; border-radius: 4px; background: rgba(245, 158, 11, .18); color: #f59e0b; font-weight: 600; }
+.rqmeta, .rqexist { font-size: 13px; color: var(--dim); }
+.rqexist { color: var(--accent2); }
+.rqlink { font-size: 13px; color: var(--accent); }
+.rqnotes { font-size: 13px; color: var(--dim); font-style: italic; margin-top: 2px; }
+.rqreason { margin-top: 6px; padding: 8px; font-size: 13px; color: var(--dim); background: rgba(34, 197, 94, .10); border: 1px solid rgba(34, 197, 94, .22); border-radius: 4px; }
+.rqbtns { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
+.rqunread { margin-left: 6px; font-size: 11px; padding: 1px 7px; border-radius: 999px; background: rgba(239, 68, 68, .15); color: #ef4444; font-weight: 700; }
+.rqside { display: flex; flex-direction: column; gap: 6px; align-items: flex-end; }
+.rqstatus { padding: 6px 10px; border-radius: 6px; font-size: 13px; font-weight: 600; background: var(--card2); color: var(--fg); border: 1px solid var(--line); }
+.rqstatus.st-pending { border-color: #f59e0b; color: #f59e0b; }
+.rqstatus.st-approved { border-color: var(--accent); color: var(--accent); }
+.rqstatus.st-completed { border-color: #22c55e; color: #22c55e; }
+.rqstatus.st-rejected { border-color: #ef4444; color: #ef4444; }
+.rqdel { padding: 4px 8px; border-radius: 4px; border: 1px solid #ef4444; background: transparent; color: #ef4444; font-size: 12px; cursor: pointer; }

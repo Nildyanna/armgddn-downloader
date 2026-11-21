@@ -478,7 +478,7 @@ test('the admin Requests table has a Comments button that opens the thread with 
   const a = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
   assert.ok(a.includes('function RequestThread({ req, onClose })'));
   assert.ok(a.includes('await api.thread(req.id)') && a.includes('await api.comment(req.id, m)'));
-  assert.ok(a.includes('onClick=${() => setOpenReq(r)}>Comments</button>'));
+  assert.ok(a.includes('onClick=${() => onComments(r)}>') && a.includes('onComments=${setOpenReq}') && a.includes('Comments${c.unread'));
   assert.ok(a.includes('<${RequestThread} key=${openReq.id} req=${openReq}'));
 });
 

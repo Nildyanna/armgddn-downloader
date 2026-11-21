@@ -50,7 +50,7 @@ test('admin formatting helpers', async () => {
   assert.deepEqual(f.loyaltyRows({ t1: 5, t3: 2 }).map((r) => r.n), [5, 0, 2, 0, 0]);
   assert.deepEqual(f.topRows([{ title: 'A', total: 10 }, { title: 'B', total: 5 }], 'title', 'total'), [{ label: 'A', value: 10, pct: 100 }, { label: 'B', value: 5, pct: 50 }]); assert.deepEqual(f.topRows(null, 'a', 'b'), []);
   assert.deepEqual(f.moverRows([{ title: 'X', recent_n: 9, prior_n: 3, pct_change: 200 }]), [{ title: 'X', now: 9, before: 3, change: '+200%' }]);
-  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer', 'refetchArt', 'resetApiStats', 'resetDownloadCache', 'autofixArt']) { const c = f.confirmText(a, { ip: '1.2.3.4', id: 5, title: 'T', status: 'approved', gameKey: 'k' }); assert.ok(c && c.title && c.text && c.ok, a); }
+  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer', 'refetchArt', 'resetApiStats', 'resetDownloadCache', 'autofixArt', 'requestDelete']) { const c = f.confirmText(a, { ip: '1.2.3.4', id: 5, title: 'T', status: 'approved', gameKey: 'k' }); assert.ok(c && c.title && c.text && c.ok, a); }
   assert.equal(f.confirmText('somethingElse'), null); assert.ok(f.confirmText('accessAdd', { id: '123456', list: 'channel' }).text.includes('full admin')); assert.ok(f.confirmText('addCover', { title: 'Halo', coverUrl: 'https://x/y.jpg' }).text.includes('https://x/y.jpg'));
   assert.ok(f.confirmText('banIp', { ip: '1.2.3.4' }).text.includes('1.2.3.4')); assert.ok(f.confirmText('requestStatus', { id: 5, title: 'Halo', status: 'rejected' }).text.includes('"rejected"'));
   const miss = { count: 2, trailerCount: 1, trailerUnavailableCount: 3, totalUniqueGames: 10, gamesWithStatus: [{ gameKey: 'PC1/Halo', cleanTitle: 'Halo', missingCover: true, missingTrailer: false }, { gameKey: 'PC1/Doom', cleanTitle: 'Doom', missingCover: false, missingTrailer: true }] };
@@ -69,9 +69,10 @@ test('admin actions are a fixed list, validated, each behind a confirmation, and
   for (const route of ['/api/admin/stats', '/api/admin/system-details', '/api/admin/user-activity', '/api/admin/queue', '/api/admin/requests', '/api/admin/missing-covers', '/api/admin/report-data', '/api/admin/report-collections', '/api/admin/status-report']) assert.ok(block.includes("'" + route + "'"), route);
   assert.ok(block.includes('Unknown admin page') && block.includes('A-Za-z_ -'));
   const acts = bridge.slice(bridge.indexOf("ipcMain.handle('native:adminDo'"), bridge.indexOf("// The publisher collections"));
-  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer', 'refetchArt', 'resetApiStats', 'resetDownloadCache', 'autofixArt']) assert.ok(acts.includes("case '" + a + "'"), a);
+  for (const a of ['resetQuota', 'restartServer', 'banIp', 'unbanIp', 'requestStatus', 'clearMissing', 'accessAdd', 'accessRemove', 'banUser', 'reloadOverrides', 'addCover', 'addTrailer', 'refetchArt', 'resetApiStats', 'resetDownloadCache', 'autofixArt', 'requestDelete', 'requesterLink']) assert.ok(acts.includes("case '" + a + "'"), a);
   assert.ok(acts.includes('Unknown admin action') && acts.includes('A-Fa-f') || acts.includes('a-fA-F'));
-  assert.ok(!/api\.(put|del)\(/.test(acts) && !acts.includes('/api/admin/requests/' + '${id}`)' + ', {}'), 'no delete or free-form write');
+  // The only delete is the owner's request delete, behind its own confirmation; nothing else deletes or writes freely.
+  assert.ok(!/api\.put\(/.test(acts) && (acts.match(/api\.del\(/g) || []).length === 1 && /case 'requestDelete': \{[^}]*api\.del\(`\/api\/admin\/requests\/\$\{id\}`/.test(acts), 'only the owner request delete');
   assert.ok(view.includes('useAdminAction') && view.includes('confirmText(') && view.includes('api.adminDo('), 'every action goes through the confirmation');
   assert.ok(!/api\.adminDo\(/.test(view.replace(/const r = await api\.adminDo\(action, args\);/, '')), 'adminDo is only called from the confirmation step');
   assert.ok(app.includes("a.data.role === 'owner' || a.data.role === 'admin'") && app.includes("view === 'admin' && admin"), 'the tab and the page need the role the site reported');
@@ -127,4 +128,16 @@ test('every bar of a chart carries its number', () => {
   const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
   assert.ok(!src.includes('n <= 16 ? html`<span class="bval">'));
   assert.ok(src.includes("'bval' + (n > 20 ? ' dense' : '')"));
+});
+
+test('a request card carries the same details as the website list, and the /warn line', async () => {
+  const f = await import('../renderer/native/adminFormat.mjs');
+  const c = f.requestCard({ id: 7, gameTitle: 'Boxing Underdog', category: 'Music', status: 'pending', username: 'NotNitr0', telegramId: '123456', popularity: 7, allRequesters: [{ username: 'a' }, { username: 'b' }],
+    requestType: 'update', existingFolder: 'Boxing Underdog v1', gameUrl: 'https://store.steampowered.com/app/1', notes: 'please', decisionReason: 'ok', possibleGame: 'Steam game', unreadCount: 3, unreadNonSystemCount: 1, createdAt: '2026-10-31T19:21:00Z' });
+  assert.equal(c.pop, 7); assert.equal(c.extra, 6); assert.equal(c.isUpdate, true); assert.equal(c.handle, '@NotNitr0'); assert.equal(c.unread, 3);
+  assert.equal(c.existing, 'Boxing Underdog v1'); assert.equal(c.notes, 'please'); assert.equal(c.reason, 'ok'); assert.equal(c.possible, 'Steam game');
+  assert.equal(c.warn, '/warn 123456 Filing a game as a Music request to get around the closed game requests.');
+  assert.equal(f.requestCard({ id: 1, unreadCount: 3, unreadNonSystemCount: 1 }, { hideSystem: true }).unread, 1);
+  const bare = f.requestCard({ id: 2, gameTitle: 'X', gameUrl: 'javascript:alert(1)' });
+  assert.equal(bare.url, ''); assert.equal(bare.warn, ''); assert.equal(bare.handle, 'Unknown'); assert.equal(bare.pop, 1);
 });
