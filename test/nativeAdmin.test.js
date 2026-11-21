@@ -160,3 +160,13 @@ test('admin group colours are stable and only for group-like columns', async () 
   assert.equal(f.hueOf('category', 'Music'), 3); assert.equal(f.hueOf('title', 'Music'), -1); assert.equal(f.hueOf('role', 5), -1);
   const h = f.hueOf('category', 'Something New'); assert.ok(h >= 0 && h < 8);
 });
+
+test('a column is either coloured or plain, never half and half', async () => {
+  const f = await import('../renderer/native/adminFormat.mjs');
+  const paths = [{ path: 'Testing' }, { path: 'PCVR Games/PCVR1' }, { path: 'Music' }];
+  assert.equal(f.columnModes(paths, ['path']).path, 'plain');
+  const st = [{ status: 'healthy' }, { status: 'healthy' }, { status: 'pending' }, { status: 'idle' }, { status: 'healthy' }, { status: 'ok' }];
+  assert.equal(f.columnModes(st, ['status']).status, 'chip');
+  assert.equal(f.columnModes([{ name: '3D Printer Models' }, { name: 'PC-1' }], ['name'], 'sections').name, 'chip');
+  assert.equal(f.columnModes([{ name: 'Dirk' }, { name: 'Ann' }], ['name']).name, 'plain');
+});

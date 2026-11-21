@@ -737,3 +737,5 @@ header select + select { margin-left: 0; }
 .agrid > .apanel { border-left-color: var(--hc, var(--accent)); } .agrid > .apanel h4 { color: var(--hc, var(--accent)); }
 .agroup:nth-of-type(6n+1) h4 { color: var(--h0); } .agroup:nth-of-type(6n+2) h4 { color: var(--h2); } .agroup:nth-of-type(6n+3) h4 { color: var(--h1); }
 .agroup:nth-of-type(6n+4) h4 { color: var(--h4); } .agroup:nth-of-type(6n+5) h4 { color: var(--h3); } .agroup:nth-of-type(6n+6) h4 { color: var(--h6); }
+
+.gchip.h-n { --hc: var(--dim, #8a9aa8); }

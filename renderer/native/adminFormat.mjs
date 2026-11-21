@@ -75,6 +75,19 @@ export function hueOf(key, v, hint) {
   return h % 8;
 }
 
+// For each column of a table: 'chip' when most of its values carry a colour (a status, a role, a section), so the few that do not get a grey chip of the
+// same shape; 'plain' when most do not, so nothing in it is coloured. Stops a column from being half chips and half bare text.
+export function columnModes(rows, cols, hint) {
+  const out = {};
+  for (const c of cols || []) {
+    const vals = (rows || []).map((r) => r && r[c]).filter((v) => v !== null && v !== undefined && v !== '');
+    if (!vals.length) { out[c] = 'plain'; continue; }
+    const hit = vals.filter((v) => toneOf(c, v) || hueOf(c, v, hint) >= 0).length;
+    out[c] = hit / vals.length >= 0.8 ? 'chip' : 'plain';
+  }
+  return out;
+}
+
 // Which colour each admin tab carries, so the tab row groups visually: live numbers, reports, tools, people.
 export const TAB_HUE = { overview: 0, analytics: 6, collections: 3, reliability: 2, system: 1, activity: 5, missing: 7, ipbans: 4, access: 4, console: 1, controls: 4, queue: 0, requests: 6, audit: 5 };
 

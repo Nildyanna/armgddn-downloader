@@ -2,7 +2,7 @@
 import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
 import './ownerRouting.js';
 import { runCommand, HELP } from './ownerConsole.mjs';
-import { toneOf, hueOf, TAB_HUE, NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, requestCard, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { toneOf, hueOf, columnModes, TAB_HUE, NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, requestCard, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -56,11 +56,13 @@ function useAdminAction(after) {
 }
 
 // A value drawn with the colour its meaning calls for (green fine, amber watch, red wrong); plain when it carries no meaning.
-function Toned({ k, v, hint }) {
+function Toned({ k, v, hint, column }) {
   const t = toneOf(k, v), text = formatCellFor(k, v, hint);
+  if (column === 'plain') return text;   // most of this column carries no colour, so none of it gets one (no half-coloured columns)
   if (t) return html`<span class=${'tone t-' + t}>${text}</span>`;
   const h = hueOf(k, v, hint);
-  return h >= 0 ? html`<span class=${'gchip h-' + h}>${text}</span>` : text;
+  if (h >= 0) return html`<span class=${'gchip h-' + h}>${text}</span>`;
+  return column === 'chip' && text !== '' ? html`<span class="gchip h-n">${text}</span>` : text;   // an odd one out in a coloured column keeps the same shape, in grey
 }
 
 function Cards({ items }) {
@@ -73,7 +75,8 @@ export function DataTable({ rows, columns, empty, extra, extraLabel, hint }) {
   const list = all.slice(0, MAX_ROWS);
   if (!list.length) return html`<div class="empty">${empty || 'Nothing to show.'}</div>`;
   const cols = columns || tableColumns(list);
-  return html`<div><div class="atable"><table><thead><tr>${cols.map((c) => html`<th key=${c}>${labelOf(c)}</th>`)}${extra ? html`<th>${extraLabel || 'Action'}</th>` : ''}</tr></thead><tbody>${list.map((r, i) => html`<tr key=${i}>${cols.map((c) => html`<td key=${c}><${Toned} k=${c} v=${r[c]} hint=${hint} /></td>`)}${extra ? html`<td>${extra(r)}</td>` : ''}</tr>`)}</tbody></table></div>${all.length > MAX_ROWS ? html`<div class="sval">Showing the first ${MAX_ROWS} of ${all.length}. Filter by status to narrow it.</div>` : ''}</div>`;
+  const modes = columnModes(list, cols, hint);
+  return html`<div><div class="atable"><table><thead><tr>${cols.map((c) => html`<th key=${c}>${labelOf(c)}</th>`)}${extra ? html`<th>${extraLabel || 'Action'}</th>` : ''}</tr></thead><tbody>${list.map((r, i) => html`<tr key=${i}>${cols.map((c) => html`<td key=${c}><${Toned} k=${c} v=${r[c]} hint=${hint} column=${modes[c]} /></td>`)}${extra ? html`<td>${extra(r)}</td>` : ''}</tr>`)}</tbody></table></div>${all.length > MAX_ROWS ? html`<div class="sval">Showing the first ${MAX_ROWS} of ${all.length}. Filter by status to narrow it.</div>` : ''}</div>`;
 }
 
 // Any answer the site gives, drawn as it comes: plain values as rows, lists of records as tables, nested objects as their own groups.
