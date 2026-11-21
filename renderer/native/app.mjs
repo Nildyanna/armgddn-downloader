@@ -1085,7 +1085,7 @@ function App() {
     const r = await api.watchAdd(t);
     say(r && r.ok && r.data ? (r.data.message || 'Added to your watchlist.') : ((r && r.error && r.error.message) || 'Could not add it to your watchlist'));
   };
-  const goTo = (rem, path) => { setView('library'); autoOk.current = false; setQuery(''); setCategory(''); setRemote(rem); setFolder(path); };
+  const goTo = (rem, path) => { setEverywhere(false); setView('library'); autoOk.current = false; setQuery(''); setCategory(''); setRemote(rem); setFolder(path); };
   const [patchQ, setPatchQ] = useState(null);
   const askPatch = (oldLabel, patch) => new Promise((resolve) => setPatchQ({ oldLabel, patch, resolve: (v) => { setPatchQ(null); resolve(v); } }));
   const [gate, setGate] = useState(null);
@@ -1263,7 +1263,7 @@ function App() {
     </div>
     <header class="topbar">
       <button class=${view === 'home' ? 'tab on' : 'tab'} onClick=${() => setView('home')}>Home</button>
-      <nav>${tabs.map((t) => html`<button class=${(view === 'library' && t === remote ? 'tab on' : 'tab') + (quota.has(t) ? ' quota' : '')} title=${quota.has(t) ? 'This section has used up its download quota. Try again later (it usually resets within 24 hours).' : ''} disabled=${quota.has(t)} onClick=${() => { setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
+      <nav>${tabs.map((t) => html`<button class=${(view === 'library' && !everywhere && t === remote ? 'tab on' : 'tab') + (quota.has(t) ? ' quota' : '')} title=${quota.has(t) ? 'This section has used up its download quota. Try again later (it usually resets within 24 hours).' : ''} disabled=${quota.has(t)} onClick=${() => { setEverywhere(false); setCategory(''); setView('library'); autoOk.current = true; setRemote(t); setFolder(''); setQuery(''); }}>${t}</button>`)}</nav>
       <button class=${view === 'tools' ? 'tab on' : 'tab'} title="Only what I'm missing, Komga" onClick=${() => setView('tools')}>Tools</button>
       <button class=${view === 'settings' ? 'tab on' : 'tab'} title="Settings" onClick=${() => setView('settings')}>Settings</button>
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
