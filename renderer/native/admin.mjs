@@ -59,8 +59,8 @@ function useAdminAction(after) {
 function Toned({ k, v, hint }) {
   const t = toneOf(k, v), text = formatCellFor(k, v, hint);
   if (t) return html`<span class=${'tone t-' + t}>${text}</span>`;
-  const h = hueOf(k, v);
-  return h >= 0 ? html`<span class=${'chip h-' + h}>${text}</span>` : text;
+  const h = hueOf(k, v, hint);
+  return h >= 0 ? html`<span class=${'gchip h-' + h}>${text}</span>` : text;
 }
 
 function Cards({ items }) {
@@ -131,7 +131,7 @@ function Overview() {
     <${Cards} items=${usageCards(s)} />
     ${owner ? html`<div class="dbtns"><button class="dbtn" onClick=${() => act('resetApiStats', {})}>Reset usage numbers</button>${cache && cache.enabled ? html`<button class="dbtn" disabled=${!!(cache.pendingReset && cache.activeEntries > 0)} onClick=${() => act('resetDownloadCache', {})}>${cache.pendingReset && cache.activeEntries > 0 ? 'Cache cooling down...' : 'Reset download cache'}</button>` : ''}</div>` : ''}
     <h4 class="asub">Sections</h4>
-    <${DataTable} rows=${remoteRows(s)} columns=${['name', 'status', 'lastChecked', 'failures', 'lastError']} />
+    <${DataTable} rows=${remoteRows(s)} columns=${['name', 'status', 'lastChecked', 'failures', 'lastError']} hint="sections" />
     ${s.appDownloadsByRemote && Object.keys(s.appDownloadsByRemote).length ? html`<h4 class="asub">App downloads by section</h4><${Tree} value=${s.appDownloadsByRemote} />` : ''}
     <h4 class="asub">Requests to the site</h4>
     <${Tree} value=${(s.api && { browse: s.api.browseRequests, downloadManifests: s.api.downloadManifestRequests, downloadFiles: s.api.downloadFileRequests, zipJobs: s.api.zipJobsCreated, uniqueDownloads: s.api.uniqueDownloads }) || {}} />

@@ -39,7 +39,7 @@ export function formatCellFor(key, v, hint) {
 // Colour for a value in the admin reports: 'ok' (green), 'warn' (amber), 'bad' (red), or '' (plain). Looks at the column name and the value together,
 // so only things that carry a meaning are coloured (a status word, a failure count, a last error), never ordinary numbers.
 const OK_WORDS = /^(healthy|ok|okay|online|up|success|succeeded|approved|done|completed|available|enabled|active|running|passed|pass|good|live|fixed|resolved|normal)$/i;
-const WARN_WORDS = /^(pending|warning|warn|at[- ]quota|degraded|queued|waiting|stale|slow|partial|elevated|busy|paused|on hold|held|unknown|testing|in progress|high)$/i;
+const WARN_WORDS = /^(pending|warning|warn|at[- ]quota|degraded|queued|waiting|stale|slow|partial|elevated|busy|paused|on hold|held|unknown|in progress|high)$/i;
 const BAD_WORDS = /^(error|errors|failed|failure|offline|down|rejected|denied|declined|banned|blocked|unavailable|disabled|critical|overloaded|expired|timeout|timed out|dead)$/i;
 export function toneOf(key, v) {
   const k = String(key || '');
@@ -64,11 +64,11 @@ export function toneOf(key, v) {
 // table reads at a glance. Known names have fixed colours (PC blue, PCVR purple, Music pink, Comics orange); anything else is spread by its text. -1 = none.
 const GROUP_KEYS = /^(category|categories|type|kind|section|remote|platform|group|source|role|roles|level|tier|channel|service|name|collection)$/i;
 const FIXED_HUE = { owner: 4, admin: 1, administrator: 1, staff: 0, moderator: 0, manager: 0, member: 2, user: 2, pc: 0, pcvr: 1, games: 0, game: 0, music: 3, comics: 4, comic: 4, movies: 5, movie: 5, testing: 6, soundtracks: 7 };
-export function hueOf(key, v) {
+export function hueOf(key, v, hint) {
   if (typeof v !== 'string') return -1;
   const t = v.trim(), k = String(key || '');
   if (!t || t.length > 28 || !GROUP_KEYS.test(k)) return -1;
-  if (/^name$/i.test(k) && !/^(PC|PCVR|Testing|Music|Comics)\b[- ]?\d*$/i.test(t)) return -1;   // a plain name is not a group; only section names like PC-1
+  if (/^name$/i.test(k) && hint !== 'sections' && !/^(PC|PCVR|Testing|Music|Comics)\b[- ]?\d*$/i.test(t)) return -1;   // a plain name is not a group; only section names like PC-1
   const base = t.toLowerCase().replace(/[- ]?\d+$/, '');
   if (FIXED_HUE[base] !== undefined) return FIXED_HUE[base];
   let h = 0; for (const ch of t.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
