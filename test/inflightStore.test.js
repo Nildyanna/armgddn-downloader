@@ -84,3 +84,25 @@ test('the direct-from-Drive grant id is kept, and a malformed one is dropped', (
   assert.equal(l.find((x) => x.id === 'a').grantId, 'ab12cd34ef56ab12cd34ef56');
   assert.equal(l.find((x) => x.id === 'b').grantId, '');
 });
+
+test('6.0.0 loads the unfinished-downloads file exactly as 5.41 to 5.43 wrote it, so downloads cut off by the update come back as Paused in the new app', () => {
+  const f = tmp();
+  const savedAt = Date.now() - 20 * 60 * 1000;
+  // literal content of inflight-downloads.json from a 5.43 install: a game, a Music album with its destination, a batch of picked items and a Drive grant
+  fs.writeFileSync(f, JSON.stringify([
+    { id: 'dl_1', name: 'Some Game v1 -ARMGDDN', resume: { remote: 'PC-1', path: 'PC1/Some Game v1 -ARMGDDN', dest: '' }, grantId: '', totalSize: 21474836480, progress: 37, fileCount: 12, startTime: '2026-11-21T01:00:00.000Z', savedAt },
+    { id: 'dl_2', name: 'An Album', resume: { remote: 'Music', path: 'Music/Artist/An Album', dest: 'music' }, grantId: '0123456789abcdef01234567', totalSize: 524288000, progress: 80, fileCount: 11, startTime: '2026-11-21T01:05:00.000Z', savedAt },
+    { id: 'dl_3', name: '3 items', resume: { remote: 'Comics', paths: ['Comix/Marvel/A', 'Comix/Marvel/B', 'Comix/Marvel/C'], exclude: [], dest: 'comics' }, grantId: '', totalSize: 1073741824, progress: 5, fileCount: 90, startTime: '2026-11-21T01:10:00.000Z', savedAt }
+  ]));
+  const list = store.load(f);
+  assert.equal(list.length, 3);
+  assert.deepEqual(list[0].resume, { remote: 'PC-1', path: 'PC1/Some Game v1 -ARMGDDN', dest: '' });
+  assert.deepEqual(list[1].resume, { remote: 'Music', path: 'Music/Artist/An Album', dest: 'music' });
+  assert.equal(list[1].grantId, '0123456789abcdef01234567');
+  assert.deepEqual(list[2].resume.paths, ['Comix/Marvel/A', 'Comix/Marvel/B', 'Comix/Marvel/C']);
+  assert.equal(list[0].progress, 37);
+  // and the 6.0.0 app restores them at start whatever window opens, and a restored one resumes through a fresh token (so through Drive)
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(/\n  loadOrphanedDownloads\(\);\n/.test(main), 'restore runs unconditionally at start');
+  assert.ok(main.includes("if (download.restored) return resumeRestoredDownload(downloadId);"));
+});
