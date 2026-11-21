@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.0] - 2026-11-21
+
+### Added
+
+- Admin and owner reports use colour where it means something: green, amber and red for status words, failure counts, errors, load, queue and streams.
+- Roles, categories and sections get stable group colours, and admin tabs and report panels carry their own accent.
+
 ## [6.2.1] - 2026-11-21
 
 ### Fixed

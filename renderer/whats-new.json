@@ -1,4 +1,11 @@
 {
+  "6.3.0": {
+    "title": "Colour in the admin pages",
+    "highlights": [
+      "Admin and owner reports now use colour to help you read them. Green, amber and red show what is healthy, what to watch and what has failed, and cards like Load and Queue change colour when they need attention.",
+      "Roles, categories and sections get their own colours, and each admin tab and report panel has its own accent."
+    ]
+  },
   "6.2.1": {
     "title": "Music keeps its folders",
     "highlights": [
