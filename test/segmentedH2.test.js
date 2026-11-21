@@ -43,7 +43,10 @@ function h2server(opts = {}) {
   });
   return new Promise((res) => srv.listen(0, () => res({ srv, st, base: `https://localhost:${srv.address().port}` })));
 }
-const tmp = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'h2-')), 'f.bin');
+const { after: _after } = require('node:test');
+const _made = [];
+_after(() => { for (const d of _made) { try { fs.rmSync(d, { recursive: true, force: true }); } catch (e) { } } });   // the 13 MB files these tests write were never removed: 70 GB of /tmp in two weeks
+const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'h2-')); _made.push(d); return path.join(d, 'f.bin'); };
 const opts = (o) => ({ expectedSize: SIZE, chunkSize: CHUNK, streams: 6, retryDelayMs: 10, saveEveryMs: 20, tlsOptions: tls, ...o });
 
 test('over HTTP/2 every stream shares one connection and the file is intact', { skip }, async () => {

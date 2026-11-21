@@ -8,6 +8,9 @@ const os = require('os');
 const path = require('path');
 const crypto = require('crypto');
 const { segmentedDownload, TEMP_SUFFIX, STATE_SUFFIX } = require('../segmentedDownload');
+const { after: _after } = require('node:test');
+const _made = [];
+_after(() => { for (const d of _made) { try { fs.rmSync(d, { recursive: true, force: true }); } catch (e) { } } });   // the 13 MB files these tests write were never removed: 70 GB of /tmp in two weeks
 
 const SIZE = 12 * 1024 * 1024 + 777;
 const CHUNK = 1024 * 1024;
@@ -38,7 +41,8 @@ for (const seed of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]) {
   test(`random cuts and restarts leave an identical file (seed ${seed})`, async () => {
     const rand = rng(seed * 7919);
     const { srv, base } = await roughServer(rand);
-    const out = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'sdf-')), 'f.bin');
+    const _dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sdf-')); _made.push(_dir);
+    const out = path.join(_dir, 'f.bin');
     const opts = () => ({ url: base + '/f', outputPath: out, expectedSize: SIZE, chunkSize: CHUNK, streams: 1 + Math.floor(rand() * 6), retryDelayMs: 2, saveEveryMs: 5, maxAttempts: 200 });
     let finished = false;
     for (let round = 0; round < 40 && !finished; round++) {

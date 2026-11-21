@@ -36,7 +36,10 @@ function server(opts = {}) {
   });
   return new Promise((r) => srv.listen(0, () => r({ srv, seen, served: () => served, base: `http://127.0.0.1:${srv.address().port}` })));
 }
-const tmp = () => path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'sd-')), 'f.bin');
+const { after: _after } = require('node:test');
+const _made = [];
+_after(() => { for (const d of _made) { try { fs.rmSync(d, { recursive: true, force: true }); } catch (e) { } } });   // the 13 MB files these tests write were never removed: 70 GB of /tmp in two weeks
+const tmp = () => { const d = fs.mkdtempSync(path.join(os.tmpdir(), 'sd-')); _made.push(d); return path.join(d, 'f.bin'); };
 const base = (extra) => ({ expectedSize: SIZE, chunkSize: CHUNK, streams: 4, retryDelayMs: 10, saveEveryMs: 20, ...extra });
 
 test('downloads a file in parallel chunks, byte for byte, and leaves no temp files', async () => {
