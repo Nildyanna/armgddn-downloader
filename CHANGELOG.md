@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.3] - 2026-11-21
+
+### Fixed
+
+- The Minimize button now hides the window to the tray when "Minimize button hides the window to the tray" is on. The setting did nothing in the new window.
+- "Start minimized" now works in the new window: when the computer starts the app at login, it goes to the tray (or the taskbar) instead of opening in front.
+
+### Changed
+
+- The two tray settings are worded more clearly: "Minimize button hides the window to the tray" and "Close button keeps the app running in the tray (off: closing quits the app)".
+
 ## [6.0.2] - 2026-11-21
 
 ### Fixed

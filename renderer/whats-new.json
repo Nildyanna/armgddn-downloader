@@ -1,4 +1,11 @@
 {
+  "6.0.3": {
+    "title": "Tray settings work again",
+    "highlights": [
+      "The Minimize button hides the window to the tray when you turn that setting on, and Start minimized works in the new window.",
+      "The two tray settings now say plainly what they do: the Minimize button hides to the tray, and the Close button either keeps the app running in the tray or quits."
+    ]
+  },
   "6.0.2": {
     "title": "Closing the window works as expected",
     "highlights": [

@@ -172,3 +172,11 @@ test('Help has an About item that shows the version and can copy the details', (
   assert.ok(menu.includes("'About ARMGDDN Browser' : 'About ARMGDDN Companion'") && menu.includes('showAboutDialog()'));
   assert.ok(main.includes('function showAboutDialog()') && main.includes("buttons: ['OK', 'Copy details']") && main.includes('app.getVersion()'));
 });
+
+test('the Minimize button hides the native window to the tray when that setting is on, and Start minimized is honoured (Gal, Nov 21: the setting did nothing)', () => {
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(main.includes("nativeWindow.on('minimize', (event) => {\n            if (settings && settings.minimizeToTrayOnMinimize) { try { event.preventDefault(); } catch (e) { } nativeWindow.hide(); }"));
+  assert.ok(main.includes("settings.startWithOsMinimized && isAutostartLaunch()") && main.includes("if (settings.minimizeToTrayOnMinimize) nativeWindow.hide(); else nativeWindow.minimize();"));
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes("'Minimize button hides the window to the tray'") && app.includes("'Close button keeps the app running in the tray (off: closing quits the app)'"));
+});

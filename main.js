@@ -3599,6 +3599,16 @@ app.whenReady().then(() => {
               _closeConfirmed = true;
             }
           });
+          // The Minimize button hides the window to the tray when that setting is on (the old window did this; the native window had no handler, so the setting did nothing).
+          nativeWindow.on('minimize', (event) => {
+            if (settings && settings.minimizeToTrayOnMinimize) { try { event.preventDefault(); } catch (e) { } nativeWindow.hide(); }
+          });
+          // Started by the computer at login with "Start minimized" on: go to the tray (or the taskbar) instead of opening in front, as the old window did.
+          try {
+            if (!process.argv.includes('--updated') && settings && settings.startWithOsMinimized && isAutostartLaunch()) {
+              if (settings.minimizeToTrayOnMinimize) nativeWindow.hide(); else nativeWindow.minimize();
+            }
+          } catch (e) { }
           // The hidden classic window keeps the process alive, so closing the only visible window must end the app itself (6.0.2: it used to stay in the
           // tray with no window, and clicking the tray then showed the old Companion window).
           nativeWindow.on('closed', () => { if (!app.isQuitting) { app.isQuitting = true; app.quit(); } });
