@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.0.2] - 2026-11-21
+
+### Fixed
+
+- Closing the window now ends the app when "Keep running in the tray when the window is closed" is off. Before, the app stayed running with no window, and clicking its tray icon brought up the old Companion window. The old window can no longer be shown at all, by the tray or by opening the app a second time. When downloads are running, closing still asks before quitting.
+
 ## [6.0.1] - 2026-11-21
 
 ### Fixed

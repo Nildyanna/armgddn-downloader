@@ -1,4 +1,10 @@
 {
+  "6.0.2": {
+    "title": "Closing the window works as expected",
+    "highlights": [
+      "Closing the window now ends the app when \"Keep running in the tray\" is off, and the tray icon always brings back this window, never the old one."
+    ]
+  },
   "6.0.1": {
     "title": "Theme name no longer cut off",
     "highlights": [
