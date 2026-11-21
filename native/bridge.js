@@ -112,6 +112,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   ipcMain.handle('native:downloads', wrap(async () => (getDownloads ? getDownloads() : []).map((d) => ({
     id: d.id, name: d.name, status: d.status, progress: d.progress, speed: d.speed, totalSpeed: d.totalSpeed, totalSpeedBytes: Number(d.totalSpeedBytes) || 0, eta: d.eta, totalSize: d.totalSize, downloadedSize: d.downloadedSize,
     fileCount: d.fileCount, completedFiles: d.completedFiles, activeFiles: d.activeFiles,
+    startTime: d.startTime || '', endTime: d.endTime || '',
     error: d.error || '' }))));
   // Requests (My Requests, comments, a new Music/Comics request). Writes clear the cached list so it refreshes.
   const reqId = (id) => { const n = Number(id); if (!Number.isInteger(n) || n < 1) throw Object.assign(new Error('Bad request id'), { kind: 'http', status: 400 }); return n; };

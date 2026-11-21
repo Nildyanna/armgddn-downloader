@@ -1,4 +1,11 @@
 {
+  "6.1.0": {
+    "title": "Time elapsed, and a tidier Cancel",
+    "highlights": [
+      "The Downloads tab now shows how long a download has been running (Elapsed) next to the ETA.",
+      "Cancelling a download no longer leaves an empty folder behind."
+    ]
+  },
   "6.0.3": {
     "title": "Tray settings work again",
     "highlights": [

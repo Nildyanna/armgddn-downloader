@@ -507,3 +507,23 @@ test('the admin access page shows only the list chosen in the box, with counts, 
   assert.ok(src.includes("(eff.channelAdminIds || []).length}</option>"));
   assert.ok(src.includes("act('accessAdd', { list, id: id.trim() })"));
 });
+
+test('the Downloads tab shows time elapsed next to the ETA: running ones count up, finished ones stop, paused ones show nothing (DMP, Nov 21)', async () => {
+  const { elapsedShown } = await import('../renderer/native/format.mjs');
+  const t0 = Date.parse('2026-11-21T01:00:00.000Z');
+  const run = (status, extra = {}) => ({ status, startTime: '2026-11-21T01:00:00.000Z', ...extra });
+  assert.equal(elapsedShown(run('in_progress'), t0 + 42 * 1000), '42s');
+  assert.equal(elapsedShown(run('downloading'), t0 + (5 * 60 + 12) * 1000), '5m 12s');
+  assert.equal(elapsedShown(run('starting'), t0 + (3600 + 125) * 1000), '1h 02m 05s');
+  assert.equal(elapsedShown(run('completed', { endTime: '2026-11-21T01:07:03.000Z' }), t0 + 99999999), '7m 03s');   // stops at the end time
+  assert.equal(elapsedShown(run('completed'), t0 + 5000), '');                    // finished with no end time: nothing rather than a wrong number
+  assert.equal(elapsedShown(run('paused'), t0 + 5000), '');                       // paused or restored after a restart: the clock would include the time the app was closed
+  assert.equal(elapsedShown({ status: 'in_progress' }, t0), '');                   // no start
+  assert.equal(elapsedShown(run('in_progress', { startTime: 'not a date' }), t0), '');
+  assert.equal(elapsedShown(null), '');
+  assert.equal(elapsedShown(run('in_progress'), t0 - 5000), '0s');               // a clock a little behind never shows a negative time
+  const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes("elapsedShown(d) ? 'Elapsed ' + elapsedShown(d) : '', etaShown(d.eta)"));
+  const bridge = require('fs').readFileSync(require('path').join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
+  assert.ok(bridge.includes("startTime: d.startTime || '', endTime: d.endTime || ''"));
+});

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.0] - 2026-11-21
+
+### Added
+
+- The Downloads tab shows the time elapsed next to the ETA for a download that is running, and the total time for one that has finished.
+
+### Fixed
+
+- Cancelling a download no longer leaves an empty folder behind. The folders it made are removed once they are empty; a folder that still holds anything (including files that were there before) is never removed.
+
 ## [6.0.3] - 2026-11-21
 
 ### Fixed

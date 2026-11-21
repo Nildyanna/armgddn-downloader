@@ -547,6 +547,24 @@ export function etaShown(eta) {
   return d && Number(d[1]) >= 30 ? '' : s;
 }
 
+// Time elapsed for a download: "42s", "5m 12s", "1h 02m 05s". Running ones count up to now; finished ones stop at their end time; paused or restored ones show nothing
+// (the clock would include the time the app was closed). '' when there is no usable start.
+export function elapsedShown(d, now = Date.now()) {
+  if (!d || !d.startTime) return '';
+  const start = Date.parse(d.startTime);
+  if (!Number.isFinite(start)) return '';
+  const st = String(d.status || '').toLowerCase();
+  let end;
+  if (['in_progress', 'downloading', 'starting'].includes(st)) end = now;
+  else if (['completed', 'complete', 'done', 'failed', 'cancelled', 'canceled', 'error'].includes(st) && d.endTime && Number.isFinite(Date.parse(d.endTime))) end = Date.parse(d.endTime);
+  else return '';
+  const sec = Math.max(0, Math.floor((end - start) / 1000));
+  const h = Math.floor(sec / 3600), m = Math.floor((sec % 3600) / 60), r = sec % 60;
+  if (h > 0) return h + 'h ' + String(m).padStart(2, '0') + 'm ' + String(r).padStart(2, '0') + 's';
+  if (m > 0) return m + 'm ' + String(r).padStart(2, '0') + 's';
+  return r + 's';
+}
+
 // Speed shown in MiB/s (an option; the default stays the Companion's bits per second): "58.6 MiB/s".
 export function formatMiBps(bytesPerSec) {
   const n = Number(bytesPerSec);

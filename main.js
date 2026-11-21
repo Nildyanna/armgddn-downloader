@@ -2423,6 +2423,7 @@ function loadHistory() {
 // Downloads that were unfinished when the app closed (an update, a crash, a restart) come back as "Paused" in the Downloads tab. Resume asks
 // the site for a fresh link to the same item, and the files already on disk are picked up as before. See inflightStore.js.
 const inflightStore = require('./inflightStore');
+const { pruneEmptyDirs } = require('./emptyDirs');
 const inflightFile = () => path.join(path.dirname(getHistoryPath()), 'inflight-downloads.json');
 function persistInflight(download) {
   try {
@@ -4925,6 +4926,7 @@ async function cleanupCancelledDownloadFiles(download) {
     }
   }
 
+  const removedParents = new Set();
   let cleanupOk = true;
   for (const file of (Array.isArray(download.files) ? download.files : [])) {
     const safeRel = sanitizeRelativePath(String(file && file.name ? file.name : ''));
@@ -4970,6 +4972,7 @@ async function cleanupCancelledDownloadFiles(download) {
       }
       await fs.promises.unlink(targetPath);
       logToFile(`[Cancel] Removed incomplete download file: ${safeRel}`);
+      removedParents.add(path.dirname(targetPath));
     } catch (e) {
       if (e && e.code !== 'ENOENT') {
         cleanupOk = false;
@@ -4977,6 +4980,19 @@ async function cleanupCancelledDownloadFiles(download) {
       }
     }
   }
+  // The folders this download made are empty now: remove them (only empty ones, never the download folder itself). Skipped when another running download
+  // writes into the same title folder, because it may be about to create a file there.
+  try {
+    const shared = Array.from(activeDownloads.values()).some((other) => other && other !== download && other.downloadDir && normalizeAbsolutePathKey(other.downloadDir) === normalizeAbsolutePathKey(downloadDir));
+    if (cleanupOk && !shared && removedParents.size) {
+      const gone = await pruneEmptyDirs(Array.from(removedParents).concat([downloadDir]), downloadRoot);
+      if (gone.length) logToFile(`[Cancel] Removed ${gone.length} empty folder${gone.length === 1 ? '' : 's'} left by the cancelled download`);
+    } else if (cleanupOk && !shared && !removedParents.size) {
+      // nothing was written yet: the folder this request created may still be there, empty
+      const gone = await pruneEmptyDirs([downloadDir], downloadRoot);
+      if (gone.length) logToFile('[Cancel] Removed the empty folder left by the cancelled download');
+    }
+  } catch (e) { logToFile(`[Cancel] Could not tidy empty folders: ${e && e.message ? e.message : e}`); }
   return cleanupOk;
 }
 
