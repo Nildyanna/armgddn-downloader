@@ -1,4 +1,10 @@
 {
+  "6.1.2": {
+    "title": "Search all sections behaves",
+    "highlights": [
+      "After using Search all sections, clicking a section tab now takes you back to that section instead of staying in search-everywhere mode. Thanks to Dirk for spotting this."
+    ]
+  },
   "6.1.1": {
     "title": "Download size matches the percentage",
     "highlights": [

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.2] - 2026-11-21
+
+### Fixed
+
+- After pressing Search all sections, the Everywhere box stayed on and clicking a section tab (for example PC Games) kept searching everywhere while the tab looked selected. Section tabs and Go links now turn Everywhere off, and no tab is highlighted while it is on. Reported by Dirk.
+
 ## [6.1.1] - 2026-11-21
 
 ### Fixed
