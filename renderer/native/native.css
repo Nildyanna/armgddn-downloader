@@ -704,3 +704,4 @@ header select + select { margin-left: 0; }
 .rqstatus.st-completed { border-color: #22c55e; color: #22c55e; }
 .rqstatus.st-rejected { border-color: #ef4444; color: #ef4444; }
 .rqdel { padding: 4px 8px; border-radius: 4px; border: 1px solid #ef4444; background: transparent; color: #ef4444; font-size: 12px; cursor: pointer; }
+.dbtn.on { border-color: #ef4444; color: #ef4444; }

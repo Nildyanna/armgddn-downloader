@@ -7,9 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [5.43.0] - 2026-11-21
+
 ### Changed
 
-- Admin Requests (owner and admins): the list is now cards with the same details as the website: popularity flame, NEW or UPDATE, the possible-game flag, who asked and how many others, the existing folder, the Steam link, notes, decision reason and the unseen-comment count. Added Send requester link, Copy /warn (on possible game requests) and, for the owner, Delete (with a confirmation).
+- Admin Requests (owner and admins): the list is now cards with the same details as the website: popularity flame, NEW or UPDATE, the possible-game flag, who asked and how many others, the existing folder, the Steam link, notes, decision reason and the unseen-comment count. Added Send requester link, Copy /warn (on possible game requests) and, for the owner, Delete (with a confirmation). An "Unseen comments" button shows only the requests with comments not yet seen, with the total on it.
 
 ## [5.42.3] - 2026-11-20
 

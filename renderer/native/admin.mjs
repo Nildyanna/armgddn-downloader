@@ -209,13 +209,17 @@ function RequestsPage({ audit, owner }) {
   const [by, setBy] = useState('');
   const [category, setCategory] = useState('');
   const [openReq, setOpenReq] = useState(null);
+  const [unseenOnly, setUnseenOnly] = useState(false);
   const [st, reload] = useAdminData('requests', status ? { status } : {}, 60);
   const [actionUi, act] = useAdminAction(() => reload());
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
   const all = requestRows(st.data.requests, { audit });
   const people = [...new Set(all.map((r) => r.handledBy).filter(Boolean))];
   const byWho = audit && by ? all.filter((r) => r.handledBy === by) : all;
-  const rows = !audit && category ? byWho.filter((r) => r.category === category) : byWho;
+  const byCat = !audit && category ? byWho.filter((r) => r.category === category) : byWho;
+  const unseenOf = (r) => requestCard(r.raw || {}).unread;
+  const rows = !audit && unseenOnly ? byCat.filter((r) => unseenOf(r) > 0) : byCat;
+  const unseenTotal = byCat.reduce((n, r) => n + unseenOf(r), 0);
   const stats = st.data.stats || {};
   const categories = [...new Set([...Object.keys(stats.byCategory || {}), ...all.map((r) => r.category).filter(Boolean)])].sort();
   // A click on a box of the request flow filters the list below, like it does on the website: a category sets the category, a status sets the status.
@@ -232,6 +236,7 @@ function RequestsPage({ audit, owner }) {
       <label>Status <select value=${status} onChange=${(e) => setStatus(e.target.value)}>${REQUEST_STATUSES.map((s) => html`<option value=${s}>${s ? labelOf(s) : 'All'}</option>`)}</select></label>
       ${audit ? '' : html`<label>Category <select value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All</option>${categories.map((c) => html`<option value=${c}>${c}</option>`)}</select></label>`}
       ${audit ? html`<label>Handled by <select value=${by} onChange=${(e) => setBy(e.target.value)}><option value="">All</option>${people.map((p) => html`<option value=${p}>@${p}</option>`)}</select></label>` : ''}
+      ${audit ? '' : html`<button class=${'dbtn' + (unseenOnly ? ' on' : '')} title="Show only requests with comments you have not seen yet" onClick=${() => setUnseenOnly(!unseenOnly)}>${unseenOnly ? 'Showing unseen comments only' : 'Unseen comments'}${unseenTotal ? html`<span class="rqunread">${unseenTotal}</span>` : ''}</button>`}
       <span class="sval">${rows.length} shown</span>
     </div>
     ${actionUi}
