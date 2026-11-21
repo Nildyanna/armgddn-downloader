@@ -60,6 +60,24 @@ export function toneOf(key, v) {
   return '';
 }
 
+// A colour group (0-7) for values that name a group: a role, a category, a section, a platform. The same word always gets the same colour, so a
+// table reads at a glance. Known names have fixed colours (PC blue, PCVR purple, Music pink, Comics orange); anything else is spread by its text. -1 = none.
+const GROUP_KEYS = /^(category|categories|type|kind|section|remote|platform|group|source|role|roles|level|tier|channel|service|name|collection)$/i;
+const FIXED_HUE = { owner: 4, admin: 1, administrator: 1, staff: 0, moderator: 0, manager: 0, member: 2, user: 2, pc: 0, pcvr: 1, games: 0, game: 0, music: 3, comics: 4, comic: 4, movies: 5, movie: 5, testing: 6, soundtracks: 7 };
+export function hueOf(key, v) {
+  if (typeof v !== 'string') return -1;
+  const t = v.trim(), k = String(key || '');
+  if (!t || t.length > 28 || !GROUP_KEYS.test(k)) return -1;
+  if (/^name$/i.test(k) && !/^(PC|PCVR|Testing|Music|Comics)\b[- ]?\d*$/i.test(t)) return -1;   // a plain name is not a group; only section names like PC-1
+  const base = t.toLowerCase().replace(/[- ]?\d+$/, '');
+  if (FIXED_HUE[base] !== undefined) return FIXED_HUE[base];
+  let h = 0; for (const ch of t.toLowerCase()) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return h % 8;
+}
+
+// Which colour each admin tab carries, so the tab row groups visually: live numbers, reports, tools, people.
+export const TAB_HUE = { overview: 0, analytics: 6, collections: 3, reliability: 2, system: 1, activity: 5, missing: 7, ipbans: 4, access: 4, console: 1, controls: 4, queue: 0, requests: 6, audit: 5 };
+
 // The 8 weekly pass/fail counts of the testing report: entry 0 is the week ending now. Says which weeks they are.
 export function weekRows(list, now = Date.now()) {
   const day = 86400000, fmt = (t) => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

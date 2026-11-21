@@ -2,7 +2,7 @@
 import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
 import './ownerRouting.js';
 import { runCommand, HELP } from './ownerConsole.mjs';
-import { toneOf, NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, requestCard, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { toneOf, hueOf, TAB_HUE, NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, requestCard, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -58,7 +58,9 @@ function useAdminAction(after) {
 // A value drawn with the colour its meaning calls for (green fine, amber watch, red wrong); plain when it carries no meaning.
 function Toned({ k, v, hint }) {
   const t = toneOf(k, v), text = formatCellFor(k, v, hint);
-  return t ? html`<span class=${'tone t-' + t}>${text}</span>` : text;
+  if (t) return html`<span class=${'tone t-' + t}>${text}</span>`;
+  const h = hueOf(k, v);
+  return h >= 0 ? html`<span class=${'chip h-' + h}>${text}</span>` : text;
 }
 
 function Cards({ items }) {
@@ -511,7 +513,7 @@ export function AdminView({ admin, initialTab }) {
   const savePdf = async () => { setPdfMsg(''); const r = await api.savePdf('ARMGDDN ' + ((tabs.find((t) => t[0] === cur) || [])[1] || 'Admin')); setPdfMsg(r && r.ok && r.data && r.data.saved ? 'Saved ' + r.data.name : r && r.ok ? '' : 'Could not save: ' + ((r && r.error && r.error.message) || 'no answer')); };
   return html`<main class="adminpage">
     <div class="adminhead"><h2>Admin</h2><button class="dbtn" onClick=${savePdf}>Save this page as PDF</button>${pdfMsg ? html`<span class="sval">${pdfMsg}</span>` : ''}</div>
-    <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${id === cur ? 'tab on' : 'tab'} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
+    <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${(id === cur ? 'tab on' : 'tab') + ' h-' + (TAB_HUE[id] ?? 0)} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
     ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'reliability' ? html`<${ReliabilityPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'console' ? html`<${ConsolePage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} owner=${!!(admin && admin.role === 'owner')} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;
 }

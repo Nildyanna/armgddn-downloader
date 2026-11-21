@@ -152,3 +152,11 @@ test('admin colours only things that carry a meaning', async () => {
   const tone = (l) => cards.find((c) => c.label === l).tone;
   assert.equal(tone('Load'), 'warn'); assert.equal(tone('Waiting in queue'), 'ok'); assert.equal(tone('Held redirects'), 'warn'); assert.equal(tone('Active streams'), 'warn');
 });
+
+test('admin group colours are stable and only for group-like columns', async () => {
+  const f = await import('../renderer/native/adminFormat.mjs');
+  assert.equal(f.hueOf('role', 'owner'), 4); assert.equal(f.hueOf('role', 'owner'), f.hueOf('role', 'owner'));
+  assert.equal(f.hueOf('name', 'PC-1'), 0); assert.equal(f.hueOf('name', 'PCVR-2'), 1); assert.equal(f.hueOf('name', 'Dirk'), -1);
+  assert.equal(f.hueOf('category', 'Music'), 3); assert.equal(f.hueOf('title', 'Music'), -1); assert.equal(f.hueOf('role', 5), -1);
+  const h = f.hueOf('category', 'Something New'); assert.ok(h >= 0 && h < 8);
+});
