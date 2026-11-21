@@ -4511,6 +4511,7 @@ async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
         'Content-Length': Buffer.byteLength(postData),
         // Says this app can use a Drive link with a token (direct-from-Drive); the site decides per file and otherwise sends the usual links.
         'X-Drive-Direct': '1',
+        'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(),   // the site can tell an out-of-date app and ask it to update (version 6.0.0 cutover)
         ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       }
     };
@@ -4592,7 +4593,8 @@ function attemptResolveDownloadToken(downloadToken, bearerToken) {
       path: pathWithQuery,
       method: 'GET',
       headers: {
-        'Authorization': `Bearer ${bearerToken}`
+        'Authorization': `Bearer ${bearerToken}`,
+        'User-Agent': 'ARMGDDN-Companion/' + app.getVersion()
       }
     };
 

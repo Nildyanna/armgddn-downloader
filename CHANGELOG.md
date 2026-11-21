@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed (6.0.0, to be dated on release day)
+
+- ARMGDDN Browser is now one app. Browsing, search, covers, requests, My List, the Wiki, settings and downloads all live in this window, and it is the only window. The website is now an information page: what ARMGDDN is, how to get the app, how to join the channel and the site status.
+- Every download for the whole library (games, 3D models, apps, Comics and Music) comes straight from Google Drive, tagged Drive in the Downloads tab. The old route through the download gateway is no longer used by the app. Over a limit, or when Google Drive does not answer, the app says so and how long to wait.
+- Version 6.0.0 is a required update. Older versions stop downloading until they update (Settings, Updates, Check for updates).
+- The app's built-in engine is updated to Electron 45.4.1 with the latest Chromium and Node security fixes.
+
+### Removed
+
+- The setting "Open this native window when the app starts", the "Open the classic window" button, and the "Switch to the classic window" entries in the File menu and the tray menu. The old window can no longer be opened.
+
 ## [5.43.0] - 2026-11-21
 
 ### Changed

@@ -1,4 +1,12 @@
 {
+  "6.0.0": {
+    "title": "One app for the whole library",
+    "highlights": [
+      "ARMGDDN Browser is now one app: browse, search, request, keep your list, read the Wiki and download, all in this window. The website is now information only.",
+      "Every download comes straight from Google Drive, and each file shows a Drive tag in the Downloads tab. If you reach a limit, or Drive is slow to answer, the app tells you which and how long to wait, and nothing is lost.",
+      "Your settings, My List and requests are all still here. To update in future: Settings, Updates, Check for updates."
+    ]
+  },
   "5.42.2": {
     "title": "Easier on your graphics card",
     "highlights": [
