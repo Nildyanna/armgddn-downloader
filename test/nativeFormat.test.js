@@ -527,3 +527,13 @@ test('the Downloads tab shows time elapsed next to the ETA: running ones count u
   const bridge = require('fs').readFileSync(require('path').join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
   assert.ok(bridge.includes("startTime: d.startTime || '', endTime: d.endTime || ''"));
 });
+
+test('the Downloads tab shows the bytes written so far, not only the finished files (007 First Light read "32% . 3.9 MB of 43.4 GB", DMP Nov 21)', () => {
+  const fs = require('fs'), path = require('path');
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
+  assert.ok(main.includes('download.bytesSoFar = bytesSoFar;'));
+  assert.ok(bridge.includes("downloadedSize: Math.max(Number(d.downloadedSize) || 0, Number(d.bytesSoFar) || 0),"));
+  // the internal completed-bytes counter that decides when a download is finished is left alone
+  assert.ok(main.includes("const isByteComplete = totalSize > 0 && downloadedSize >= totalSize;"));
+});

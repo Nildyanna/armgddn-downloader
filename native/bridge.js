@@ -110,7 +110,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     return { started: true };
   }));
   ipcMain.handle('native:downloads', wrap(async () => (getDownloads ? getDownloads() : []).map((d) => ({
-    id: d.id, name: d.name, status: d.status, progress: d.progress, speed: d.speed, totalSpeed: d.totalSpeed, totalSpeedBytes: Number(d.totalSpeedBytes) || 0, eta: d.eta, totalSize: d.totalSize, downloadedSize: d.downloadedSize,
+    id: d.id, name: d.name, status: d.status, progress: d.progress, speed: d.speed, totalSpeed: d.totalSpeed, totalSpeedBytes: Number(d.totalSpeedBytes) || 0, eta: d.eta, totalSize: d.totalSize, downloadedSize: Math.max(Number(d.downloadedSize) || 0, Number(d.bytesSoFar) || 0),
     fileCount: d.fileCount, completedFiles: d.completedFiles, activeFiles: d.activeFiles,
     startTime: d.startTime || '', endTime: d.endTime || '',
     error: d.error || '' }))));

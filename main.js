@@ -7913,6 +7913,7 @@ function parseRcloneProgress(downloadId, fileKey, output) {
       if (size > 0 && p2 > 0 && p2 < 100) activeBytes += Math.round((p2 / 100) * size);
     }
     const bytesSoFar = total > 0 ? Math.min(total, Math.max(0, doneBytes + activeBytes)) : doneBytes + activeBytes;
+    download.bytesSoFar = bytesSoFar;     // finished files plus what the running ones have written: what the window shows (downloadedSize alone only counts finished files)
     const est = require('./downloadRate').rateEstimate(download, bytesSoFar, total, now);
     if (est.speed > totalSpeedBytes) download.totalSpeed = formatSpeed(est.speed);
     download.totalSpeedBytes = Math.max(totalSpeedBytes, est.speed || 0);     // the same speed as a number, for the MiB/s option in the new window
