@@ -67,7 +67,7 @@ const FIXED_HUE = { owner: 4, admin: 1, administrator: 1, staff: 0, moderator: 0
 export function hueOf(key, v, hint) {
   if (typeof v !== 'string') return -1;
   const t = v.trim(), k = String(key || '');
-  if (!t || t.length > 28 || !GROUP_KEYS.test(k)) return -1;
+  if (!t || t.length > 60 || !GROUP_KEYS.test(k)) return -1;
   if (/^name$/i.test(k) && hint !== 'sections' && !/^(PC|PCVR|Testing|Music|Comics)\b[- ]?\d*$/i.test(t)) return -1;   // a plain name is not a group; only section names like PC-1
   const base = t.toLowerCase().replace(/[- ]?\d+$/, '');
   if (FIXED_HUE[base] !== undefined) return FIXED_HUE[base];

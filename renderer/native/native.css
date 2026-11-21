@@ -728,7 +728,7 @@ header select + select { margin-left: 0; }
 .adminpage { --h0: #4f9cf0; --h1: #a56cf0; --h2: #2bb5a6; --h3: #e86aa6; --h4: #e8943a; --h5: #8cc63f; --h6: #35b8d8; --h7: #e8606c; }
 .h-0 { --hc: var(--h0); } .h-1 { --hc: var(--h1); } .h-2 { --hc: var(--h2); } .h-3 { --hc: var(--h3); }
 .h-4 { --hc: var(--h4); } .h-5 { --hc: var(--h5); } .h-6 { --hc: var(--h6); } .h-7 { --hc: var(--h7); }
-.gchip { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 12px; line-height: 20px; font-weight: 600; color: var(--hc); background: color-mix(in srgb, var(--hc) 15%, transparent); border: 1px solid color-mix(in srgb, var(--hc) 45%, transparent); }
+.gchip { display: inline-block; max-width: 100%; padding: 0 8px; border-radius: 12px; font-size: 12px; line-height: 20px; font-weight: 600; color: var(--hc); background: color-mix(in srgb, var(--hc) 15%, transparent); border: 1px solid color-mix(in srgb, var(--hc) 45%, transparent); }
 .atabs .tab[class*="h-"] { border-bottom: 2px solid color-mix(in srgb, var(--hc, var(--accent)) 55%, transparent); }
 .atabs .tab[class*="h-"].on { border-color: var(--hc, var(--accent)); background: color-mix(in srgb, var(--hc, var(--accent)) 16%, transparent); }
 .atabs .tab[class*="h-"]:hover { background: color-mix(in srgb, var(--hc, var(--accent)) 10%, transparent); }
