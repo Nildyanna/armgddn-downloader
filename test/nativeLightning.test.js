@@ -38,7 +38,12 @@ test('opening the Companion again or using the tray brings up the native window 
   assert.ok(second.indexOf('showAppWindow()') > -1, 'a second launch shows the native window first');
   const tray = main.slice(main.indexOf('const showMainWindow = () => {'), main.indexOf('const showMainWindow = () => {') + 200);
   assert.ok(tray.includes('showAppWindow()'), 'the tray shows the native window first');
-  assert.ok(main.includes("nativeWindow.on('close'") && main.includes('settings.minimizeToTrayOnClose) { event.preventDefault(); nativeWindow.hide(); }'));
+  // closing: hide to the tray only when that setting is on; otherwise the app ends (the hidden old window used to keep it alive with nothing to show)
+  assert.ok(main.includes("nativeWindow.on('close'") && main.includes('settings.minimizeToTrayOnClose) { event.preventDefault(); nativeWindow.hide(); return; }'));
+  assert.ok(main.includes("nativeWindow.on('closed', () => { if (!app.isQuitting) { app.isQuitting = true; app.quit(); } });"));
+  // and the old window is never shown in the native app, by the tray or by a second launch (6.0.2: the tray brought it up after the native window was closed)
+  assert.ok(main.slice(main.indexOf('const showMainWindow = () => {'), main.indexOf('const showMainWindow = () => {') + 400).includes('if (NATIVE_PREVIEW) return;'));
+  assert.ok(second.includes('} else if (NATIVE_PREVIEW) {'));
 });
 
 test('the Companion checks for updates once an hour in the main process, announces each new version once, and the native window has a Check for updates button and an Update now bar', () => {

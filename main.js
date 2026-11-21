@@ -669,6 +669,7 @@ const NATIVE_PREVIEW = nativeGate.wantsNative({ argv: process.argv });
 let nativeWindow = null;   // the native preview window, once it is open
 // Bring up the app's window: the native window when the app is running in native mode, otherwise the classic one. (The tray and a second launch used
 // to show the hidden classic window even in native mode, so a member who opened the Companion again saw the old window.)
+let _closeConfirmed = false;   // the native window already asked about running downloads before the app quits
 function showAppWindow() {
   try {
     if (typeof NATIVE_PREVIEW !== 'undefined' && NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()) {
@@ -778,6 +779,8 @@ if (!gotTheLock) {
     // can already be destroyed while the app is quitting (Sentry COMPANION-B).
     if (showAppWindow()) {
       // the native window is up; nothing more to show
+    } else if (NATIVE_PREVIEW) {
+      // the native app never shows the old window; a second launch while the app is closing has nothing to show
     } else if (mainWindow && !mainWindow.isDestroyed()) {
       if (mainWindow.isMinimized()) mainWindow.restore();
       mainWindow.show();
@@ -3222,7 +3225,7 @@ function createWindow() {
     // app is quitting to install an update the question was asked before the installer started: asking again, and cancelling, left the old app open next to
     // an installer that went ahead (Dirk, Nov 20).
     const activeCount = Array.from(activeDownloads.values()).filter((d) => d && ['in_progress', 'downloading', 'starting'].includes(d.status)).length;
-    if (activeCount > 0 && !_installUpdateInProgress) {
+    if (activeCount > 0 && !_installUpdateInProgress && !_closeConfirmed) {
       const result = withDialogFocusSync(() => dialog.showMessageBoxSync(getDialogParentWindow(), {
         type: 'question',
         buttons: ['Cancel', 'Quit Anyway'],
@@ -3253,6 +3256,7 @@ function createTray() {
 
   const showMainWindow = () => {
     if (showAppWindow()) return;
+    if (NATIVE_PREVIEW) return;          // the old window is never shown in the native app (6.0.2: the tray used to bring it up when the native window was gone)
     if (!mainWindow || mainWindow.isDestroyed()) return;
     mainWindow.show();
     // On KDE Plasma, moveTop() is needed to raise the window above other open apps.
@@ -3579,9 +3583,26 @@ app.whenReady().then(() => {
       // Closing the native window keeps the app in the tray when that setting is on (like the classic window), so opening the Companion again
       // or clicking the tray icon brings this window back instead of the hidden classic one.
       try {
-        if (nativeWindow && !nativeWindow.isDestroyed()) nativeWindow.on('close', (event) => {
-          if (!app.isQuitting && settings && settings.minimizeToTrayOnClose) { event.preventDefault(); nativeWindow.hide(); }
-        });
+        if (nativeWindow && !nativeWindow.isDestroyed()) {
+          nativeWindow.on('close', (event) => {
+            if (app.isQuitting) return;
+            if (settings && settings.minimizeToTrayOnClose) { event.preventDefault(); nativeWindow.hide(); return; }
+            // A real close (Keep running in the tray is off) ends the app, so ask first when downloads are running, as the old window did.
+            const activeCount = Array.from(activeDownloads.values()).filter((d) => d && ['in_progress', 'downloading', 'starting'].includes(d.status)).length;
+            if (activeCount > 0 && !_installUpdateInProgress) {
+              const result = withDialogFocusSync(() => dialog.showMessageBoxSync(nativeWindow, {
+                type: 'question', buttons: ['Cancel', 'Quit Anyway'], defaultId: 0, title: 'Active Downloads',
+                message: `There ${activeCount === 1 ? 'is' : 'are'} ${activeCount} active download${activeCount === 1 ? '' : 's'}.`,
+                detail: 'Quitting now will interrupt the downloads. Are you sure you want to quit?'
+              }));
+              if (result === 0) { event.preventDefault(); return; }
+              _closeConfirmed = true;
+            }
+          });
+          // The hidden classic window keeps the process alive, so closing the only visible window must end the app itself (6.0.2: it used to stay in the
+          // tray with no window, and clicking the tray then showed the old Companion window).
+          nativeWindow.on('closed', () => { if (!app.isQuitting) { app.isQuitting = true; app.quit(); } });
+        }
       } catch (e) { }
     } catch (e) { logToFile('[Native] preview failed to start: ' + e.message); }
   }

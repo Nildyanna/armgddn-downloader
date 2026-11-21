@@ -69,5 +69,7 @@ test('Music and Comics downloads from the native window go to the folder chosen 
 test('updating never starts the installer while a download runs, and quitting for an update does not ask again', () => {
   const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
   assert.ok(main.includes("if (anyDownloadRunning()) {\n    logToFile('install-update: a download is running; not updating now');"));
-  assert.ok(main.includes("['in_progress', 'downloading', 'starting'].includes(d.status)).length;\n    if (activeCount > 0 && !_installUpdateInProgress) {"));
+  assert.ok(main.includes("['in_progress', 'downloading', 'starting'].includes(d.status)).length;\n    if (activeCount > 0 && !_installUpdateInProgress && !_closeConfirmed) {"));
+  // the native window asks the same question before a real close, and the old window then does not ask a second time
+  assert.ok(main.includes("if (activeCount > 0 && !_installUpdateInProgress) {\n              const result = withDialogFocusSync(() => dialog.showMessageBoxSync(nativeWindow, {"));
 });
