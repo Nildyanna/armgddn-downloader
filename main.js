@@ -663,9 +663,9 @@ async function refreshDownloadConcurrency(download, token, manifestUrl) {
 // Native browser preview (staging only): `--native` opens the new browse window next to the normal one. Nothing happens without the flag.
 const nativeGate = require('./nativeGate');
 const shortcutNames = require('./shortcutNames');
-// Which window this launch opens: --native (development) or --classic on the command line, otherwise the site's saved answer for this member (see
-// nativeGate.js): the native window opens only for members the site lists, and only if they have not turned it off.
-const NATIVE_PREVIEW = nativeGate.wantsNative({ argv: process.argv, config: nativeGate.readEarlyConfig(path.join(app.getPath('userData'), 'config.json'), fs) });
+// Which window this launch opens: always the native window (version 6.0.0: every member uses it and it cannot be turned off). Only the developer
+// flag --classic opens the old window (see nativeGate.js).
+const NATIVE_PREVIEW = nativeGate.wantsNative({ argv: process.argv });
 let nativeWindow = null;   // the native preview window, once it is open
 // Bring up the app's window: the native window when the app is running in native mode, otherwise the classic one. (The tray and a second launch used
 // to show the hidden classic window even in native mode, so a member who opened the Companion again saw the old window.)
@@ -1465,8 +1465,6 @@ let settings = {
   startWithOsStartup: false,
   startWithOsMinimized: false,
   errorReporting: true,
-  nativeAllowed: false,     // the site's answer: is the native window meant for this member (set by the app, never by the page)
-  useNativeWindow: true,    // the member's own switch, only used when nativeAllowed
   lastSeenVersion: ''
 };
 
@@ -2327,7 +2325,6 @@ function writeSessionFile(sessionPath, data) {
 
 // Save app session token to file (encrypted)
 function saveSession(token) {
-  try { scheduleNativeGateCheck(4000); } catch (e) { }
   try {
     const sessionPath = getSessionPath();
     // Session expires in 30 days
@@ -3267,14 +3264,6 @@ function createTray() {
 
   const buildTrayMenu = () => Menu.buildFromTemplate([
     { label: 'Show', click: showMainWindow },
-    ...((settings.nativeAllowed === true && !process.argv.includes('--native') && !process.argv.includes('--classic')) ? [{
-      label: NATIVE_PREVIEW ? 'Switch to the classic window' : 'Switch to the native window',
-      click: () => {
-        if (anyDownloadRunning()) { try { dialog.showMessageBox({ type: 'info', message: 'A download is running', detail: 'Switch windows after it finishes, or pause it first.', buttons: ['OK'] }); } catch (e) { } return; }
-        settings.useNativeWindow = !NATIVE_PREVIEW; saveSettings();
-        relaunchInto('the member switched windows');
-      }
-    }] : []),
     {
       label: 'Open Log Folder', click: () => {
         try {
@@ -3289,7 +3278,6 @@ function createTray() {
 
   tray.setToolTip(NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion');
   tray.setContextMenu(buildTrayMenu());
-  rebuildTrayMenu = () => { try { tray.setContextMenu(buildTrayMenu()); } catch (e) { } };
 
   tray.on('click', showMainWindow);
   // KDE Plasma may route tray activation as double-click depending on system settings
@@ -3321,7 +3309,6 @@ function createAppMenu() {
       submenu: [
         { label: 'Settings', accelerator: 'CmdOrCtrl+,', click: () => openSettingsWindow() },
         { label: 'Check for updates', click: () => checkForUpdatesFromMenu() },
-        { label: NATIVE_PREVIEW ? 'Switch to the classic window' : 'Switch to the new window', click: () => switchWindowMode() },
         { type: 'separator' },
         ...(process.platform === 'darwin' ? [{ role: 'close' }] : [{ label: 'Exit', accelerator: 'CmdOrCtrl+Q', click: () => { app.isQuitting = true; app.quit(); } }])
       ]
@@ -3581,7 +3568,6 @@ app.whenReady().then(() => {
       nativeWindow = require('./native/bridge').start({
         BrowserWindow, ipcMain, shell, dialog, clipboard: require('electron').clipboard, clearSession, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
         openLogin: () => openAuthWindow(), log: logToFile,
-        showClassic: () => { try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e) { } } else { mainWindow.focus(); } } } catch (e) { } },
         startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer),
         // A Music or Comics download goes to the folder chosen for it in Settings (the website's links carry dest=music|comics for the same reason);
         // with no folder chosen it goes to the download folder as before.
@@ -3629,7 +3615,6 @@ app.whenReady().then(() => {
       });
     }
   } catch (e) { logToFile('[Shortcut] sync failed: ' + (e && e.message ? e.message : e)); }
-  try { scheduleNativeGateCheck(5000); const gateTimer = setInterval(() => { nativeGateCheck(false); }, 10 * 60 * 1000); if (gateTimer.unref) gateTimer.unref(); } catch (e) { }
   loadHistory();
   loadOrphanedDownloads();
   loadSession();
@@ -3746,17 +3731,9 @@ ipcMain.handle('retry-download', async (event, downloadId) => {
 const AUTO_RETRY_TRANSIENT_RE = /(stalled|link expired|network\/dns|timed out|connection dropped|gateway error|could not be resumed|download failed\.)/i;
 const AUTO_RETRY_BLOCK_RE = /(disk space|quota|date\/time|download folder|security error)/i;
 const AUTO_RETRY_MAX = 5;
-// ---- Native window gate (see nativeGate.js): ask the site whether this member should have the native window, remember the answer, and relaunch
-// into the right window when it changed. Never while a download is running; a relaunch marks itself so it cannot loop.
-let lastNativeGateCheck = 0, rebuildTrayMenu = null;
+// ---- Window helpers. The native window is the only window (version 6.0.0), so there is no switching between windows any more.
 function anyDownloadRunning() {
   try { return Array.from(activeDownloads.values()).some((d) => d && ['in_progress', 'downloading', 'starting'].includes(d.status)); } catch (e) { return false; }
-}
-function relaunchInto(why) {
-  logToFile('[Native] relaunching: ' + why);
-  app.isQuitting = true;
-  app.relaunch({ args: process.argv.slice(1).filter((a) => a !== '--gate-relaunched').concat(['--gate-relaunched']) });
-  app.exit(0);
 }
 // Menu actions (File / Help) that work the same whichever window is open: the app's own Settings, an update check, and the switch between the
 // classic and the native window. A Companion whose window had no way to reach its Settings left a member stuck in the wrong window.
@@ -3790,17 +3767,6 @@ function checkForUpdatesFromMenu() {
     }
   } catch (e) { logToFile('checkForUpdatesFromMenu failed: ' + e.message); }
 }
-function switchWindowMode() {
-  try {
-    if (settings.nativeAllowed !== true) {
-      dialog.showMessageBox({ type: 'info', message: 'The new window is not available for this account yet.', buttons: ['OK'] }).catch(() => { });
-      return;
-    }
-    if (anyDownloadRunning()) { dialog.showMessageBox({ type: 'info', message: 'A download is running', detail: 'Switch windows after it finishes, or pause it first.', buttons: ['OK'] }).catch(() => { }); return; }
-    settings.useNativeWindow = !NATIVE_PREVIEW; saveSettings();
-    relaunchInto('the member switched windows (menu)');
-  } catch (e) { logToFile('switchWindowMode failed: ' + e.message); }
-}
 // Help > About: the version and what it runs on, with a button that copies those details for a support message.
 function showAboutDialog() {
   try {
@@ -3811,27 +3777,6 @@ function showAboutDialog() {
     (win ? dialog.showMessageBox(win, opts) : dialog.showMessageBox(opts)).then((r) => { if (r && r.response === 1) { try { require('electron').clipboard.writeText(details); } catch (e) { } } }).catch(() => { });
   } catch (e) { logToFile('showAboutDialog failed: ' + e.message); }
 }
-async function nativeGateCheck(force) {
-  try {
-    if (SMOKE_TEST) return;
-    if (!force && Date.now() - lastNativeGateCheck < 60 * 1000) return;
-    const token = savedSessionToken();
-    if (!token) return;
-    lastNativeGateCheck = Date.now();
-    const answer = await nativeGate.checkAllowed(token, { nativeWindowOn: settings.useNativeWindow !== false });
-    const d = nativeGate.decide({ answer, config: settings, argv: process.argv, runningNative: NATIVE_PREVIEW });
-    if (d.update) {
-      Object.assign(settings, d.update); saveSettings();
-      logToFile('[Native] the site says the native window is ' + (d.update.nativeAllowed ? 'meant for this member' : 'not meant for this member'));
-      try { if (rebuildTrayMenu) rebuildTrayMenu(); } catch (e) { }
-    }
-    if (d.relaunch) {
-      if (anyDownloadRunning()) { logToFile('[Native] a download is running; the window switch waits for the next check'); lastNativeGateCheck = 0; return; }
-      relaunchInto(d.update && d.update.nativeAllowed ? 'opening the native window' : 'back to the classic window');
-    }
-  } catch (e) { logToFile('[Native] gate check failed: ' + (e && e.message ? e.message : e)); }
-}
-function scheduleNativeGateCheck(delayMs) { try { const t = setTimeout(() => { nativeGateCheck(false); }, delayMs || 3000); if (t.unref) t.unref(); } catch (e) { } }
 
 // A download that has finally failed (no automatic retry waiting) tells the site how much of its direct-from-Drive grant was not downloaded, so
 // the member's daily allowance is credited back. A paused download sends nothing: it can resume, and the allowance window rolls on its own.
@@ -3952,7 +3897,6 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'startWithOsStartup',
     'startWithOsMinimized',
     'errorReporting',
-    'useNativeWindow',
     'lastSeenVersion'
   ]);
 

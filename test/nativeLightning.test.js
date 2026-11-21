@@ -137,10 +137,11 @@ test('the Requests page no longer throws (a notice that used the library page\'s
   assert.ok(fs.readFileSync(path.join(__dirname, '..', 'native', 'vendor', 'ui.mjs'), 'utf8').includes('Component'));
 });
 
-test('the File and Help menus reach Settings, the update check and the window switch in either window', () => {
+test('the File and Help menus reach Settings and the update check, and offer no way back to the classic window', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   const menu = main.slice(main.indexOf('function createAppMenu()'), main.indexOf('Menu.setApplicationMenu(menu)'));
-  for (const piece of ["label: 'Settings'", "label: 'Check for updates'", "'Switch to the classic window' : 'Switch to the new window'", 'Open the log folder']) assert.ok(menu.includes(piece), piece);
+  for (const piece of ["label: 'Settings'", "label: 'Check for updates'", 'Open the log folder']) assert.ok(menu.includes(piece), piece);
+  assert.ok(!menu.includes('classic window') && !menu.includes('Switch to the'));
   assert.ok(main.includes("function openSettingsWindow()") && main.includes("'native:open', { view: 'settings' }") && main.includes("getElementById('settings-btn')"));
   assert.ok(main.includes("'native:open', { view: 'settings', check: true }") && main.includes("getElementById('check-updates-btn')"));
   const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');

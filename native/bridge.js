@@ -40,7 +40,7 @@ function registerSchemes(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'armgddn-img', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 }
 
-function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, showClassic, destFor }) {
+function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, destFor }) {
   const api = createApiClient({ getToken, version });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
@@ -321,8 +321,6 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     await shell.openExternal(u.toString());
     return { opened: true };
   }));
-  // Settings, history and the other tools still live in the classic window until they are moved over: this brings it to the front.
-  ipcMain.handle('native:openClassic', wrap(async () => { if (showClassic) showClassic(); return { opened: true }; }));
   ipcMain.handle('native:stats', wrap(async () => api.stats));
 
   protocol.handle('armgddn-img', async (request) => {

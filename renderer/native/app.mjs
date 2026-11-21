@@ -341,7 +341,6 @@ const SETTING_ROWS = [
   ['select', 'connectionsPerFile', 'Connections per file', [[0, 'Automatic'], [1, '1'], [2, '2'], [4, '4'], [8, '8'], [16, '16']]],
   ['number', 'maxDownloadSpeedMBps', 'Speed limit in MB/s (0 = no limit)', 0, 10000],
   ['check', 'autoHashCheck', 'Check files after downloading'],
-  ['check', 'useNativeWindow', 'Open this native window when the app starts (turn off to use the classic window; applies next time the app starts)'],
   ['check', 'autoExtract7z', 'Extract .7z files automatically'],
   ['check', 'showNotifications', 'Show notifications'],
   ['check', 'minimizeToTrayOnMinimize', 'Minimize to the tray'],
@@ -645,7 +644,6 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
     </section>
     <section class="sgroup"><h3>The app and its window</h3>
     ${ownerToggle ? html`<label class="srow"><input type="checkbox" checked=${!ownerToggle.off} onChange=${(e) => ownerToggle.set(!e.target.checked)} /> <span class="slabel">Owner view: show the Admin tab and the status dock (turn off to see the app as a regular member)</span></label>` : ''}
-    ${settingRow('useNativeWindow')}
     ${settingRow('showNotifications')}
     ${settingRow('minimizeToTrayOnMinimize')}
     ${settingRow('minimizeToTrayOnClose')}
@@ -654,7 +652,6 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
     ${settingRow('startWithOsMinimized')}
     <div class="srow"><span class="slabel">Login animation (lightning and thunder, loud)</span><button class="dbtn" onClick=${() => mountLoginLightning()}>Replay</button></div>
     <label class="srow"><input type="checkbox" checked=${localStorage.getItem('native.lightningOff') !== '1'} onChange=${(e) => { try { localStorage.setItem('native.lightningOff', e.target.checked ? '0' : '1'); } catch (er) { } }} /> <span class="slabel">Play the login animation on a first sign-in</span></label>
-    <div class="srow"><span class="slabel">The classic window is still available</span><button class="dbtn" onClick=${() => api.openClassic()}>Open the classic window</button></div>
     </section>
     <section class="sgroup"><h3>Import</h3>
     <div class="srow"><span class="slabel">Import the settings of the installed Companion (folders, speed, toggles)</span><button class="dbtn" onClick=${async () => { const r = await api.importSettings(); if (r && r.same) say('This already is the installed Companion\'s settings'); else if (r && r.imported) { say('Imported ' + r.imported + ' settings'); const g = await api.getSettings(); if (g) setS(g); } else say('No installed Companion settings were found'); }}>Import</button></div>
