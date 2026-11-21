@@ -1,4 +1,10 @@
 {
+  "6.2.1": {
+    "title": "Music keeps its folders",
+    "highlights": [
+      "Downloading a whole artist, or several albums at once, now saves them as Artist > Album > songs instead of dumping every file into one folder. Thanks to Dirk for spotting this."
+    ]
+  },
   "6.2.0": {
     "title": "Read text files without downloading",
     "highlights": [

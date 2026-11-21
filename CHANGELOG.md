@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.2.1] - 2026-11-21
+
+### Fixed
+
+- Downloading a whole music artist, or several albums at once, saved every file flat in one folder. Artist and album folders are now kept, and a batch from one artist is named after the artist. Reported by Dirk.
+
 ## [6.2.0] - 2026-11-21
 
 ### Added
