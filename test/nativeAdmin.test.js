@@ -141,3 +141,14 @@ test('a request card carries the same details as the website list, and the /warn
   const bare = f.requestCard({ id: 2, gameTitle: 'X', gameUrl: 'javascript:alert(1)' });
   assert.equal(bare.url, ''); assert.equal(bare.warn, ''); assert.equal(bare.handle, 'Unknown'); assert.equal(bare.pop, 1);
 });
+
+test('admin colours only things that carry a meaning', async () => {
+  const f = await import('../renderer/native/adminFormat.mjs');
+  assert.equal(f.toneOf('status', 'healthy'), 'ok'); assert.equal(f.toneOf('status', 'at-quota'), 'warn'); assert.equal(f.toneOf('status', 'offline'), 'bad');
+  assert.equal(f.toneOf('failures', 0), 'ok'); assert.equal(f.toneOf('failures', 2), 'warn'); assert.equal(f.toneOf('failures', 9), 'bad');
+  assert.equal(f.toneOf('lastError', 'rclone error'), 'bad');
+  assert.equal(f.toneOf('name', 'PC-1'), ''); assert.equal(f.toneOf('downloads', 60), ''); assert.equal(f.toneOf('x', null), '');
+  const cards = f.statCards({ overhead: { level: 'high' }, concurrency: { globalStreamQueueLength: 0, heldRedirectCount: 3, maxGlobalRcloneStreams: 10, activeTotalStreams: 9 } });
+  const tone = (l) => cards.find((c) => c.label === l).tone;
+  assert.equal(tone('Load'), 'warn'); assert.equal(tone('Waiting in queue'), 'ok'); assert.equal(tone('Held redirects'), 'warn'); assert.equal(tone('Active streams'), 'warn');
+});

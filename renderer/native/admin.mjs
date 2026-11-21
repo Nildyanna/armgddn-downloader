@@ -2,7 +2,7 @@
 import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
 import './ownerRouting.js';
 import { runCommand, HELP } from './ownerConsole.mjs';
-import { NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, requestCard, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { toneOf, NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, requestCard, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -55,8 +55,14 @@ function useAdminAction(after) {
   return [ui, run];
 }
 
+// A value drawn with the colour its meaning calls for (green fine, amber watch, red wrong); plain when it carries no meaning.
+function Toned({ k, v, hint }) {
+  const t = toneOf(k, v), text = formatCellFor(k, v, hint);
+  return t ? html`<span class=${'tone t-' + t}>${text}</span>` : text;
+}
+
 function Cards({ items }) {
-  return html`<div class="acards">${items.map((c) => html`<div class="acard" key=${c.label}><div class="alabel">${c.label}</div><div class="avalue">${c.value}</div>${c.hint ? html`<div class="ahint">${c.hint}</div>` : ''}</div>`)}</div>`;
+  return html`<div class="acards">${items.map((c) => html`<div class=${'acard' + (c.tone ? ' t-' + c.tone : '')} key=${c.label}><div class="alabel">${c.label}</div><div class="avalue">${c.value}</div>${c.hint ? html`<div class="ahint">${c.hint}</div>` : ''}</div>`)}</div>`;
 }
 
 const MAX_ROWS = 200;
@@ -65,7 +71,7 @@ export function DataTable({ rows, columns, empty, extra, extraLabel, hint }) {
   const list = all.slice(0, MAX_ROWS);
   if (!list.length) return html`<div class="empty">${empty || 'Nothing to show.'}</div>`;
   const cols = columns || tableColumns(list);
-  return html`<div><div class="atable"><table><thead><tr>${cols.map((c) => html`<th key=${c}>${labelOf(c)}</th>`)}${extra ? html`<th>${extraLabel || 'Action'}</th>` : ''}</tr></thead><tbody>${list.map((r, i) => html`<tr key=${i}>${cols.map((c) => html`<td key=${c}>${formatCellFor(c, r[c], hint)}</td>`)}${extra ? html`<td>${extra(r)}</td>` : ''}</tr>`)}</tbody></table></div>${all.length > MAX_ROWS ? html`<div class="sval">Showing the first ${MAX_ROWS} of ${all.length}. Filter by status to narrow it.</div>` : ''}</div>`;
+  return html`<div><div class="atable"><table><thead><tr>${cols.map((c) => html`<th key=${c}>${labelOf(c)}</th>`)}${extra ? html`<th>${extraLabel || 'Action'}</th>` : ''}</tr></thead><tbody>${list.map((r, i) => html`<tr key=${i}>${cols.map((c) => html`<td key=${c}><${Toned} k=${c} v=${r[c]} hint=${hint} /></td>`)}${extra ? html`<td>${extra(r)}</td>` : ''}</tr>`)}</tbody></table></div>${all.length > MAX_ROWS ? html`<div class="sval">Showing the first ${MAX_ROWS} of ${all.length}. Filter by status to narrow it.</div>` : ''}</div>`;
 }
 
 // Any answer the site gives, drawn as it comes: plain values as rows, lists of records as tables, nested objects as their own groups.
@@ -79,7 +85,7 @@ function Tree({ value, depth = 0, hint }) {
   const plain = entries.filter(([, v]) => v === null || typeof v !== 'object');
   const nested = entries.filter(([, v]) => v !== null && typeof v === 'object');
   return html`<div class=${'atree d' + Math.min(depth, 2)}>
-    ${plain.length ? html`<div class="akv">${plain.map(([k, v]) => html`<div class="arow" key=${k}><span class="ak">${labelOf(k)}</span><span class="av">${formatCellFor(k, v, hint)}</span></div>`)}</div>` : ''}
+    ${plain.length ? html`<div class="akv">${plain.map(([k, v]) => html`<div class="arow" key=${k}><span class="ak">${labelOf(k)}</span><span class="av"><${Toned} k=${k} v=${v} hint=${hint} /></span></div>`)}</div>` : ''}
     ${nested.map(([k, v]) => (Array.isArray(v) && !v.length) || (!Array.isArray(v) && !Object.keys(v).length) ? '' : html`<section class="agroup" key=${k}><h4>${labelOf(k)}</h4><${Tree} value=${v} depth=${depth + 1} hint=${k} /></section>`)}
   </div>`;
 }

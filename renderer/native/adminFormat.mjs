@@ -36,6 +36,30 @@ export function formatCellFor(key, v, hint) {
   return formatCell(v);
 }
 
+// Colour for a value in the admin reports: 'ok' (green), 'warn' (amber), 'bad' (red), or '' (plain). Looks at the column name and the value together,
+// so only things that carry a meaning are coloured (a status word, a failure count, a last error), never ordinary numbers.
+const OK_WORDS = /^(healthy|ok|okay|online|up|success|succeeded|approved|done|completed|available|enabled|active|running|passed|pass|good|live|fixed|resolved|normal)$/i;
+const WARN_WORDS = /^(pending|warning|warn|at[- ]quota|degraded|queued|waiting|stale|slow|partial|elevated|busy|paused|on hold|held|unknown|testing|in progress|high)$/i;
+const BAD_WORDS = /^(error|errors|failed|failure|offline|down|rejected|denied|declined|banned|blocked|unavailable|disabled|critical|overloaded|expired|timeout|timed out|dead)$/i;
+export function toneOf(key, v) {
+  const k = String(key || '');
+  if (v === null || v === undefined || v === '') return '';
+  if (typeof v === 'string') {
+    if (/^(last ?error|error|lasterror)$/i.test(k)) return 'bad';
+    const t = v.trim();
+    if (OK_WORDS.test(t)) return 'ok';
+    if (BAD_WORDS.test(t)) return 'bad';
+    if (WARN_WORDS.test(t)) return 'warn';
+    return '';
+  }
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    if (/^(failures?|failed|errors?|fail|rejected|blocked|timeouts?)$/i.test(k)) return v > 0 ? (v >= 5 ? 'bad' : 'warn') : 'ok';
+    if (/^(pass|passed|success)$/i.test(k)) return v > 0 ? 'ok' : '';
+  }
+  if (typeof v === 'boolean' && /^(enabled|active|healthy|ok|online|running|live)$/i.test(k)) return v ? 'ok' : 'bad';
+  return '';
+}
+
 // The 8 weekly pass/fail counts of the testing report: entry 0 is the week ending now. Says which weeks they are.
 export function weekRows(list, now = Date.now()) {
   const day = 86400000, fmt = (t) => new Date(t).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
@@ -71,14 +95,14 @@ export function statCards(s) {
   if (!s || typeof s !== 'object') return [];
   const o = s.overhead || {}, c = s.concurrency || {}, a = s.api || {};
   const out = [];
-  const add = (label, value, hint) => { if (value !== undefined && value !== null && value !== '') out.push({ label, value: typeof value === 'number' ? value.toLocaleString('en-US') : String(value), hint: hint || '' }); };
+  const add = (label, value, hint, tone) => { if (value !== undefined && value !== null && value !== '') out.push({ tone: tone || '', label, value: typeof value === 'number' ? value.toLocaleString('en-US') : String(value), hint: hint || '' }); };
   add('Uptime', formatUptime(s.uptimeMs), s.uptimeAllTimeMs ? 'all time ' + formatUptime(s.uptimeAllTimeMs) : '');
-  add('Load', o.level, o.eventLoopMeanMs != null ? `event loop ${o.eventLoopMeanMs} ms mean, ${o.eventLoopP99Ms || 0} ms p99` : '');
+  add('Load', o.level, o.eventLoopMeanMs != null ? `event loop ${o.eventLoopMeanMs} ms mean, ${o.eventLoopP99Ms || 0} ms p99` : '', toneOf('level', o.level));
   add('Memory', o.rssMb != null ? o.rssMb + ' MB' : '', '');
-  add('Active streams', c.activeTotalStreams, c.maxGlobalRcloneStreams != null ? 'limit ' + c.maxGlobalRcloneStreams : '');
+  add('Active streams', c.activeTotalStreams, c.maxGlobalRcloneStreams != null ? 'limit ' + c.maxGlobalRcloneStreams : '', c.maxGlobalRcloneStreams && c.activeTotalStreams >= c.maxGlobalRcloneStreams ? 'bad' : c.maxGlobalRcloneStreams && c.activeTotalStreams >= 0.8 * c.maxGlobalRcloneStreams ? 'warn' : 'ok');
   add('Users streaming', c.userActiveStreamsUsers, '');
-  add('Waiting in queue', c.globalStreamQueueLength, c.peaksSinceBoot ? 'peak ' + c.peaksSinceBoot.globalStreamQueueLength : '');
-  add('Held redirects', c.heldRedirectCount, '');
+  add('Waiting in queue', c.globalStreamQueueLength, c.peaksSinceBoot ? 'peak ' + c.peaksSinceBoot.globalStreamQueueLength : '', c.globalStreamQueueLength >= 10 ? 'bad' : c.globalStreamQueueLength > 0 ? 'warn' : 'ok');
+  add('Held redirects', c.heldRedirectCount, '', c.heldRedirectCount > 0 ? 'warn' : 'ok');
   add('App queue', c.appQueuedDownloads, '');
   add('Unique downloads', a.uniqueDownloads, '');
   if (a.auth) add('Logins', a.auth.success, (a.auth.failure || 0) + ' failed');

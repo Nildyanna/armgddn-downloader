@@ -705,3 +705,21 @@ header select + select { margin-left: 0; }
 .rqstatus.st-rejected { border-color: #ef4444; color: #ef4444; }
 .rqdel { padding: 4px 8px; border-radius: 4px; border: 1px solid #ef4444; background: transparent; color: #ef4444; font-size: 12px; cursor: pointer; }
 .dbtn.on { border-color: #ef4444; color: #ef4444; }
+
+/* Admin and owner reports: colour only where it means something (green fine, amber watch, red wrong), plus a quiet accent on cards and headings. */
+.adminpage { --t-ok: #2fb67c; --t-warn: #e0a22b; --t-bad: #e5534b; }
+.tone { font-weight: 600; }
+.tone.t-ok { color: var(--t-ok); }
+.tone.t-warn { color: var(--t-warn); }
+.tone.t-bad { color: var(--t-bad); }
+.atable td .tone, .arow .av .tone { display: inline-block; padding: 0 8px; border-radius: 999px; background: color-mix(in srgb, currentColor 14%, transparent); font-size: 12px; line-height: 20px; }
+.acard { border-top: 3px solid color-mix(in srgb, var(--accent) 70%, transparent); }
+.acard .avalue { color: color-mix(in srgb, var(--accent) 55%, var(--fg, inherit)); }
+.acard.t-ok { border-top-color: var(--t-ok); } .acard.t-ok .avalue { color: var(--t-ok); }
+.acard.t-warn { border-top-color: var(--t-warn); background: color-mix(in srgb, var(--t-warn) 8%, var(--card, var(--card2))); } .acard.t-warn .avalue { color: var(--t-warn); }
+.acard.t-bad { border-top-color: var(--t-bad); background: color-mix(in srgb, var(--t-bad) 10%, var(--card, var(--card2))); } .acard.t-bad .avalue { color: var(--t-bad); }
+.acontrols .acard .avalue { color: inherit; }
+.asub, .apanel h4, .agroup h4 { color: color-mix(in srgb, var(--accent) 75%, var(--dim)); }
+.apanel { border-left: 3px solid color-mix(in srgb, var(--accent) 45%, var(--line)); }
+.atable th { border-bottom-color: color-mix(in srgb, var(--accent) 40%, var(--line)); }
+.atable tbody tr:hover td { background: color-mix(in srgb, var(--accent) 6%, transparent); }
