@@ -1,4 +1,10 @@
 {
+  "6.1.1": {
+    "title": "Download size matches the percentage",
+    "highlights": [
+      "The Downloads tab now shows how much has been written so far, so the size agrees with the percentage while a download runs."
+    ]
+  },
   "6.1.0": {
     "title": "Time elapsed, and a tidier Cancel",
     "highlights": [

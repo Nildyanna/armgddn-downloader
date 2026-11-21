@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.1.1] - 2026-11-21
+
+### Fixed
+
+- The Downloads tab showed a size that did not match the percentage while a download ran (for example "32% · 3.9 MB of 43.4 GB"), because it only counted files that were already finished. It now counts what has been written so far, so the size and the percentage agree.
+
 ## [6.1.0] - 2026-11-21
 
 ### Added
