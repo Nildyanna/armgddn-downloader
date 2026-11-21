@@ -1,4 +1,10 @@
 {
+  "6.3.1": {
+    "title": "Admin colours tidied",
+    "highlights": [
+      "The coloured labels in the admin pages now line up with the text beside them and share one shape. A column is either fully coloured or left plain, so you will not see half-coloured lists."
+    ]
+  },
   "6.3.0": {
     "title": "Colour in the admin pages",
     "highlights": [

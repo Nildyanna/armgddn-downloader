@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.1] - 2026-11-21
+
+### Fixed
+
+- Admin colours: the group chips no longer clash with an older style (they were indented and sized differently), long group names are chips too, Testing is no longer shown as a warning, and a table column is either fully coloured or plain, with odd values in a coloured column shown as a grey chip of the same shape.
+
 ## [6.3.0] - 2026-11-21
 
 ### Added
