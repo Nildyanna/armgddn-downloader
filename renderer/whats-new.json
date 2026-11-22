@@ -1,4 +1,10 @@
 {
+  "6.3.3": {
+    "title": "Sign-in finishes properly",
+    "highlights": [
+      "Fixed: after confirming sign-in in Telegram, the sign-in window could stay open and the app would not continue. The app now notices the login as soon as it completes."
+    ]
+  },
   "6.3.2": {
     "title": "Sign in with a different Telegram account",
     "highlights": [

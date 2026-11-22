@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.3] - 2026-11-22
+
+### Fixed
+
+- Sign-in: the site finishes a Telegram login on the page itself, with no reload, so the app's checks (on page load and navigation) never saw it and the sign-in window stayed open with the app locked behind it. The app now checks every 1.5 seconds while the window is open, and on in-page changes, with a guard against two token requests at once.
+
 ## [6.3.2] - 2026-11-21
 
 ### Fixed

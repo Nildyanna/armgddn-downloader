@@ -2994,7 +2994,10 @@ function openAuthWindow() {
     });
 
     // Check for successful login by monitoring cookies and minting an app session token
+    let authChecking = false;
     const checkAuth = async () => {
+      if (authChecking || !authWindow || authWindow.isDestroyed() || sessionToken) return;
+      authChecking = true;
       try {
         const cookies = await authWindow.webContents.session.cookies.get({ name: '__Secure-ag_auth' });
 
@@ -3025,6 +3028,8 @@ function openAuthWindow() {
         }
       } catch (e) {
         logToFile('Auth check error: ' + e.message);
+      } finally {
+        authChecking = false;
       }
     };
 
@@ -3038,8 +3043,19 @@ function openAuthWindow() {
     authWindow.webContents.on('did-navigate', () => {
       setTimeout(checkAuth, 1000);
     });
+    authWindow.webContents.on('did-navigate-in-page', () => {
+      setTimeout(checkAuth, 1000);
+    });
+
+    // The site finishes a Telegram login on the page itself (no reload, no navigation), so the two checks above never run again after the member
+    // confirms in Telegram and the window just stays open (Dominic, 2026-11-22). Look every 1.5 s for as long as the window is open.
+    const authPoll = setInterval(() => {
+      if (!authWindow || authWindow.isDestroyed()) { clearInterval(authPoll); return; }
+      checkAuth();
+    }, 1500);
 
     authWindow.on('closed', () => {
+      clearInterval(authPoll);
       authWindow = null;
       resolve(!!sessionToken);
     });
