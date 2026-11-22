@@ -137,7 +137,7 @@ function Overview() {
     <${DataTable} rows=${remoteRows(s)} columns=${['name', 'status', 'lastChecked', 'failures', 'lastError']} hint="sections" />
     ${s.appDownloadsByRemote && Object.keys(s.appDownloadsByRemote).length ? html`<h4 class="asub">App downloads by section</h4><${Tree} value=${s.appDownloadsByRemote} />` : ''}
     <h4 class="asub">Requests to the site</h4>
-    <${Tree} value=${(s.api && { browse: s.api.browseRequests, downloadManifests: s.api.downloadManifestRequests, downloadFiles: s.api.downloadFileRequests, zipJobs: s.api.zipJobsCreated, uniqueDownloads: s.api.uniqueDownloads }) || {}} />
+    <${Tree} value=${(s.api && { browse: s.api.browseRequests, downloadManifests: s.api.downloadManifestRequests, downloadFiles: s.api.downloadFileRequests, uniqueDownloads: s.api.uniqueDownloads }) || {}} />
     ${s.ownerExtra ? html`<h4 class="asub">Owner details</h4><${Tree} value=${s.ownerExtra} />` : ''}
   </div>`;
 }

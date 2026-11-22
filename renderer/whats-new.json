@@ -1,4 +1,11 @@
 {
+  "6.4.6": {
+    "title": "Harbor test theme: calm motion and the credit line",
+    "highlights": [
+      "Harbor test theme (staff): calm animations are in (hero, ranked chart, downloads filling in, card hover, a short firework for the No. 1 title) and the credit line is back. The Animations switch and Windows reduced motion turn them off.",
+      "Admin: the Zip Jobs line is gone."
+    ]
+  },
   "6.4.5": {
     "title": "Harbor test theme for all staff",
     "highlights": [

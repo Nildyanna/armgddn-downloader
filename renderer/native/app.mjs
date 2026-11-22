@@ -930,9 +930,19 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
   const topItem = top ? homeItem(top) : null;
   const topFresh = top && fresh ? fresh.find((f) => f.name === (topItem && topItem.name)) : null;
   const left = active.reduce((n, d) => n + Math.max(0, (Number(d.totalSize) || 0) - (Number(d.downloadedSize) || 0)), 0);
+  // A short firework celebration over the No. 1 title, once per visit to Home; off when animations are off or the system asks for less motion.
+  const fw = useRef(null);
+  const topPath = top && top.path;
+  useEffect(() => {
+    if (!topPath || !fw.current || document.documentElement.dataset.anim === '0') return;
+    try { if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return; } catch (e) { }
+    const stop = startFireworks(fw.current); const id = setTimeout(stop, 6000);
+    return () => { clearTimeout(id); stop(); };
+  }, [topPath]);
   return html`<div class="hb-home">
     ${top ? html`<section class="hb-hero">
       ${coverOf(top) ? html`<img class="hb-herobg" src=${coverSrc(coverOf(top))} alt="" aria-hidden="true" />` : ''}
+      <div class="fireworks hb-fw" ref=${fw}></div>
       <div class="hb-heroin">
         ${coverOf(top) ? html`<img class="hb-heroart" src=${coverSrc(coverOf(top))} alt=${cleanTitle(top.title)} onClick=${() => onOpen(top)} />` : ''}
         <div class="hb-herotext">

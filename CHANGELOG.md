@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.6] - 2026-11-22
+
+### Added
+
+- Harbor (staff test theme): calm motion that carries meaning: the hero and the ranked rows fade in, the hero cover drifts slowly, a short firework celebration plays over the No. 1 title once per visit to Home, downloads fill in smoothly with a pulsing leading edge, cards lift on hover, the game page and the other cards fade in. It all stops when Animations is off or Windows asks for reduced motion. The "Created by Old Man of the Hills" credit line is back beside the name, without the flames.
+
+### Changed
+
+- Admin: the Zip Jobs line is removed from the API stats (zip jobs are no longer made).
+
 ## [6.4.5] - 2026-11-22
 
 ### Fixed

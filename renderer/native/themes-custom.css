@@ -5,7 +5,7 @@
 html[data-theme="harbor"] body { font-family: 'Archivo', system-ui, sans-serif; background: #0d0a12; }
 html[data-theme="harbor"] { --surface: #17121e; --inset: #211a2a; }
 html[data-theme="harbor"] .banner { margin: 0; padding: 10px 24px; min-height: 0; border: 0; border-radius: 0; background: #17121e; box-shadow: none; justify-content: flex-start; gap: 14px; }
-html[data-theme="harbor"] .banner::before, html[data-theme="harbor"] .banner::after, html[data-theme="harbor"] .banner-credit, html[data-theme="harbor"] .banner p { display: none; }
+html[data-theme="harbor"] .banner::before, html[data-theme="harbor"] .banner::after, html[data-theme="harbor"] .banner p { display: none; }
 html[data-theme="harbor"] .banner-logo { position: static; transform: none; width: 40px; height: 40px; filter: none; }
 html[data-theme="harbor"] .banner-text { text-align: left; }
 html[data-theme="harbor"] .banner h1 { font-family: 'Archivo', system-ui, sans-serif; font-weight: 800; font-stretch: 125%; font-size: 19px; letter-spacing: .04em; margin: 0; color: var(--fg); text-shadow: none; }
@@ -203,3 +203,37 @@ html[data-theme="harbor"] .hb-dls .dbtns { margin-top: 0; }
 html[data-theme="harbor"] .hb-text { text-decoration: none; display: inline-flex; align-items: center; }
 html[data-theme="harbor"] .hb-text:disabled { opacity: .45; cursor: default; }
 .hb-noimg { display: grid; place-items: center; font-weight: 800; font-stretch: 125%; font-size: 40px; color: #4a3f5c; }
+
+/* Harbor credit line: kept, beside the name, without the flames */
+html[data-theme="harbor"] .banner-credit { position: static; order: 2; align-self: flex-end; margin: 0 0 4px 4px; padding: 0; pointer-events: none; font-size: 12px; font-weight: 500; letter-spacing: .02em; }
+html[data-theme="harbor"] .banner-credit .fire-particles, html[data-theme="harbor"] .banner-credit .flame { display: none; }
+html[data-theme="harbor"] .banner-credit .fire-text { color: var(--dim); background: none; -webkit-text-fill-color: currentColor; animation: none; text-shadow: none; }
+html[data-theme="harbor"]:not([data-anim="0"]) .banner-credit .fire-text { background: linear-gradient(90deg, var(--dim) 0%, var(--dim) 40%, var(--accent) 50%, var(--dim) 60%, var(--dim) 100%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: hbShine 7s ease-in-out infinite; text-shadow: none; filter: none; }
+@keyframes hbShine { 0%, 70% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
+html[data-theme="harbor"] .banner-actions { order: 3; }
+
+/* Harbor motion: calm and purposeful. Everything stops when Animations is off, or the system asks for reduced motion. */
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-hero { animation: hbRise .5s ease-out both; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-heroart { animation: hbZoom 18s ease-in-out infinite alternate; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow { animation: hbRise .45s ease-out both; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(2) { animation-delay: .05s; } html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(3) { animation-delay: .1s; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(4) { animation-delay: .15s; } html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(5) { animation-delay: .2s; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(6) { animation-delay: .25s; } html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(7) { animation-delay: .3s; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(8) { animation-delay: .35s; } html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(9) { animation-delay: .4s; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-fcard, html[data-theme="harbor"]:not([data-anim="0"]) .hb-now, html[data-theme="harbor"]:not([data-anim="0"]) .hb-dcard, html[data-theme="harbor"]:not([data-anim="0"]) .hb-drow, html[data-theme="harbor"]:not([data-anim="0"]) .hb-steps li { animation: hbRise .45s ease-out both; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-dcolor { transition: clip-path .8s ease; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-dedge { transition: left .8s ease; animation: hbEdge 1.8s ease-in-out infinite; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-dcard.paused .hb-dedge { animation: none; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-nowdot i, html[data-theme="harbor"]:not([data-anim="0"]) .fill { transition: width .8s ease; }
+html[data-theme="harbor"]:not([data-anim="0"]) .card { transition: transform .18s ease, box-shadow .18s ease; }
+html[data-theme="harbor"]:not([data-anim="0"]) .card:hover { transform: translateY(-3px); }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-fcard img, html[data-theme="harbor"]:not([data-anim="0"]) .hb-also img { transition: transform .25s ease; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-fcard:hover img, html[data-theme="harbor"]:not([data-anim="0"]) .hb-also button:hover img { transform: scale(1.03); }
+html[data-theme="harbor"]:not([data-anim="0"]) .tab { transition: color .15s ease, box-shadow .2s ease; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-page { animation: hbFade .25s ease-out both; }
+html[data-theme="harbor"] .hb-fw { top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; border-radius: 20px; }
+@keyframes hbRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes hbZoom { from { transform: scale(1); } to { transform: scale(1.025); } }
+@keyframes hbEdge { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
+@keyframes hbFade { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { html[data-theme="harbor"] *, html[data-theme="harbor"] *::before, html[data-theme="harbor"] *::after { animation: none !important; transition: none !important; } }
