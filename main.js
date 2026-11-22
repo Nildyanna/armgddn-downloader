@@ -2929,13 +2929,37 @@ function handleDeepLink(url) {
 }
 
 // Open auth window to login and grab session cookie
+// Forget which Telegram account was used to sign in on this PC. The sign-in window shares this app's browser session, so the site's login cookie and Telegram's
+// own "continue as ..." cookies survive a sign-out: the next sign-in then opened, signed itself straight back in as the OLD account and closed within a second
+// (Darkheart V3, 2026-11-21: "the window pops up and disappears immediately and it shows another telegram account that I don't use").
+async function clearLoginTraces() {
+  try {
+    const ses = require('electron').session.defaultSession;
+    const mine = /(^|\.)(armgddnbrowser\.com|telegram\.org|t\.me)$/i;
+    const cookies = await ses.cookies.get({});
+    let removed = 0;
+    for (const c of cookies) {
+      const dom = String(c.domain || '').replace(/^\./, '');
+      if (!mine.test(dom)) continue;
+      try { await ses.cookies.remove('http' + (c.secure ? 's' : '') + '://' + dom + (c.path || '/'), c.name); removed++; } catch (e) { }
+    }
+    // Telegram's login page keeps the chosen account in its own storage as well; the site's own storage (themes, settings) is left alone.
+    await ses.clearStorageData({ origins: ['https://oauth.telegram.org', 'https://telegram.org', 'https://web.telegram.org'] });
+    logToFile('Sign-in traces cleared (' + removed + ' cookies)');
+  } catch (e) {
+    logToFile('Could not clear sign-in traces: ' + (e && e.message ? e.message : String(e)));
+  }
+}
+
 function openAuthWindow() {
   return new Promise((resolve) => {
     if (authWindow) {
       authWindow.focus();
       return resolve(false);
     }
-
+    // No saved sign-in on this PC means the member is signing in (again): start from a clean Telegram state, so an old account's cookie cannot answer for them.
+    const _ready = sessionToken ? Promise.resolve() : clearLoginTraces();
+    _ready.then(() => {
     authWindow = new BrowserWindow({
       width: 500,
       height: 700,
@@ -3018,6 +3042,7 @@ function openAuthWindow() {
     authWindow.on('closed', () => {
       authWindow = null;
       resolve(!!sessionToken);
+    });
     });
   });
 }
@@ -3571,7 +3596,7 @@ app.whenReady().then(() => {
       importClassicSettings(false);
       ipcMain.handle('native-import-settings', () => importClassicSettings(true));
       nativeWindow = require('./native/bridge').start({
-        BrowserWindow, ipcMain, shell, dialog, clipboard: require('electron').clipboard, clearSession, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
+        BrowserWindow, ipcMain, shell, dialog, clipboard: require('electron').clipboard, clearSession, clearLoginTraces, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
         openLogin: () => openAuthWindow(), log: logToFile,
         startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer),
         // A Music or Comics download goes to the folder chosen for it in Settings (the website's links carry dest=music|comics for the same reason);

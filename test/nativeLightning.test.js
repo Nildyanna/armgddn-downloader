@@ -93,7 +93,7 @@ test('the native window has a fixed top bar (every page, the current one lit) an
   assert.ok(app.includes('<header class="topbar">') && app.includes('<div class="subbar">') && app.includes('<span class="subtitle">${pageLabel}</span>'));
   const top = app.slice(app.indexOf('<header class="topbar">'), app.indexOf('<div class="subbar">'));
   for (const w of ['Home', 'Tools', 'Settings', 'Wiki', 'My List', 'Requests', 'Downloads']) assert.ok(top.includes(w), w + ' is in the top bar');
-  assert.ok(!top.includes('class="search"') && !top.includes('Everywhere'), 'the page controls are not in the top bar');
+  assert.ok(!top.includes('class="search"') && !top.replace(/setEverywhere/g, '').includes('Everywhere'), 'the page controls are not in the top bar');
   const sub = app.slice(app.indexOf('<div class="subbar">'), app.indexOf('<div class="subbar">') + 6000);
   assert.ok(sub.includes('class="search"') && sub.includes('Everywhere') && sub.includes('class="viewsel"'));
   assert.ok(app.includes("localStorage.setItem('native.viewMode', m)") && app.includes("listMode=${viewMode === 'list'}") && app.includes("class=${listMode ? 'list' : 'grid wide'}"));

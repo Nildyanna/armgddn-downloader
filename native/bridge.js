@@ -40,7 +40,7 @@ function registerSchemes(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'armgddn-img', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 }
 
-function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, destFor }) {
+function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, clearLoginTraces, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, destFor }) {
   const api = createApiClient({ getToken, version });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
@@ -301,7 +301,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   // The member's own download history and the related titles the site works out from it (Game Radar).
   ipcMain.handle('native:appProgress', wrap(() => api.get('/api/app-progress', { ttlMs: 60 * 1000 })));
   // Sign out: forget the saved sign-in on this PC (the app then offers Sign in again).
-  ipcMain.handle('native:logout', wrap(async () => { if (clearSession) clearSession(); return { signedOut: true }; }));
+  ipcMain.handle('native:logout', wrap(async () => { if (clearSession) clearSession(); if (clearLoginTraces) await clearLoginTraces(); return { signedOut: true }; }));
   // Save what is on screen as a PDF (the Admin pages carry a print layout). The member picks where it goes.
   ipcMain.handle('native:savePdf', wrap(async (title) => {
     const name = String(title || 'ARMGDDN report').replace(/[^A-Za-z0-9 _-]/g, '').trim().slice(0, 60) || 'ARMGDDN report';
