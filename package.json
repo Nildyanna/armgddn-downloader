@@ -1,6 +1,6 @@
 {
   "name": "armgddn-downloader",
-  "version": "6.4.6",
+  "version": "6.4.7",
   "description": "ARMGDDN Companion - Fast rclone-powered download manager",
   "homepage": "https://www.armgddnbrowser.com",
   "main": "main.js",
@@ -59,6 +59,7 @@
       "hashCheck.js",
       "sevenZipErrors.js",
       "exitGuard.js",
+      "pipeGuard.js",
       "downloadErrors.js",
       "comicsScan.js",
       "comicsScanWorker.js",

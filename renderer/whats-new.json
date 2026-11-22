@@ -972,5 +972,11 @@
       "Settings panel got restyled toggle switches and a proper dropdown.",
       "Toast notifications for things like \"Settings saved\" and \"History cleared\"."
     ]
+  },
+  "6.4.7": {
+    "title": "Fix for a closed-output error loop on Linux",
+    "highlights": [
+      "Fix: on some Linux setups the app could fill its log with endless \"write EPIPE\" errors after being started from a launcher that closed its output. It now ignores a closed output."
+    ]
   }
 }

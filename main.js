@@ -3,6 +3,8 @@ const secureStore = require('./secureStore');   // safeStorage, with the asynchr
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const pipeGuard = require('./pipeGuard');
+pipeGuard.install(process);   // a closed stdout/stderr (started from a launcher that went away) made every console call fail with EPIPE in a loop
 
 // ── Error reporting (Sentry) ────────────────────────────────────────────────
 // Must initialise before anything else so main-process crashes are caught.
@@ -53,6 +55,7 @@ if (SENTRY_DSN) {
     tracesSampleRate: 0,
     beforeSend(event) {
       if (!isErrorReportingEnabled()) return null;
+      if (pipeGuard.isClosedOutputError(event)) return null;   // the launcher closed our output: harmless, not a fault
       try {
         if (event.user) delete event.user.ip_address;
         return scrubForSentry(event);

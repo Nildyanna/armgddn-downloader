@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.7] - 2026-11-22
+
+### Fixed
+
+- On some Linux setups the app could fill its log with endless "write EPIPE" errors after being started from a launcher that closed its output. A closed output is now ignored, and the same error is no longer reported to Sentry.
+
 ## [6.4.6] - 2026-11-22
 
 ### Added
