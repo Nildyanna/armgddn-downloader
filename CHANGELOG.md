@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.3] - 2026-11-22
+
+### Fixed
+
+- Harbor (staff test theme): a trending title that comes without art (mods and non-Steam titles) showed an empty picture on Home. The art is now read from the library listing when the trending list has none.
+
 ## [6.4.2] - 2026-11-22
 
 ### Changed

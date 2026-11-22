@@ -1,4 +1,10 @@
 {
+  "6.4.3": {
+    "title": "Harbor test theme: missing art filled in",
+    "highlights": [
+      "Harbor test theme (staff): titles the trending list has no art for now show their library art on Home."
+    ]
+  },
   "6.4.2": {
     "title": "Harbor test theme: game and Downloads pages",
     "highlights": [

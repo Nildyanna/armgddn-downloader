@@ -904,6 +904,26 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
     }
     return out.sort((a, b) => b.count - a.count).slice(0, 9);
   }, [windows]);
+  // A trending entry can come without art (mods and non-Steam titles); the library listing often has it, so it is read from there as needed.
+  const [extra, setExtra] = useState({});
+  const missKey = rows.filter((e) => !e.coverUrl).map((e) => e.remote + '|' + e.path).join('||');
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const out = {}; const lists = new Map();
+      for (const e of rows.filter((x) => !x.coverUrl)) {
+        const it = homeItem(e); if (!it) continue;
+        const k = it._remote + '|' + it._folder;
+        if (!lists.has(k)) { const b = await api.browse(it._remote, it._folder); lists.set(k, b.ok ? (b.data.files || []) : []); }
+        const hit = lists.get(k).find((f) => f && f.name === it.name);
+        const url = hit && hit.coverArt && hit.coverArt.cover && hit.coverArt.cover.url;
+        if (url) out[e.path] = url;
+      }
+      if (live && Object.keys(out).length) setExtra((prev) => ({ ...prev, ...out }));
+    })();
+    return () => { live = false; };
+  }, [missKey]);
+  const coverOf = (e) => e.coverUrl || extra[e.path] || '';
   const active = (downloads || []).filter(isActiveDownload);
   const top = rows[0];
   const days = win === 'month' ? '30' : '7';
@@ -912,9 +932,9 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
   const left = active.reduce((n, d) => n + Math.max(0, (Number(d.totalSize) || 0) - (Number(d.downloadedSize) || 0)), 0);
   return html`<div class="hb-home">
     ${top ? html`<section class="hb-hero">
-      ${top.coverUrl ? html`<img class="hb-herobg" src=${coverSrc(top.coverUrl)} alt="" aria-hidden="true" />` : ''}
+      ${coverOf(top) ? html`<img class="hb-herobg" src=${coverSrc(coverOf(top))} alt="" aria-hidden="true" />` : ''}
       <div class="hb-heroin">
-        ${top.coverUrl ? html`<img class="hb-heroart" src=${coverSrc(top.coverUrl)} alt=${cleanTitle(top.title)} onClick=${() => onOpen(top)} />` : ''}
+        ${coverOf(top) ? html`<img class="hb-heroart" src=${coverSrc(coverOf(top))} alt=${cleanTitle(top.title)} onClick=${() => onOpen(top)} />` : ''}
         <div class="hb-herotext">
           <span class="hb-kick">No. 1 in the last ${days} days · ${top.count.toLocaleString('en-US')} downloads</span>
           <h2>${cleanTitle(top.title)}</h2>
@@ -933,7 +953,7 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
     ${rows.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Most downloaded</h3><span>Last ${days} days, all members</span></div>
       <div class="hb-chart3">${rows.map((e, i) => html`<button class="hb-crow" key=${e.path} onClick=${() => onOpen(e)}>
         <span class="hb-rank">${i + 1}</span>
-        ${e.coverUrl ? html`<img src=${coverSrc(e.coverUrl)} alt="" />` : html`<span class="hb-noimg"></span>`}
+        ${coverOf(e) ? html`<img src=${coverSrc(coverOf(e))} alt="" />` : html`<span class="hb-noimg"></span>`}
         <span class="hb-cinfo"><b>${cleanTitle(e.title)}</b><span>${e.count.toLocaleString('en-US')} downloads${e.sizeBytes ? ' · ' + formatSize(e.sizeBytes) : ''}</span><i>${(Number(e.pcvr) || 0) > (Number(e.pc) || 0) ? 'VR' : 'PC'}</i></span>
       </button>`)}</div></section>` : ''}
     ${fresh && fresh.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Fresh builds</h3><span>Newest updates first</span></div>
