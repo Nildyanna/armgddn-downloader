@@ -1,6 +1,6 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows } from './format.mjs';
+import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -821,33 +821,77 @@ function RadarStrip({ trend, progress, myList, history, onOpen, onSave, onResume
   </${Fragment}>`;
 }
 
-// Harbor (staff-only test redesign): a lead block for Home with the top title, a ranked most-downloaded chart and what is downloading now.
-function HarborLead({ windows, downloads, onOpen }) {
+// Harbor (staff-only test redesign): the Home of the mockup. A hero for the most downloaded title, the ranked chart with pictures, the newest builds,
+// and what is downloading now. The Game Radar and Hidden Gems strips stay below.
+const harborDate = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
+const harborBuild = (name) => { const m = String(name || '').match(/\bv(\d{4,})\b/i); return m ? m[1] : ''; };
+async function harborNewest() {
+  const out = [];
+  for (const g of ['PCVR Games', 'PC Games']) {
+    const top = await api.browse(g, ''); if (!top.ok) continue;
+    let files = top.data.files || []; let folder = '';
+    const into = autoEnter(g, files);
+    if (into) { const inner = await api.browse(g, into); if (inner.ok) { files = visibleItems(g, into, inner.data.files || []); folder = into; } }
+    for (const f of files) if (f && f.isDir && f.modTime && f.coverArt && f.coverArt.cover && f.coverArt.cover.url) out.push({ ...f, _remote: g, _folder: folder });
+  }
+  return out.sort((a, b) => String(b.modTime).localeCompare(String(a.modTime))).slice(0, 12);
+}
+function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
   const win = windows && Array.isArray(windows.month) && windows.month.length ? 'month' : 'week';
   const rows = useMemo(() => {
     const seen = new Set(); const out = [];
     for (const e of (windows && Array.isArray(windows[win]) ? windows[win] : [])) {
-      const count = (Number(e.pc) || 0) + (Number(e.pcvr) || 0) || Number(e.total) || 0;
+      const count = (Number(e.pc) || 0) + (Number(e.pcvr) || 0);   // the window's own counts only; "total" is all time
       const key = String(e.title || e.path).toLowerCase();
       if (!count || seen.has(key)) continue; seen.add(key); out.push({ ...e, count });
     }
-    return out.sort((a, b) => b.count - a.count).slice(0, 8);
+    return out.sort((a, b) => b.count - a.count).slice(0, 9);
   }, [windows]);
-  const active = (downloads || []).filter(isActiveDownload).slice(0, 4);
-  if (!rows.length && !active.length) return '';
-  const top = rows[0]; const max = top ? top.count : 1;
-  return html`<section class="hb-lead">
-    ${top ? html`<div class="hb-hero" onClick=${() => onOpen(top)}>
-      ${top.coverUrl ? html`<img class="hb-heroart" src=${coverSrc(top.coverUrl)} alt="" />` : ''}
-      <div class="hb-herotext"><span class="hb-kick">No. 1 \u00B7 last ${win === 'month' ? '30' : '7'} days</span><h2>${cleanTitle(top.title)}</h2>
-        <span class="hb-meta">${top.count.toLocaleString('en-US')} downloads${top.sizeBytes ? ' \u00B7 ' + formatSize(top.sizeBytes) : ''}</span></div>
-    </div>` : ''}
-    <div class="hb-chart"><h3>Most downloaded</h3><ol>${rows.map((e, i) => html`<li key=${e.path} onClick=${() => onOpen(e)}><span class="hb-rank">${i + 1}</span><span class="hb-name">${cleanTitle(e.title)}</span><span class="hb-bar"><i style=${'width:' + Math.max(4, Math.round(e.count / max * 100)) + '%'}></i></span><span class="hb-count">${e.count.toLocaleString('en-US')}</span></li>`)}</ol></div>
-    ${active.length ? html`<div class="hb-now"><h3>Downloading now</h3><div class="hb-nowrow">${active.map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); return html`<div class="hb-dl" key=${d.id}><div class="hb-dlname">${d.name || d.title || 'Download'}</div><div class="hb-dlbar"><i style=${'width:' + pct + '%'}></i></div><div class="hb-dlmeta">${Math.round(pct)}%${d.totalSpeed ? ' \u00B7 ' + d.totalSpeed : ''}</div></div>`; })}</div></div>` : ''}
-  </section>`;
+  const active = (downloads || []).filter(isActiveDownload);
+  const top = rows[0];
+  const days = win === 'month' ? '30' : '7';
+  const topItem = top ? homeItem(top) : null;
+  const topFresh = top && fresh ? fresh.find((f) => f.name === (topItem && topItem.name)) : null;
+  const left = active.reduce((n, d) => n + Math.max(0, (Number(d.totalSize) || 0) - (Number(d.downloadedSize) || 0)), 0);
+  return html`<div class="hb-home">
+    ${top ? html`<section class="hb-hero">
+      ${top.coverUrl ? html`<img class="hb-herobg" src=${coverSrc(top.coverUrl)} alt="" aria-hidden="true" />` : ''}
+      <div class="hb-heroin">
+        ${top.coverUrl ? html`<img class="hb-heroart" src=${coverSrc(top.coverUrl)} alt=${cleanTitle(top.title)} onClick=${() => onOpen(top)} />` : ''}
+        <div class="hb-herotext">
+          <span class="hb-kick">No. 1 in the last ${days} days · ${top.count.toLocaleString('en-US')} downloads</span>
+          <h2>${cleanTitle(top.title)}</h2>
+          <div class="hb-facts">
+            ${top.sizeBytes ? html`<div><span>Size</span><b>${formatSize(top.sizeBytes)}</b></div>` : ''}
+            <div><span>Platform</span><b>${(Number(top.pcvr) || 0) > (Number(top.pc) || 0) ? 'VR' : 'PC'}</b></div>
+            ${harborBuild(top.path) ? html`<div><span>Build</span><b>${harborBuild(top.path)}</b></div>` : ''}
+            ${topFresh && harborDate(topFresh.modTime) ? html`<div><span>Updated</span><b>${harborDate(topFresh.modTime)}</b></div>` : ''}
+          </div>
+          <div class="hb-actions">
+            ${topItem && actions ? html`<button class="hb-go" onClick=${() => actions.download(topItem)}>Download${top.sizeBytes ? ' ' + formatSize(top.sizeBytes) : ''}</button><button class="hb-ghost" onClick=${() => actions.details(topItem)}>Details</button><button class="hb-text" onClick=${() => actions.toggle(topItem)}>${actions.inList(topItem) ? 'In My List' : 'Add to My List'}</button>` : ''}
+          </div>
+        </div>
+      </div>
+    </section>` : ''}
+    ${rows.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Most downloaded</h3><span>Last ${days} days, all members</span></div>
+      <div class="hb-chart3">${rows.map((e, i) => html`<button class="hb-crow" key=${e.path} onClick=${() => onOpen(e)}>
+        <span class="hb-rank">${i + 1}</span>
+        ${e.coverUrl ? html`<img src=${coverSrc(e.coverUrl)} alt="" />` : html`<span class="hb-noimg"></span>`}
+        <span class="hb-cinfo"><b>${cleanTitle(e.title)}</b><span>${e.count.toLocaleString('en-US')} downloads${e.sizeBytes ? ' · ' + formatSize(e.sizeBytes) : ''}</span><i>${(Number(e.pcvr) || 0) > (Number(e.pc) || 0) ? 'VR' : 'PC'}</i></span>
+      </button>`)}</div></section>` : ''}
+    ${fresh && fresh.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Fresh builds</h3><span>Newest updates first</span></div>
+      <div class="hb-fresh">${fresh.map((f) => html`<button class="hb-fcard" key=${f._remote + f.name} onClick=${() => onOpen({ remote: f._remote, path: (f._folder ? f._folder + '/' : '') + f.name })}>
+        <img src=${coverSrc(f.coverArt.cover.url)} alt="" /><b>${cleanTitle(f.name)}</b><span>${[harborBuild(f.name) && 'Build ' + harborBuild(f.name), harborDate(f.modTime)].filter(Boolean).join(' · ')}</span>
+      </button>`)}</div></section>` : ''}
+    ${active.length ? html`<section class="hb-now"><div class="hb-nowhead"><b>Downloading now</b><span>${left > 0 ? formatSize(left) + ' left' : ''}</span></div>
+      ${active.slice(0, 4).map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); return html`<div class="hb-nowitem" key=${d.id}><span class="hb-nowdot"><i style=${'width:' + pct + '%'}></i></span><span class="hb-nowtext"><b>${cleanTitle(d.name || '')}</b><span>${Math.round(pct)}%${d.totalSpeed ? ' · ' + d.totalSpeed : ''}</span></span></div>`; })}
+    </section>` : ''}
+  </div>`;
 }
 
-function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSave, onResume, harbor, downloads }) {
+function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSave, onResume, harbor, downloads, actions }) {
+  const [fresh, setFresh] = useState(null);
+  useEffect(() => { if (harbor) harborNewest().then(setFresh).catch(() => setFresh([])); }, [harbor]);
   const [trend, setTrend] = useState(null);
   const [gems, setGems] = useState(null);
   const [progress, setProgress] = useState(null);
@@ -865,7 +909,7 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
     });
   }, []);
   return html`<main class="home">
-    ${harbor && trend ? html`<${HarborLead} windows=${trend} downloads=${downloads} onOpen=${onOpenTrend} />` : ''}
+    ${harbor && trend ? html`<${HarborLead} windows=${trend} downloads=${downloads} onOpen=${onOpenTrend} fresh=${fresh} actions=${actions} />` : ''}
     ${harbor ? '' : html`<${Strip} id="trending" title="\u{1F525} Trending Downloads">
       ${trend === null ? html`<div class="loading">Loading…</div>` : html`<${TrendingStrip} windows=${trend} onOpen=${onOpenTrend} />`}
       <div class="strip-note">Download counts are from the last 7 or 30 days, not all-time totals.</div>
@@ -915,7 +959,7 @@ function HarborDownloads({ list, speedText, flip, mib }) {
   return html`<div class="hb-dls"><div class="hb-dlhead"><h2>Downloading</h2><span>${active.length} active${total > 0 ? ' \u00B7 ' + formatMiBps(total) : ''}</span></div>
     <div class="hb-dlgrid">${active.map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); const img = coverFor(d); const paused = String(d.status || '').toLowerCase() === 'paused';
       return html`<article class=${'hb-dcard' + (paused ? ' paused' : '')} key=${d.id}>
-        <div class="hb-dart">${img ? html`<img class="hb-dgray" src=${img} alt="" /><img class="hb-dcolor" style=${'clip-path:inset(0 ' + (100 - pct) + '% 0 0)'} src=${img} alt="" />` : ''}<i class="hb-dedge" style=${'left:calc(' + pct + '% - 1px)'}></i></div>
+        <div class="hb-dart">${img ? html`<img class="hb-dbg" src=${img} alt="" aria-hidden="true" /><img class="hb-dgray" src=${img} alt="" /><img class="hb-dcolor" style=${'clip-path:inset(0 ' + (100 - pct) + '% 0 0)'} src=${img} alt="" />` : ''}<i class="hb-dedge" style=${'left:calc(' + pct + '% - 1px)'}></i></div>
         <div class="hb-dbody"><div class="hb-dtop"><span class="hb-dtitle">${cleanTitle(d.name || '')}</span><span class="hb-dpct">${Math.round(pct)}%</span></div>
           <div class="hb-dline">${[formatSize(d.totalSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), speedText(d), etaShown(d.eta) ? etaShown(d.eta) + ' left' : ''].filter(Boolean).join(' \u00B7 ')}</div>
           <div class="dbtns">${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => api[k](d.id)}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div></div>
@@ -1379,9 +1423,9 @@ function App() {
     ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN Browser ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN Browser.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} />` : ''}
-    ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor' && !!admin} downloads=${downloads} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor' && !!admin} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor' && !!admin} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor' && !!admin} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
-      <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
+      <span class="count">${items ? (() => { const total = items.filter((x) => !isHiddenItem(x)).length; return `${shown.length}${shown.length !== total ? ' of ' + total : ''} items`; })() : ''}</span></div>
     ${remote === '3D Printer Models' && !everywhere ? html`<div class="notice soft" role="note"><strong>Heads up:</strong> many 3D printer models don't have a cover picture yet. Missing covers in this section are expected and are not a bug; pictures are being added as we go.</div>` : ''}
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${view === 'library' && !everywhere && (remote === 'Music' || remote === 'Comics') && !noticeOff ? html`<div class="notice soft">Some albums and comic collections may be missing tracks or issues that haven't been sourced yet. If you'd like to contribute, please contact Old Man of the Hills. Some releases are left out on purpose (remixes, live versions, compilations and the like), so these lists are not a complete or official catalogue. <button class="dbtn" onClick=${() => setNoticeOff(true)}>Got it</button></div>` : ''}

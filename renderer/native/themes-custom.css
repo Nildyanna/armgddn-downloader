@@ -15,8 +15,8 @@ html[data-theme="harbor"] .tab.on, html[data-theme="harbor"] .topbar .tab.on { b
 html[data-theme="harbor"] .subbar { background: transparent; border-bottom: 0; }
 html[data-theme="harbor"] .card { background: var(--surface); border: 0; border-radius: 12px; }
 html[data-theme="harbor"] .card:hover { transform: none; box-shadow: 0 0 0 2px var(--accent); }
-html[data-theme="harbor"] .cover img.cbg { display: none; }
-html[data-theme="harbor"] .cover img.cfg { object-fit: cover; }
+/* Cover art keeps the app's own fitting (blurred backdrop, whole picture shown unless it already matches the frame); Harbor only softens the backdrop. */
+html[data-theme="harbor"] .cover img.cbg { filter: blur(14px) brightness(.5) saturate(1.2); }
 html[data-theme="harbor"] .title { font-weight: 700; }
 html[data-theme="harbor"] .dl { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 700; border-radius: 8px; }
 html[data-theme="harbor"] .dl.ghost, html[data-theme="harbor"] .dl.heart { background: var(--inset); color: var(--fg); }
@@ -24,33 +24,6 @@ html[data-theme="harbor"] .strip, html[data-theme="harbor"] .drow { background: 
 html[data-theme="harbor"] .bar { height: 8px; background: #3a3046; }
 html[data-theme="harbor"] .fill { background: var(--accent); }
 html[data-theme="harbor"] .primary { border-radius: 10px; }
-/* The Home lead block (only drawn for staff in this theme) */
-.hb-lead { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; }
-.hb-lead h2, .hb-lead h3 { margin: 0; font-weight: 800; font-stretch: 125%; }
-.hb-hero { position: relative; min-height: 260px; border-radius: 16px; overflow: hidden; cursor: pointer; background: #2f2313; display: flex; align-items: flex-end; }
-.hb-heroart { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.1) brightness(.7); }
-.hb-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(13,10,18,.92), rgba(13,10,18,0) 65%); }
-.hb-herotext { position: relative; z-index: 1; padding: 22px 24px; display: flex; flex-direction: column; gap: 6px; }
-.hb-herotext h2 { font-size: 36px; line-height: 1; }
-.hb-kick { color: var(--accent); font-weight: 700; font-size: 13px; }
-.hb-meta { color: var(--dim); font-variant-numeric: tabular-nums; }
-.hb-chart { background: var(--surface); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
-.hb-chart h3, .hb-now h3 { font-size: 18px; }
-.hb-chart ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
-.hb-chart li { display: grid; grid-template-columns: 22px minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 10px; align-items: center; cursor: pointer; font-variant-numeric: tabular-nums; }
-.hb-chart li:hover .hb-name { color: var(--accent); }
-.hb-rank { font-weight: 800; color: var(--accent); }
-.hb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
-.hb-bar { height: 6px; background: #3a3046; border-radius: 3px; overflow: hidden; }
-.hb-bar i, .hb-dlbar i { display: block; height: 100%; background: var(--accent); }
-.hb-count { color: var(--dim); font-size: 13px; }
-.hb-now { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
-.hb-nowrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
-.hb-dl { background: var(--surface); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
-.hb-dlname { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hb-dlbar { height: 6px; background: #3a3046; border-radius: 3px; overflow: hidden; }
-.hb-dlmeta { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
-@media (max-width: 900px) { .hb-lead { grid-template-columns: 1fr; } }
 html[data-theme="harbor"] .banner .header-stars { display: none; }
 html[data-theme="harbor"] .banner-logo { order: 0; }
 html[data-theme="harbor"] .banner-text { order: 1; }
@@ -64,7 +37,8 @@ html[data-theme="harbor"] .banner h1 { background: none; -webkit-text-fill-color
 .hb-dlgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
 .hb-dcard { background: var(--surface); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; }
 .hb-dart { position: relative; aspect-ratio: 616 / 353; background: #211a2a; }
-.hb-dart img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hb-dart img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
+.hb-dart img.hb-dbg { object-fit: cover; filter: blur(14px) grayscale(1) brightness(.3); transform: scale(1.1); }
 .hb-dgray { filter: grayscale(1) brightness(.38); }
 .hb-dcard.paused .hb-dcolor { filter: saturate(.35); }
 .hb-dedge { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--accent); }
@@ -126,3 +100,57 @@ html[data-theme="harbor"] .acard.t-warn, html[data-theme="harbor"] .acard.t-bad 
 html[data-theme="harbor"] .acard.t-warn .avalue { color: #ffc766; } html[data-theme="harbor"] .acard.t-bad .avalue { color: #ff7a8a; }
 html[data-theme="harbor"] .adminpage [class*="map"], html[data-theme="harbor"] .adminpage [class*="route"], html[data-theme="harbor"] .adminpage [class*="live"] { border-radius: 16px; }
 html[data-theme="harbor"] .reqpane { flex: none; height: auto; align-self: center; min-width: min(760px, 92%); }
+/* Harbor focus: no browser ring on the open tab (it drew a white box around it); keyboard focus gets a soft green ring instead. */
+html[data-theme="harbor"] .tab:focus, html[data-theme="harbor"] button:focus, html[data-theme="harbor"] select:focus { outline: none; }
+html[data-theme="harbor"] .tab:focus-visible, html[data-theme="harbor"] button:focus-visible, html[data-theme="harbor"] select:focus-visible, html[data-theme="harbor"] input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; border-radius: 8px; }
+html[data-theme="harbor"] .tab.on:focus-visible { outline-offset: -2px; }
+html[data-theme="harbor"] .acards { gap: 16px; }
+html[data-theme="harbor"] .acard { min-height: 104px; }
+
+/* Harbor Home (the mockup): hero, ranked chart with pictures, fresh builds, downloading now */
+.hb-home { display: flex; flex-direction: column; gap: 36px; }
+.hb-hero { position: relative; border-radius: 20px; overflow: hidden; background: #2f2313; }
+.hb-herobg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(40px) brightness(.38) saturate(1.5); transform: scale(1.3); }
+.hb-heroin { position: relative; display: flex; flex-wrap: wrap; gap: 36px; padding: 32px; align-items: flex-start; }
+.hb-heroart { width: 616px; max-width: 100%; aspect-ratio: 616 / 353; object-fit: contain; border-radius: 12px; background: rgba(0,0,0,.25); flex: 0 1 616px; cursor: pointer; }
+.hb-herotext { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
+.hb-kick { font-weight: 700; font-size: 15px; color: #ffc766; font-variant-numeric: tabular-nums; }
+.hb-herotext h2 { margin: 0; font-weight: 800; font-stretch: 125%; font-size: 42px; line-height: 1.02; letter-spacing: -.01em; }
+.hb-facts { display: flex; gap: 32px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
+.hb-facts div { display: flex; flex-direction: column; gap: 4px; }
+.hb-facts span { color: #cfc6d9; font-size: 13px; }
+.hb-facts b { font-weight: 700; font-size: 22px; }
+.hb-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
+.hb-go, .hb-ghost, .hb-text { height: 48px; border-radius: 10px; font-weight: 700; font-size: 15px; font-family: inherit; cursor: pointer; }
+.hb-go { padding: 0 24px; border: 0; background: var(--accent); color: var(--on-accent); }
+.hb-ghost { padding: 0 22px; border: 0; background: transparent; color: var(--fg); box-shadow: inset 0 0 0 2px var(--fg); }
+.hb-text { padding: 0 12px; border: 0; background: none; color: var(--fg); font-weight: 600; }
+.hb-sec { display: flex; flex-direction: column; gap: 18px; }
+.hb-sechead { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
+.hb-sechead h3 { margin: 0; font-weight: 800; font-stretch: 125%; font-size: 26px; }
+.hb-sechead span { color: var(--dim); }
+.hb-chart3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 24px; }
+.hb-crow { display: grid; grid-template-columns: 52px 160px minmax(0, 1fr); gap: 14px; align-items: center; padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; color: inherit; text-align: left; cursor: pointer; font-family: inherit; }
+.hb-crow:hover { background: var(--surface); }
+.hb-rank { font-weight: 800; font-stretch: 125%; font-size: 34px; color: var(--accent2); text-align: right; font-variant-numeric: tabular-nums; }
+.hb-crow img, .hb-noimg { width: 160px; aspect-ratio: 616 / 353; border-radius: 8px; object-fit: contain; background: #211a2a; display: block; }
+.hb-cinfo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.hb-cinfo b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-cinfo span { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+.hb-cinfo i { align-self: flex-start; font-style: normal; font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: #2b2236; color: #d9d1e3; }
+.hb-fresh { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 8px; }
+.hb-fcard { flex: 0 0 264px; border: 0; padding: 0; background: none; color: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 10px; font: inherit; }
+.hb-fcard img { width: 264px; aspect-ratio: 616 / 353; border-radius: 10px; object-fit: contain; background: #211a2a; display: block; }
+.hb-fcard b { font-weight: 700; }
+.hb-fcard span { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; margin-top: -6px; }
+.hb-now { padding: 18px 22px; border-radius: 16px; background: var(--surface); display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
+.hb-nowhead { display: flex; flex-direction: column; gap: 4px; min-width: 170px; }
+.hb-nowhead b { font-weight: 800; font-stretch: 125%; font-size: 18px; }
+.hb-nowhead span { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+.hb-nowitem { display: flex; align-items: center; gap: 14px; }
+.hb-nowdot { width: 96px; height: 6px; border-radius: 3px; background: #3a3046; overflow: hidden; display: block; }
+.hb-nowdot i { display: block; height: 100%; background: var(--accent); }
+.hb-nowtext { display: flex; flex-direction: column; gap: 2px; }
+.hb-nowtext b { font-size: 14px; }
+.hb-nowtext span { color: var(--accent); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
+@media (max-width: 1100px) { .hb-chart3 { grid-template-columns: 1fr; } }

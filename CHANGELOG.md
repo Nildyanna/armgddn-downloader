@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.1] - 2026-11-22
+
+### Changed
+
+- Harbor (staff test theme): Home rebuilt to follow the design: a hero for the most downloaded title of the last 30 days (counts from that window only, never all-time), a three-column ranked chart with covers, fresh builds, and a Downloading now strip. Cover art keeps the app's own fitting instead of being cropped (library, hero and Downloads cards). Downloads cards find art for every section. The open tab no longer shows a white focus box; keyboard focus gets a soft green ring. Admin cards have more room.
+
+### Fixed
+
+- The item count in a library list no longer counts hidden files (it read "1163 of 1164 items" when one hidden update file was in the folder).
+- Admin: the value labels above the bars in the hour-of-day and other dense charts no longer overlap (every third bar and the peak are labelled; hovering still shows every value).
+
 ## [6.4.0] - 2026-11-22
 
 ### Added

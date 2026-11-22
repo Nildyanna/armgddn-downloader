@@ -1,4 +1,11 @@
 {
+  "6.4.1": {
+    "title": "Harbor test theme: Home rebuilt",
+    "highlights": [
+      "Harbor test theme (staff): Home is rebuilt to match the design, with a hero for the most downloaded title, a ranked chart with covers, and fresh builds. Cover art is no longer cropped, and the open tab no longer gets a white box.",
+      "The item count no longer counts hidden files, and the Admin hour-of-day chart no longer has overlapping numbers."
+    ]
+  },
   "6.4.0": {
     "title": "Harbor test theme, and a sign-in fix",
     "highlights": [

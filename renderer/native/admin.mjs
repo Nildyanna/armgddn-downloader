@@ -312,7 +312,7 @@ function BarChart({ labels, values, every, colors, unit = '', what = '', fmt, ho
     <div class="bmeta"><span>${what}</span><span class="bpeak">Peak ${f(values[peakAt] || 0)}${unit ? ' ' + unit : ''}${labels[peakAt] != null ? ' - ' + nice(labels[peakAt]) : ''}</span></div>
     <div class="bplot">
       <span class="byt">${f(max)}</span><span class="byb">0</span>
-      <div class="bbars">${values.map((v, i) => html`<div class="bcol" key=${i} title=${full(labels[i]) + ': ' + f(v) + (unit ? ' ' + unit : '')}><span class=${'bval' + (n > 20 ? ' dense' : '')}>${small(v)}</span><i class="bbar" style=${'height:' + (v ? Math.max(1.5, 100 * v / max) : 0) + '%;' + (colors && colors[i] ? 'background:' + colors[i] : '')}></i></div>`)}</div>
+      <div class="bbars">${values.map((v, i) => html`<div class="bcol" key=${i} title=${full(labels[i]) + ': ' + f(v) + (unit ? ' ' + unit : '')}><span class=${'bval' + (n > 20 ? ' dense' : '')}>${(n <= 12 || i % step === 0 || i === peakAt) ? small(v) : ''}</span><i class="bbar" style=${'height:' + (v ? Math.max(1.5, 100 * v / max) : 0) + '%;' + (colors && colors[i] ? 'background:' + colors[i] : '')}></i></div>`)}</div>
     </div>
     <div class="blabels">${labels.map((l, i) => html`<span key=${i}>${i % step === 0 ? nice(l) : ''}</span>`)}</div>
   </div>`;
