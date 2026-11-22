@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.3.2] - 2026-11-21
+
+### Fixed
+
+- Signing in with a different Telegram account: the sign-in window shares the app's browser session, so after signing out the old account's login cookie and Telegram's own account cookies stayed, and the next sign-in signed itself straight back in as the old account and closed. Signing out, and signing in with no saved sign-in, now clear those cookies (the site's themes and settings are left alone). Reported by Darkheart V3.
+
 ## [6.3.1] - 2026-11-21
 
 ### Fixed

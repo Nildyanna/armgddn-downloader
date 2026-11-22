@@ -1,4 +1,10 @@
 {
+  "6.3.2": {
+    "title": "Sign in with a different Telegram account",
+    "highlights": [
+      "Signing in with a different Telegram account works. Signing out now also forgets the Telegram account used before, so the next sign-in does not jump straight back to the old account."
+    ]
+  },
   "6.3.1": {
     "title": "Admin colours tidied",
     "highlights": [
