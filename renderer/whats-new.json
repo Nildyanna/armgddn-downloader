@@ -1,4 +1,10 @@
 {
+  "6.4.4": {
+    "title": "Harbor test theme: titles without art",
+    "highlights": [
+      "Harbor test theme (staff): titles without art show a letter tile on Home instead of an empty block."
+    ]
+  },
   "6.4.3": {
     "title": "Harbor test theme: missing art filled in",
     "highlights": [

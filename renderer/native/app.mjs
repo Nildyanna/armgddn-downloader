@@ -953,7 +953,7 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
     ${rows.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Most downloaded</h3><span>Last ${days} days, all members</span></div>
       <div class="hb-chart3">${rows.map((e, i) => html`<button class="hb-crow" key=${e.path} onClick=${() => onOpen(e)}>
         <span class="hb-rank">${i + 1}</span>
-        ${coverOf(e) ? html`<img src=${coverSrc(coverOf(e))} alt="" />` : html`<span class="hb-noimg"></span>`}
+        ${coverOf(e) ? html`<img src=${coverSrc(coverOf(e))} alt="" />` : html`<span class="hb-noimg">${(cleanTitle(e.title)[0] || '?').toUpperCase()}</span>`}
         <span class="hb-cinfo"><b>${cleanTitle(e.title)}</b><span>${e.count.toLocaleString('en-US')} downloads${e.sizeBytes ? ' · ' + formatSize(e.sizeBytes) : ''}</span><i>${(Number(e.pcvr) || 0) > (Number(e.pc) || 0) ? 'VR' : 'PC'}</i></span>
       </button>`)}</div></section>` : ''}
     ${fresh && fresh.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Fresh builds</h3><span>Newest updates first</span></div>

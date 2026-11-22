@@ -202,3 +202,4 @@ html[data-theme="harbor"] .hb-dls .dbtns { margin-top: 0; }
 .hb-also span { color: var(--dim); font-size: 13px; margin-top: -6px; font-variant-numeric: tabular-nums; }
 html[data-theme="harbor"] .hb-text { text-decoration: none; display: inline-flex; align-items: center; }
 html[data-theme="harbor"] .hb-text:disabled { opacity: .45; cursor: default; }
+.hb-noimg { display: grid; place-items: center; font-weight: 800; font-stretch: 125%; font-size: 40px; color: #4a3f5c; }

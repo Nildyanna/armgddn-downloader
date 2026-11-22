@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.4] - 2026-11-22
+
+### Fixed
+
+- Harbor (staff test theme): a title in the Most downloaded chart that has no art now shows a letter tile (as the library does) instead of an empty block.
+
 ## [6.4.3] - 2026-11-22
 
 ### Fixed
