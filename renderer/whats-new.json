@@ -1,4 +1,10 @@
 {
+  "6.4.5": {
+    "title": "Harbor test theme for all staff",
+    "highlights": [
+      "Harbor test theme: now available to all current staff, not only owners and admins."
+    ]
+  },
   "6.4.4": {
     "title": "Harbor test theme: titles without art",
     "highlights": [

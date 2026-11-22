@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.5] - 2026-11-22
+
+### Fixed
+
+- Harbor (staff test theme) only showed for site owners and admins, so most staff never saw it. It now shows for every current staff member (the list Tulip keeps on the site); the site's preferences answer says whether the member is staff. Anyone else who had it saved goes back to the Default theme.
+
 ## [6.4.4] - 2026-11-22
 
 ### Fixed
