@@ -240,7 +240,7 @@ export function confirmText(action, a = {}) {
     case 'resetDownloadCache': return { title: 'Reset the download cache', text: 'Delete every cached file on the site. Downloads in progress finish first. Files are fetched again the next time someone asks for them.', ok: 'Reset it' };
     case 'banIp': return { title: 'Ban an IP address', text: `Ban ${a.ip || 'this address'}. Anyone on it is blocked from the site, and the other admins get a Telegram alert.`, ok: 'Ban it' };
     case 'unbanIp': return { title: 'Unban an IP address', text: `Let ${a.ip || 'this address'} use the site again.`, ok: 'Unban it' };
-    case 'requestStatus': return { title: 'Change a request', text: `Set request ${a.id} (${a.title || 'untitled'}) to "${a.status}". The member who asked may be told.`, ok: 'Change it' };
+    case 'requestStatus': return { title: 'Change a request', text: `Set request ${a.id} (${a.title || 'untitled'}) to "${a.status}". The member who asked may be told. A reason you add below is shown to them.`, ok: 'Change it' };
     case 'requestDelete': return { title: 'Delete a request', text: `Delete request ${a.id} (${a.title || 'untitled'}) for good. This cannot be undone.`, ok: 'Delete it' };
     case 'clearMissing': return { title: 'Stop listing a game', text: `Mark "${a.title || a.gameKey}" as having no cover or trailer available, so it stops showing in the missing list and future checks do not add it back.`, ok: 'Mark it' };
     case 'accessAdd': return { title: 'Give admin access', text: `Add ${a.id} to the ${a.list === 'channel' ? 'full admin' : 'request admin'} list. They can use the admin pages (${a.list === 'channel' ? 'all of them except the owner-only ones' : 'requests only'}) from their next visit.`, ok: 'Add them' };

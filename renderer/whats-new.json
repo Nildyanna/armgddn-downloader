@@ -978,5 +978,12 @@
     "highlights": [
       "Fix: on some Linux setups the app could fill its log with endless \"write EPIPE\" errors after being started from a launcher that closed its output. It now ignores a closed output."
     ]
+  },
+  "6.5.0": {
+    "title": "Reasons on request decisions",
+    "highlights": [
+      "When you change a request's status you can now add a reason, and the member sees it.",
+      "The install guide's last step now says to install the game first, then start it from the desktop or Start menu icon, with VR instructions."
+    ]
   }
 }

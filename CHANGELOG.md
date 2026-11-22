@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.5.0] - 2026-11-22
+
+### Added
+
+- Admin: changing a request's status now has an optional reason box. The reason is sent with the change; for Approved and Rejected it also appears in the member's thread.
+
+### Changed
+
+- The install guide's last step is now "Install and play": install from the extracted folder, then start the game from the desktop or Start menu icon, with VR instructions (headset launch method of choice, not Steam Link, then the desktop view).
+
 ## [6.4.7] - 2026-11-22
 
 ### Fixed

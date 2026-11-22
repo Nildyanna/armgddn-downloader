@@ -30,6 +30,7 @@ function useAdminAction(after) {
   const [pending, setPending] = useState(null);
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState('');
+  const [reason, setReason] = useState('');
   const exec = async (action, args) => {
     setBusy(true);
     const r = await api.adminDo(action, args);
@@ -43,12 +44,13 @@ function useAdminAction(after) {
   };
   // The sensitive actions are confirmed by the app itself in a system dialog it builds from the request (the page cannot confirm for the member);
   // the rest ask in the page.
-  const run = (action, args) => { setMsg(''); if (NATIVE_CONFIRMED.includes(action)) exec(action, args); else setPending({ action, args, c: confirmText(action, args) }); };
-  const go = () => { const p = pending; if (p) exec(p.action, p.args); };
+  const run = (action, args) => { setMsg(''); setReason(''); if (NATIVE_CONFIRMED.includes(action)) exec(action, args); else setPending({ action, args, c: confirmText(action, args) }); };
+  const go = () => { const p = pending; if (!p) return; const why = reason.trim(); exec(p.action, p.action === 'requestStatus' && why ? { ...p.args, decisionReason: why } : p.args); };
   const ui = html`<div>
     ${msg ? html`<div class="notice soft">${msg}</div>` : ''}
     ${pending ? html`<div class="overlay" onClick=${() => !busy && setPending(null)}><div class="modal" onClick=${(e) => e.stopPropagation()}>
       <h3>${pending.c.title}</h3><p>${pending.c.text}</p>
+      ${pending.action === 'requestStatus' ? html`<div class="compose"><input class="wide" type="text" maxlength="500" placeholder="Reason for the member (optional)" value=${reason} onInput=${(e) => setReason(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && !busy) go(); }} /></div>` : ''}
       <div class="dbtns"><button class="primary danger" disabled=${busy} onClick=${go}>${busy ? 'Working...' : pending.c.ok}</button><button class="dbtn" disabled=${busy} onClick=${() => setPending(null)}>Cancel</button></div>
     </div></div>` : ''}
   </div>`;

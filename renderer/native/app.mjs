@@ -224,7 +224,7 @@ function HarborTitle({ item, remote, art, cover, cats, trailer, readme, onClose,
       <ol class="hb-steps">
         <li><b>1</b><h4>Download</h4><p>The app fetches every part, checks each one, and picks up where it left off if your connection drops.</p></li>
         <li><b>2</b><h4>Extract</h4><p>With Auto-extract on, the app unpacks it for you. Otherwise right-click the first part and choose Extract Here. Leave room for the download plus the extracted game.</p></li>
-        <li><b>3</b><h4>Play</h4><p>${vr ? 'Needs a VR headset running SteamVR. Start the game from the extracted folder.' : 'Start the game from the extracted folder.'}</p></li>
+        <li><b>3</b><h4>Install and play</h4><p>${vr ? 'Most VR games need a headset running SteamVR, though some games and launch methods get around it. Install the game from the extracted folder. Then start your headset with the launch method of your choice (not Steam Link), open the desktop view, and launch the game from its desktop or Start menu icon there.' : 'Install the game from the extracted folder, then start it from the desktop or Start menu icon the installer creates.'}</p></li>
       </ol>
     </section>
     ${also.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Also big in ${kind}</h3><span>Most downloaded, last 30 days</span></div>
