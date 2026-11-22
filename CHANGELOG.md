@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.0] - 2026-11-22
+
+### Added
+
+- Harbor, a staff-only test theme for a possible new default look: flat dark surfaces, Archivo type, art-first cards, one green accent. Home gets a lead block (the top title of the last 30 days, a ranked "Most downloaded" chart, and what is downloading now). Downloads shows active downloads as art cards whose picture fills in as they progress; the art is read from the library listing when needed, not saved. Settings, Tools, Wiki, Requests and Admin follow the same style. Other themes are unchanged.
+
+### Fixed
+
+- When the site refuses a saved sign-in (401), the app signs out and shows the sign-in screen with "Your sign-in expired", instead of an empty Home.
+
 ## [6.3.3] - 2026-11-22
 
 ### Fixed

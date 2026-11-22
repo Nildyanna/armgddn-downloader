@@ -436,7 +436,9 @@ test('hand-made themes load from their own files, which the theme generator neve
   const app = fs.readFileSync(path.join(dir, 'app.mjs'), 'utf8');
   assert.ok(app.includes("import('./themes-custom.json', { with: { type: 'json' } })"));
   assert.ok(fs.readFileSync(path.join(dir, 'index.html'), 'utf8').includes('<link rel="stylesheet" href="themes-custom.css">'));
-  assert.deepEqual(JSON.parse(fs.readFileSync(path.join(dir, 'themes-custom.json'), 'utf8')), {});
+  const custom = JSON.parse(fs.readFileSync(path.join(dir, 'themes-custom.json'), 'utf8'));
+  assert.deepEqual(Object.keys(custom), ['harbor']);
+  assert.ok(app.includes("k !== 'harbor' || admin"), 'Harbor is offered to staff only');
   const gen = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'extract_themes.py'), 'utf8');
   assert.ok(!gen.includes('themes-custom'), 'the generator does not touch the custom files');
 });
@@ -536,4 +538,20 @@ test('the Downloads tab shows the bytes written so far, not only the finished fi
   assert.ok(bridge.includes("downloadedSize: Math.max(Number(d.downloadedSize) || 0, Number(d.bytesSoFar) || 0),"));
   // the internal completed-bytes counter that decides when a download is finished is left alone
   assert.ok(main.includes("const isByteComplete = totalSize > 0 && downloadedSize >= totalSize;"));
+});
+
+test('a saved sign-in the site refuses (401) sends the member back to the sign-in screen', () => {
+  const fs = require('fs'), path = require('path');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  assert.ok(app.includes("r.error.kind === 'auth' || r.error.status === 401"));
+  assert.ok(app.includes('Your sign-in expired. Sign in again to carry on.'));
+});
+
+test('Harbor download cards find their art for PC, PCVR and the other sections without saving it', () => {
+  const fs = require('fs'), path = require('path');
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
+  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(app.includes('d.resumeRemote') && app.includes('collectionCoverPath(w.group, w.folder'));
+  assert.ok(bridge.includes('resumeRemote: d.resumeRemote') && main.includes('resumeRemote: (download.resume'));
 });

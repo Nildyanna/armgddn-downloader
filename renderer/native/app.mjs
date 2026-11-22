@@ -265,7 +265,7 @@ function RequestsView({ say, openId }) {
 
 function MyListView({ list, render, listMode }) {
   if (!list.length) return html`<div class="empty">Your list is empty. Press the heart on a game, album or comic to save it here.</div>`;
-  return html`<main class=${listMode ? 'list' : 'grid wide'}>${list.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
+  return html`<main class=${listMode ? 'list' : 'grid wide'}>${rows.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
 }
 
 function WikiView() {
@@ -821,7 +821,33 @@ function RadarStrip({ trend, progress, myList, history, onOpen, onSave, onResume
   </${Fragment}>`;
 }
 
-function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSave, onResume }) {
+// Harbor (staff-only test redesign): a lead block for Home with the top title, a ranked most-downloaded chart and what is downloading now.
+function HarborLead({ windows, downloads, onOpen }) {
+  const win = windows && Array.isArray(windows.month) && windows.month.length ? 'month' : 'week';
+  const rows = useMemo(() => {
+    const seen = new Set(); const out = [];
+    for (const e of (windows && Array.isArray(windows[win]) ? windows[win] : [])) {
+      const count = (Number(e.pc) || 0) + (Number(e.pcvr) || 0) || Number(e.total) || 0;
+      const key = String(e.title || e.path).toLowerCase();
+      if (!count || seen.has(key)) continue; seen.add(key); out.push({ ...e, count });
+    }
+    return out.sort((a, b) => b.count - a.count).slice(0, 8);
+  }, [windows]);
+  const active = (downloads || []).filter(isActiveDownload).slice(0, 4);
+  if (!rows.length && !active.length) return '';
+  const top = rows[0]; const max = top ? top.count : 1;
+  return html`<section class="hb-lead">
+    ${top ? html`<div class="hb-hero" onClick=${() => onOpen(top)}>
+      ${top.coverUrl ? html`<img class="hb-heroart" src=${coverSrc(top.coverUrl)} alt="" />` : ''}
+      <div class="hb-herotext"><span class="hb-kick">No. 1 \u00B7 last ${win === 'month' ? '30' : '7'} days</span><h2>${cleanTitle(top.title)}</h2>
+        <span class="hb-meta">${top.count.toLocaleString('en-US')} downloads${top.sizeBytes ? ' \u00B7 ' + formatSize(top.sizeBytes) : ''}</span></div>
+    </div>` : ''}
+    <div class="hb-chart"><h3>Most downloaded</h3><ol>${rows.map((e, i) => html`<li key=${e.path} onClick=${() => onOpen(e)}><span class="hb-rank">${i + 1}</span><span class="hb-name">${cleanTitle(e.title)}</span><span class="hb-bar"><i style=${'width:' + Math.max(4, Math.round(e.count / max * 100)) + '%'}></i></span><span class="hb-count">${e.count.toLocaleString('en-US')}</span></li>`)}</ol></div>
+    ${active.length ? html`<div class="hb-now"><h3>Downloading now</h3><div class="hb-nowrow">${active.map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); return html`<div class="hb-dl" key=${d.id}><div class="hb-dlname">${d.name || d.title || 'Download'}</div><div class="hb-dlbar"><i style=${'width:' + pct + '%'}></i></div><div class="hb-dlmeta">${Math.round(pct)}%${d.totalSpeed ? ' \u00B7 ' + d.totalSpeed : ''}</div></div>`; })}</div></div>` : ''}
+  </section>`;
+}
+
+function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSave, onResume, harbor, downloads }) {
   const [trend, setTrend] = useState(null);
   const [gems, setGems] = useState(null);
   const [progress, setProgress] = useState(null);
@@ -839,10 +865,11 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
     });
   }, []);
   return html`<main class="home">
-    <${Strip} id="trending" title="\u{1F525} Trending Downloads">
+    ${harbor && trend ? html`<${HarborLead} windows=${trend} downloads=${downloads} onOpen=${onOpenTrend} />` : ''}
+    ${harbor ? '' : html`<${Strip} id="trending" title="\u{1F525} Trending Downloads">
       ${trend === null ? html`<div class="loading">Loading…</div>` : html`<${TrendingStrip} windows=${trend} onOpen=${onOpenTrend} />`}
       <div class="strip-note">Download counts are from the last 7 or 30 days, not all-time totals.</div>
-    </${Strip}>
+    </${Strip}>`}
     <${Strip} id="picks" title="Game Radar" sub="Personalized picks">
       ${trend === null || progress === null ? html`<div class="loading">Loading…</div>` : html`<${RadarStrip} trend=${trend} progress=${progress} myList=${myList} history=${history} onOpen=${onRadarOpen} onSave=${onRadarSave} onResume=${onResume} />`}
     </${Strip}>
@@ -852,13 +879,57 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
   </main>`;
 }
 
-function DownloadsView({ list, onClear }) {
+// Harbor: the active downloads as art cards whose picture fills in (colour, left to right) as the download progresses. The art is read from the library listing as needed.
+function HarborDownloads({ list, speedText, flip, mib }) {
+  // The cover is read from the library listing when it is needed (the folder listing the library already uses, cached by the app), not stored with the download.
+  const [art, setArt] = useState({});
+  // Where a download's listing is: PC and PCVR by the mirror folder in its path, every other section (Music, Comics, apps, 3D) by the section and path the download was started from.
+  const where = (d) => {
+    const parts = String(d.remotePath || '').split('/').filter(Boolean);
+    if (parts.length >= 2) { const first = parts[0]; const group = /^PCVR\d*$/.test(first) ? 'PCVR Games' : /^PC\d*$/.test(first) ? 'PC Games' : null; if (group) { const name = parts.pop(); return { group, folder: parts.join('/'), name }; } }
+    const rp = String(d.resumePath || '').split('/').filter(Boolean);
+    if (d.resumeRemote && rp.length && !rp[0].startsWith('__batch__')) { const name = rp.pop(); const rem = /^PCVR-\d$/.test(d.resumeRemote) ? 'PCVR Games' : /^PC-\d$/.test(d.resumeRemote) ? 'PC Games' : d.resumeRemote; return { group: rem, folder: rp.join('/'), name }; }
+    return null;
+  };
+  const wanted = list.filter(isActiveDownload).map((d) => ({ id: d.id, w: where(d) })).filter((x) => x.w);
+  const key = wanted.map((x) => x.id + x.w.group + x.w.folder + x.w.name).join('|');
+  useEffect(() => {
+    let live = true;
+    (async () => {
+      const out = {}; const listings = new Map();
+      for (const { id, w } of wanted) {
+        const k = w.group + '|' + w.folder;
+        if (!listings.has(k)) { const b = await api.browse(w.group, w.folder); listings.set(k, b.ok ? (b.data.files || []) : []); }
+        const hit = listings.get(k).find((f) => f && f.name === w.name);
+        const url = (hit && hit.coverArt && hit.coverArt.cover && hit.coverArt.cover.url) || collectionCoverPath(w.group, w.folder, hit || { name: w.name, isDir: true });
+        if (url) out[id] = coverSrc(url);
+      }
+      if (live) setArt((prev) => ({ ...prev, ...out }));
+    })();
+    return () => { live = false; };
+  }, [key]);
+  const coverFor = (d) => art[d.id] || '';
+  const active = list.filter(isActiveDownload);
+  if (!active.length) return '';
+  const total = active.reduce((n, d) => n + (Number(d.totalSpeedBytes) || 0), 0);
+  return html`<div class="hb-dls"><div class="hb-dlhead"><h2>Downloading</h2><span>${active.length} active${total > 0 ? ' \u00B7 ' + formatMiBps(total) : ''}</span></div>
+    <div class="hb-dlgrid">${active.map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); const img = coverFor(d); const paused = String(d.status || '').toLowerCase() === 'paused';
+      return html`<article class=${'hb-dcard' + (paused ? ' paused' : '')} key=${d.id}>
+        <div class="hb-dart">${img ? html`<img class="hb-dgray" src=${img} alt="" /><img class="hb-dcolor" style=${'clip-path:inset(0 ' + (100 - pct) + '% 0 0)'} src=${img} alt="" />` : ''}<i class="hb-dedge" style=${'left:calc(' + pct + '% - 1px)'}></i></div>
+        <div class="hb-dbody"><div class="hb-dtop"><span class="hb-dtitle">${cleanTitle(d.name || '')}</span><span class="hb-dpct">${Math.round(pct)}%</span></div>
+          <div class="hb-dline">${[formatSize(d.totalSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), speedText(d), etaShown(d.eta) ? etaShown(d.eta) + ' left' : ''].filter(Boolean).join(' \u00B7 ')}</div>
+          <div class="dbtns">${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => api[k](d.id)}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div></div>
+      </article>`; })}</div></div>`;
+}
+
+function DownloadsView({ list, onClear, harbor }) {
   // Speed in bits per second as the Companion has always shown it; MiB/s is an option, remembered, switched from any download.
   const [mib, setMib] = useState(() => { try { return localStorage.getItem('native.speedUnit') === 'mib'; } catch (e) { return false; } });
   const flip = () => { const n = !mib; setMib(n); try { localStorage.setItem('native.speedUnit', n ? 'mib' : 'bits'); } catch (e) { } };
   const speedText = (d) => (mib && Number(d.totalSpeedBytes) > 0 ? formatMiBps(d.totalSpeedBytes) : (d.totalSpeed || formatSpeed(d.speed)));
   if (!list.length) return html`<div class="empty">No downloads yet. Press Download on any game, album or comic collection.</div>`;
-  return html`<div class="dlist"><div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
+  const rows = harbor ? list.filter((d) => !isActiveDownload(d)) : list;
+  return html`<div class="dlist">${harbor ? html`<${HarborDownloads} list=${list} speedText=${speedText} flip=${flip} mib=${mib} />` : ''}<div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
     <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
     <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(d.downloadedSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), speedText(d), elapsedShown(d) ? 'Elapsed ' + elapsedShown(d) : '', etaShown(d.eta) ? 'ETA ' + etaShown(d.eta) : '', d.fileCount > 1 ? (d.completedFiles || 0) + ' of ' + d.fileCount + ' files' : ''].filter(Boolean).join(' · ')}</div>
@@ -996,6 +1067,7 @@ function App() {
   const [animOn, setAnimOn] = useState(() => { try { return localStorage.getItem('native.animations') !== '0'; } catch (e) { return true; } });
   useEffect(() => { document.documentElement.dataset.anim = animOn ? '1' : '0'; }, [animOn]);
   const toggleAnim = () => { const v = !animOn; setAnimOn(v); try { localStorage.setItem('native.animations', v ? '1' : '0'); } catch (e) { } };
+  const [expired, setExpired] = useState(false);
   const logout = async () => { await api.logout(); setStatus({ signedIn: false }); };
   const [radarHistory, setRadarHistory] = useState(() => lsGet('native.radarHistory', []));
   // Opening a game folder is remembered (newest first) so Game Radar can say "Continue browsing" and offer "Resume last visit".
@@ -1174,11 +1246,14 @@ function App() {
     setStatus(s.ok ? s.data : { signedIn: false });
     if (!s.ok || !s.data.signedIn) return;
     const r = await api.remotes();
+    // A saved sign-in the site no longer accepts (expired): sign out here so the sign-in screen comes back, instead of empty pages.
+    if (!r.ok && r.error && (r.error.kind === 'auth' || r.error.status === 401)) { try { await api.logout(); } catch (e) { } setExpired(true); setStatus({ signedIn: false }); return; }
     if (!r.ok) return fail(r.error);
+    setExpired(false);
     const t = tabsFrom(r.data.remotes); setTabs(t); if (t.length) setRemote(t[0]);
     try { setQuota(quotaTabs(r.data.remoteStatus)); } catch (e) { }
     // Owners and admins get an Admin tab; the site answers 403 to everyone else, so nobody else ever sees it.
-    try { const a = await api.adminGet('stats', {}); if (a && a.ok && a.data && (a.data.role === 'owner' || a.data.role === 'admin')) setAdmin({ role: a.data.role, canManage: !!a.data.canManageRequests }); } catch (e) { }
+    try { const a = await api.adminGet('stats', {}); if (a && a.ok && a.data && (a.data.role === 'owner' || a.data.role === 'admin')) setAdmin({ role: a.data.role, canManage: !!a.data.canManageRequests }); else if (storedTheme() === 'harbor') chooseTheme('dark'); } catch (e) { }
     // The website copies each member's preferences to the server; the first time here they come over by themselves, and later visits only add
     // new My List entries. Nothing for the member to do. They are read first, because they also say whether the member has seen the intro.
     let pulled = null;
@@ -1261,13 +1336,13 @@ function App() {
   const showBundles = view === 'library' && remote === 'Comics' && !everywhere && !folder && !query && items !== null;
   const signIn = async () => { await api.login(); boot(true); };
 
-  if (status && !status.signedIn) return html`<div class="center"><h1>ARMGDDN</h1><p>Sign in to browse the library.</p><button class="primary" onClick=${signIn}>Sign in with Telegram</button></div>`;
+  if (status && !status.signedIn) return html`<div class="center"><h1>ARMGDDN</h1><p>${expired ? 'Your sign-in expired. Sign in again to carry on.' : 'Sign in to browse the library.'}</p><button class="primary" onClick=${signIn}>Sign in with Telegram</button></div>`;
   return html`<div class="shell">
     <div class="banner">
       <div class="header-stars"><div class="header-star header-star-1"></div><div class="header-star header-star-2"></div><div class="header-star header-star-3"></div></div>
       <div class="banner-actions">
         <button class="dbtn" title="Turn the moving effects on or off" onClick=${toggleAnim}>\u2728 Animations ${animOn ? 'on' : 'off'}</button>
-      <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['dark', 'Default', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light').sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
+      <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['dark', 'Default', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light' && (k !== 'harbor' || admin)).sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
         ${status && status.signedIn ? html`<button class="dbtn" title="Sign out of this PC" onClick=${logout}>Logout</button>` : ''}
       </div>
       <div class="banner-credit"><div class="fire-particles"><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i></div><span class="fire-text">Created by Old Man of the Hills v${(status && status.version) || ''}</span></div>
@@ -1304,7 +1379,7 @@ function App() {
     ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN Browser ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN Browser.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} />` : ''}
-    ${view === 'home' ? html`<${HomeView} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor' && !!admin} downloads=${downloads} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor' && !!admin} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? `${shown.length}${shown.length !== items.length ? ' of ' + items.length : ''} items` : ''}</span></div>
     ${remote === '3D Printer Models' && !everywhere ? html`<div class="notice soft" role="note"><strong>Heads up:</strong> many 3D printer models don't have a cover picture yet. Missing covers in this section are expected and are not a bug; pictures are being added as we go.</div>` : ''}

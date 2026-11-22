@@ -1,4 +1,11 @@
 {
+  "6.4.0": {
+    "title": "Harbor test theme, and a sign-in fix",
+    "highlights": [
+      "Staff: a new Harbor test theme (flat dark look, Archivo type, art-first cards, a ranked Most downloaded chart on Home, and Downloads cards whose picture fills in as the download progresses). Pick it from the theme menu; only staff see it.",
+      "If your saved sign-in has expired, the app now asks you to sign in again instead of showing empty pages."
+    ]
+  },
   "6.3.3": {
     "title": "Sign-in finishes properly",
     "highlights": [

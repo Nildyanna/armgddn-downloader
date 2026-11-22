@@ -1,1 +1,128 @@
 /* Hand-made themes (a theme someone designed by hand, not taken from the website). Rules here are scoped as html[data-theme="the-id"] ... and are never overwritten by scripts/extract_themes.py. */
+
+/* Harbor: staff-only test of the redesign. Flat dark surfaces, Archivo type, art-first cards, one acid-green accent. */
+@font-face { font-family: 'Archivo'; src: url('fonts/Archivo-variable.woff2') format('woff2'); font-weight: 400 900; font-stretch: 62% 125%; font-display: swap; }
+html[data-theme="harbor"] body { font-family: 'Archivo', system-ui, sans-serif; background: #0d0a12; }
+html[data-theme="harbor"] { --surface: #17121e; --inset: #211a2a; }
+html[data-theme="harbor"] .banner { margin: 0; padding: 10px 24px; min-height: 0; border: 0; border-radius: 0; background: #17121e; box-shadow: none; justify-content: flex-start; gap: 14px; }
+html[data-theme="harbor"] .banner::before, html[data-theme="harbor"] .banner::after, html[data-theme="harbor"] .banner-credit, html[data-theme="harbor"] .banner p { display: none; }
+html[data-theme="harbor"] .banner-logo { position: static; transform: none; width: 40px; height: 40px; filter: none; }
+html[data-theme="harbor"] .banner-text { text-align: left; }
+html[data-theme="harbor"] .banner h1 { font-family: 'Archivo', system-ui, sans-serif; font-weight: 800; font-stretch: 125%; font-size: 19px; letter-spacing: .04em; margin: 0; color: var(--fg); text-shadow: none; }
+html[data-theme="harbor"] .banner-actions { position: static; margin-left: auto; }
+html[data-theme="harbor"] .tab { border-radius: 0; border: 0; padding: 10px 12px; font-weight: 500; }
+html[data-theme="harbor"] .tab.on, html[data-theme="harbor"] .topbar .tab.on { background: transparent; color: #fff; font-weight: 700; border: 0; box-shadow: inset 0 -3px 0 var(--accent); }
+html[data-theme="harbor"] .subbar { background: transparent; border-bottom: 0; }
+html[data-theme="harbor"] .card { background: var(--surface); border: 0; border-radius: 12px; }
+html[data-theme="harbor"] .card:hover { transform: none; box-shadow: 0 0 0 2px var(--accent); }
+html[data-theme="harbor"] .cover img.cbg { display: none; }
+html[data-theme="harbor"] .cover img.cfg { object-fit: cover; }
+html[data-theme="harbor"] .title { font-weight: 700; }
+html[data-theme="harbor"] .dl { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 700; border-radius: 8px; }
+html[data-theme="harbor"] .dl.ghost, html[data-theme="harbor"] .dl.heart { background: var(--inset); color: var(--fg); }
+html[data-theme="harbor"] .strip, html[data-theme="harbor"] .drow { background: var(--surface); border: 0; border-radius: 16px; }
+html[data-theme="harbor"] .bar { height: 8px; background: #3a3046; }
+html[data-theme="harbor"] .fill { background: var(--accent); }
+html[data-theme="harbor"] .primary { border-radius: 10px; }
+/* The Home lead block (only drawn for staff in this theme) */
+.hb-lead { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 20px; }
+.hb-lead h2, .hb-lead h3 { margin: 0; font-weight: 800; font-stretch: 125%; }
+.hb-hero { position: relative; min-height: 260px; border-radius: 16px; overflow: hidden; cursor: pointer; background: #2f2313; display: flex; align-items: flex-end; }
+.hb-heroart { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: saturate(1.1) brightness(.7); }
+.hb-hero::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, rgba(13,10,18,.92), rgba(13,10,18,0) 65%); }
+.hb-herotext { position: relative; z-index: 1; padding: 22px 24px; display: flex; flex-direction: column; gap: 6px; }
+.hb-herotext h2 { font-size: 36px; line-height: 1; }
+.hb-kick { color: var(--accent); font-weight: 700; font-size: 13px; }
+.hb-meta { color: var(--dim); font-variant-numeric: tabular-nums; }
+.hb-chart { background: var(--surface); border-radius: 16px; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.hb-chart h3, .hb-now h3 { font-size: 18px; }
+.hb-chart ol { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.hb-chart li { display: grid; grid-template-columns: 22px minmax(0, 1.2fr) minmax(0, 1fr) auto; gap: 10px; align-items: center; cursor: pointer; font-variant-numeric: tabular-nums; }
+.hb-chart li:hover .hb-name { color: var(--accent); }
+.hb-rank { font-weight: 800; color: var(--accent); }
+.hb-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.hb-bar { height: 6px; background: #3a3046; border-radius: 3px; overflow: hidden; }
+.hb-bar i, .hb-dlbar i { display: block; height: 100%; background: var(--accent); }
+.hb-count { color: var(--dim); font-size: 13px; }
+.hb-now { grid-column: 1 / -1; display: flex; flex-direction: column; gap: 10px; }
+.hb-nowrow { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; }
+.hb-dl { background: var(--surface); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; }
+.hb-dlname { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hb-dlbar { height: 6px; background: #3a3046; border-radius: 3px; overflow: hidden; }
+.hb-dlmeta { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .hb-lead { grid-template-columns: 1fr; } }
+html[data-theme="harbor"] .banner .header-stars { display: none; }
+html[data-theme="harbor"] .banner-logo { order: 0; }
+html[data-theme="harbor"] .banner-text { order: 1; }
+html[data-theme="harbor"] .banner-actions { order: 2; }
+html[data-theme="harbor"] .banner h1 { background: none; -webkit-text-fill-color: var(--fg); animation: none; }
+/* Harbor: Downloads page */
+.hb-dls { width: 100%; align-self: stretch; display: flex; flex-direction: column; gap: 14px; margin-bottom: 18px; }
+.hb-dlhead { display: flex; align-items: baseline; gap: 14px; }
+.hb-dlhead h2 { margin: 0; font-weight: 800; font-stretch: 125%; font-size: 26px; }
+.hb-dlhead span { color: var(--dim); font-variant-numeric: tabular-nums; }
+.hb-dlgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 20px; }
+.hb-dcard { background: var(--surface); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; }
+.hb-dart { position: relative; aspect-ratio: 616 / 353; background: #211a2a; }
+.hb-dart img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.hb-dgray { filter: grayscale(1) brightness(.38); }
+.hb-dcard.paused .hb-dcolor { filter: saturate(.35); }
+.hb-dedge { position: absolute; top: 0; bottom: 0; width: 3px; background: var(--accent); }
+.hb-dcard.paused .hb-dedge { background: var(--dim); }
+.hb-dbody { padding: 16px 18px 18px; display: flex; flex-direction: column; gap: 8px; }
+.hb-dtop { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; }
+.hb-dtitle { font-weight: 700; font-size: 17px; }
+.hb-dpct { font-weight: 800; font-stretch: 125%; font-size: 22px; color: var(--accent); font-variant-numeric: tabular-nums; }
+.hb-dcard.paused .hb-dpct { color: var(--dim); }
+.hb-dline { color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+html[data-theme="harbor"] .hb-dbody .dbtn { background: var(--inset); border: 0; color: var(--fg); font-weight: 600; border-radius: 10px; padding: 8px 14px; }
+html[data-theme="harbor"] .dlist .drow { padding: 14px 16px; }
+
+/* Harbor: the other pages. Same rules as Home, Library and Downloads: wide Archivo headings, flat rounded panels without borders, grey buttons, one green accent. */
+html[data-theme="harbor"] .settings, html[data-theme="harbor"] .adminpage { width: 100%; box-sizing: border-box; margin-left: auto; margin-right: auto; max-width: 1100px; padding: 24px 32px 40px; gap: 20px; }
+html[data-theme="harbor"] .settings h2, html[data-theme="harbor"] .adminpage h2, html[data-theme="harbor"] .reqhead h2 { font-weight: 800; font-stretch: 125%; font-size: 34px; line-height: 1; margin: 0 0 6px; }
+html[data-theme="harbor"] .sgroup, html[data-theme="harbor"] .toolcard { background: var(--surface); border: 0; border-radius: 16px; padding: 18px 22px 20px; margin-top: 0; }
+html[data-theme="harbor"] .sgroup h3, html[data-theme="harbor"] .toolcard h3 { font-weight: 800; font-stretch: 125%; font-size: 20px; letter-spacing: 0; text-transform: none; color: var(--fg); margin: 0 0 8px; }
+html[data-theme="harbor"] .sgroup .srow { border-top: 1px solid rgba(243, 239, 248, .07); padding: 12px 0; }
+html[data-theme="harbor"] .srow { background: transparent; border: 0; border-radius: 0; }
+html[data-theme="harbor"] .toolcard .srow { background: var(--inset); border-radius: 12px; padding: 10px 14px; }
+html[data-theme="harbor"] .srow .sval { font-variant-numeric: tabular-nums; }
+html[data-theme="harbor"] .dbtn { background: var(--inset); border: 0; color: var(--fg); font-weight: 600; font-size: 13px; border-radius: 10px; padding: 8px 14px; }
+html[data-theme="harbor"] .dbtn:hover { background: #2b2236; color: var(--fg); }
+html[data-theme="harbor"] .dbtn.go, html[data-theme="harbor"] .primary { background: var(--accent); color: var(--on-accent); }
+html[data-theme="harbor"] select, html[data-theme="harbor"] input[type=text], html[data-theme="harbor"] input[type=search], html[data-theme="harbor"] input[type=number], html[data-theme="harbor"] input:not([type]), html[data-theme="harbor"] textarea, html[data-theme="harbor"] .toolcard input.wide { background: var(--inset); border: 0; border-radius: 10px; color: var(--fg); padding: 8px 12px; font-family: inherit; }
+html[data-theme="harbor"] .toolcard .srow select { border: 0; border-radius: 10px; }
+html[data-theme="harbor"] input[type=checkbox] { accent-color: var(--accent); }
+/* Wiki */
+html[data-theme="harbor"] .wiki { gap: 8px; padding: 0 32px; }
+html[data-theme="harbor"] .wikitoc { border-right: 0; width: 290px; padding: 16px 8px 16px 0; }
+html[data-theme="harbor"] .wikitoc button { border-radius: 10px; padding: 9px 12px; font-weight: 500; }
+html[data-theme="harbor"] .wikitoc button.on { background: var(--inset); color: #fff; font-weight: 700; box-shadow: inset 3px 0 0 var(--accent); }
+html[data-theme="harbor"] .wikibody { padding: 20px 28px 48px; max-width: 860px; }
+html[data-theme="harbor"] .wikibody h2 { font-weight: 800; font-stretch: 125%; font-size: 34px; line-height: 1.05; margin: 0 0 14px; }
+html[data-theme="harbor"] .wikibody h3 { font-weight: 800; font-stretch: 125%; font-size: 20px; color: var(--fg); margin: 26px 0 8px; }
+html[data-theme="harbor"] .wikibody img { border-radius: 12px; }
+html[data-theme="harbor"] .wikibody code { background: var(--inset); border-radius: 6px; }
+/* Requests */
+html[data-theme="harbor"] .rqcard, html[data-theme="harbor"] .reqform, html[data-theme="harbor"] .reqpane { background: var(--surface); border: 0; border-radius: 16px; padding: 16px 18px; }
+html[data-theme="harbor"] .rqcard.hot { box-shadow: inset 3px 0 0 var(--accent2); }
+html[data-theme="harbor"] .rqtitle { font-weight: 700; }
+html[data-theme="harbor"] .rqstatus { border-radius: 999px; }
+/* Admin: one green underline for every tab instead of a colour per tab */
+html[data-theme="harbor"] .atabs { gap: 2px; border-bottom: 1px solid rgba(243, 239, 248, .08); }
+html[data-theme="harbor"] .atabs .tab[class*="h-"] { border: 0; border-radius: 0; background: transparent; }
+html[data-theme="harbor"] .atabs .tab[class*="h-"].on { background: transparent; box-shadow: inset 0 -3px 0 var(--accent); color: #fff; font-weight: 700; }
+html[data-theme="harbor"] .atabs .tab[class*="h-"]:hover { background: var(--inset); }
+html[data-theme="harbor"] .adminpage section, html[data-theme="harbor"] .adminpage .acard, html[data-theme="harbor"] .atable { border: 0; border-radius: 16px; }
+html[data-theme="harbor"] .atable th { color: var(--dim); font-weight: 600; }
+/* My List and empty pages */
+html[data-theme="harbor"] .empty { color: var(--dim); padding: 48px 16px; font-size: 16px; }
+/* Harbor admin panels and cards: flat, no coloured edges */
+html[data-theme="harbor"] .apanel, html[data-theme="harbor"] .acard { background: var(--surface); border: 0; border-radius: 16px; padding: 16px 18px; }
+html[data-theme="harbor"] .acard .alabel, html[data-theme="harbor"] .apanel h4 { font-size: 13px; letter-spacing: 0; text-transform: none; font-weight: 600; }
+html[data-theme="harbor"] .acard .avalue { font-weight: 800; font-stretch: 125%; font-size: 26px; color: var(--fg); }
+html[data-theme="harbor"] .acard.t-ok .avalue { color: var(--accent); }
+html[data-theme="harbor"] .acard.t-warn, html[data-theme="harbor"] .acard.t-bad { background: var(--surface); }
+html[data-theme="harbor"] .acard.t-warn .avalue { color: #ffc766; } html[data-theme="harbor"] .acard.t-bad .avalue { color: #ff7a8a; }
+html[data-theme="harbor"] .adminpage [class*="map"], html[data-theme="harbor"] .adminpage [class*="route"], html[data-theme="harbor"] .adminpage [class*="live"] { border-radius: 16px; }
+html[data-theme="harbor"] .reqpane { flex: none; height: auto; align-self: center; min-width: min(760px, 92%); }

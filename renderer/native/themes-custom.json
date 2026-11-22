@@ -1,1 +1,19 @@
-{}
+{
+ "harbor": {
+  "label": "Harbor (staff test)",
+  "icon": "⚓",
+  "mode": "dark",
+  "bg": "#0d0a12",
+  "panel": "#17121e",
+  "fg": "#f3eff8",
+  "dim": "#aaa1b8",
+  "line": "rgba(243, 239, 248, 0.08)",
+  "accent": "#8bff6e",
+  "accent2": "#a58fd6",
+  "onAccent": "#0b1a07",
+  "radius": "12px",
+  "page": "#0d0a12",
+  "pageColor": "#0d0a12",
+  "vars": {}
+ }
+}

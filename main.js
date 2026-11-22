@@ -4506,7 +4506,9 @@ function downloadToRenderer(download) {
     triedMirrors: download.triedMirrors,
     extractionError: download.extractionError,
     lowDiskSpaceWarning: !!download.lowDiskSpaceWarning,
-    userPriority: download.userPriority || 0
+    userPriority: download.userPriority || 0,
+    resumeRemote: (download.resume && download.resume.remote) || '',
+    resumePath: (download.resume && download.resume.path) || ''
   };
 }
 
