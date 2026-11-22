@@ -1,4 +1,10 @@
 {
+  "6.4.2": {
+    "title": "Harbor test theme: game and Downloads pages",
+    "highlights": [
+      "Harbor test theme (staff): the game page and the Downloads page are rebuilt to match the design. The game page has a tinted top with the facts, how to get it running, and other big titles. Downloads shows art cards that fill in as they download, with Waiting and Finished lists."
+    ]
+  },
   "6.4.1": {
     "title": "Harbor test theme: Home rebuilt",
     "highlights": [

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.4.2] - 2026-11-22
+
+### Changed
+
+- Harbor (staff test theme): a game's Details is now a full page (cover and facts on a tinted top, Getting it running, Also big in VR or PC for the same kind of title, from the last 30 days). The Downloads page has a heading with speed, what is left and when it will be done, art cards that fill in as they download, and Waiting and Finished lists. Art is read from the library listing as needed.
+
 ## [6.4.1] - 2026-11-22
 
 ### Changed

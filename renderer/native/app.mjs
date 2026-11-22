@@ -176,7 +176,63 @@ function PatchModal({ q }) {
     </div></${Modal}>`;
 }
 
-function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse }) {
+// Harbor: a game's page as in the mockup: a tinted top with the cover and the facts, how to get it running, and other big titles of the same kind.
+function HarborTitle({ item, remote, art, cover, cats, trailer, readme, onClose, onDownload, onBrowse, onTrailer, onReadme, actions, onOpenTrend }) {
+  const [windows, setWindows] = useState(null);
+  useEffect(() => { api.trending().then((r) => setWindows(r.ok && r.data && r.data.windows ? r.data.windows : {})); const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
+  const vr = remote === 'PCVR Games';
+  const kind = vr ? 'VR' : 'PC';
+  const dl30 = Number(item.downloadCount || 0);
+  const date = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); };
+  const size = formatSize(item.size && Number(item.size) >= 1024 ? item.size : (item.crossRemoteSize || item.size));
+  const build = harborBuild(item.name);
+  const rel = date(item.releaseDate || art.releaseDate);
+  const also = useMemo(() => {
+    const seen = new Set([cleanTitle(item.name).toLowerCase()]); const out = [];
+    for (const e of (windows && Array.isArray(windows.month) ? windows.month : [])) {
+      const isVr = (Number(e.pcvr) || 0) > (Number(e.pc) || 0);
+      const t = cleanTitle(e.title || '').toLowerCase();
+      if (isVr !== vr || !e.coverUrl || !t || seen.has(t)) continue; seen.add(t); out.push({ ...e, count: (Number(e.pc) || 0) + (Number(e.pcvr) || 0) });
+    }
+    return out.sort((a, b) => b.count - a.count).slice(0, 4);
+  }, [windows, item.name]);
+  const facts = [['Size', size], ['Build', build && (build + (item.modTime && date(item.modTime) ? ', updated ' + date(item.modTime) : ''))], ['Downloads, 30 days', dl30 > 0 ? dl30.toLocaleString('en-US') : ''], ['Released', rel], ['Genre', cats.slice(0, 4).join(', ')], ['Folder', item.name]].filter(([, v]) => v);
+  return html`<div class="hb-page"><div class="hb-pagein">
+    <section class="hb-thero">
+      ${cover ? html`<img class="hb-herobg" src=${coverSrc(cover)} alt="" aria-hidden="true" />` : ''}
+      <div class="hb-theroin">
+        <nav class="hb-crumbs"><button onClick=${onClose}>${'← Back'}</button><span>${remote || 'Library'}</span><span aria-hidden="true">/</span><span>${cleanTitle(item.name)}</span></nav>
+        <div class="hb-tmain">
+          ${cover ? html`<img class="hb-heroart" src=${coverSrc(cover)} alt=${cleanTitle(item.name)} />` : html`<div class="hb-heroart none">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}
+          <div class="hb-herotext">
+            ${item.modTime && date(item.modTime) ? html`<span class="hb-kick">New build on ${date(item.modTime)}${dl30 > 0 ? ' · ' + dl30.toLocaleString('en-US') + ' downloads in 30 days' : ''}</span>` : ''}
+            <h1>${cleanTitle(item.name)}</h1>
+            <dl class="hb-dl">${facts.map(([k, v]) => html`<${Fragment}><dt>${k}</dt><dd class=${k === 'Folder' ? 'folder' : ''}>${v}</dd></${Fragment}>`)}</dl>
+            <div class="hb-actions">
+              <button class="hb-go" onClick=${() => { onClose(); onDownload(item); }}>Download${size ? ' ' + size : ''}</button>
+              ${actions ? html`<button class="hb-ghost" onClick=${() => actions.toggle(item)}>${actions.inList(item) ? 'In My List' : 'Add to My List'}</button>` : ''}
+              ${trailer ? html`<button class="hb-text" onClick=${onTrailer}>Watch trailer</button>` : ''}
+              <button class="hb-text" onClick=${() => { onClose(); onBrowse(item); }}>Browse files</button>
+              <button class="hb-text" disabled=${!readme} onClick=${onReadme}>${readme === null ? 'Checking README...' : 'Read README'}</button>
+              ${steamLinks(item).map(([n, u]) => html`<a class="hb-text" href="#" onClick=${(e) => { e.preventDefault(); api.openLink(u); }}>${n}</a>`)}
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="hb-sec"><h3>Getting it running</h3>
+      <ol class="hb-steps">
+        <li><b>1</b><h4>Download</h4><p>The app fetches every part, checks each one, and picks up where it left off if your connection drops.</p></li>
+        <li><b>2</b><h4>Extract</h4><p>With Auto-extract on, the app unpacks it for you. Otherwise right-click the first part and choose Extract Here. Leave room for the download plus the extracted game.</p></li>
+        <li><b>3</b><h4>Play</h4><p>${vr ? 'Needs a VR headset running SteamVR. Start the game from the extracted folder.' : 'Start the game from the extracted folder.'}</p></li>
+      </ol>
+    </section>
+    ${also.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Also big in ${kind}</h3><span>Most downloaded, last 30 days</span></div>
+      <div class="hb-also">${also.map((e) => html`<button key=${e.path} onClick=${() => { onClose(); onOpenTrend(e); }}><img src=${coverSrc(e.coverUrl)} alt="" /><b>${cleanTitle(e.title)}</b><span>${e.count.toLocaleString('en-US')} downloads${e.sizeBytes ? ' · ' + formatSize(e.sizeBytes) : ''}</span></button>`)}</div></section>` : ''}
+  </div></div>`;
+}
+
+function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse, harbor, actions, onOpenTrend }) {
   const [playing, setPlaying] = useState(false);
   const trailer = trailerSource((item.coverArt || {}).trailer);
   const art = item.coverArt || {};
@@ -188,6 +244,7 @@ function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse }) {
   const cats = Array.isArray(art.categories) ? art.categories.filter(Boolean).slice(0, 10) : [];
   if (playing && trailer) return html`<${TrailerModal} title=${cleanTitle(item.name)} src=${trailer} onClose=${() => setPlaying(false)} />`;
   if (showReadme && readme) return html`<${Modal} title=${'README - ' + cleanTitle(item.name)} onClose=${() => setShowReadme(false)} wide=${true}><pre class="readme">${readme.content}${readme.truncated ? '\n\n[README PREVIEW TRUNCATED]' : ''}</pre></${Modal}>`;
+  if (harbor) return html`<${HarborTitle} item=${item} remote=${remote} art=${art} cover=${cover} cats=${cats} trailer=${trailer} readme=${readme} onClose=${onClose} onDownload=${onDownload} onBrowse=${onBrowse} onTrailer=${() => setPlaying(true)} onReadme=${() => setShowReadme(true)} actions=${actions} onOpenTrend=${onOpenTrend} />`;
   return html`<${Modal} title=${cleanTitle(item.name)} onClose=${onClose} wide=${true}>
     <div class="dhead">
       <div class="dcover">${cover ? html`<img src=${coverSrc(cover)} alt="" />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
@@ -923,11 +980,10 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
   </main>`;
 }
 
-// Harbor: the active downloads as art cards whose picture fills in (colour, left to right) as the download progresses. The art is read from the library listing as needed.
-function HarborDownloads({ list, speedText, flip, mib }) {
-  // The cover is read from the library listing when it is needed (the folder listing the library already uses, cached by the app), not stored with the download.
+// Harbor: the Downloads page of the mockup: a heading with speed, what is left and when it is done, the active downloads as art cards whose picture fills in
+// (colour, left to right) as they progress, then Waiting and Finished lists. The art is read from the library listing as needed, not saved.
+function HarborDownloads({ list, speedText, onClear }) {
   const [art, setArt] = useState({});
-  // Where a download's listing is: PC and PCVR by the mirror folder in its path, every other section (Music, Comics, apps, 3D) by the section and path the download was started from.
   const where = (d) => {
     const parts = String(d.remotePath || '').split('/').filter(Boolean);
     if (parts.length >= 2) { const first = parts[0]; const group = /^PCVR\d*$/.test(first) ? 'PCVR Games' : /^PC\d*$/.test(first) ? 'PC Games' : null; if (group) { const name = parts.pop(); return { group, folder: parts.join('/'), name }; } }
@@ -935,7 +991,7 @@ function HarborDownloads({ list, speedText, flip, mib }) {
     if (d.resumeRemote && rp.length && !rp[0].startsWith('__batch__')) { const name = rp.pop(); const rem = /^PCVR-\d$/.test(d.resumeRemote) ? 'PCVR Games' : /^PC-\d$/.test(d.resumeRemote) ? 'PC Games' : d.resumeRemote; return { group: rem, folder: rp.join('/'), name }; }
     return null;
   };
-  const wanted = list.filter(isActiveDownload).map((d) => ({ id: d.id, w: where(d) })).filter((x) => x.w);
+  const wanted = list.map((d) => ({ id: d.id, w: where(d) })).filter((x) => x.w);
   const key = wanted.map((x) => x.id + x.w.group + x.w.folder + x.w.name).join('|');
   useEffect(() => {
     let live = true;
@@ -952,18 +1008,35 @@ function HarborDownloads({ list, speedText, flip, mib }) {
     })();
     return () => { live = false; };
   }, [key]);
-  const coverFor = (d) => art[d.id] || '';
-  const active = list.filter(isActiveDownload);
-  if (!active.length) return '';
-  const total = active.reduce((n, d) => n + (Number(d.totalSpeedBytes) || 0), 0);
-  return html`<div class="hb-dls"><div class="hb-dlhead"><h2>Downloading</h2><span>${active.length} active${total > 0 ? ' \u00B7 ' + formatMiBps(total) : ''}</span></div>
-    <div class="hb-dlgrid">${active.map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); const img = coverFor(d); const paused = String(d.status || '').toLowerCase() === 'paused';
+  const st = (d) => String(d.status || '').toLowerCase();
+  const active = list.filter((d) => ['in_progress', 'downloading', 'starting', 'paused'].includes(st(d)));
+  const waiting = list.filter((d) => isActiveDownload(d) && !active.includes(d));
+  const done = list.filter((d) => !isActiveDownload(d)).slice().reverse();
+  const speed = active.reduce((n, d) => n + (Number(d.totalSpeedBytes) || 0), 0);
+  const left = [...active, ...waiting].reduce((n, d) => n + Math.max(0, (Number(d.totalSize) || 0) - (Number(d.downloadedSize) || 0)), 0);
+  const mins = speed > 0 && left > 0 ? Math.max(1, Math.round(left / speed / 60)) : 0;
+  const bytesOf = (d) => formatSize(d.totalSize) || '';
+  const actions = (d) => html`<div class="dbtns">${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>`;
+  const thumb = (d, gray) => (art[d.id] ? html`<img class=${'hb-thumb' + (gray ? ' gray' : '')} src=${art[d.id]} alt="" />` : html`<span class="hb-thumb none"></span>`);
+  return html`<div class="hb-dls">
+    <div class="hb-dtitlebar"><div><h2>Downloads</h2><span class="hb-dsub">Every part is checked, and the game is extracted when it is done</span></div>
+      <div class="hb-dstats">
+        <div><span>Speed</span><b>${speed > 0 ? formatMiBps(speed) : '—'}</b></div>
+        <div><span>Left</span><b>${left > 0 ? formatSize(left) : '—'}</b></div>
+        <div><span>All done in</span><b>${mins ? 'about ' + mins + ' min' : '—'}</b></div>
+      </div></div>
+    ${active.length ? html`<div class="hb-dlgrid">${active.map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); const img = art[d.id]; const paused = st(d) === 'paused';
       return html`<article class=${'hb-dcard' + (paused ? ' paused' : '')} key=${d.id}>
         <div class="hb-dart">${img ? html`<img class="hb-dbg" src=${img} alt="" aria-hidden="true" /><img class="hb-dgray" src=${img} alt="" /><img class="hb-dcolor" style=${'clip-path:inset(0 ' + (100 - pct) + '% 0 0)'} src=${img} alt="" />` : ''}<i class="hb-dedge" style=${'left:calc(' + pct + '% - 1px)'}></i></div>
         <div class="hb-dbody"><div class="hb-dtop"><span class="hb-dtitle">${cleanTitle(d.name || '')}</span><span class="hb-dpct">${Math.round(pct)}%</span></div>
-          <div class="hb-dline">${[formatSize(d.totalSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), speedText(d), etaShown(d.eta) ? etaShown(d.eta) + ' left' : ''].filter(Boolean).join(' \u00B7 ')}</div>
-          <div class="dbtns">${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => api[k](d.id)}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div></div>
-      </article>`; })}</div></div>`;
+          <div class="hb-dline">${[bytesOf(d) && (formatSize(d.downloadedSize) || '0 B') + ' of ' + bytesOf(d), paused ? 'paused' : speedText(d), !paused && etaShown(d.eta) ? etaShown(d.eta) + ' left' : ''].filter(Boolean).join(' · ')}</div>
+          ${d.error ? html`<div class="derr">${d.error}</div>` : ''}${actions(d)}</div>
+      </article>`; })}</div>` : ''}
+    <div class="hb-dcols">
+      <section><h3>Waiting</h3>${waiting.length ? waiting.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, true)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${bytesOf(d)}${bytesOf(d) ? ' · ' : ''}starts when a slot frees up</span></span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing is waiting.</div>`}</section>
+      <section><div class="hb-dsechead"><h3>Finished</h3>${done.length ? html`<button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button>` : ''}</div>${done.length ? done.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, false)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${[bytesOf(d), st(d) === 'completed' ? 'checked and extracted' : st(d)].filter(Boolean).join(' · ')}</span></span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing finished yet.</div>`}</section>
+    </div>
+  </div>`;
 }
 
 function DownloadsView({ list, onClear, harbor }) {
@@ -972,8 +1045,9 @@ function DownloadsView({ list, onClear, harbor }) {
   const flip = () => { const n = !mib; setMib(n); try { localStorage.setItem('native.speedUnit', n ? 'mib' : 'bits'); } catch (e) { } };
   const speedText = (d) => (mib && Number(d.totalSpeedBytes) > 0 ? formatMiBps(d.totalSpeedBytes) : (d.totalSpeed || formatSpeed(d.speed)));
   if (!list.length) return html`<div class="empty">No downloads yet. Press Download on any game, album or comic collection.</div>`;
-  const rows = harbor ? list.filter((d) => !isActiveDownload(d)) : list;
-  return html`<div class="dlist">${harbor ? html`<${HarborDownloads} list=${list} speedText=${speedText} flip=${flip} mib=${mib} />` : ''}<div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
+  if (harbor) return html`<${HarborDownloads} list=${list} speedText=${speedText} onClear=${onClear} />`;
+  const rows = list;
+  return html`<div class="dlist"><div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
     <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
     <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(d.downloadedSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), speedText(d), elapsedShown(d) ? 'Elapsed ' + elapsedShown(d) : '', etaShown(d.eta) ? 'ETA ' + etaShown(d.eta) : '', d.fileCount > 1 ? (d.completedFiles || 0) + ' of ' + d.fileCount + ' files' : ''].filter(Boolean).join(' · ')}</div>
@@ -1436,7 +1510,7 @@ function App() {
     ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${viewMode === 'list' ? 'list' : "grid " + shapeFor(remote)}>${showBundles ? html`<section class="bundles">${bundlesPresent(bundles, items).map((b) => html`<div class="bundle" key=${b.id}><div class="bcover"><img loading="lazy" decoding="async" src=${coverSrc(b.cover)} alt="" /></div><div class="binfo"><strong>${b.title}</strong><span class="sval">${formatSize(b.total)} · ${b.present.length} series: ${b.present.slice(0, 3).join(', ')}${b.present.length > 3 ? ' and ' + (b.present.length - 3) + ' more' : ''}</span><span class="sval">Downloads everything copied so far. Series still being added join in later.</span></div><button class="primary" onClick=${() => downloadBundle(b)}>Download All</button></div>`)}</section>` : ''}${shown.map((it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onStub=${(st) => { goTo(st.remote, st.folder); if (st.name) setQuery(st.name); }} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { recordVisit(x, remote, folder); setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
     </${PageGuard}>
-    ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} />` : ''}
+    ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} harbor=${themeChoice === 'harbor' && !!admin} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === ctxRemote(it) && m.path === itemPath(it)) }} onOpenTrend=${openTrend} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}
