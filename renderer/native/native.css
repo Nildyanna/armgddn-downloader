@@ -447,6 +447,8 @@ header select + select { margin-left: 0; }
 .adminpage > * { flex-shrink: 0; }
 .atabs { flex: none; overflow: visible; display: flex; gap: 6px; flex-wrap: wrap; }
 .acards { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+/* Two groups of cards stacked (the overview's system cards, then its usage cards) kept touching: the same gap as inside a group. */
+.acards + .acards { margin-top: 10px; }
 .acard { padding: 10px 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--card, var(--card2)); }
 .acard .alabel { font-size: 11px; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); }
 .acard .avalue { font-size: 22px; font-weight: 600; margin-top: 2px; }

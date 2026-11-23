@@ -82,6 +82,7 @@ html[data-theme="harbor"] .tab:focus, html[data-theme="harbor"] button:focus, ht
 html[data-theme="harbor"] .tab:focus-visible, html[data-theme="harbor"] button:focus-visible, html[data-theme="harbor"] select:focus-visible, html[data-theme="harbor"] input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; border-radius: 8px; }
 html[data-theme="harbor"] .tab.on:focus-visible { outline-offset: -2px; }
 html[data-theme="harbor"] .acards { gap: 16px; }
+html[data-theme="harbor"] .acards + .acards { margin-top: 16px; }
 html[data-theme="harbor"] .acard { min-height: 104px; }
 
 /* Harbor Home (the mockup): hero, ranked chart with pictures, fresh builds, downloading now */

@@ -16,3 +16,10 @@ test('a badge id from the page is checked before it goes to the site', () => {
   const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
   assert.ok(bridge.includes("/^[A-Za-z0-9_-]{1,40}$/.test(id)"));
 });
+
+test('stacked groups of admin cards keep a gap between them', () => {
+  const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  const harbor = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'themes-custom.css'), 'utf8');
+  assert.ok(css.includes('.acards + .acards { margin-top: 10px; }'));
+  assert.ok(harbor.includes('html[data-theme="harbor"] .acards + .acards { margin-top: 16px; }'));
+});
