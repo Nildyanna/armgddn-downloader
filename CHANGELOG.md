@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.6.1] - 2026-11-23
+
+### Fixed
+
+- My List showed "This page ran into a problem" for anyone with a saved game (a wrong variable name since 6.4.0). It draws the list again.
+- Admin: the Overview's two groups of stat cards no longer touch each other.
+
 ## [6.6.0] - 2026-11-23
 
 ### Added

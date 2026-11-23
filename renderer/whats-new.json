@@ -994,5 +994,12 @@
       "Pick which earned badge shows next to your name.",
       "Earn them all for the Badge Collector Supreme badge."
     ]
+  },
+  "6.6.1": {
+    "title": "My List works again",
+    "highlights": [
+      "Fix: My List showed \"This page ran into a problem\" as soon as you saved a game. It works again.",
+      "Admin: the stat cards on the Overview page no longer touch each other."
+    ]
   }
 }
