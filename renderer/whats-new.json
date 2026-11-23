@@ -985,5 +985,14 @@
       "When you change a request's status you can now add a reason, and the member sees it.",
       "The install guide's last step now says to install the game first, then start it from the desktop or Start menu icon, with VR instructions."
     ]
+  },
+  "6.6.0": {
+    "title": "Badge collection",
+    "highlights": [
+      "New Badges page: see every badge, what it takes to earn it, and how far along you are.",
+      "Secret badges stay hidden until you find them.",
+      "Pick which earned badge shows next to your name.",
+      "Earn them all for the Badge Collector Supreme badge."
+    ]
   }
 }

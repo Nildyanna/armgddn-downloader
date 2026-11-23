@@ -248,6 +248,13 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(n)) throw Object.assign(new Error('Bad watchlist id'), { kind: 'http', status: 400 });
     return api.del('/api/watchlist/' + n, undefined, { invalidate: ['/api/watchlist'] });
   }));
+  // The badge page: every badge as earned, locked with progress, or hidden; and which earned badge the member wears (null = automatic).
+  ipcMain.handle('native:badges', wrap(() => api.get('/api/trophies/me', { ttlMs: 0, fresh: true })));
+  ipcMain.handle('native:badgeChoose', wrap((trophyId) => {
+    const id = trophyId === null || trophyId === undefined || trophyId === '' ? null : String(trophyId);
+    if (id !== null && !/^[A-Za-z0-9_-]{1,40}$/.test(id)) throw Object.assign(new Error('Bad badge'), { kind: 'http', status: 400 });
+    return api.post('/api/trophies/choice', { trophyId: id }, { invalidate: ['/api/trophies/me'] });
+  }));
   ipcMain.handle('native:requests', wrap(() => api.get('/api/requests/my', { ttlMs: 15000 })));
   ipcMain.handle('native:thread', wrap((id) => api.get(`/api/requests/${reqId(id)}/thread?markSeen=1`, { ttlMs: 0, fresh: true })));
   ipcMain.handle('native:comment', wrap((id, message) => {

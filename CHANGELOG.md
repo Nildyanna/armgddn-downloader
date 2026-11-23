@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.6.0] - 2026-11-23
+
+### Added
+
+- Badges page: every badge as earned, locked (what it takes and your progress) or hidden (secret until earned), a progress bar toward Badge Collector Supreme, and "Wear this" to choose which earned badge shows next to your name.
+
 ## [6.5.0] - 2026-11-22
 
 ### Added

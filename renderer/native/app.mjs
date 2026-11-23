@@ -274,6 +274,46 @@ function GateModal({ gate }) {
     </div></${Modal}>`;
 }
 
+// The badge page: every badge as earned (pick one to wear), locked (what it takes and how far along you are), or HIDDEN (secret until earned).
+const FAMILY_ORDER = ['Downloads', 'Explorer', 'Consistency', 'Community', 'Craft'];
+function BadgesView({ say }) {
+  const [data, setData] = useState(null);
+  const [error, setError] = useState(null);
+  const [filter, setFilter] = useState('all');
+  const load = async () => { const r = await api.badges(); if (r.ok && r.data) { setData(r.data); setError(null); } else { setError((r.error && r.error.message) || 'Could not load your badges'); setData({ items: [] }); } };
+  useEffect(() => { load(); }, []);
+  const choose = async (id) => {
+    const r = await api.badgeChoose(id);
+    if (r.ok) { say(id ? 'Badge chosen. It shows next to your name soon.' : 'Back to your rarest badge.'); load(); } else say((r.error && r.error.message) || 'Could not change your badge');
+  };
+  if (!data) return html`<div class="reqpane"><div class="loading">Loading your badges…</div></div>`;
+  const items = data.items || [];
+  const shown = items.filter((i) => filter === 'all' ? true : filter === 'earned' ? i.state === 'earned' : filter === 'locked' ? i.state === 'locked' : i.state === 'hidden');
+  const groups = [...FAMILY_ORDER, ...new Set(items.map((i) => i.family).filter((f) => !FAMILY_ORDER.includes(f)))];
+  const pct = data.permanentTotal ? Math.round((data.permanentHave / data.permanentTotal) * 100) : 0;
+  return html`<div class="reqpane badgepage">
+    <h2>Badges <span class="chip">${data.earnedCount || 0} of ${data.total || 0}</span></h2>
+    <div class="sub">Just for fun: badges give no rewards. Earn them by using ARMGDDN, and pick the one that shows next to your name.</div>
+    <div class="bprog" title=${data.permanentHave + ' of ' + data.permanentTotal + ' permanent badges'}><div class="bprogbar"><i style=${'width:' + pct + '%'}></i></div><span>${pct}% of the way to Badge Collector Supreme</span></div>
+    ${data.hiddenLeft ? html`<div class="sub">${data.hiddenLeft} secret badge${data.hiddenLeft === 1 ? '' : 's'} left to discover.</div>` : ''}
+    ${error ? html`<div class="notice">${error}</div>` : ''}
+    <div class="bfilter">${['all', 'earned', 'locked', 'hidden'].map((f) => html`<button class=${filter === f ? 'tab on' : 'tab'} onClick=${() => setFilter(f)}>${f[0].toUpperCase() + f.slice(1)}</button>`)}
+      ${data.chosen ? html`<button class="dbtn" title="Go back to showing your rarest badge" onClick=${() => choose(null)}>Use my rarest badge</button>` : html`<span class="sub">Wearing your rarest badge</span>`}</div>
+    ${groups.map((g) => { const list = shown.filter((i) => i.family === g); return list.length ? html`<section key=${g}><h3>${g}</h3><div class="bgrid">${list.map((i) => html`<${BadgeCard} key=${i.id} b=${i} worn=${data.chosen === i.id} onWear=${choose} />`)}</div></section>` : ''; })}
+  </div>`;
+}
+function BadgeCard({ b, worn, onWear }) {
+  if (b.state === 'hidden') return html`<div class="bcard hidden" title="A secret badge"><div class="bemoji">❔</div><div class="bname">HIDDEN</div><div class="bdesc">${b.hint || 'Keep exploring to find out.'}</div></div>`;
+  const earned = b.state === 'earned';
+  const pct = !earned && b.need ? Math.min(100, Math.floor(((b.have || 0) / b.need) * 100)) : 0;
+  return html`<div class=${'bcard ' + (earned ? 'earned' : 'locked') + (worn ? ' worn' : '')}>
+    <div class="bemoji">${b.emoji}</div><div class="bname">${b.name}</div>
+    <div class="bdesc">${b.desc}${b.steps > 1 ? ' (step ' + b.step + ' of ' + b.steps + ')' : ''}</div>
+    ${!earned && b.need ? html`<div class="bprogbar" title=${(b.have || 0).toLocaleString('en-US') + ' of ' + b.need.toLocaleString('en-US') + (b.unit ? ' ' + b.unit : '')}><i style=${'width:' + pct + '%'}></i></div><div class="bnum">${(b.have || 0).toLocaleString('en-US')} / ${b.need.toLocaleString('en-US')}</div>` : ''}
+    ${earned ? html`<div class="bnum">${b.holdersPct != null ? b.holdersPct + '% of members have this' : ''}</div><button class=${worn ? 'dbtn on' : 'dbtn'} disabled=${worn} onClick=${() => onWear(b.id)}>${worn ? 'Wearing' : 'Wear this'}</button>` : ''}
+  </div>`;
+}
+
 function RequestsView({ say, openId }) {
   const [list, setList] = useState(null);
   const [error, setError] = useState(null);
@@ -1383,7 +1423,7 @@ function App() {
   }, []);
   const activeCount = downloads.filter(isActiveDownload).length;
   const runningCount = downloads.filter(isRunningDownload).length;   // paused downloads do not hold up an update
-  const pageLabel = view === 'library' ? (everywhere ? 'Search everywhere' : (remote || 'Library')) : ({ home: 'Home', tools: 'Tools', settings: 'Settings', wiki: 'Wiki', mylist: 'My List', requests: 'Requests', downloads: 'Downloads', admin: 'Admin' }[view] || '');
+  const pageLabel = view === 'library' ? (everywhere ? 'Search everywhere' : (remote || 'Library')) : ({ home: 'Home', tools: 'Tools', settings: 'Settings', wiki: 'Wiki', mylist: 'My List', requests: 'Requests', badges: 'Badges', downloads: 'Downloads', admin: 'Admin' }[view] || '');
   const prevActive = useRef(0); const [pulse, setPulse] = useState(false);
   useEffect(() => { if (activeCount > prevActive.current) { setPulse(true); const id = setTimeout(() => setPulse(false), 1700); prevActive.current = activeCount; return () => clearTimeout(id); } prevActive.current = activeCount; }, [activeCount]);
   const autoOk = useRef(true);   // step into the library folder when a tab is opened, but not when the member clicks back to the top
@@ -1511,6 +1551,7 @@ function App() {
       <button class=${view === 'wiki' ? 'tab on' : 'tab'} onClick=${() => setView('wiki')}>Wiki</button>
       <button class=${view === 'mylist' ? 'tab on' : 'tab'} onClick=${() => setView('mylist')}>My List${myList.length ? html` <span class="badge">${myList.length}</span>` : ''}</button>
       <button class=${view === 'requests' ? 'tab on' : 'tab'} onClick=${() => setView('requests')}>Requests</button>
+      <button class=${view === 'badges' ? 'tab on' : 'tab'} title="Your badge collection" onClick=${() => setView('badges')}>Badges</button>
       ${admin ? html`<button class=${view === 'admin' ? 'tab on' : 'tab'} onClick=${() => setView('admin')}>Admin</button>` : ''}
       <button class=${(view === 'downloads' ? 'tab on' : 'tab') + (pulse ? ' pulse' : '')} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
     </header>
@@ -1533,7 +1574,7 @@ function App() {
     ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN Browser ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN Browser.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} />` : ''}
-    ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor' && (!!admin || staffOk)} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor' && (!!admin || staffOk)} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor' && (!!admin || staffOk)} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor' && (!!admin || staffOk)} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? (() => { const total = items.filter((x) => !isHiddenItem(x)).length; return `${shown.length}${shown.length !== total ? ' of ' + total : ''} items`; })() : ''}</span></div>
     ${remote === '3D Printer Models' && !everywhere ? html`<div class="notice soft" role="note"><strong>Heads up:</strong> many 3D printer models don't have a cover picture yet. Missing covers in this section are expected and are not a bug; pictures are being added as we go.</div>` : ''}

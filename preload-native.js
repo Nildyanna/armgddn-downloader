@@ -22,5 +22,6 @@ contextBridge.exposeInMainWorld('nativeAPI', {
   adminGet: call('native:adminGet'), adminDo: call('native:adminDo'), savePdf: call('native:savePdf'),
   comicBundles: call('native:comicBundles'),
   watchlist: call('native:watchlist'), watchAdd: call('native:watchAdd'), watchRemove: call('native:watchRemove'),
+  badges: call('native:badges'), badgeChoose: call('native:badgeChoose'),
   requests: call('native:requests'), thread: call('native:thread'), comment: call('native:comment'), submitRequest: call('native:submitRequest'),
 });

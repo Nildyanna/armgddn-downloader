@@ -739,3 +739,17 @@ header select + select { margin-left: 0; }
 .agroup:nth-of-type(6n+4) h4 { color: var(--h4); } .agroup:nth-of-type(6n+5) h4 { color: var(--h3); } .agroup:nth-of-type(6n+6) h4 { color: var(--h6); }
 
 .gchip.h-n { --hc: var(--dim, #8a9aa8); }
+
+/* Badge page */
+.badgepage h3 { margin: 14px 0 8px; font-size: 14px; color: var(--dim); text-transform: uppercase; letter-spacing: .06em; }
+.bfilter { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 10px; }
+.bcard { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; background: var(--panel); min-width: 0; }
+.bcard.earned { border-color: #22c55e66; }
+.bcard.worn { border-color: var(--accent, #22c55e); box-shadow: 0 0 0 1px var(--accent, #22c55e) inset; }
+.bcard.locked { opacity: .62; } .bcard.locked .bemoji { filter: grayscale(1); }
+.bcard.hidden { opacity: .5; border-style: dashed; }
+.bemoji { font-size: 30px; line-height: 1; } .bname { font-weight: 600; } .bdesc { font-size: 12px; color: var(--dim); overflow-wrap: anywhere; }
+.bnum { font-size: 11px; color: var(--dim); }
+.bprogbar { height: 6px; border-radius: 999px; background: var(--inset); overflow: hidden; } .bprogbar i { display: block; height: 100%; background: var(--accent, #22c55e); }
+.bprog { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); max-width: 420px; }
