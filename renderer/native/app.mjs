@@ -362,7 +362,7 @@ function RequestsView({ say, openId }) {
 
 function MyListView({ list, render, listMode }) {
   if (!list.length) return html`<div class="empty">Your list is empty. Press the heart on a game, album or comic to save it here.</div>`;
-  return html`<main class=${listMode ? 'list' : 'grid wide'}>${rows.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
+  return html`<main class=${listMode ? 'list' : 'grid wide'}>${list.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
 }
 
 function WikiView() {

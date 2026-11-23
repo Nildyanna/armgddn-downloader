@@ -23,3 +23,10 @@ test('stacked groups of admin cards keep a gap between them', () => {
   assert.ok(css.includes('.acards + .acards { margin-top: 10px; }'));
   assert.ok(harbor.includes('html[data-theme="harbor"] .acards + .acards { margin-top: 16px; }'));
 });
+
+test('My List draws the saved list (it used an undefined name from 6.4.0 to 6.6.0 and showed "This page ran into a problem")', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  const body = app.slice(app.indexOf('function MyListView'), app.indexOf('function WikiView'));
+  assert.ok(body.includes('list.slice().reverse()'));
+  assert.ok(!/\brows\b/.test(body));
+});
