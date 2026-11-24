@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.8.0] - 2026-11-24
+
 ### Changed
 
 - Harbor theme (staff test): fits wide screens (more columns, content centred on very wide windows), no animations that loop forever, Library and My List redesigned to match Home and Downloads, and the Downloads page scrolls on its own instead of squeezing the bars above it. Harbor's Downloads page now has the Mbps / MiB/s switch and the files-at-once list like the classic one.

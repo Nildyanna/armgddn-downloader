@@ -1007,5 +1007,13 @@
     "highlights": [
       "The app is now simply \"ARMGDDN App\", in its window, update notices and shortcut. Your shortcut renames itself; nothing to reinstall."
     ]
+  },
+  "6.8.0": {
+    "title": "Steadier start-up, and a bigger Harbor update",
+    "highlights": [
+      "Fixed the app closing at start on some PCs with graphics problems. If it still can't draw even in the lighter mode, it now switches off the graphics card's help on its own for a week. Nothing to set.",
+      "Animations now pause while the app is minimised or hidden, so it uses less of your PC in the background.",
+      "Harbor test theme (staff): fits wide and ultrawide screens, Library and My List are redesigned to match Home and Downloads, nothing animates forever, and Downloads now has the Mbps / MiB/s switch and the \"files at once\" list and scrolls properly when the list is long."
+    ]
   }
 }
