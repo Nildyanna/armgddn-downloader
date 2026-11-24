@@ -231,6 +231,7 @@ header select + select { margin-left: 0; }
 .ractions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; }
 
 .themesel { background: var(--inset); color: inherit; border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px; max-width: 260px; text-overflow: ellipsis; }
+.modesel { max-width: 130px; }
 
 /* Banner, like the website's header */
 .banner { position: relative; overflow: hidden; margin: 10px 18px 0; padding: 14px 18px; border: 1px solid var(--line); border-radius: var(--rc);

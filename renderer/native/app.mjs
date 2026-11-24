@@ -6,6 +6,7 @@ import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
 
 import { AdminView } from './admin.mjs';
+import { THEME_MODES, effectiveMode, themeFor, loadChoice, withWebsiteTheme, withTheme, themesForMode } from './themeMode.mjs';
 import { OwnerDock } from './ownerDock.mjs';
 const api = window.nativeAPI;
 try { api.getSettings().then((r) => { if (r && window.setLiteGraphics) window.setLiteGraphics(!!r.lightGraphics); }).catch(() => { }); } catch (e) { }   // the Lighter graphics setting, applied as the window opens
@@ -43,8 +44,14 @@ try {
     localStorage.setItem('native.harborDefault', '1');
   }
 } catch (e) { }
-const storedTheme = () => { try { return localStorage.getItem('native.theme') || DEFAULT_THEME; } catch (e) { return DEFAULT_THEME; } };
-applyTheme(storedTheme());
+const osLight = () => { try { return window.matchMedia('(prefers-color-scheme: light)').matches; } catch (e) { return false; } };
+const lsRaw = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+// Saves the mode, each mode's theme, and the theme on screen (themeMode.mjs); returns the choice so it can be handed to setState.
+function persistChoice(c) {
+  try { localStorage.setItem('native.themeMode', c.mode); localStorage.setItem('native.theme.dark', c.dark); localStorage.setItem('native.theme.light', c.light); localStorage.setItem('native.theme', themeFor(c, osLight())); } catch (e) { }
+  return c;
+}
+applyTheme(themeFor(loadChoice(THEMES, lsRaw), osLight()));
 // A hidden or minimised window draws nothing anyone sees: CSS animations pause until it is shown again (native.css, html[data-hidden]).
 try {
   const markHidden = () => { if (document.hidden) document.documentElement.dataset.hidden = '1'; else delete document.documentElement.dataset.hidden; };
@@ -1314,7 +1321,7 @@ function App() {
     try {
       for (const [id, on] of Object.entries(p.strips)) localStorage.setItem('native.strip.' + id, on ? '1' : '0');
       // the website's own default ("dark") is not a choice the member made, so it does not replace the Harbor default
-      if (p.theme && p.theme !== 'dark' && themeKeyOk(p.theme)) { localStorage.setItem('native.theme', p.theme); setThemeChoice(p.theme); applyTheme(p.theme); }
+      if (p.theme && p.theme !== 'dark' && themeKeyOk(p.theme)) setThemeSel((c) => persistChoice(withWebsiteTheme(c, THEMES, p.theme)));
       if (p.searches.length) localStorage.setItem('native.recentSearches', JSON.stringify(p.searches));
       if (p.komgaUrl) localStorage.setItem('native.komgaUrl', p.komgaUrl);
       if (p.animations !== null) localStorage.setItem('native.animations', p.animations ? '1' : '0');
@@ -1329,9 +1336,15 @@ function App() {
   const inMyList = (it) => myListHas(myList, ctxRemote(it), itemPath(it));
   const pendingScroll = useRef('');
   const openTrend = (e) => { const it = homeItem(e); if (!it) return; pendingScroll.current = it.name; goTo(it._remote, it._folder); };
-  const [themeChoice, setThemeChoice] = useState(() => (themeKeyOk(storedTheme()) ? storedTheme() : DEFAULT_THEME));
-  const chooseTheme = (id) => { setThemeChoice(id); applyTheme(id); try { localStorage.setItem('native.theme', id); } catch (e) { } };
-  useEffect(() => { if (themeChoice !== 'system') return; let mq; try { mq = window.matchMedia('(prefers-color-scheme: light)'); } catch (e) { return; } const on = () => applyTheme('system'); mq.addEventListener('change', on); return () => mq.removeEventListener('change', on); }, [themeChoice]);
+  // Viewing mode (Dark, Light, System) and a theme for each side; the theme menu lists only the themes of the side on screen (themeMode.mjs).
+  const [themeSel, setThemeSel] = useState(() => loadChoice(THEMES, lsRaw));
+  const [osIsLight, setOsIsLight] = useState(osLight);
+  const shownMode = effectiveMode(themeSel.mode, osIsLight);
+  const themeChoice = themeSel[shownMode];
+  const chooseMode = (m) => setThemeSel((c) => persistChoice({ ...c, mode: m }));
+  const chooseTheme = (id) => setThemeSel((c) => persistChoice(withTheme(c, THEMES, id)));
+  useEffect(() => { applyTheme(themeChoice); }, [themeChoice]);
+  useEffect(() => { let mq; try { mq = window.matchMedia('(prefers-color-scheme: light)'); } catch (e) { return; } const on = () => { setOsIsLight(mq.matches); setThemeSel((c) => persistChoice(c)); }; mq.addEventListener('change', on); return () => mq.removeEventListener('change', on); }, []);
   const [animOn, setAnimOn] = useState(() => { try { return localStorage.getItem('native.animations') !== '0'; } catch (e) { return true; } });
   useEffect(() => { document.documentElement.dataset.anim = animOn ? '1' : '0'; }, [animOn]);
   const toggleAnim = () => { const v = !animOn; setAnimOn(v); try { localStorage.setItem('native.animations', v ? '1' : '0'); } catch (e) { } };
@@ -1637,7 +1650,8 @@ function App() {
       <div class="header-stars"><div class="header-star header-star-1"></div><div class="header-star header-star-2"></div><div class="header-star header-star-3"></div></div>
       <div class="banner-actions">
         <button class="dbtn" title="Turn the moving effects on or off" onClick=${toggleAnim}>\u2728 Animations ${animOn ? 'on' : 'off'}</button>
-      <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['harbor', 'Harbor (default)', '\u2693'], ['dark', 'Classic', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light' && k !== 'harbor').sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
+      <select class="themesel modesel" title="Dark, Light, or System (follows this computer's setting)" value=${themeSel.mode} onChange=${(e) => chooseMode(e.target.value)}>${THEME_MODES.map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
+      <select class="themesel" title=${shownMode === 'light' ? 'Theme (light themes)' : 'Theme (dark themes)'} value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${themesForMode(THEMES, shownMode).map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
         ${status && status.signedIn ? html`<button class="dbtn" title="Sign out of this PC" onClick=${logout}>Logout</button>` : ''}
       </div>
       <div class="banner-credit"><div class="fire-particles"><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i></div><span class="fire-text">Created by Old Man of the Hills v${(status && status.version) || ''}</span></div>
