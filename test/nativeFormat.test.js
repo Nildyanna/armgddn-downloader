@@ -336,6 +336,13 @@ test('the MiB/s option formats a byte rate', async () => {
   const { formatMiBps } = await import('../renderer/native/format.mjs');
   assert.equal(formatMiBps(58.6 * 1048576), '58.6 MiB/s');
   assert.equal(formatMiBps(5 * 1048576), '5.00 MiB/s');
+  const { formatBitsps, speedInUnit } = await import('../renderer/native/format.mjs');
+  assert.equal(formatBitsps(125e6), '1 Gbp/s');
+  assert.equal(formatBitsps(7.5e6), '60 Mbp/s');
+  assert.equal(formatBitsps(0), '');
+  // The Downloads heading follows the card's Show MiB/s / Show Mbps switch.
+  assert.equal(speedInUnit(125e6, false), '1 Gbp/s');
+  assert.equal(speedInUnit(58.6 * 1048576, true), '58.6 MiB/s');
   assert.equal(formatMiBps(120 * 1048576), '120 MiB/s');
   assert.equal(formatMiBps(0), '');
   assert.equal(formatMiBps('x'), '');

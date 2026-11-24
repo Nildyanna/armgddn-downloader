@@ -581,6 +581,17 @@ export function formatMiBps(bytesPerSec) {
   return (m >= 100 ? m.toFixed(0) : m >= 10 ? m.toFixed(1) : m.toFixed(2)) + ' MiB/s';
 }
 
+// Speed in bits per second, written the way the main process writes a download's speed ("1 Gbp/s"), for totals the page adds up itself.
+export function formatBitsps(bytesPerSec) {
+  const bits = Number(bytesPerSec) * 8;
+  if (!Number.isFinite(bits) || bits <= 0) return '';
+  const units = ['bp/s', 'Kbp/s', 'Mbp/s', 'Gbp/s', 'Tbp/s'];
+  const i = Math.min(units.length - 1, Math.floor(Math.log(bits) / Math.log(1000)));
+  return (bits / Math.pow(1000, i)).toFixed(i >= 2 ? 1 : 0).replace(/\.0$/, '') + ' ' + units[i];
+}
+// The speed in the unit the member picked on a download card: MiB/s or bits per second.
+export function speedInUnit(bytesPerSec, mib) { return mib ? formatMiBps(bytesPerSec) : formatBitsps(bytesPerSec); }
+
 // The files a download is working on right now, each with its own percent (DMP, Nov 20: the overall percent alone does not show whether the files go one at a time
 // or several at once). `activeFiles` is the Companion's map or list of per-file records; only files still downloading are listed, at most `max`.
 export function activeFileRows(activeFiles, max = 8) {
