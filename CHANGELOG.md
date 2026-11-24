@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- On PCs whose graphics can't run the app's GPU process (for example a Windows virtual machine), the app no longer crashes twice more every week: once it needed the no-GPU mode, it goes straight back to it and keeps it for 30 days.
+
 ## [6.12.0] - 2026-11-24
 
 ### Added
