@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A comic collection's or album's page shows its cover (the same picture as in the library), shaped to fit: tall for comics, square for albums. It used to show only the first letter. Comics and Music pages no longer show the game install steps or "New build".
 - Updating happens inside the app: the download and checking show in the app's own window instead of a popup, and while the app is closed for the install, a screen in the app's colours, size and place (logo, version, moving bar) replaces the grey Windows box. The new version opens where the old one was.
 
 ## [6.8.0] - 2026-11-24

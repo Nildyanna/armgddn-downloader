@@ -772,3 +772,8 @@ html[data-theme="harbor"] .upscreen { background: var(--hb-bg); }
 .uptext { margin: 0; color: var(--fg); font-variant-numeric: tabular-nums; }
 .upnote { margin: 0; color: var(--dim); font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .upbar.busy i { animation: none; left: 0; width: 100%; opacity: .5; } }
+
+/* The classic details window: Music and 3D covers are square, Comics covers tall (the Steam-style frame squashed them). */
+.dcover.square { flex-basis: 220px; aspect-ratio: 1 / 1; }
+.dcover.tall { flex-basis: 200px; aspect-ratio: 2 / 3; }
+.dcover.square img, .dcover.tall img { object-fit: contain; }

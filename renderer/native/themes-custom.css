@@ -294,3 +294,7 @@ html[data-theme="harbor"] .dfiles.folded summary { cursor: pointer; color: var(-
 html[data-theme="harbor"] .dfiles.folded summary::-webkit-details-marker { display: none; }
 html[data-theme="harbor"] .dfiles.folded summary::before { content: '\25B8  '; }
 html[data-theme="harbor"] .dfiles.folded[open] summary::before { content: '\25BE  '; }
+
+/* The game page's cover takes the section's shape (Nov 24 2026): square album art for Music and 3D models, tall covers for Comics. */
+.hb-heroart.square { width: clamp(240px, 26vw, 520px); aspect-ratio: 1 / 1; }
+.hb-heroart.tall { width: clamp(200px, 20vw, 400px); aspect-ratio: 2 / 3; }

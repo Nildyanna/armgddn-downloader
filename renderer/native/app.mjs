@@ -182,7 +182,9 @@ function PatchModal({ q }) {
 }
 
 // Harbor: a game's page as in the mockup: a tinted top with the cover and the facts, how to get it running, and other big titles of the same kind.
-function HarborTitle({ item, remote, art, cover, cats, trailer, readme, onClose, onDownload, onBrowse, onTrailer, onReadme, actions, onOpenTrend }) {
+function HarborTitle({ item, remote, folder, art, cover, cats, trailer, readme, onClose, onDownload, onBrowse, onTrailer, onReadme, actions, onOpenTrend }) {
+  const shape = shapeFor(remote);                                     // wide game art, square album art, tall comic covers
+  const isGame = ['PC Games', 'PCVR Games', 'Testing'].includes(remote);
   const [windows, setWindows] = useState(null);
   useEffect(() => { api.trending().then((r) => setWindows(r.ok && r.data && r.data.windows ? r.data.windows : {})); const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   const vr = remote === 'PCVR Games';
@@ -200,9 +202,9 @@ function HarborTitle({ item, remote, art, cover, cats, trailer, readme, onClose,
       <div class="hb-theroin">
         <nav class="hb-crumbs"><button onClick=${onClose}>${'← Back'}</button><span>${remote || 'Library'}</span><span aria-hidden="true">/</span><span>${cleanTitle(item.name)}</span></nav>
         <div class="hb-tmain">
-          ${cover ? html`<img class="hb-heroart" src=${coverSrc(cover)} alt=${cleanTitle(item.name)} />` : html`<div class="hb-heroart none">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}
+          ${cover ? html`<img class=${'hb-heroart ' + shape} src=${coverSrc(cover)} alt=${cleanTitle(item.name)} />` : html`<div class=${'hb-heroart none ' + shape}>${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}
           <div class="hb-herotext">
-            ${item.modTime && date(item.modTime) ? html`<span class="hb-kick">New build on ${date(item.modTime)}${dl30 > 0 ? ' · ' + dl30.toLocaleString('en-US') + ' downloads in 30 days' : ''}</span>` : ''}
+            ${item.modTime && date(item.modTime) ? html`<span class="hb-kick">${isGame ? 'New build on' : 'Updated'} ${date(item.modTime)}${dl30 > 0 ? ' · ' + dl30.toLocaleString('en-US') + ' downloads in 30 days' : ''}</span>` : ''}
             <h1>${cleanTitle(item.name)}</h1>
             <dl class="hb-dl">${facts.map(([k, v]) => html`<${Fragment}><dt>${k}</dt><dd class=${k === 'Folder' ? 'folder' : ''}>${v}</dd></${Fragment}>`)}</dl>
             <div class="hb-actions">
@@ -217,14 +219,14 @@ function HarborTitle({ item, remote, art, cover, cats, trailer, readme, onClose,
         </div>
       </div>
     </section>
-    <section class="hb-sec"><h3>Getting it running</h3>
+    ${isGame ? html`<section class="hb-sec"><h3>Getting it running</h3>
       <ol class="hb-steps">
         <li><b>1</b><h4>Download</h4><p>The app fetches every part, checks each one, and picks up where it left off if your connection drops.</p></li>
         <li><b>2</b><h4>Extract</h4><p>With Auto-extract on, the app unpacks it for you. Otherwise right-click the first part and choose Extract Here. Leave room for the download plus the extracted game.</p></li>
         <li><b>3</b><h4>Install and play</h4><p>${vr ? 'Most VR games need a headset running SteamVR, though some games and launch methods get around it. Install the game from the extracted folder. Then start your headset with the launch method of your choice (not Steam Link), open the desktop view, and launch the game from its desktop or Start menu icon there.' : 'Install the game from the extracted folder, then start it from the desktop or Start menu icon the installer creates.'}</p></li>
       </ol>
-    </section>
-    ${also.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Also big in ${kind}</h3><span>Most downloaded, last 30 days</span></div>
+    </section>` : ''}
+    ${isGame && also.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Also big in ${kind}</h3><span>Most downloaded, last 30 days</span></div>
       <div class="hb-also">${also.map((e) => html`<button key=${e.path} onClick=${() => { onClose(); onOpenTrend(e); }}><img src=${coverSrc(e.coverUrl)} alt="" /><b>${cleanTitle(e.title)}</b><span>${e.count.toLocaleString('en-US')} downloads${e.sizeBytes ? ' · ' + formatSize(e.sizeBytes) : ''}</span></button>`)}</div></section>` : ''}
   </div></div>`;
 }
@@ -233,7 +235,8 @@ function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse, har
   const [playing, setPlaying] = useState(false);
   const trailer = trailerSource((item.coverArt || {}).trailer);
   const art = item.coverArt || {};
-  const cover = art.cover && art.cover.url;
+  // Comics and Music have no Steam-style art: use the same picture the library card shows (the collection or album cover), 960 px wide here.
+  const cover = (art.cover && art.cover.url) || collectionCoverPath(remote, folder, item).replace(/&w=\d+$/, '&w=960');
   const [readme, setReadme] = useState(null);   // null = checking, false = none, object = found
   const [showReadme, setShowReadme] = useState(false);
   const path = [folder, item.name].filter(Boolean).join('/');
@@ -241,10 +244,10 @@ function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse, har
   const cats = Array.isArray(art.categories) ? art.categories.filter(Boolean).slice(0, 10) : [];
   if (playing && trailer) return html`<${TrailerModal} title=${cleanTitle(item.name)} src=${trailer} onClose=${() => setPlaying(false)} />`;
   if (showReadme && readme) return html`<${Modal} title=${'README - ' + cleanTitle(item.name)} onClose=${() => setShowReadme(false)} wide=${true}><pre class="readme">${readme.content}${readme.truncated ? '\n\n[README PREVIEW TRUNCATED]' : ''}</pre></${Modal}>`;
-  if (harbor) return html`<${HarborTitle} item=${item} remote=${remote} art=${art} cover=${cover} cats=${cats} trailer=${trailer} readme=${readme} onClose=${onClose} onDownload=${onDownload} onBrowse=${onBrowse} onTrailer=${() => setPlaying(true)} onReadme=${() => setShowReadme(true)} actions=${actions} onOpenTrend=${onOpenTrend} />`;
+  if (harbor) return html`<${HarborTitle} item=${item} remote=${remote} folder=${folder} art=${art} cover=${cover} cats=${cats} trailer=${trailer} readme=${readme} onClose=${onClose} onDownload=${onDownload} onBrowse=${onBrowse} onTrailer=${() => setPlaying(true)} onReadme=${() => setShowReadme(true)} actions=${actions} onOpenTrend=${onOpenTrend} />`;
   return html`<${Modal} title=${cleanTitle(item.name)} onClose=${onClose} wide=${true}>
     <div class="dhead">
-      <div class="dcover">${cover ? html`<img src=${coverSrc(cover)} alt="" />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
+      <div class=${'dcover ' + shapeFor(remote)}>${cover ? html`<img src=${coverSrc(cover)} alt="" />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
       <div class="dinfo">
         <div class="dsub">${detailLines(remote, item).map((l) => html`<div>${l}</div>`)}</div>
         ${cats.length ? html`<div class="pills">${cats.map((c) => html`<span class="pill">${c}</span>`)}</div>` : ''}
