@@ -16,6 +16,8 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
   3. the app's own start-up test passes for real, under a virtual display:
      `ARMGDDN_SMOKE_TEST=1 ARMGDDN_SMOKE_RESULT=<file> xvfb-run -a ./node_modules/.bin/electron . --no-sandbox` prints `[smoke] PASS`
      (link the system rclone to `rclone/rclone` first; it is git-excluded).
+- No circular requires between main/ modules: a cycle hands a module an unfinished copy of another, so a function is undefined at run time
+  (`test/mainModulesNoCycles.test.js`).
 - `main/**/*` is in package.json build.files; `test/packagedFiles.test.js` fails if a required module would be left out of the installer.
 - The work is on branch `refactor/split-main` (worktree `../ArmgddnCompanion-split`), rebased on `main` before each step. Nothing ships until
   George decides; then it goes out in a normal release.
@@ -33,6 +35,7 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
 | 1 | util | 15 stateless helpers (sizes, speeds, times, versions, safe paths, quoting) | 9,966 |
 | 2 | errors, sevenZip, files, net, updateCheck, downloadState, windows | 50 that use no shared state | 9,198 |
 | 3 | log | the debug log: getDebugLogPath, logToFile, debugLog and their private state | 9,148 |
+| 4 | sevenZip, platform, downloadState, komgaConfig, auth, files, errors, net | 17 freed by step 3, plus rotateLogIfNeeded into log (it made log and files require each other) | 8,744 |
 
 ## Next
 

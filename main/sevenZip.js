@@ -2,6 +2,9 @@
 // 7-Zip: describing the 7-Zip tool found and finding the archives in a download to unpack (moved out of main.js unchanged, Nov 24 2026; docs/MAIN_SPLIT.md).
 const fs = require('fs');
 const path = require('path');
+const { logToFile } = require('./log');
+const { spawnSync } = require('child_process');
+const { app } = require('electron');
 
 // Diagnostics for extraction failures: one-line summaries that go to debug.log so a member
 // can paste the "[7z]" lines instead of us guessing why the tool would not run.
@@ -62,4 +65,50 @@ function find7zArchivesInDir(rootDir) {
   return results;
 }
 
-module.exports = { snip7z, describe7zTool, find7zArchivesInDir };
+// On Linux and macOS the bundled 7za can lack the execute bit, and an install under /opt
+// (root-owned) or an AppImage mount (read-only) won't let the app chmod it, so running it
+// fails and extraction reports "Failed to validate archive contents". When it can't be run
+// in place, run a private copy from the app's own writable folder.
+function ensureRunnable7z(exe, force = false) {
+  if (!exe || process.platform === 'win32') return exe;
+  const canExec = () => { try { fs.accessSync(exe, fs.constants.X_OK); return true; } catch (e) { return false; } };
+  // force: the file looks executable but starting it still failed (seen on an AppImage), so
+  // skip these checks and use a private copy.
+  if (!force && canExec()) return exe;
+  if (!force && process.env.ARMGDDN_TEST_NO_CHMOD !== '1') {
+    try { fs.chmodSync(exe, 0o755); } catch (e) { }
+    if (canExec()) return exe;
+  }
+  try {
+    const dir = path.join(app.getPath('userData'), '7z-bin');
+    fs.mkdirSync(dir, { recursive: true });
+    const copy = path.join(dir, path.basename(exe));
+    let current = false;
+    try { current = fs.statSync(copy).size === fs.statSync(exe).size; } catch (e) { }
+    if (!current) fs.copyFileSync(exe, copy);
+    fs.chmodSync(copy, 0o755);
+    try { logToFile(`[7z] Bundled extraction tool is not runnable in place; using a private copy: ${copy}`); } catch (e) { }
+    return copy;
+  } catch (e) {
+    try { logToFile(`[7z] Could not prepare a runnable copy of the extraction tool: ${e && e.message ? e.message : e}`); } catch (e2) { }
+    return exe;
+  }
+}
+
+function probe7z(exe) {
+  try {
+    const r = spawnSync(exe, ['i'], { encoding: 'utf8', timeout: 10000 });
+    if (!r.error && r.status === 0) {
+      const first = String(r.stdout || '').split(/\r?\n/).find((l) => l.trim()) || '';
+      return { ok: true, note: snip7z(first, 100) };
+    }
+    const why = r.error
+      ? `${r.error.code || ''} ${r.error.message || r.error}`.trim()
+      : `exit ${r.status}${r.signal ? ` signal ${r.signal}` : ''} ${snip7z(r.stderr, 120)}`.trim();
+    return { ok: false, note: why };
+  } catch (e) {
+    return { ok: false, note: e && e.message ? e.message : String(e) };
+  }
+}
+
+module.exports = { snip7z, describe7zTool, find7zArchivesInDir, ensureRunnable7z, probe7z };

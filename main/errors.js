@@ -186,4 +186,33 @@ function isRcloneCrashOutput(output) {
   return downloadErrors.isCrashOutput(output);
 }
 
-module.exports = { scrubForSentry, normalizeFailureLine, isNetworkStreamError, extractRcloneErrorDetail, formatRcloneExitCodeHint, isPinnedDownloadStatusMessage, notInChannelMessage, isQuotaError, isServerBusyError, isLikelySignedExpiringUrl, isRcloneCrashOutput };
+function isTokenExpiredError(output, fileUrl) {
+  const lowerOutput = String(output || '').toLowerCase();
+  const isExpiringUrl = isLikelySignedExpiringUrl(fileUrl);
+
+  // Strong signals: treat as expired regardless of URL type.
+  const strongIndicators = [
+    'token expired',
+    'token invalid',
+    'expired token'
+  ];
+  for (const t of strongIndicators) {
+    if (lowerOutput.includes(t)) return true;
+  }
+
+  // Weak signals: only treat as expired when we know we're using a signed URL.
+  if (!isExpiringUrl) return false;
+
+  const weakIndicators = [
+    'unauthorized',
+    'access denied',
+    'forbidden',
+    ' 401',
+    ' 403',
+    'status code 401',
+    'status code 403'
+  ];
+  return weakIndicators.some(indicator => lowerOutput.includes(indicator));
+}
+
+module.exports = { scrubForSentry, normalizeFailureLine, isNetworkStreamError, extractRcloneErrorDetail, formatRcloneExitCodeHint, isPinnedDownloadStatusMessage, notInChannelMessage, isQuotaError, isServerBusyError, isLikelySignedExpiringUrl, isRcloneCrashOutput, isTokenExpiredError };

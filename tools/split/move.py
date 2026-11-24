@@ -101,7 +101,17 @@ def main():
         src = mod.read_text()
         m = re.search(r'module\.exports = \{([^}]*)\};\n?$', src)
         have = [x.strip() for x in m.group(1).split(',') if x.strip()]
-        body = src[:m.start()].rstrip('\n') + '\n\n' + '\n\n'.join(blocks[n] for n in names_in_order) + '\n\n'
+        pre = src[:m.start()].rstrip('\n')
+        # add the requires the new functions need that the module does not have yet, after its last top require line
+        req = [r.strip() for r in re.split(r';;|\n', a.requires) if r.strip()]
+        missing = [r for r in req if r not in pre]
+        if missing:
+            ls = pre.split('\n')
+            k = max([i for i, l in enumerate(ls[:40]) if re.match(r"^const .*require\(", l)] or [1])
+            for r in reversed(missing):
+                ls.insert(k + 1, r)
+            pre = '\n'.join(ls)
+        body = pre + '\n\n' + '\n\n'.join(blocks[n] for n in names_in_order) + '\n\n'
         allnames = have + [n for n in names_in_order if n not in have]
     else:
         head = ["'use strict';", f'// {a.doc or a.module} (moved out of main.js unchanged, Nov 24 2026; docs/MAIN_SPLIT.md).']

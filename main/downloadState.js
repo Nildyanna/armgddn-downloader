@@ -1,6 +1,7 @@
 'use strict';
 // A download's state: what the page is sent, running file counts, waiting for processes to end, speed (moved out of main.js unchanged, Nov 24 2026; docs/MAIN_SPLIT.md).
 const driveDirectClient = require('../driveDirectClient');
+const { logToFile } = require('./log');
 
 function getActiveFileCount(download) {
   try {
@@ -154,4 +155,113 @@ function peakOrAverageSpeedBytes(download) {
 
 function scheduleActiveStates() { return ['downloading', 'in_progress']; }
 
-module.exports = { getActiveFileCount, isStarfieldAutoExtractTargetValue, normalizeDownloadItemKey, reportDirectGrantEnd, downloadToRenderer, waitForChildClose, waitForDownloadTasksToFinish, pruneActiveProcesses, peakOrAverageSpeedBytes, scheduleActiveStates };
+function isStarfieldAutoExtractTargetManifest(manifest) {
+  if (!manifest || typeof manifest !== 'object') return false;
+  if (manifest.autoExtractDisabled) return true;
+
+  const candidates = [
+    manifest.path,
+    manifest.name,
+    manifest.actualRemote,
+    manifest.remote,
+    manifest.manifestPath,
+    manifest.manifestUrl
+  ];
+
+  if (Array.isArray(manifest.files)) {
+    for (const file of manifest.files) {
+      if (!file || typeof file !== 'object') continue;
+      candidates.push(file.path, file.name, file.url);
+    }
+  }
+
+  return candidates.some(isStarfieldAutoExtractTargetValue);
+}
+
+function getDownloadItemKey(manifest, remotePath, name) {
+  try {
+    const candidates = [
+      remotePath,
+      manifest && manifest.path,
+      manifest && manifest.name,
+      manifest && manifest.actualRemote,
+      name
+    ];
+    for (const candidate of candidates) {
+      const key = normalizeDownloadItemKey(candidate);
+      if (key) return key;
+    }
+  } catch (e) { }
+  return '';
+}
+
+function getHistoryItemKey(entry) {
+  try {
+    const candidates = [
+      entry && entry.itemKey,
+      entry && entry.remotePath,
+      entry && entry.name
+    ];
+    for (const candidate of candidates) {
+      const key = normalizeDownloadItemKey(candidate);
+      if (key) return key;
+    }
+  } catch (e) { }
+  return '';
+}
+
+async function stopDownloadProcesses(processes) {
+  const active = (Array.isArray(processes) ? processes : []).filter((proc) =>
+    proc && proc.exitCode === null && proc.signalCode === null
+  );
+  const closed = new Set();
+  const waits = active.map((proc) => waitForChildClose(proc).then((didClose) => {
+    if (didClose) closed.add(proc);
+    return didClose;
+  }));
+
+  for (const proc of active) {
+    try { proc.kill('SIGTERM'); } catch (e) { }
+  }
+
+  if (waits.length) {
+    await Promise.race([
+      Promise.all(waits),
+      new Promise((resolve) => setTimeout(resolve, 2000))
+    ]);
+  }
+
+  for (const proc of active) {
+    if (closed.has(proc) || proc.exitCode !== null || proc.signalCode !== null) continue;
+    try { proc.kill('SIGKILL'); } catch (e) { }
+  }
+  if (waits.length) await Promise.all(waits);
+}
+
+function shouldFinalizeDownload(download) {
+  if (!download) return false;
+  const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
+  const hasActive = Array.isArray(download.activeProcesses) && download.activeProcesses.length > 0;
+  const fileCount = typeof download.fileCount === 'number' ? download.fileCount : 0;
+  const completed = typeof download.completedFiles === 'number' ? download.completedFiles : 0;
+
+  const totalSize = typeof download.totalSize === 'number' ? download.totalSize : 0;
+  const downloadedSize = typeof download.downloadedSize === 'number' ? download.downloadedSize : 0;
+  const isByteComplete = totalSize > 0 && downloadedSize >= totalSize;
+  const isFileCountComplete = fileCount > 0 && completed >= fileCount;
+
+  const result = (
+    !download.cancelled &&
+    !download.paused &&
+    !hasErrors &&
+    !hasActive &&
+    (isByteComplete || isFileCountComplete)
+  );
+
+  logToFile(`[shouldFinalizeDownload] cancelled=${download.cancelled}, paused=${download.paused}, hasErrors=${hasErrors}, hasActive=${hasActive}, isByteComplete=${isByteComplete}, isFileCountComplete=${isFileCountComplete}, result=${result}`);
+  logToFile(`[shouldFinalizeDownload] downloadedSize=${downloadedSize}, totalSize=${totalSize}, completedFiles=${completed}, fileCount=${fileCount}`);
+
+  return result;
+}
+
+module.exports = { getActiveFileCount, isStarfieldAutoExtractTargetValue, normalizeDownloadItemKey, reportDirectGrantEnd, downloadToRenderer, waitForChildClose, waitForDownloadTasksToFinish, pruneActiveProcesses, peakOrAverageSpeedBytes, scheduleActiveStates, isStarfieldAutoExtractTargetManifest, getDownloadItemKey, getHistoryItemKey, stopDownloadProcesses, shouldFinalizeDownload };

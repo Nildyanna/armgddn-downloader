@@ -5,6 +5,7 @@ const { app, nativeImage } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const { logToFile } = require('./log');
 
 function getTaskRemainingBytes(task) {
   try {
@@ -62,19 +63,6 @@ function cleanupAppImageBackup(appImagePath) {
   } catch (e) {
     return `failed: ${e && e.message ? e.message : e}`;
   }
-}
-
-// Security (M4): Rotate debug.log if it exceeds 10 MB to prevent unbounded disk growth.
-// Keeps at most 2 log files: debug.log and debug.log.1.
-function rotateLogIfNeeded(logPath) {
-  try {
-    const stat = fs.statSync(logPath);
-    if (stat.size > 10 * 1024 * 1024) {
-      const oldLog = logPath + '.1';
-      try { fs.unlinkSync(oldLog); } catch (e) { }
-      fs.renameSync(logPath, oldLog);
-    }
-  } catch (e) { /* file doesn't exist yet or stat failed — no rotation needed */ }
 }
 
 // The saved sign-in is readable by this user only (matters when the system has no keychain and the token is not encrypted).
@@ -171,4 +159,33 @@ function commonOpenDir(baseDir, files) {
   } catch (e) { return baseDir; }
 }
 
-module.exports = { getTaskRemainingBytes, defaultDownloadsBase, cleanupAppImageBackup, rotateLogIfNeeded, writeSessionFile, komgaConfigPath, installedProfileDir, getAppIcon, isSafeLibraryFolder, comicsCacheFile, isFileCompleteOnDisk, buildInstallSpaceWarning, commonOpenDir };
+function loadComicsCache(root) {
+  try { const d = JSON.parse(fs.readFileSync(comicsCacheFile(), 'utf8')); return d && d.root === root && d.files ? d.files : {}; } catch (e) { return {}; }
+}
+
+function saveComicsCache(root, files) {
+  try { const tmp = comicsCacheFile() + '.tmp'; fs.writeFileSync(tmp, JSON.stringify({ root, files })); fs.renameSync(tmp, comicsCacheFile()); } catch (e) { /* ignore */ }
+}
+
+// Check free disk space
+function getFreeDiskSpace(targetPath) {
+  try {
+    // If path doesn't exist, check parent until we find one that exists
+    let current = targetPath;
+    while (!fs.existsSync(current)) {
+      const parent = path.dirname(current);
+      if (parent === current) break; // Root reached
+      current = parent;
+    }
+
+    if (fs.statfsSync) {
+      const stats = fs.statfsSync(current);
+      return stats.bavail * stats.bsize; // Available blocks * block size
+    }
+  } catch (e) {
+    logToFile(`[DiskCheck] Failed to check space for ${targetPath}: ${e.message}`);
+  }
+  return -1; // Unknown
+}
+
+module.exports = { getTaskRemainingBytes, defaultDownloadsBase, cleanupAppImageBackup, writeSessionFile, komgaConfigPath, installedProfileDir, getAppIcon, isSafeLibraryFolder, comicsCacheFile, isFileCompleteOnDisk, buildInstallSpaceWarning, commonOpenDir, loadComicsCache, saveComicsCache, getFreeDiskSpace };

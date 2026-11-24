@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const { app } = require('electron');
 const https = require('https');
+const { logToFile } = require('./log');
 
 // Wait until the service host resolves again (up to maxMs). Returns true once
 // the network looks back, false if it stayed down.
@@ -173,4 +174,82 @@ function transformProxyUrlToDirectIfPossible(urlString) {
   }
 }
 
-module.exports = { waitForNetwork, fetchJsonWithBearer, isValidToken, isValidDownloadId, attemptResolveDownloadToken, getActiveFileKey, isProxyDownloadUrl, transformProxyUrlToDirectIfPossible };
+async function resolveDownloadRedirectUrl(urlString, maxHops = 5) {
+  const startUrl = String(urlString || '').trim();
+  if (!startUrl) return startUrl;
+  let current = startUrl;
+
+  for (let hop = 0; hop < maxHops; hop++) {
+    let u;
+    try {
+      u = new URL(current);
+    } catch (e) {
+      return current;
+    }
+
+    if (u.protocol !== 'https:') {
+      return current;
+    }
+
+    const isArmgddnHost = u.hostname === 'www.armgddnbrowser.com' || u.hostname === 'armgddnbrowser.com' || u.hostname.endsWith('.armgddnbrowser.com');
+    if (!isArmgddnHost) {
+      return current;
+    }
+
+    if (u.pathname !== '/api/download-file') {
+      return current;
+    }
+
+    const next = await new Promise((resolve) => {
+      const options = {
+        protocol: 'https:',
+        hostname: u.hostname,
+        port: u.port ? Number(u.port) : 443,
+        method: 'HEAD',
+        path: u.pathname + u.search,
+        family: 4,
+        headers: { 'User-Agent': 'ARMGDDN-Companion/redirect-resolver' }
+      };
+
+      const req = https.request(options, (res) => {
+        try {
+          const status = Number(res.statusCode) || 0;
+          const loc = res.headers && res.headers.location ? String(res.headers.location) : '';
+          res.resume();
+          if (status >= 300 && status < 400 && loc) {
+            try {
+              const resolved = new URL(loc, current).toString();
+              resolve(resolved);
+              return;
+            } catch (e) {
+              resolve(current);
+              return;
+            }
+          }
+          resolve(current);
+        } catch (e) {
+          resolve(current);
+        }
+      });
+
+      req.setTimeout(8000, () => {
+        try {
+          logToFile(`[resolveRedirect] HEAD request timed out after 8s — falling back to proxy URL host=${u.hostname}`);
+        } catch (e) { }
+        try { req.destroy(); } catch (e) { }
+        resolve(current);
+      });
+      req.on('error', () => resolve(current));
+      req.end();
+    });
+
+    if (!next || next === current) {
+      return current;
+    }
+    current = next;
+  }
+
+  return current;
+}
+
+module.exports = { waitForNetwork, fetchJsonWithBearer, isValidToken, isValidDownloadId, attemptResolveDownloadToken, getActiveFileKey, isProxyDownloadUrl, transformProxyUrlToDirectIfPossible, resolveDownloadRedirectUrl };

@@ -4,14 +4,17 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 // ---- split-out modules (docs/MAIN_SPLIT.md) ----
-const { getDebugLogPath, logToFile, debugLog } = require('./main/log');
+const { clearLoginTraces } = require('./main/auth');
+const { loadKomgaConfig, saveKomgaConfig, forgetKomgaKey } = require('./main/komgaConfig');
+const { ensureLinuxProtocolDesktopHandler } = require('./main/platform');
+const { getDebugLogPath, logToFile, debugLog, rotateLogIfNeeded } = require('./main/log');
 const { denyNewWindows } = require('./main/windows');
-const { getActiveFileCount, isStarfieldAutoExtractTargetValue, normalizeDownloadItemKey, reportDirectGrantEnd, downloadToRenderer, waitForChildClose, waitForDownloadTasksToFinish, pruneActiveProcesses, peakOrAverageSpeedBytes, scheduleActiveStates } = require('./main/downloadState');
+const { getActiveFileCount, isStarfieldAutoExtractTargetValue, normalizeDownloadItemKey, reportDirectGrantEnd, downloadToRenderer, waitForChildClose, waitForDownloadTasksToFinish, pruneActiveProcesses, peakOrAverageSpeedBytes, scheduleActiveStates, isStarfieldAutoExtractTargetManifest, getDownloadItemKey, getHistoryItemKey, stopDownloadProcesses, shouldFinalizeDownload } = require('./main/downloadState');
 const { decodeBase64Signature, verifyEd25519Signature, isAutostartLaunch, safeUpdateResult } = require('./main/updateCheck');
-const { waitForNetwork, fetchJsonWithBearer, isValidToken, isValidDownloadId, attemptResolveDownloadToken, getActiveFileKey, isProxyDownloadUrl, transformProxyUrlToDirectIfPossible } = require('./main/net');
-const { getTaskRemainingBytes, defaultDownloadsBase, cleanupAppImageBackup, rotateLogIfNeeded, writeSessionFile, komgaConfigPath, installedProfileDir, getAppIcon, isSafeLibraryFolder, comicsCacheFile, isFileCompleteOnDisk, buildInstallSpaceWarning, commonOpenDir } = require('./main/files');
-const { snip7z, describe7zTool, find7zArchivesInDir } = require('./main/sevenZip');
-const { scrubForSentry, normalizeFailureLine, isNetworkStreamError, extractRcloneErrorDetail, formatRcloneExitCodeHint, isPinnedDownloadStatusMessage, notInChannelMessage, isQuotaError, isServerBusyError, isLikelySignedExpiringUrl, isRcloneCrashOutput } = require('./main/errors');
+const { waitForNetwork, fetchJsonWithBearer, isValidToken, isValidDownloadId, attemptResolveDownloadToken, getActiveFileKey, isProxyDownloadUrl, transformProxyUrlToDirectIfPossible, resolveDownloadRedirectUrl } = require('./main/net');
+const { getTaskRemainingBytes, defaultDownloadsBase, cleanupAppImageBackup, writeSessionFile, komgaConfigPath, installedProfileDir, getAppIcon, isSafeLibraryFolder, comicsCacheFile, isFileCompleteOnDisk, buildInstallSpaceWarning, commonOpenDir, loadComicsCache, saveComicsCache, getFreeDiskSpace } = require('./main/files');
+const { snip7z, describe7zTool, find7zArchivesInDir, ensureRunnable7z, probe7z } = require('./main/sevenZip');
+const { scrubForSentry, normalizeFailureLine, isNetworkStreamError, extractRcloneErrorDetail, formatRcloneExitCodeHint, isPinnedDownloadStatusMessage, notInChannelMessage, isQuotaError, isServerBusyError, isLikelySignedExpiringUrl, isRcloneCrashOutput, isTokenExpiredError } = require('./main/errors');
 const { normalizeMirrorKey, sanitizeRelativePath, resolveInside, escapePowerShellSingleQuoted, quoteDesktopExecArg, redactUrlQueryStrings, isPathInside, normalizeFileSize, formatBytes, clampInt, parseRcloneHttpStatus, parseSpeedToBytes, formatSpeed, formatEtaSeconds, compareVersions } = require('./main/util');
 const pipeGuard = require('./pipeGuard');
 pipeGuard.install(process);   // a closed stdout/stderr (started from a launcher that went away) made every console call fail with EPIPE in a loop
@@ -1435,83 +1438,6 @@ function showDownloadNotification(title, body) {
   }
 }
 
-function ensureLinuxProtocolDesktopHandler() {
-  try {
-    if (process.platform !== 'linux') return;
-
-    const desktopFileName = 'armgddn-downloader.desktop';
-    const dataHome = process.env.XDG_DATA_HOME || path.join(os.homedir(), '.local', 'share');
-    const appsDir = path.join(dataHome, 'applications');
-    fs.mkdirSync(appsDir, { recursive: true });
-
-    const desktopPath = path.join(appsDir, desktopFileName);
-    // In AppImage builds, process.execPath can be a transient mount path under /tmp/.mount_*.
-    // Prefer the stable AppImage file path when available so the protocol handler can launch
-    // the app even when it's not already running.
-    const appImagePath = process.env.APPIMAGE ? String(process.env.APPIMAGE) : '';
-    const execPath = appImagePath || process.execPath;
-    const content = [
-      '[Desktop Entry]',
-      'Type=Application',
-      'Name=ARMGDDN Companion',
-      `Exec=${quoteDesktopExecArg(execPath)} %u`,
-      'Terminal=false',
-      'NoDisplay=true',
-      'MimeType=x-scheme-handler/armgddn;',
-      'Categories=Utility;'
-    ].join('\n') + '\n';
-
-    let existing = '';
-    try {
-      existing = fs.readFileSync(desktopPath, 'utf8');
-    } catch (e) { }
-    if (existing !== content) {
-      const prevExec = (existing.match(/^Exec=(.*) %u$/m) || [])[1];
-      if (prevExec) logToFile(`[Protocol][linux] armgddn:// handler path changed: ${prevExec} -> ${quoteDesktopExecArg(execPath)}`);
-      fs.writeFileSync(desktopPath, content, 'utf8');
-      try { fs.chmodSync(desktopPath, 0o644); } catch (e) { }
-    }
-
-    const tryCmd = (cmd, args) => {
-      try {
-        const res = spawnSync(cmd, args, { encoding: 'utf8' });
-        const ok = res && typeof res.status === 'number' ? res.status === 0 : false;
-        const out = (res && res.stdout) ? String(res.stdout).trim() : '';
-        const err = (res && res.stderr) ? String(res.stderr).trim() : '';
-        return { ok, out, err, status: res ? res.status : null };
-      } catch (e) {
-        return { ok: false, out: '', err: e && e.message ? e.message : String(e), status: null };
-      }
-    };
-
-    let registered = false;
-
-    const gioRes = tryCmd('gio', ['mime', 'x-scheme-handler/armgddn', desktopFileName]);
-    if (gioRes.ok) {
-      registered = true;
-    } else {
-      const xdgMimeRes = tryCmd('xdg-mime', ['default', desktopFileName, 'x-scheme-handler/armgddn']);
-      if (xdgMimeRes.ok) {
-        registered = true;
-      } else {
-        const xdgSettingsRes = tryCmd('xdg-settings', ['set', 'default-url-scheme-handler', 'armgddn', desktopFileName]);
-        if (xdgSettingsRes.ok) {
-          registered = true;
-        }
-      }
-    }
-
-    logToFile(`[Protocol][linux] desktop=${desktopPath} exec=${execPath} registered=${registered}`);
-    const sysDefault = tryCmd('xdg-mime', ['query', 'default', 'x-scheme-handler/armgddn']);
-    logToFile(`[Protocol][linux] system default for armgddn:// is "${sysDefault.out || '(none)'}"${sysDefault.out && sysDefault.out !== desktopFileName ? ' (NOT this app)' : ''}`);
-    if (!registered) {
-      logToFile(`[Protocol][linux] gio mime: ok=${gioRes.ok} status=${gioRes.status} err=${gioRes.err}`);
-    }
-  } catch (e) {
-    logToFile(`[Protocol][linux] ensure handler failed: ${e && e.message ? e.message : e}`);
-  }
-}
-
 function formatDownloadFailedMessage(code, errorOutput) {
   const detail = extractRcloneErrorDetail(errorOutput);
   const lower = String(errorOutput || '').toLowerCase();
@@ -1688,57 +1614,11 @@ const get7zPath = () => {
   return null;
 };
 
-// On Linux and macOS the bundled 7za can lack the execute bit, and an install under /opt
-// (root-owned) or an AppImage mount (read-only) won't let the app chmod it, so running it
-// fails and extraction reports "Failed to validate archive contents". When it can't be run
-// in place, run a private copy from the app's own writable folder.
-function ensureRunnable7z(exe, force = false) {
-  if (!exe || process.platform === 'win32') return exe;
-  const canExec = () => { try { fs.accessSync(exe, fs.constants.X_OK); return true; } catch (e) { return false; } };
-  // force: the file looks executable but starting it still failed (seen on an AppImage), so
-  // skip these checks and use a private copy.
-  if (!force && canExec()) return exe;
-  if (!force && process.env.ARMGDDN_TEST_NO_CHMOD !== '1') {
-    try { fs.chmodSync(exe, 0o755); } catch (e) { }
-    if (canExec()) return exe;
-  }
-  try {
-    const dir = path.join(app.getPath('userData'), '7z-bin');
-    fs.mkdirSync(dir, { recursive: true });
-    const copy = path.join(dir, path.basename(exe));
-    let current = false;
-    try { current = fs.statSync(copy).size === fs.statSync(exe).size; } catch (e) { }
-    if (!current) fs.copyFileSync(exe, copy);
-    fs.chmodSync(copy, 0o755);
-    try { logToFile(`[7z] Bundled extraction tool is not runnable in place; using a private copy: ${copy}`); } catch (e) { }
-    return copy;
-  } catch (e) {
-    try { logToFile(`[7z] Could not prepare a runnable copy of the extraction tool: ${e && e.message ? e.message : e}`); } catch (e2) { }
-    return exe;
-  }
-}
-
 // Find a 7-Zip that actually starts. A Linux member's AppImage had a bundled 7za that looked
 // executable but would not spawn ("List failed: code=null err=yes"), so try the bundled tool,
 // then a private copy of it, then the system's own 7-Zip, and log each result.
 let _resolved7z = null;
 let _resolved7zFailures = [];
-
-function probe7z(exe) {
-  try {
-    const r = spawnSync(exe, ['i'], { encoding: 'utf8', timeout: 10000 });
-    if (!r.error && r.status === 0) {
-      const first = String(r.stdout || '').split(/\r?\n/).find((l) => l.trim()) || '';
-      return { ok: true, note: snip7z(first, 100) };
-    }
-    const why = r.error
-      ? `${r.error.code || ''} ${r.error.message || r.error}`.trim()
-      : `exit ${r.status}${r.signal ? ` signal ${r.signal}` : ''} ${snip7z(r.stderr, 120)}`.trim();
-    return { ok: false, note: why };
-  } catch (e) {
-    return { ok: false, note: e && e.message ? e.message : String(e) };
-  }
-}
 
 function resolve7zTool() {
   if (_resolved7z) return _resolved7z;
@@ -1771,29 +1651,6 @@ function resolve7zTool() {
   return null;
 }
 
-function isStarfieldAutoExtractTargetManifest(manifest) {
-  if (!manifest || typeof manifest !== 'object') return false;
-  if (manifest.autoExtractDisabled) return true;
-
-  const candidates = [
-    manifest.path,
-    manifest.name,
-    manifest.actualRemote,
-    manifest.remote,
-    manifest.manifestPath,
-    manifest.manifestUrl
-  ];
-
-  if (Array.isArray(manifest.files)) {
-    for (const file of manifest.files) {
-      if (!file || typeof file !== 'object') continue;
-      candidates.push(file.path, file.name, file.url);
-    }
-  }
-
-  return candidates.some(isStarfieldAutoExtractTargetValue);
-}
-
 const getConfigPath = () => {
   return path.join(app.getPath('userData'), 'config.json');
 };
@@ -1807,38 +1664,6 @@ const getSessionPath = () => {
 };
 
 const COMPLETION_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-function getDownloadItemKey(manifest, remotePath, name) {
-  try {
-    const candidates = [
-      remotePath,
-      manifest && manifest.path,
-      manifest && manifest.name,
-      manifest && manifest.actualRemote,
-      name
-    ];
-    for (const candidate of candidates) {
-      const key = normalizeDownloadItemKey(candidate);
-      if (key) return key;
-    }
-  } catch (e) { }
-  return '';
-}
-
-function getHistoryItemKey(entry) {
-  try {
-    const candidates = [
-      entry && entry.itemKey,
-      entry && entry.remotePath,
-      entry && entry.name
-    ];
-    for (const candidate of candidates) {
-      const key = normalizeDownloadItemKey(candidate);
-      if (key) return key;
-    }
-  } catch (e) { }
-  return '';
-}
 
 function countRecentCompletedDownloads(itemKey, windowMs = COMPLETION_WINDOW_MS) {
   const key = normalizeDownloadItemKey(itemKey);
@@ -2238,23 +2063,6 @@ const KOMGA_LISTS = komga.LISTS;
 let komgaPromptWin = null;
 let komgaPromptResolve = null;
 
-async function loadKomgaConfig() {
-  try {
-    const d = JSON.parse(fs.readFileSync(komgaConfigPath(), 'utf8'));
-    if (!d || !d.url || !d.key) return null;
-    const key = d.enc ? await secureStore.decrypt(Buffer.from(d.key, 'base64')) : d.key;
-    return { url: d.url, key };
-  } catch (e) { return null; }
-}
-
-async function saveKomgaConfig(cfg) {
-  const enc = await secureStore.isAvailable();
-  const data = { url: cfg.url, enc, key: enc ? (await secureStore.encrypt(cfg.key)).toString('base64') : cfg.key };
-  fs.writeFileSync(komgaConfigPath(), JSON.stringify(data), { mode: 0o600 });
-}
-
-function forgetKomgaKey() { try { fs.unlinkSync(komgaConfigPath()); } catch (e) { } }
-
 function promptKomgaSettings() {
   return new Promise((resolve) => {
     if (komgaPromptWin && !komgaPromptWin.isDestroyed()) { komgaPromptWin.focus(); return resolve(null); }
@@ -2516,29 +2324,6 @@ function handleDeepLink(url) {
   // Keep queue bounded to avoid unbounded growth.
   if (pendingDeepLinks.length > 10) pendingDeepLinks.splice(0, pendingDeepLinks.length - 10);
   flushPendingDeepLinks();
-}
-
-// Open auth window to login and grab session cookie
-// Forget which Telegram account was used to sign in on this PC. The sign-in window shares this app's browser session, so the site's login cookie and Telegram's
-// own "continue as ..." cookies survive a sign-out: the next sign-in then opened, signed itself straight back in as the OLD account and closed within a second
-// (Darkheart V3, 2026-11-21: "the window pops up and disappears immediately and it shows another telegram account that I don't use").
-async function clearLoginTraces() {
-  try {
-    const ses = require('electron').session.defaultSession;
-    const mine = /(^|\.)(armgddnbrowser\.com|telegram\.org|t\.me)$/i;
-    const cookies = await ses.cookies.get({});
-    let removed = 0;
-    for (const c of cookies) {
-      const dom = String(c.domain || '').replace(/^\./, '');
-      if (!mine.test(dom)) continue;
-      try { await ses.cookies.remove('http' + (c.secure ? 's' : '') + '://' + dom + (c.path || '/'), c.name); removed++; } catch (e) { }
-    }
-    // Telegram's login page keeps the chosen account in its own storage as well; the site's own storage (themes, settings) is left alone.
-    await ses.clearStorageData({ origins: ['https://oauth.telegram.org', 'https://telegram.org', 'https://web.telegram.org'] });
-    logToFile('Sign-in traces cleared (' + removed + ' cookies)');
-  } catch (e) {
-    logToFile('Could not clear sign-in traces: ' + (e && e.message ? e.message : String(e)));
-  }
 }
 
 function openAuthWindow() {
@@ -3580,13 +3365,6 @@ const comicsScan = require('./comicsScan');
 const comicsState = { running: false, worker: null, rows: null, root: '', at: 0, last: null, token: '' };
 const COMICS_LIST_RE = /^[a-z0-9-]{1,80}$/;
 
-function loadComicsCache(root) {
-  try { const d = JSON.parse(fs.readFileSync(comicsCacheFile(), 'utf8')); return d && d.root === root && d.files ? d.files : {}; } catch (e) { return {}; }
-}
-function saveComicsCache(root, files) {
-  try { const tmp = comicsCacheFile() + '.tmp'; fs.writeFileSync(tmp, JSON.stringify({ root, files })); fs.renameSync(tmp, comicsCacheFile()); } catch (e) { /* ignore */ }
-}
-
 // Every app sign-in the Companion holds, newest source first: the token the site's button handed over for this page, the other
 // page's, and the saved one. Any of them is a normal app session, so a catalog request tries each until one is accepted.
 function catalogTokens(first) {
@@ -4290,34 +4068,6 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
   }
 }
 
-async function stopDownloadProcesses(processes) {
-  const active = (Array.isArray(processes) ? processes : []).filter((proc) =>
-    proc && proc.exitCode === null && proc.signalCode === null
-  );
-  const closed = new Set();
-  const waits = active.map((proc) => waitForChildClose(proc).then((didClose) => {
-    if (didClose) closed.add(proc);
-    return didClose;
-  }));
-
-  for (const proc of active) {
-    try { proc.kill('SIGTERM'); } catch (e) { }
-  }
-
-  if (waits.length) {
-    await Promise.race([
-      Promise.all(waits),
-      new Promise((resolve) => setTimeout(resolve, 2000))
-    ]);
-  }
-
-  for (const proc of active) {
-    if (closed.has(proc) || proc.exitCode !== null || proc.signalCode !== null) continue;
-    try { proc.kill('SIGKILL'); } catch (e) { }
-  }
-  if (waits.length) await Promise.all(waits);
-}
-
 async function cleanupCancelledDownloadFiles(download) {
   const normalizePathKey = (value) => {
     const normalized = String(value || '').replace(/\\/g, '/');
@@ -4553,27 +4303,6 @@ async function reportProgressToServer(download, token) {
     console.error('[Progress] Stack:', err.stack);
     debugLog(`Progress report exception: ${err.message}`);
   }
-}
-
-// Check free disk space
-function getFreeDiskSpace(targetPath) {
-  try {
-    // If path doesn't exist, check parent until we find one that exists
-    let current = targetPath;
-    while (!fs.existsSync(current)) {
-      const parent = path.dirname(current);
-      if (parent === current) break; // Root reached
-      current = parent;
-    }
-
-    if (fs.statfsSync) {
-      const stats = fs.statfsSync(current);
-      return stats.bavail * stats.bsize; // Available blocks * block size
-    }
-  } catch (e) {
-    logToFile(`[DiskCheck] Failed to check space for ${targetPath}: ${e.message}`);
-  }
-  return -1; // Unknown
 }
 
 // Start download
@@ -5072,35 +4801,6 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
   return downloadId;
 });
 
-function isTokenExpiredError(output, fileUrl) {
-  const lowerOutput = String(output || '').toLowerCase();
-  const isExpiringUrl = isLikelySignedExpiringUrl(fileUrl);
-
-  // Strong signals: treat as expired regardless of URL type.
-  const strongIndicators = [
-    'token expired',
-    'token invalid',
-    'expired token'
-  ];
-  for (const t of strongIndicators) {
-    if (lowerOutput.includes(t)) return true;
-  }
-
-  // Weak signals: only treat as expired when we know we're using a signed URL.
-  if (!isExpiringUrl) return false;
-
-  const weakIndicators = [
-    'unauthorized',
-    'access denied',
-    'forbidden',
-    ' 401',
-    ' 403',
-    'status code 401',
-    'status code 403'
-  ];
-  return weakIndicators.some(indicator => lowerOutput.includes(indicator));
-}
-
 async function refetchManifestAndRetryExpiredLink(downloadId, download, file, downloadDir, reason = 'expired') {
   // Prevents the poll loop's hasErrors-and-no-active-processes check from
   // finalizing this download as failed while a retry is in flight — activeProcesses
@@ -5202,84 +4902,6 @@ async function refetchManifestAndRetryExpiredLink(downloadId, download, file, do
   } finally {
     if (download) download.recovering = false;
   }
-}
-
-async function resolveDownloadRedirectUrl(urlString, maxHops = 5) {
-  const startUrl = String(urlString || '').trim();
-  if (!startUrl) return startUrl;
-  let current = startUrl;
-
-  for (let hop = 0; hop < maxHops; hop++) {
-    let u;
-    try {
-      u = new URL(current);
-    } catch (e) {
-      return current;
-    }
-
-    if (u.protocol !== 'https:') {
-      return current;
-    }
-
-    const isArmgddnHost = u.hostname === 'www.armgddnbrowser.com' || u.hostname === 'armgddnbrowser.com' || u.hostname.endsWith('.armgddnbrowser.com');
-    if (!isArmgddnHost) {
-      return current;
-    }
-
-    if (u.pathname !== '/api/download-file') {
-      return current;
-    }
-
-    const next = await new Promise((resolve) => {
-      const options = {
-        protocol: 'https:',
-        hostname: u.hostname,
-        port: u.port ? Number(u.port) : 443,
-        method: 'HEAD',
-        path: u.pathname + u.search,
-        family: 4,
-        headers: { 'User-Agent': 'ARMGDDN-Companion/redirect-resolver' }
-      };
-
-      const req = https.request(options, (res) => {
-        try {
-          const status = Number(res.statusCode) || 0;
-          const loc = res.headers && res.headers.location ? String(res.headers.location) : '';
-          res.resume();
-          if (status >= 300 && status < 400 && loc) {
-            try {
-              const resolved = new URL(loc, current).toString();
-              resolve(resolved);
-              return;
-            } catch (e) {
-              resolve(current);
-              return;
-            }
-          }
-          resolve(current);
-        } catch (e) {
-          resolve(current);
-        }
-      });
-
-      req.setTimeout(8000, () => {
-        try {
-          logToFile(`[resolveRedirect] HEAD request timed out after 8s — falling back to proxy URL host=${u.hostname}`);
-        } catch (e) { }
-        try { req.destroy(); } catch (e) { }
-        resolve(current);
-      });
-      req.on('error', () => resolve(current));
-      req.end();
-    });
-
-    if (!next || next === current) {
-      return current;
-    }
-    current = next;
-  }
-
-  return current;
 }
 
 // Download a single file using rclone
@@ -6610,32 +6232,6 @@ setInterval(() => {
     }
   } catch (e) { }
 }, 2000);
-
-function shouldFinalizeDownload(download) {
-  if (!download) return false;
-  const hasErrors = Array.isArray(download.failedFiles) && download.failedFiles.length > 0;
-  const hasActive = Array.isArray(download.activeProcesses) && download.activeProcesses.length > 0;
-  const fileCount = typeof download.fileCount === 'number' ? download.fileCount : 0;
-  const completed = typeof download.completedFiles === 'number' ? download.completedFiles : 0;
-
-  const totalSize = typeof download.totalSize === 'number' ? download.totalSize : 0;
-  const downloadedSize = typeof download.downloadedSize === 'number' ? download.downloadedSize : 0;
-  const isByteComplete = totalSize > 0 && downloadedSize >= totalSize;
-  const isFileCountComplete = fileCount > 0 && completed >= fileCount;
-
-  const result = (
-    !download.cancelled &&
-    !download.paused &&
-    !hasErrors &&
-    !hasActive &&
-    (isByteComplete || isFileCountComplete)
-  );
-
-  logToFile(`[shouldFinalizeDownload] cancelled=${download.cancelled}, paused=${download.paused}, hasErrors=${hasErrors}, hasActive=${hasActive}, isByteComplete=${isByteComplete}, isFileCountComplete=${isFileCountComplete}, result=${result}`);
-  logToFile(`[shouldFinalizeDownload] downloadedSize=${downloadedSize}, totalSize=${totalSize}, completedFiles=${completed}, fileCount=${fileCount}`);
-
-  return result;
-}
 
 function clampProgressUnlessFinal(download) {
   if (!download) return;

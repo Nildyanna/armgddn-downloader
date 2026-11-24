@@ -5,7 +5,6 @@ const { app } = require('electron');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { rotateLogIfNeeded } = require('./files');
 
 const DEBUG_LOGGING = process.env.ARMGDDN_DEBUG === '1';
 
@@ -60,4 +59,17 @@ function debugLog(message) {
   fs.appendFileSync(logPath, logLine);
 }
 
-module.exports = { getDebugLogPath, logToFile, debugLog, DEBUG_LOGGING };
+// Security (M4): Rotate debug.log if it exceeds 10 MB to prevent unbounded disk growth.
+// Keeps at most 2 log files: debug.log and debug.log.1.
+function rotateLogIfNeeded(logPath) {
+  try {
+    const stat = fs.statSync(logPath);
+    if (stat.size > 10 * 1024 * 1024) {
+      const oldLog = logPath + '.1';
+      try { fs.unlinkSync(oldLog); } catch (e) { }
+      fs.renameSync(logPath, oldLog);
+    }
+  } catch (e) { /* file doesn't exist yet or stat failed — no rotation needed */ }
+}
+
+module.exports = { getDebugLogPath, logToFile, debugLog, DEBUG_LOGGING, rotateLogIfNeeded };
