@@ -1044,5 +1044,11 @@
     "highlights": [
       "Behind-the-scenes improvements."
     ]
+  },
+  "6.10.2": {
+    "title": "Desktop icon fix",
+    "highlights": [
+      "On Windows, if the ARMGDDN App's desktop or Start menu shortcut showed a blank icon after an update, the app now fixes it by itself the first time it opens after updating."
+    ]
   }
 }

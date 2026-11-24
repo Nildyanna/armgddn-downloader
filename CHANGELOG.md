@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.2] - 2026-11-24
+
+### Fixed
+
+- Windows: a desktop or Start menu shortcut that showed a blank icon after an update. On the first start after an update (or after a shortcut rename) the app writes its shortcuts again with its own icon and asks Windows to redraw icons (ie4uinit -show).
+
 ## [6.10.1] - 2026-11-24
 
 ### Internal
