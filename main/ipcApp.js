@@ -68,7 +68,7 @@ ipcMain.handle('check-updates', async () => safeUpdateResult(await fetchLatestRe
 ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => {
   // A copy that is not the installed app (a dev run, a test copy that imported the real app's settings, auto-update included) must never run an
   // installer: it would silently replace the member's real Companion and relaunch it (a test copy did exactly that on 2026-11-18).
-  if (!app.isPackaged && process.env.ARMGDDN_ALLOW_DEV_UPDATE !== '1') {
+  if ((!app.isPackaged || require('./testBuild').isTestBuild) && process.env.ARMGDDN_ALLOW_DEV_UPDATE !== '1') {
     logToFile('Update - not installing from an unpackaged copy');
     return { success: false, error: 'Updates are only installed by the packaged app' };
   }

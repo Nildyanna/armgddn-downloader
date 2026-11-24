@@ -26,7 +26,8 @@ test('the assets the intro loads sit next to the page, so they are packaged with
 test('an unpackaged copy never runs an installer (a test copy once updated the real Companion this way)', () => {
   const main = require('./mainSource')();
   const handler = main.slice(main.indexOf("ipcMain.handle('install-update'"), main.indexOf("ipcMain.handle('install-update'") + 900);
-  const guard = handler.indexOf('!app.isPackaged && process.env.ARMGDDN_ALLOW_DEV_UPDATE');
+  // The side-by-side test build is packaged, so it is covered by the same guard (main/testBuild.js).
+  const guard = handler.indexOf("(!app.isPackaged || require('./testBuild').isTestBuild) && process.env.ARMGDDN_ALLOW_DEV_UPDATE");
   assert.ok(guard > -1 && guard < handler.indexOf('_installUpdateInProgress'), 'the guard comes first');
   assert.ok(handler.includes('Updates are only installed by the packaged app'));
 });

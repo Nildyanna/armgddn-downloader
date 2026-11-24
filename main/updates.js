@@ -212,7 +212,7 @@ function fetchLatestReleaseInfo() {
 async function pollForUpdateOnce() {
   try {
     if (ctx.SMOKE_TEST) return;
-    if (!app.isPackaged && process.env.ARMGDDN_ALLOW_DEV_UPDATE !== '1') return;          // a test or dev copy never announces updates
+    if ((!app.isPackaged || require('./testBuild').isTestBuild) && process.env.ARMGDDN_ALLOW_DEV_UPDATE !== '1') return;          // a test or dev copy never announces updates
     if (ctx._installUpdateInProgress) return;
     const raw = await fetchLatestReleaseInfo();
     if (!raw || raw.error || !raw.hasUpdate || !raw.latestVersion) return;

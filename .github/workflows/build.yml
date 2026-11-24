@@ -14,6 +14,10 @@ on:
         description: 'Build only the Windows installer (skips macOS and Linux) for a quick private test'
         type: boolean
         default: false
+      test_build:
+        description: 'Windows: build the side-by-side test app (own name and profile, no armgddn:// links, never updates; electron-builder.test.js)'
+        type: boolean
+        default: false
 
 jobs:
   build:
@@ -219,7 +223,12 @@ jobs:
           rm -rf rclone-*-windows-amd64 rclone.zip
 
       - name: Build Electron app (Windows)
+        if: inputs.test_build != true
         run: npm run build:win -- --publish never
+
+      - name: Build side-by-side test app (Windows)
+        if: inputs.test_build == true
+        run: npx electron-builder --win --config electron-builder.test.js --publish never
 
       - name: Smoke test packaged app (Windows)
         shell: bash

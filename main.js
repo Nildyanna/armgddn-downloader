@@ -3,6 +3,9 @@ const secureStore = require('./secureStore');   // safeStorage, with the asynchr
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+const testBuild = require('./main/testBuild');
+// A side-by-side test build keeps its own profile folder, set before anything reads it (main/testBuild.js).
+if (testBuild.isTestBuild) { try { app.setPath('userData', path.join(app.getPath('appData'), testBuild.PROFILE_FOLDER)); } catch (e) { } }
 // ---- split-out modules (docs/MAIN_SPLIT.md) ----
 const { withSupportFooter } = require('./main/supportText');
 const { loadSessionAsync } = require('./main/sessionAsync');
@@ -228,11 +231,11 @@ MCowBQYDK2VwAyEAGn4Wwasnb73HzzQLzGXZt+QsfhTPnzLm6m37wAAF8RA=
 const SUPPORT_TELEGRAM_URL = 'https://t.me/+xuCOd3HqpGdmZjFh';
 
 // Set app name for dialogs and window titles
-app.name = 'ARMGDDN Companion';
+app.name = testBuild.isTestBuild ? testBuild.NAME : 'ARMGDDN Companion';
 
 if (process.platform === 'win32' && typeof app.setAppUserModelId === 'function') {
   try {
-    app.setAppUserModelId('com.armgddn.downloader');
+    app.setAppUserModelId(testBuild.isTestBuild ? testBuild.APP_ID : 'com.armgddn.downloader');
   } catch (e) { }
 }
 
@@ -251,7 +254,9 @@ let protocolClientRegisterError = '';
 // The native preview (--native), and any unpackaged copy run with a profile of its own (--user-data-dir, as every test copy is), must never take
 // over armgddn:// links from the installed Companion. A native window opened by the site's gate inside the installed app keeps them.
 const isolatedDevRun = !app.isPackaged && process.argv.some((a) => String(a).startsWith('--user-data-dir'));
-if (process.argv.includes('--native') || isolatedDevRun) {
+if (testBuild.isTestBuild) {
+  protocolClientRegisterError = 'skipped (test build)';
+} else if (process.argv.includes('--native') || isolatedDevRun) {
   protocolClientRegisterError = 'skipped (native preview)';
 } else if (process.defaultApp) {
   if (process.argv.length >= 2) {
@@ -805,7 +810,7 @@ app.whenReady().then(() => {
   applyStartupRegistration();
   // The desktop and Start Menu shortcuts say ARMGDDN App while the native window is on for this member, ARMGDDN Companion otherwise (installed Windows app only).
   try {
-    if (process.platform === 'win32' && app.isPackaged) {
+    if (process.platform === 'win32' && app.isPackaged && !testBuild.isTestBuild) {
       const dirs = [app.getPath('desktop'), process.env.APPDATA ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs') : ''].filter(Boolean);
       const renamed = shortcutNames.syncShortcutNames({
         dirs, native: !!NATIVE_PREVIEW, fs, log: logToFile,
