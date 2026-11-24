@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.12.0] - 2026-11-24
+
 ### Added
 
 - Updates: a waiting update is installed when the app is closed (only when nothing is downloading; no relaunch). New setting "Install a waiting update when I close the app", on by default.

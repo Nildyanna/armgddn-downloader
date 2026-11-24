@@ -1060,5 +1060,13 @@
       "Finished downloads keep their cover art.",
       "The \"New to .7z files?\" video in Settings now plays as soon as you open it."
     ]
+  },
+  "6.12.0": {
+    "title": "Updates that just happen",
+    "highlights": [
+      "When you close the app with an update waiting, it installs it on the way out (never during a download). You can turn this off in Settings.",
+      "\"Update automatically\" in Settings now really updates the app.",
+      "Fixed: a download whose files couldn't be fetched could show as completed."
+    ]
   }
 }
