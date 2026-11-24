@@ -41,7 +41,9 @@ function registerSchemes(protocol) {
 }
 
 function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, clearLoginTraces, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, destFor }) {
-  const api = createApiClient({ getToken, version });
+  let deviceFp = '';
+  try { deviceFp = require('../deviceId').deviceFingerprint(require('electron').app.getPath('userData')); } catch (e) { console.warn('[device-id] not available: ' + (e && e.message)); }
+  const api = createApiClient({ getToken, version, deviceFp });
   const direct = new Map();   // small cache for covers hosted elsewhere
 
 

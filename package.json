@@ -32,6 +32,7 @@
     "files": [
       "main.js",
       "secureStore.js",
+      "deviceId.js",
       "setupCheck.js",
       "setupReport.js",
       "updateRunner.js",

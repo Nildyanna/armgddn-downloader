@@ -10,7 +10,7 @@ class ApiError extends Error {
   constructor(message, kind, status, body) { super(message); this.kind = kind; this.status = status || 0; this.body = body; }
 }
 
-function createApiClient({ getToken, baseUrl = 'https://www.armgddnbrowser.com', fetchImpl, version = '0.0.0', maxConcurrent = 6, imageCacheBytes = 64 * 1024 * 1024, sleep } = {}) {
+function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgddnbrowser.com', fetchImpl, version = '0.0.0', maxConcurrent = 6, imageCacheBytes = 64 * 1024 * 1024, sleep } = {}) {
   const doFetch = fetchImpl || ((...a) => fetch(...a));
   const wait = sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const cache = new Map();            // key -> { at, ttl, value }
@@ -31,6 +31,7 @@ function createApiClient({ getToken, baseUrl = 'https://www.armgddnbrowser.com',
     if (!token) throw new ApiError('Not signed in', 'auth', 401);
     const headers = { Authorization: `Bearer ${token}`, 'User-Agent': `ARMGDDN-Companion/${version}`, Accept: raw ? '*/*' : 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
+    if (deviceFp) headers['X-ARMGDDN-Device'] = deviceFp;      // per-PC ID fingerprint (deviceId.js), for the ban-evasion check
     if (extra) Object.assign(headers, extra);
     let attempt = 0;
     for (;;) {
