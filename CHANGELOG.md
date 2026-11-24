@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.9.1] - 2026-11-24
+
 ### Fixed
 
 - Tracks inside a Music album show the album's cover instead of a placeholder letter (a CD1 / Disc 2 folder uses the album's cover).

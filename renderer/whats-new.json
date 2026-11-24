@@ -1023,5 +1023,11 @@
       "Updating now happens inside the app. You see the download and checking in the app's own window, and while it installs, a screen in the app's look takes its place and the app opens again right where it was. No more separate pop-ups. You'll first see it on the update after this one.",
       "Comic collections and albums now show their cover on their page, shaped to fit, instead of just the first letter."
     ]
+  },
+  "6.9.1": {
+    "title": "Album covers on tracks",
+    "highlights": [
+      "Tracks inside an album now show the album's cover."
+    ]
   }
 }
