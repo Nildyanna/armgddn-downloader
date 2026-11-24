@@ -191,6 +191,63 @@ function runSmokeTest() {
     } catch (e) {
       failures.push(`7z extraction failed: ${e && e.message}`);
     }
+    // The app's own download engine end to end (Nov 24 2026, after main.js was split into modules): a three-part password .7z from a local
+    // server goes through startDownload, the downloader, the file check against its checksums and unpacking, exactly as a member's
+    // download does. The start-up checks above never touched this path, so a broken engine could ship. Nothing is reported to the site.
+    try {
+      const crypto = require('crypto');
+      const root = path.join(app.getPath('userData'), 'smoke-engine');
+      const srcDir = path.join(root, 'src');
+      fs.mkdirSync(srcDir, { recursive: true });
+      const payload = crypto.randomBytes(2500 * 1024);                 // incompressible, so 1 MB volumes give three parts
+      fs.writeFileSync(path.join(srcDir, 'payload.bin'), payload);
+      const tool = resolve7zTool() || ctx.get7zPath();
+      const made = await new Promise((resolve) => {
+        execFile(tool, ['a', '-v1m', '-pARMGDDNGames', '-y', path.join(root, 'game.7z'), 'payload.bin'], { cwd: srcDir, timeout: 60000 }, (err, so, se) => resolve({ err, se }));
+      });
+      if (made.err) throw new Error('could not build the test archive: ' + String(made.se || made.err.message).slice(0, 200));
+      const parts = {};
+      for (const n of fs.readdirSync(root).filter((x) => /^game\.7z\.\d{3}$/.test(x)).sort()) parts[n] = fs.readFileSync(path.join(root, n));
+      if (Object.keys(parts).length < 2) throw new Error(`expected a multi-part archive, got ${Object.keys(parts).join(', ')}`);
+      const srv = http.createServer((req, res) => {
+        const buf = parts[decodeURIComponent(String(req.url).split('?')[0].split('/').pop())];
+        if (!buf) { res.writeHead(404); return res.end(); }
+        const m = /bytes=(\d*)-(\d*)/.exec(String(req.headers.range || ''));
+        if (m) {
+          const a = m[1] ? Number(m[1]) : 0, b = m[2] ? Math.min(Number(m[2]), buf.length - 1) : buf.length - 1;
+          res.writeHead(206, { 'Content-Range': `bytes ${a}-${b}/${buf.length}`, 'Content-Length': b - a + 1, 'Accept-Ranges': 'bytes', 'Content-Type': 'application/octet-stream' });
+          return res.end(req.method === 'HEAD' ? undefined : buf.subarray(a, b + 1));
+        }
+        res.writeHead(200, { 'Content-Length': buf.length, 'Accept-Ranges': 'bytes', 'Content-Type': 'application/octet-stream' });
+        return res.end(req.method === 'HEAD' ? undefined : buf);
+      });
+      await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+      const base = `http://127.0.0.1:${srv.address().port}/`;
+      const name = 'Smoke Test Game v1 -ARMGDDN';
+      Object.assign(ctx.settings, { downloadPath: path.join(root, 'downloads'), autoExtract7z: true, autoHashCheck: true, extractFolder: '' });
+      const manifest = { name, path: `PC1/${name}`, files: Object.entries(parts).map(([n, buf]) => ({ name: n, url: base + encodeURIComponent(n), size: buf.length,
+        md5: crypto.createHash('md5').update(buf).digest('hex') })) };
+      const id = await require('./ipcDownloads').startDownload(null, manifest, 'a'.repeat(64), '', '');
+      // A finished download leaves the active list for the history; wait for either.
+      const find = () => ctx.activeDownloads.get(id) || (ctx.downloadHistory || []).find((h) => h && h.id === id);
+      let d = find();
+      for (let i = 0; i < 240 && !(d && (d.status === 'completed' || d.status === 'error' || d.status === 'failed')); i++) {
+        await new Promise((r) => setTimeout(r, 500));
+        d = find();
+      }
+      srv.close();
+      if (!d) failures.push('engine: the download never finished or was lost');
+      else if (d.status !== 'completed') failures.push(`engine: download ended as ${d.status}: ${String(d.error || d.statusMessage || '').slice(0, 200)}`);
+      else {
+        if (!d.didCheck || d.checkOk === false) failures.push(`engine: the file check did not pass (didCheck=${d.didCheck}, ok=${d.checkOk}, skip=${d.hashSkipReason || ''})`);
+        if (!d.didExtract) failures.push('engine: the archive was not unpacked');
+        let out = null;
+        try { out = fs.readFileSync(path.join(root, 'downloads', name, 'payload.bin')); } catch (e) { }
+        if (!out || !out.equals(payload)) failures.push('engine: the unpacked file is missing or differs from the original');
+      }
+    } catch (e) {
+      failures.push(`engine test failed: ${e && e.message}`);
+    }
     // Let the UI settle so late renderer errors are caught too.
     await new Promise((r) => setTimeout(r, 3000));
     finish();

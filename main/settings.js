@@ -101,6 +101,7 @@ function normalizeSettings() {
     ctx.settings.lightGraphics = !!ctx.settings.lightGraphics;
 
     ctx.settings.autoUpdate = !!ctx.settings.autoUpdate;
+    ctx.settings.installUpdatesOnQuit = ctx.settings.installUpdatesOnQuit !== false;     // on unless switched off
     ctx.settings.startWithOsStartup = !!ctx.settings.startWithOsStartup;
     ctx.settings.startWithOsMinimized = !!ctx.settings.startWithOsMinimized;
     ctx.settings.errorReporting = ctx.settings.errorReporting !== false;

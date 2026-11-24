@@ -9,6 +9,7 @@ function isExpectedDownloadFailure(errorText) {
 }
 
 function reportDownloadFailure(download, errorText) {
+  if (ctx.SMOKE_TEST) return;      // the built app's own test never reports to the real site or Sentry
   if (!ctx.SENTRY_DSN || !ctx.isErrorReportingEnabled()) return;
   if (isDownloadAbandoned(download)) return;
   if (isExpectedDownloadFailure(errorText)) return;

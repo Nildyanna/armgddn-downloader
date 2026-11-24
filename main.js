@@ -576,6 +576,7 @@ let settings = {
   maxDownloadSpeedMBps: 0,
   autoExtract7z: false,
   autoHashCheck: true,
+  installUpdatesOnQuit: true,      // install a waiting update when the app is quit (nothing downloading); see before-quit
   autoHashCheckDefaultedOn: false,
   comicsFolder: '',
   musicFolder: '',
@@ -710,6 +711,28 @@ require('./main/ipcKomga').register();      // IPC: komga-get-defaults, komga-ca
 let komgaBusy = false;
 // Whatever asked the app to quit (the menu, Cmd+Q, the OS), it really quits: the close handlers that keep the app in the tray step aside.
 app.on('before-quit', () => { app.isQuitting = true; });
+
+// Quitting with an update waiting installs it on the way out, without reopening the app (Nov 24 2026: of 12 installs seen that day,
+// 7 ran an older version). Only when nothing is downloading, only for the installed app, and never twice; off with the setting
+// installUpdatesOnQuit. A failure just lets the app close as before.
+let _quitUpdateTried = false;
+app.on('before-quit', (e) => {
+  try {
+    if (_quitUpdateTried || _installUpdateInProgress || !_updateAnnouncedVersion || SMOKE_TEST) return;
+    if (!settings || settings.installUpdatesOnQuit === false || !app.isPackaged) return;
+    if (require('./main/testBuild').isTestBuild || require('./main/downloadControl').anyDownloadRunning()) return;
+    const ipcApp = require('./main/ipcApp');
+    if (typeof ipcApp.installUpdate !== 'function') return;
+    _quitUpdateTried = true;
+    e.preventDefault();
+    logToFile(`[Update] quitting with ${_updateAnnouncedVersion} waiting: installing it now (no relaunch)`);
+    Promise.resolve(ipcApp.installUpdate({ silent: true, relaunchAfterInstall: false }))
+      .then((r) => { if (!r || r.success === false) { logToFile('[Update] install on quit did not start: ' + (r && r.error)); app.quit(); } })
+      .catch((err) => { logToFile('[Update] install on quit failed: ' + (err && err.message)); app.quit(); });
+  } catch (err) {
+    logToFile('[Update] install on quit skipped: ' + (err && err.message));
+  }
+});
 
 app.whenReady().then(() => {
   startUpdatePoller();

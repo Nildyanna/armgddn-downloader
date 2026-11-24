@@ -65,7 +65,9 @@ ipcMain.handle('check-updates', async () => safeUpdateResult(await fetchLatestRe
 // Security (C1/H1): The renderer-supplied URL is ignored entirely. The installer URL is
 // derived freshly in the main process from the GitHub releases API to prevent renderer
 // compromise from redirecting the update to an attacker-controlled URL.
-ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => {
+// The update install, as a function: the update bar calls it (install-update) and so does quitting with an update waiting (main.js,
+// installUpdateOnQuit, Nov 24 2026). options: { silent, relaunchAfterInstall }.
+async function installUpdate(options) {
   // A copy that is not the installed app (a dev run, a test copy that imported the real app's settings, auto-update included) must never run an
   // installer: it would silently replace the member's real Companion and relaunch it (a test copy did exactly that on 2026-11-18).
   if ((!app.isPackaged || require('./testBuild').isTestBuild) && process.env.ARMGDDN_ALLOW_DEV_UPDATE !== '1') {
@@ -765,7 +767,9 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
 
     return downloadInstaller(installerUrl);
   });
-});
+}
+ipcMain.handle('install-update', (event, _ignoredRendererUrl, options) => installUpdate(options));
+module.exports.installUpdate = installUpdate;
 }
 
-module.exports = { register };
+module.exports.register = register;

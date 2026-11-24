@@ -132,7 +132,9 @@ ipcMain.handle('resolve-download-token', async (event, downloadToken, urlToken) 
 });
 
 // Start download
-ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, dest) => {
+// Start a download from a download list (the site's manifest). Resolves when the download has finished. A function so the built app's own
+// test can run a real download through it (smokeTest.js, Nov 24 2026).
+async function startDownload(event, manifest, token, manifestUrl, dest) {
   // Use the Companion's own session token; renderer may pass null for deep-link flows.
   const effectiveToken = token || ctx.sessionToken;
   if (!isValidToken(effectiveToken)) {
@@ -606,6 +608,14 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
           try {
             logToFile(`[Scheduler] file task failed: ${err && err.message ? err.message : String(err)} file=${f && f.name ? String(f.name) : ''}`);
           } catch (e) { }
+          // A task that failed before the downloader took the file (a refused link, an unexpected error) must count as a failed file.
+          // It was only logged, so a download whose files all failed this way still ended as "completed" (found by the built app's own
+          // download test, Nov 24 2026).
+          try {
+            if (!Array.isArray(download.failedFiles)) download.failedFiles = [];
+            if (f && f.name && !download.failedFiles.includes(f.name)) download.failedFiles.push(f.name);
+            if (!download.error) download.error = err && err.message ? String(err.message) : 'A file could not be downloaded';
+          } catch (e) { }
         }
         // Continue with other files.
       }));
@@ -629,7 +639,9 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
   }
 
   return downloadId;
-});
+}
+ipcMain.handle('start-download', startDownload);
+module.exports.startDownload = startDownload;
 
 // Cancel download
 ipcMain.handle('cancel-download', async (event, downloadId) => {
@@ -737,4 +749,4 @@ ipcMain.handle('open-folder', async (event, arg) => {
 });
 }
 
-module.exports = { register };
+module.exports.register = register;

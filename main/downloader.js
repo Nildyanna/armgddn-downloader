@@ -71,7 +71,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       }
 
     // Security: Validate file URL is HTTPS
-      if (!file.url || !file.url.startsWith('https://')) {
+      // (the built app's own download test serves its files from this computer: http://127.0.0.1 is allowed for it and nothing else)
+      const smokeLocal = mainState.SMOKE_TEST && /^http:\/\/127\.0\.0\.1:\d+\//.test(String(file.url || ''));
+      if (!file.url || (!file.url.startsWith('https://') && !smokeLocal)) {
         done(new Error('Security error: File URL must use HTTPS'));
         return;
       }

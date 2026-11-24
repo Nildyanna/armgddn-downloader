@@ -33,6 +33,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'minimizeToTrayOnClose',
     'lightGraphics',
     'autoUpdate',
+    'installUpdatesOnQuit',
     'startWithOsStartup',
     'startWithOsMinimized',
     'errorReporting',

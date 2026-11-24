@@ -40,6 +40,7 @@ async function maybeShowHashGateNotice() {
 
 // Tells the site why a download attempt ended and which retries it needed: counts and kinds only, no file names (site: services/engine-reports.js).
 function reportEngineToServer(download, info) {
+  if (ctx.SMOKE_TEST) return;      // the built app's own test never reports to the real site or Sentry
   try {
     const token = (download && download.token) || null;
     if (!download || !token) return;
@@ -58,6 +59,7 @@ function reportEngineToServer(download, info) {
 }
 
 function reportHashUnavailableToServer(download) {
+  if (ctx.SMOKE_TEST) return;      // the built app's own test never reports to the real site or Sentry
   try {
     const token = (download && download.token) || null;
     if (!download || !token) return;
@@ -77,6 +79,7 @@ function reportHashUnavailableToServer(download) {
 
 // Live progress of a check, so the site's downloads panel can fill its bar. Sent at most every 2 seconds; the final result replaces it.
 function reportHashProgressToServer(download, token, state) {
+  if (ctx.SMOKE_TEST) return;      // the built app's own test never reports to the real site or Sentry
   try {
     if (!download || !token) return;
     const host = download.progressHost || 'www.armgddnbrowser.com';
@@ -94,6 +97,7 @@ function reportHashProgressToServer(download, token, state) {
 }
 
 function reportHashCheckToServer(download, token, result) {
+  if (ctx.SMOKE_TEST) return;      // the built app's own test never reports to the real site or Sentry
   try {
     if (!download || !token || !result) return;
     const host = download.progressHost || 'www.armgddnbrowser.com';

@@ -415,6 +415,13 @@ function completeDownload(downloadId, afterHashCheck) {
 
   if (!afterHashCheck && hashingGated()) { reportHashUnavailableToServer(download); }
 
+  // Why a finished download was NOT checked goes to the site with the final report (Nov 24 2026: 77% of finished downloads had no check
+  // result and nothing said why). One of: setting off, no checksums in the list, no saved list.
+  if (!afterHashCheck) {
+    const hasList = !!hashCheck.loadManifest(app.getPath('userData'), String(downloadId));
+    download.hashSkipReason = !(ctx.settings && ctx.settings.autoHashCheck) ? 'setting off'
+      : hasList ? '' : (download.hasChecksums === false ? 'no checksums in the list' : 'no saved checksum list');
+  }
   // "Check files automatically": compare every file with the checksums the site listed before anything is unpacked.
   if (!afterHashCheck && ctx.settings && ctx.settings.autoHashCheck && hashCheck.loadManifest(app.getPath('userData'), String(downloadId))) {
     download.__armgddnFinalizing = true;

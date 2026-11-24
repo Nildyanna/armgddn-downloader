@@ -12,6 +12,7 @@ const https = require('https');
 
 // Report file progress to server (exclude from quota counting)
 async function reportFileProgressToServer(download, token, file, status, bytesDownloadedOverride) {
+  if (ctx.SMOKE_TEST) return;      // the built app's own test never reports to the real site or Sentry
   try {
     if (!token || !download || !file) return;
     const fileName = file && file.name ? String(file.name) : '';
@@ -71,6 +72,7 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
 
 // Report progress to website server
 async function reportProgressToServer(download, token) {
+  if (ctx.SMOKE_TEST) return;      // the built app's own test never reports to the real site or Sentry
   logToFile(`reportProgressToServer called - token: ${token ? 'present' : 'MISSING'}, download: ${download?.name}`);
 
   if (!token) {
@@ -131,7 +133,12 @@ async function reportProgressToServer(download, token) {
       error: download.error || null,
       expectedTotalFiles: typeof download.fileCount === 'number' ? download.fileCount : null,
       completedFiles: typeof download.completedFiles === 'number' ? download.completedFiles : null,
-      extractProgress: (reportStatus === 'extracting' && typeof download.extractPercent === 'number') ? download.extractPercent : null
+      extractProgress: (reportStatus === 'extracting' && typeof download.extractPercent === 'number') ? download.extractPercent : null,
+      // The app's own clock for the whole download, and why no file check ran (Nov 24 2026: the site's own start times were not usable
+      // for speeds, and 77% of downloads had no check result with no reason).
+      appStartedAt: download.startTime || null,
+      appFinishedAt: reportStatus === 'completed' ? (download.endTime || null) : null,
+      hashSkipReason: reportStatus === 'completed' ? (download.hashSkipReason || null) : null
     });
 
     logToFile(`[Progress] Sending: ${postData.substring(0, 150)}`);

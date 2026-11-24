@@ -501,6 +501,7 @@ const SETTING_ROWS = [
   ['check', 'minimizeToTrayOnClose', 'Close button keeps the app running in the tray (off: closing quits the app)'],
   ['check', 'lightGraphics', 'Lighter graphics (turns off blur and animations; use it if the app makes your graphics card work hard)'],
   ['check', 'autoUpdate', 'Update automatically'],
+  ['check', 'installUpdatesOnQuit', 'Install a waiting update when I close the app (never during a download)'],
   ['check', 'startWithOsStartup', 'Start with the computer'],
   ['check', 'startWithOsMinimized', 'Start minimized'],
   ['check', 'errorReporting', 'Send error reports'],
@@ -779,6 +780,7 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
     <${UpdateRow} say=${say} />
     <${WhatsNewButton} />
     ${settingRow('autoUpdate')}
+    ${settingRow('installUpdatesOnQuit')}
     </section>
     <section class="sgroup"><h3>Folders</h3>
     ${folderRow('downloadPath', 'Download folder')}
@@ -1541,6 +1543,20 @@ function App() {
   }, []);
   const activeCount = downloads.filter(isActiveDownload).length;
   const runningCount = downloads.filter(isRunningDownload).length;   // paused downloads do not hold up an update
+  // "Update automatically" (Settings): only the classic window ever acted on it (Nov 24 2026). With an update waiting and nothing running
+  // for 15 s, install it the same way the update bar does.
+  const autoUpdateTried = useRef(false);
+  useEffect(() => {
+    if (!updateInfo || updating || runningCount > 0 || autoUpdateTried.current) return;
+    let live = true;
+    const t = setTimeout(async () => {
+      try {
+        const st = await api.getSettings();
+        if (live && st && st.autoUpdate && !autoUpdateTried.current) { autoUpdateTried.current = true; installUpdate(); }
+      } catch (e) { }
+    }, 15000);
+    return () => { live = false; clearTimeout(t); };
+  }, [updateInfo, updating, runningCount]);
   const pageLabel = view === 'library' ? (everywhere ? 'Search everywhere' : (remote || 'Library')) : ({ home: 'Home', tools: 'Tools', settings: 'Settings', wiki: 'Wiki', mylist: 'My List', requests: 'Requests', badges: 'Badges', downloads: 'Downloads', admin: 'Admin' }[view] || '');
   const prevActive = useRef(0); const [pulse, setPulse] = useState(false);
   useEffect(() => { if (activeCount > prevActive.current) { setPulse(true); const id = setTimeout(() => setPulse(false), 1700); prevActive.current = activeCount; return () => clearTimeout(id); } prevActive.current = activeCount; }, [activeCount]);

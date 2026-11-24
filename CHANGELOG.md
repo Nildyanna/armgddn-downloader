@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Updates: a waiting update is installed when the app is closed (only when nothing is downloading; no relaunch). New setting "Install a waiting update when I close the app", on by default.
+- The final report of a download carries the app's own start and finish times and, when no file check ran, why (setting off, no checksums in the list, no saved checksum list).
+- The built app's smoke test runs a real three-part download through the engine, the file check and unpacking (local server, nothing reported to the site).
+
+### Fixed
+
+- "Update automatically" did nothing in the app window (only the classic window acted on it); it now installs a waiting update when nothing is running.
+- A file that failed before the downloader took it (a refused link, an unexpected error) did not count as failed, so a download whose files all failed that way ended as "completed".
+
 ## [6.11.0] - 2026-11-24
 
 ### Internal
