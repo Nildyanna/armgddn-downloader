@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Updating happens inside the app: the download and checking show in the app's own window instead of a popup, and while the app is closed for the install, a screen in the app's colours, size and place (logo, version, moving bar) replaces the grey Windows box. The new version opens where the old one was.
+
 ## [6.8.0] - 2026-11-24
 
 ### Changed
