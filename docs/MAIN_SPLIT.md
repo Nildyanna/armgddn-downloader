@@ -12,7 +12,8 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
   The rest move later, with their state passed in or moved alongside.
 - **Every step is proven** before it is committed:
   1. each moved function's text is identical to the original (`git show HEAD:main.js`);
-  2. `node --test test/*.test.js` passes (tests that read the main-process source use `test/mainSource.js`, which joins main.js and main/**);
+  2. `node --test test/*.test.js` passes (tests that read the main-process source use `test/mainSource.js`, which joins main.js and main/** with the `ctx.` prefix undone, and
+     `mainSource.fn(name)` for one function's own text: slicing from one function to the next breaks once they live in different files);
   3. the app's own start-up test passes for real, under a virtual display:
      `ARMGDDN_SMOKE_TEST=1 ARMGDDN_SMOKE_RESULT=<file> xvfb-run -a ./node_modules/.bin/electron . --no-sandbox` prints `[smoke] PASS`
      (link the system rclone to `rclone/rclone` first; it is git-excluded);
@@ -43,6 +44,7 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
 | 4 | sevenZip, platform, downloadState, komgaConfig, auth, files, errors, net | 17 freed by step 3, plus rotateLogIfNeeded into log (it made log and files require each other) | 8,744 |
 | 5 | context, settings, session, history | first moves that use shared state (settings, sessionToken, downloadHistory), through main/context.js | 8,516 |
 | 6 | mirrors, scheduler | mirror cooldowns; the download scheduler (which file starts next, how many at once) | 8,157 |
+| 7 | updates, hashing, komgaActions, deepLinks, quietHours, restore, dialogs, siteApi, failures, extract, installSpace | 53 functions in 11 groups | 6,808 |
 
 ## Shared state (from step 5)
 

@@ -40,7 +40,7 @@ test('Security: every window has context isolation, no Node in the page, the san
   const mainFiles = require('./mainSource').files().map((f) => path.relative(ROOT, f));
   for (const f of [...mainFiles, 'native/bridge.js']) {
     const src = read(f);
-    const re = /(\w+)\s*=\s*new BrowserWindow\(\{/g;
+    const re = /(?:ctx\.)?(\w+)\s*=\s*new BrowserWindow\(\{/g;
     let m, n = 0;
     while ((m = re.exec(src))) {
       n++;
@@ -49,7 +49,7 @@ test('Security: every window has context isolation, no Node in the page, the san
       const opts = src.slice(m.index, m.index + 2500);
       for (const need of ['contextIsolation: true', 'nodeIntegration: false', 'sandbox: true']) assert.ok(opts.includes(need), f + ': window ' + name + ' is missing ' + need);
       const after = src.slice(m.index, m.index + 4000);
-      assert.ok(new RegExp('denyNewWindows\\(' + name + '\\b|' + name + '\\.webContents\\.setWindowOpenHandler').test(after), f + ': window ' + name + ' can open new windows (call denyNewWindows)');
+      assert.ok(new RegExp('denyNewWindows\\((?:ctx\\.)?' + name + '\\b|(?:ctx\\.)?' + name + '\\.webContents\\.setWindowOpenHandler').test(after), f + ': window ' + name + ' can open new windows (call denyNewWindows)');
       void body;
     }
     total += n;

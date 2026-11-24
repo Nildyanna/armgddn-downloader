@@ -50,7 +50,7 @@ test('the Companion checks for updates once an hour in the main process, announc
   const main = require('./mainSource')();
   assert.ok(main.includes('const UPDATE_POLL_MS = 60 * 60 * 1000;') && main.includes('setInterval(pollForUpdateOnce, UPDATE_POLL_MS)'));
   assert.ok(main.includes('app.whenReady().then(() => {\n  startUpdatePoller();'), 'the poller starts with the app');
-  const poll = main.slice(main.indexOf('async function pollForUpdateOnce'), main.indexOf('function startUpdatePoller'));
+  const poll = require('./mainSource').fn('pollForUpdateOnce');
   assert.ok(poll.includes('_updateAnnouncedVersion === raw.latestVersion'), 'a version is announced once');
   assert.ok(poll.includes('showDownloadNotification(') && poll.includes("send('update-available'") && poll.includes("send('native:updateAvailable'"));
   assert.ok(poll.includes('!app.isPackaged') && poll.includes('SMOKE_TEST'), 'dev copies and the CI smoke run never announce');

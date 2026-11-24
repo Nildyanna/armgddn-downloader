@@ -226,11 +226,11 @@ test('the classic window says which issues were left out because they could mean
 test('both windows build the list through the same catalog helper; the classic window falls back to the reading-order file only when the catalog has no such list', () => {
   const fs = require('fs'); const path = require('path');
   const src = require('./mainSource')();
-  const helper = src.slice(src.indexOf('async function komgaAddFromCatalog'), src.indexOf('// The reading orders a member can add'));
+  const helper = require('./mainSource').fn('komgaAddFromCatalog');
   assert.ok(helper.includes("comicsGet('/api/comics/catalog?list='") && helper.includes('komga.addCatalogReadList') && helper.includes('catalogMissing: true'));
   const native = src.slice(src.indexOf("ipcMain.handle('native-komga-add'"), src.indexOf("ipcMain.handle('native-komga-add'") + 1500);
   assert.ok(native.includes('komgaAddFromCatalog(cfg, listId)'));
-  const classic = src.slice(src.indexOf('async function addReadListToKomga'), src.indexOf('// Handle deep link\nfunction handleDeepLink'));
+  const classic = require('./mainSource').fn('addReadListToKomga');
   const via = classic.indexOf('komgaAddFromCatalog(cfg, listId)'), fallback = classic.indexOf('/api/komga-readlist?id=');
   assert.ok(via > -1 && fallback > via, 'the catalog is tried first');
   assert.ok(classic.includes('if (!c.catalogMissing) {'), 'and the file route is only used when the catalog has no such list');

@@ -4,6 +4,17 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 // ---- split-out modules (docs/MAIN_SPLIT.md) ----
+const { preStartInstallSpaceWarning, installSpaceTip } = require('./main/installSpace');
+const { resolve7zTool, extractTarget, run7zExtract } = require('./main/extract');
+const { isExpectedDownloadFailure, reportDownloadFailure, isDownloadAbandoned, clockCertMessage, noteRecovery } = require('./main/failures');
+const { getJsonWithBearer, postJsonWithBearer, isAllowedServiceHost, fetchJsonWithCookies, mintAppSessionTokenFromCookies } = require('./main/siteApi');
+const { getDialogParentWindow, withDialogFocus, withDialogFocusSync, showAppWindow, sendToMain, mainWindowAlive } = require('./main/dialogs');
+const { persistInflight, dropInflight, loadOrphanedDownloads, endOrphanedGrant, resumeRestoredDownload } = require('./main/restore');
+const { pushScheduleState, scheduleTick, startScheduleTicker } = require('./main/quietHours');
+const { flushPendingDeepLinks, validateDeepLink, handleDeepLink } = require('./main/deepLinks');
+const { promptKomgaSettings, komgaAddFromCatalog, komgaMessage, addReadListToKomga, confirmKomgaDeepLink } = require('./main/komgaActions');
+const { hashingGated, maybeShowHashGateNotice, reportEngineToServer, reportHashUnavailableToServer, reportHashProgressToServer, reportHashCheckToServer, runHashCheck } = require('./main/hashing');
+const { getUpdateEd25519PublicKeyPem, isAllowedUpdateHost, checkForUpdatesFromMenu, getWhatsNewForVersion, fetchLatestReleaseInfo, pollForUpdateOnce, startUpdatePoller, installScreen, macTooOldForRelease } = require('./main/updates');
 const { refreshDownloadConcurrency, getDownloadRunningCount, incDownloadRunning, decDownloadRunning, pickNextAdaptiveTask, schedulerPump, enqueueAdaptiveTask, getGlobalPoolLimit, refreshGlobalPoolLimit, acquireGlobalPoolSlot } = require('./main/scheduler');
 const { pruneMirrorCooldowns, markMirrorCooldown, clearMirrorCooldown, getActiveMirrorAvoidList } = require('./main/mirrors');
 const { loadHistory, saveHistory } = require('./main/history');
@@ -23,22 +34,67 @@ const { scrubForSentry, normalizeFailureLine, isNetworkStreamError, extractRclon
 const { normalizeMirrorKey, sanitizeRelativePath, resolveInside, escapePowerShellSingleQuoted, quoteDesktopExecArg, redactUrlQueryStrings, isPathInside, normalizeFileSize, formatBytes, clampInt, parseRcloneHttpStatus, parseSpeedToBytes, formatSpeed, formatEtaSeconds, compareVersions } = require('./main/util');
 // Shared state for the main/ modules (main/context.js): live getters and setters onto main.js's own variables.
 require('./main/context').provide({
+  get ALLOWED_SERVICE_HOSTS() { return ALLOWED_SERVICE_HOSTS; },
+  get ALLOWED_UPDATE_HOSTS() { return ALLOWED_UPDATE_HOSTS; },
+  get CLOCK_CERT_RE() { return CLOCK_CERT_RE; },
+  get EXPECTED_FAILURE_RE() { return EXPECTED_FAILURE_RE; },
+  get KOMGA_LISTS() { return KOMGA_LISTS; },
+  get MAC_MIN_DARWIN_FROM_VERSION() { return MAC_MIN_DARWIN_FROM_VERSION; },
+  get MAC_MIN_DARWIN_MAJOR() { return MAC_MIN_DARWIN_MAJOR; },
   get MIRROR_COOLDOWN_MS() { return MIRROR_COOLDOWN_MS; },
+  get NATIVE_PREVIEW() { return NATIVE_PREVIEW; },
+  get SENTRY_DSN() { return SENTRY_DSN; },
+  get SMOKE_TEST() { return SMOKE_TEST; },
+  get UPDATE_ED25519_PUBLIC_KEY_PINNED() { return UPDATE_ED25519_PUBLIC_KEY_PINNED; },
+  get UPDATE_POLL_MS() { return UPDATE_POLL_MS; },
+  get _installUpdateInProgress() { return _installUpdateInProgress; }, set _installUpdateInProgress(v) { _installUpdateInProgress = v; },
+  get _resolved7z() { return _resolved7z; }, set _resolved7z(v) { _resolved7z = v; },
+  get _resolved7zFailures() { return _resolved7zFailures; }, set _resolved7zFailures(v) { _resolved7zFailures = v; },
+  get _updateAnnouncedVersion() { return _updateAnnouncedVersion; }, set _updateAnnouncedVersion(v) { _updateAnnouncedVersion = v; },
   get activeDownloads() { return activeDownloads; }, set activeDownloads(v) { activeDownloads = v; },
   get adaptiveScheduler() { return adaptiveScheduler; },
+  comicsGet,
+  get comicsState() { return comicsState; },
   downloadFile,
   get downloadHistory() { return downloadHistory; }, set downloadHistory(v) { downloadHistory = v; },
+  get get7zPath() { return get7zPath; },
   getAppLoadInfo,
   get getConfigPath() { return getConfigPath; },
+  get getDialogParentWindow() { return getDialogParentWindow; },
   get getHistoryPath() { return getHistoryPath; },
   get getSessionPath() { return getSessionPath; },
   get globalConcurrencyPool() { return globalConcurrencyPool; },
+  get hashChecksRunning() { return hashChecksRunning; },
+  get hashGateNoticeOpen() { return hashGateNoticeOpen; }, set hashGateNoticeOpen(v) { hashGateNoticeOpen = v; },
+  get inflightFile() { return inflightFile; },
+  get isAllowedServiceHost() { return isAllowedServiceHost; },
+  isErrorReportingEnabled,
+  get komgaBusy() { return komgaBusy; }, set komgaBusy(v) { komgaBusy = v; },
+  get komgaPromptResolve() { return komgaPromptResolve; }, set komgaPromptResolve(v) { komgaPromptResolve = v; },
+  get komgaPromptWin() { return komgaPromptWin; }, set komgaPromptWin(v) { komgaPromptWin = v; },
+  get lastScheduleBanner() { return lastScheduleBanner; }, set lastScheduleBanner(v) { lastScheduleBanner = v; },
+  get lastScheduleLimit() { return lastScheduleLimit; }, set lastScheduleLimit(v) { lastScheduleLimit = v; },
+  get mainWindow() { return mainWindow; }, set mainWindow(v) { mainWindow = v; },
+  get mainWindowAlive() { return mainWindowAlive; },
+  get mainWindowDidFinishLoad() { return mainWindowDidFinishLoad; }, set mainWindowDidFinishLoad(v) { mainWindowDidFinishLoad = v; },
   get mirrorCooldowns() { return mirrorCooldowns; },
-  refreshGlobalPoolLimit,
+  get musicState() { return musicState; },
+  get nativeWindow() { return nativeWindow; }, set nativeWindow(v) { nativeWindow = v; },
+  pauseDownloadById,
+  get pendingDeepLinks() { return pendingDeepLinks; },
+  get postJsonWithBearer() { return postJsonWithBearer; },
+  get progressWin() { return progressWin; }, set progressWin(v) { progressWin = v; },
+  get refreshGlobalPoolLimit() { return refreshGlobalPoolLimit; },
+  resumeDownloadFiles,
+  get sendToMain() { return sendToMain; },
   get sessionToken() { return sessionToken; }, set sessionToken(v) { sessionToken = v; },
   get settings() { return settings; }, set settings(v) { settings = v; },
   get settingsLoadedFromDisk() { return settingsLoadedFromDisk; }, set settingsLoadedFromDisk(v) { settingsLoadedFromDisk = v; },
+  showDownloadNotification,
   updateProgress,
+  get whatsNewContentCache() { return whatsNewContentCache; }, set whatsNewContentCache(v) { whatsNewContentCache = v; },
+  get withDialogFocus() { return withDialogFocus; },
+  withSupportFooter,
 });
 // Shared state for the main/ modules (main/context.js): live getters and setters onto main.js's own variables.
 const pipeGuard = require('./pipeGuard');
@@ -104,65 +160,10 @@ if (SENTRY_DSN) {
 // 0xC0000142, 1073807364 is 0x40010004 and 3221225786 is 0xC000013A. They arrive together, for every running download at
 // the same second, so they are the system closing things and not a fault (Sentry COMPANION-1N and 1P).
 const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error|Can't create the download folder|connection dropped mid-download|interfering with the secure connection|\(code (?:3221225794|1073807364|3221225786)\))/i;
-function isExpectedDownloadFailure(errorText) {
-  return EXPECTED_FAILURE_RE.test(String(errorText || '').split('\n')[0]);
-}
-function reportDownloadFailure(download, errorText) {
-  if (!SENTRY_DSN || !isErrorReportingEnabled()) return;
-  if (isDownloadAbandoned(download)) return;
-  if (isExpectedDownloadFailure(errorText)) return;
-  try {
-    const firstLine = normalizeFailureLine(String(errorText || 'Unknown download error').split('\n')[0].slice(0, 200));
-    Sentry.withScope((scope) => {
-      scope.setLevel('warning');
-      scope.setFingerprint(['download-failure', firstLine]);
-      scope.setTag('mirror', (download && download.actualRemote) ? String(download.actualRemote) : 'unknown');
-      scope.setContext('download', {
-        name: download && download.name ? String(download.name) : '',
-        mirrorSwitches: download ? Number(download.mirrorSwitches) || 0 : 0,
-        failedFiles: download && Array.isArray(download.failedFiles) ? download.failedFiles.length : 0,
-        triedMirrors: download && Array.isArray(download.triedMirrors) ? download.triedMirrors.join(',') : '',
-        // Why each recovery attempt ended (see noteRecovery), so a failure that
-        // never switched mirrors shows where failover stopped.
-        recovery: download && Array.isArray(download.__recoveryNotes) ? download.__recoveryNotes.slice(-10) : [],
-      });
-      Sentry.captureMessage(`Download failed: ${firstLine}`);
-    });
-  } catch (e) { }
-}
-// True when the user cancelled, paused or removed the download. Recovery code
-// that was mid-retry then fails with "Download not found" or a killed-process
-// error; that's not a real failure, so it must not be shown or reported
-// (a cancelled Half-Life Alyx download showed up in Sentry COMPANION-3).
-function isDownloadAbandoned(download) {
-  try {
-    if (!download) return true;
-    if (download.cancelled || download.paused || download.status === 'cancelled') return true;
-    for (const d of activeDownloads.values()) if (d === download) return false;
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
 // "certificate has expired" / "not yet valid" while our certificate is valid
 // means the PC clock is wrong or security software is intercepting HTTPS
 // (Sentry COMPANION-3/-C). Retrying can't fix either, so say what will.
 const CLOCK_CERT_RE = /(certificate has expired|not yet valid|cert_date_invalid|certificate_expired|err_cert_date)/i;
-function clockCertMessage() {
-  return withSupportFooter(
-    "Secure connection refused: this PC's date/time looks wrong, or antivirus is scanning HTTPS traffic.",
-    "Set your clock to update automatically (Windows: Settings > Time & language > Date & time > Set time automatically, then Sync now). If the time is already right, turn off your antivirus' HTTPS/web scanning for the Companion. Then click Retry."
-  );
-}
-function noteRecovery(download, note) {
-  try { if (download && CLOCK_CERT_RE.test(String(note))) download.__clockSuspect = true; } catch (e) { }
-  try {
-    if (!download) return;
-    if (!Array.isArray(download.__recoveryNotes)) download.__recoveryNotes = [];
-    download.__recoveryNotes.push(`${new Date().toISOString().slice(11, 19)} ${String(note).slice(0, 200)}`);
-    if (download.__recoveryNotes.length > 20) download.__recoveryNotes.splice(0, download.__recoveryNotes.length - 20);
-  } catch (e) { }
-}
 const { spawn, spawnSync } = require('child_process');
 const crypto = require('crypto');
 const https = require('https');
@@ -172,97 +173,12 @@ const scheduleLib = require('./schedule');
 const directEndpoint = require('./directEndpoint');
 const { pathToFileURL } = require('url');
 
-function getDialogParentWindow() {
-  try {
-    if (progressWin && !progressWin.isDestroyed()) return progressWin;
-  } catch (e) { }
-  return mainWindow;
-}
-
-async function withDialogFocus(fn) {
-  // On Linux/KDE, system dialogs appear above all windows natively on X11/Wayland
-  // without needing to manipulate alwaysOnTop. Skipping the setAlwaysOnTop dance
-  // also avoids KDE raising the main window as a side-effect of moveTop().
-  if (process.platform === 'linux') {
-    return await fn();
-  }
-
-  let restoreOnTop = null;
-  try {
-    if (progressWin && !progressWin.isDestroyed()) {
-      try {
-        restoreOnTop = progressWin.isAlwaysOnTop();
-      } catch (e) {
-        restoreOnTop = true;
-      }
-      try {
-        progressWin.setAlwaysOnTop(false);
-      } catch (e) { }
-    }
-
-    return await fn();
-  } finally {
-    if (restoreOnTop != null) {
-      try {
-        if (progressWin && !progressWin.isDestroyed()) {
-          progressWin.setAlwaysOnTop(!!restoreOnTop);
-          try { progressWin.moveTop(); } catch (e) { }
-        }
-      } catch (e) { }
-    }
-  }
-}
-
-function withDialogFocusSync(fn) {
-  // On Linux/KDE, system dialogs appear above all windows natively — no alwaysOnTop
-  // manipulation needed (and doing so can cause the main window to be raised on KDE).
-  if (process.platform === 'linux') {
-    return fn();
-  }
-
-  let restoreOnTop = null;
-  try {
-    if (progressWin && !progressWin.isDestroyed()) {
-      try {
-        restoreOnTop = progressWin.isAlwaysOnTop();
-      } catch (e) {
-        restoreOnTop = true;
-      }
-      try {
-        progressWin.setAlwaysOnTop(false);
-      } catch (e) { }
-    }
-
-    return fn();
-  } finally {
-    if (restoreOnTop != null) {
-      try {
-        if (progressWin && !progressWin.isDestroyed()) {
-          progressWin.setAlwaysOnTop(!!restoreOnTop);
-          try { progressWin.moveTop(); } catch (e) { }
-        }
-      } catch (e) { }
-    }
-  }
-}
-
 // Security (L4): Public key is hardcoded as a constant to prevent tampering via the
 // on-disk PEM file (which could be replaced if the asar is modified or the assets
 // directory is writable). The env-var override is kept for development/rotation only.
 const UPDATE_ED25519_PUBLIC_KEY_PINNED = `-----BEGIN PUBLIC KEY-----
 MCowBQYDK2VwAyEAGn4Wwasnb73HzzQLzGXZt+QsfhTPnzLm6m37wAAF8RA=
 -----END PUBLIC KEY-----`;
-
-function getUpdateEd25519PublicKeyPem() {
-  // Allow env-var override for key rotation during development/testing
-  const v = process.env.ARMGDDN_UPDATE_ED25519_PUBKEY_PEM;
-  if (v && typeof v === 'string' && v.trim()) {
-    return v.trim();
-  }
-
-  // Use the pinned constant — do not read from disk at runtime (tamper-resistant)
-  return UPDATE_ED25519_PUBLIC_KEY_PINNED;
-}
 
 const SUPPORT_TELEGRAM_URL = 'https://t.me/+xuCOd3HqpGdmZjFh';
 
@@ -461,17 +377,6 @@ let nativeWindow = null;   // the native preview window, once it is open
 // Bring up the app's window: the native window when the app is running in native mode, otherwise the classic one. (The tray and a second launch used
 // to show the hidden classic window even in native mode, so a member who opened the Companion again saw the old window.)
 let _closeConfirmed = false;   // the native window already asked about running downloads before the app quits
-function showAppWindow() {
-  try {
-    if (typeof NATIVE_PREVIEW !== 'undefined' && NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()) {
-      if (nativeWindow.isMinimized()) nativeWindow.restore();
-      nativeWindow.show();
-      if (process.platform === 'linux') { try { nativeWindow.moveTop(); } catch (e) { } } else { nativeWindow.focus(); }
-      return true;
-    }
-  } catch (e) { }
-  return false;
-}
 if (NATIVE_PREVIEW) { try { require('./native/bridge').registerSchemes(require('electron').protocol); } catch (e) { } }
 
 // CI smoke test (ARMGDDN_SMOKE_TEST=1): run against a throwaway profile so it
@@ -562,25 +467,6 @@ app.on('child-process-gone', (event, details) => {
     }
   } catch (e) { }
 });
-
-// Every message to the main window goes through here. rclone output and
-// timers keep firing while the app quits (or after the window is gone), and
-// webContents.send on a destroyed window throws "Object has been destroyed",
-// which crashed the app (fatal TypeError in parseRcloneProgress, Sentry).
-function sendToMain(channel, payload) {
-  try {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    const wc = mainWindow.webContents;
-    if (!wc || wc.isDestroyed()) return;
-    wc.send(channel, payload);
-  } catch (e) { }
-}
-
-// Reading .webContents on a destroyed window throws "Object has been destroyed" (Sentry ARMGDDN-COMPANION-1M), so every
-// "is there a window to talk to" check goes through this instead of testing mainWindow.webContents.
-function mainWindowAlive() {
-  try { return !!mainWindow && !mainWindow.isDestroyed(); } catch (e) { return false; }
-}
 
 // Ensure single instance
 const gotTheLock = app.requestSingleInstanceLock();
@@ -729,47 +615,6 @@ async function getAppLoadInfo(token, manifestUrl) {
   }
 }
 
-// POST a JSON body to the ARMGDDN site with the member's app-session token.
-function getJsonWithBearer(urlString, bearerToken) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(urlString);
-    if (u.protocol !== 'https:' || !isAllowedServiceHost(u.hostname)) { reject(new Error('Security error: not the ARMGDDN site')); return; }
-    const req = https.request({
-      hostname: u.hostname, port: u.port ? Number(u.port) : 443, path: u.pathname + (u.search || ''), method: 'GET',
-      headers: { 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(), ...(bearerToken ? { 'Authorization': 'Bearer ' + bearerToken } : {}) },
-      timeout: 20000
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => { let json = null; try { json = JSON.parse(data); } catch (e) { /* ignore */ } resolve({ statusCode: res.statusCode, json }); });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { try { req.destroy(new Error('Request timeout')); } catch (e) { } });
-    req.end();
-  });
-}
-
-function postJsonWithBearer(urlString, bodyObj, bearerToken) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(urlString);
-    if (u.protocol !== 'https:' || !isAllowedServiceHost(u.hostname)) { reject(new Error('Security error: not the ARMGDDN site')); return; }
-    const body = JSON.stringify(bodyObj || {});
-    const req = https.request({
-      hostname: u.hostname, port: u.port ? Number(u.port) : 443, path: u.pathname + (u.search || ''), method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(), ...(bearerToken ? { 'Authorization': 'Bearer ' + bearerToken } : {}) },
-      timeout: 30000
-    }, (res) => {
-      let data = '';
-      res.on('data', (c) => { data += c; });
-      res.on('end', () => { let json = null; try { json = JSON.parse(data); } catch (e) { /* ignore */ } resolve({ statusCode: res.statusCode, json, text: data }); });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => { try { req.destroy(new Error('Request timeout')); } catch (e) { } });
-    req.write(body);
-    req.end();
-  });
-}
-
 let mainWindow;
 let authWindow;
 let progressWin = null; // Update progress window
@@ -785,37 +630,6 @@ let sessionToken = null;
 // is loaded, the message may be dropped and the download won't start.
 let mainWindowDidFinishLoad = false;
 const pendingDeepLinks = [];
-
-function flushPendingDeepLinks() {
-  try {
-    if (!mainWindowAlive()) return;
-    if (!mainWindowDidFinishLoad) return;
-    if (!pendingDeepLinks.length) return;
-
-    const toSend = pendingDeepLinks.splice(0, pendingDeepLinks.length);
-    for (const u of toSend) {
-      try {
-        sendToMain('deep-link', u);
-      } catch (e) {
-        // Put it back and try again on next flush.
-        pendingDeepLinks.unshift(u);
-        break;
-      }
-    }
-
-    if (NATIVE_PREVIEW) return;   // preview run: progress shows in the native window, the classic window stays hidden
-    mainWindow.show();
-    // KDE Plasma's focus-stealing prevention silently drops focus() calls from
-    // background processes. Use moveTop() instead to raise the window reliably.
-    if (process.platform === 'linux') {
-      try { mainWindow.moveTop(); } catch (e) { }
-    } else {
-      mainWindow.focus();
-    }
-  } catch (e) {
-    // Keep it safe; we'll try again later.
-  }
-}
 
 const ALLOWED_SERVICE_HOSTS = new Set([
   'armgddnbrowser.com',
@@ -833,23 +647,6 @@ const ALLOWED_UPDATE_HOSTS = new Set([
   'github-releases.githubusercontent.com'
 ]);
 
-function isAllowedServiceHost(hostname) {
-  if (!hostname) return false;
-  const h = String(hostname).toLowerCase();
-  if (ALLOWED_SERVICE_HOSTS.has(h)) return true;
-  // Allow any subdomain of armgddnbrowser.com
-  if (h.endsWith('.armgddnbrowser.com')) return true;
-  return false;
-}
-
-function isAllowedUpdateHost(hostname) {
-  if (!hostname) return false;
-  const h = String(hostname).toLowerCase();
-  if (ALLOWED_UPDATE_HOSTS.has(h)) return true;
-  if (/^github-production-release-asset-[a-z0-9-]+\.s3\.amazonaws\.com$/.test(h)) return true;
-  return false;
-}
-
 const updateRunner = require('./updateRunner');
 const driveDirectClient = require('./driveDirectClient');
 const hashCheck = require('./hashCheck');
@@ -857,59 +654,6 @@ const exitGuard = require('./exitGuard');
 const { describe7zFailure } = require('./sevenZipErrors');
 const downloadErrors = require('./downloadErrors');
 let ignoreProxyEnv = false;   // set when the PC's proxy settings point at a dead proxy: rclone then runs without them
-
-function fetchJsonWithCookies(urlString, method, cookieHeader) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(urlString);
-    if (u.protocol !== 'https:') {
-      reject(new Error('Security error: HTTPS required'));
-      return;
-    }
-    if (!isAllowedServiceHost(u.hostname)) {
-      reject(new Error('Security error: Host not allowed'));
-      return;
-    }
-    const options = {
-      hostname: u.hostname,
-      port: 443,
-      path: u.pathname + u.search,
-      method: method,
-      headers: {
-        'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(),
-        ...(cookieHeader ? { 'Cookie': cookieHeader } : {}),
-        'Accept': 'application/json'
-      },
-      timeout: 7000
-    };
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => data += chunk);
-      res.on('end', () => {
-        try {
-          resolve({ statusCode: res.statusCode || 0, json: JSON.parse(data), text: data });
-        } catch (e) {
-          resolve({ statusCode: res.statusCode || 0, json: null, text: data });
-        }
-      });
-    });
-    req.on('error', reject);
-    req.on('timeout', () => {
-      req.destroy();
-      reject(new Error('Request timeout'));
-    });
-    req.end();
-  });
-}
-
-async function mintAppSessionTokenFromCookies(cookieHeader) {
-  const { statusCode, json, text } = await fetchJsonWithCookies('https://www.armgddnbrowser.com/api/generate-app-token', 'POST', cookieHeader);
-  if (statusCode !== 200 || !json || json.success !== true || !json.token) {
-    const msg = (json && (json.error || json.message)) ? (json.error || json.message) : 'Failed to mint app token';
-    const snippet = (text && typeof text === 'string') ? text.slice(0, 300) : '';
-    throw new Error(`${msg} (HTTP ${statusCode})${snippet ? `: ${snippet}` : ''}`);
-  }
-  return String(json.token);
-}
 
 
 const POOL_ID = crypto.randomUUID();
@@ -1173,37 +917,6 @@ const get7zPath = () => {
 let _resolved7z = null;
 let _resolved7zFailures = [];
 
-function resolve7zTool() {
-  if (_resolved7z) return _resolved7z;
-  const bundled = get7zPath();
-  const candidates = [];
-  if (bundled && fs.existsSync(bundled)) {
-    candidates.push({ label: 'bundled', get: () => ensureRunnable7z(bundled) });
-    if (process.platform !== 'win32') candidates.push({ label: 'private copy', get: () => ensureRunnable7z(bundled, true) });
-  }
-  if (process.platform !== 'win32') {
-    for (const name of ['7zz', '7z', '7za']) candidates.push({ label: `system ${name}`, get: () => name });
-  }
-  const tried = new Set();
-  const failures = [];
-  for (const c of candidates) {
-    const exe = c.get();
-    if (!exe || tried.has(exe)) continue;
-    tried.add(exe);
-    const r = probe7z(exe);
-    try { logToFile(`[7z] Tool candidate "${c.label}" (${exe}): ${r.ok ? 'works' : 'failed'} - ${r.note}`); } catch (e) { }
-    if (r.ok) {
-      _resolved7z = exe;
-      _resolved7zFailures = [];
-      try { if (exe.includes(path.sep)) logToFile(`[7z] Tool: ${describe7zTool(exe)}`); } catch (e) { }
-      return exe;
-    }
-    failures.push(`${c.label}: ${r.note}`);
-  }
-  _resolved7zFailures = failures;
-  return null;
-}
-
 const getConfigPath = () => {
   return path.join(app.getPath('userData'), 'config.json');
 };
@@ -1272,200 +985,6 @@ let settingsLoadedFromDisk = false;
 const inflightStore = require('./inflightStore');
 const { pruneEmptyDirs } = require('./emptyDirs');
 const inflightFile = () => path.join(path.dirname(getHistoryPath()), 'inflight-downloads.json');
-function persistInflight(download) {
-  try {
-    if (!download || !download.id || !download.resume) return;
-    inflightStore.upsert(inflightFile(), {
-      id: download.id, name: download.name, resume: download.resume, totalSize: download.totalSize,
-      grantId: download.directGrant ? (download.directGrant.finished ? '' : download.directGrant.grantId) : (download.grantId || ''),
-      progress: Math.min(99, Math.round(Number(download.progress) || 0)), fileCount: download.fileCount, startTime: download.startTime
-    });
-  } catch (e) { }
-}
-function dropInflight(id) { try { inflightStore.drop(inflightFile(), id); } catch (e) { } }
-function loadOrphanedDownloads() {
-  try {
-    for (const e of inflightStore.load(inflightFile())) {
-      if (activeDownloads.has(e.id)) continue;
-      activeDownloads.set(e.id, {
-        id: e.id, name: e.name, itemKey: '', manifestUrl: '', remotePath: '', actualRemote: '', status: 'paused', paused: true, restored: true,
-        progress: e.progress, speed: '', eta: '', totalSize: e.totalSize, downloadedSize: Math.round(e.totalSize * e.progress / 100), files: [],
-        fileCount: e.fileCount, completedFiles: 0, activeFiles: {}, activeProcesses: [], pendingTaskCount: 0, cancelWaiters: [], totalSpeed: 0,
-        peakSpeedBytes: 0, startTime: e.startTime, endTime: null, token: null, cancelled: false, failedFiles: [], resume: e.resume, grantId: e.grantId || '',
-        statusMessage: 'Paused when the app closed. Press Resume to continue; files already downloaded are kept.'
-      });
-      logToFile(`[restore] ${e.name} is back in the list as paused`);
-      if (e.grantId) endOrphanedGrant(activeDownloads.get(e.id));
-    }
-  } catch (e) {
-    logToFile(`[restore] Failed to restore unfinished downloads: ${e && e.message ? e.message : e}`);
-  }
-}
-
-// A download that was cut off by the app closing never told the site how much of its direct-from-Drive grant it did not use. Resume and cancel
-// of a restored download say so now, so the member's daily allowance is credited (the estimate is the part that was not reached, from the saved progress).
-// It also runs for every restored download when the app starts, so a crash that is never followed by Resume or Cancel is credited as soon as the app
-// is opened again. The id is forgotten only once the site has accepted the report; offline or signed out, it is kept and tried again later.
-async function endOrphanedGrant(d) {
-  try {
-    if (!d || !d.grantId || d.__endingGrant) return;
-    const token = savedSessionToken();
-    if (!token) return;
-    d.__endingGrant = true;
-    const grantId = d.grantId;
-    const remaining = Math.max(0, Math.round((Number(d.totalSize) || 0) * (100 - (Number(d.progress) || 0)) / 100));
-    const ok = await driveDirectClient.reportOrphan(grantId, remaining, 'https://www.armgddnbrowser.com', token);
-    d.__endingGrant = false;
-    if (ok) { d.grantId = ''; if (activeDownloads.has(d.id)) persistInflight(d); }
-  } catch (e) { try { d.__endingGrant = false; } catch (e2) { } }
-}
-
-// Resume of a restored download: ask the site for a fresh download token for the same item, then start it the way a click on Download does.
-async function resumeRestoredDownload(downloadId) {
-  const d = activeDownloads.get(downloadId);
-  if (!d || !d.restored) return false;
-  const say = (m) => { d.statusMessage = m; try { if (mainWindowAlive()) sendToMain('download-progress', { id: downloadId, status: 'paused', progress: d.progress, statusMessage: m }); } catch (e) { } };
-  const token = savedSessionToken();
-  if (!token) { say('Sign in first, then press Resume.'); return false; }
-  const isBatch = !!(d.resume && Array.isArray(d.resume.paths) && d.resume.paths.length);
-  if (!d.resume || !d.resume.remote || (!isBatch && !d.resume.path)) { say('This one cannot be resumed. Press Download on the game again.'); return false; }
-  try {
-    let tokenPath = d.resume.path;
-    if (isBatch) {           // the picked items are put together again as a new batch on the site
-      const b = await postJsonWithBearer('https://www.armgddnbrowser.com/api/batch-manifest', { remote: d.resume.remote, paths: d.resume.paths, exclude: d.resume.exclude || [] }, token);
-      if (b.statusCode !== 200 || !b.json || !b.json.batchId) {
-        say(b.statusCode === 401 ? 'Your sign-in expired. Sign in again, then press Resume.' : ((b.json && b.json.error) || `The site answered ${b.statusCode}. Try again in a moment.`));
-        return false;
-      }
-      tokenPath = '__batch__/' + b.json.batchId;
-    }
-    const t = await postJsonWithBearer('https://www.armgddnbrowser.com/api/external-download-token', { remote: d.resume.remote, path: tokenPath }, token);
-    if (t.statusCode !== 200 || !t.json || !t.json.downloadToken) {
-      say(t.statusCode === 401 ? 'Your sign-in expired. Sign in again, then press Resume.' : ((t.json && t.json.error) || `The site answered ${t.statusCode}. Try again in a moment, or press Download on the game again.`));
-      return false;
-    }
-    const q = { downloadToken: t.json.downloadToken, token };
-    if (d.resume.dest) q.dest = d.resume.dest;
-    endOrphanedGrant(d);
-    activeDownloads.delete(downloadId);
-    dropInflight(downloadId);
-    try { sendToMain('download-cancelled', { id: downloadId, cleanupWarning: false }); } catch (e) { }
-    logToFile(`[restore] resuming ${d.name} with a fresh link`);
-    handleDeepLink('armgddn://download?' + new URLSearchParams(q).toString());
-    return true;
-  } catch (e) {
-    say('Could not reach the site: ' + (e && e.message ? e.message : e));
-    return false;
-  }
-}
-
-// Validate deep link URL
-function validateDeepLink(url) {
-  if (!url || typeof url !== 'string') return null;
-
-  try {
-    // Must start with our protocol
-    if (!url.startsWith('armgddn://')) return null;
-
-    const parsed = new URL(url);
-
-    // Validate protocol
-    if (parsed.protocol !== 'armgddn:') return null;
-
-    // Whitelist allowed actions
-    const allowedHosts = ['download', 'open', 'komga', 'verify', 'comics', 'music', 'request'];
-    if (!allowedHosts.includes(parsed.hostname)) {
-      logToFile(`Deep link rejected - invalid host: ${parsed.hostname}`);
-      return null;
-    }
-
-    // The 'token' param in the deep link IS a real app-session bearer token — the
-    // browser mints it fresh (via /api/generate-app-token) right before building the
-    // link, since it's already authenticated. resolve-download-token uses it as a
-    // one-shot attempt only; it is never persisted as the Companion's saved session,
-    // so a stale/crafted deep link can't silently replace what the user is logged in as.
-    // Validate the one-time download token format: alphanumeric + dashes/underscores, under 200 chars.
-    const downloadToken = parsed.searchParams.get('downloadToken');
-    if (downloadToken !== null) {
-      if (typeof downloadToken !== 'string' ||
-          downloadToken.length < 8 ||
-          downloadToken.length > 200 ||
-          !/^[A-Za-z0-9_-]+$/.test(downloadToken)) {
-        logToFile('Deep link rejected - invalid downloadToken format');
-        return null;
-      }
-    }
-
-    if (parsed.hostname === 'download' && parsed.searchParams.has('dest') && !['comics', 'music'].includes(parsed.searchParams.get('dest'))) {
-      logToFile('Deep link rejected - unknown download destination');
-      return null;
-    }
-
-    if (parsed.hostname === 'comics') {
-      const list = String(parsed.searchParams.get('list') || 'all');
-      const tok = String(parsed.searchParams.get('token') || '');
-      const folder = parsed.searchParams.get('folder');
-      if (!/^[a-z0-9-]{1,80}$/.test(list) || (tok && !/^[A-Za-z0-9._-]{8,400}$/.test(tok)) || (folder !== null && !isSafeLibraryFolder(folder))) {
-        logToFile('Deep link rejected - bad comics list, folder or token');
-        return null;
-      }
-    }
-
-    if (parsed.hostname === 'music') {
-      const tok = String(parsed.searchParams.get('token') || '');
-      const folder = parsed.searchParams.get('folder');
-      if ((tok && !/^[A-Za-z0-9._-]{8,400}$/.test(tok)) || (folder !== null && !isSafeLibraryFolder(folder))) {
-        logToFile('Deep link rejected - bad music folder or token');
-        return null;
-      }
-    }
-
-    if (parsed.hostname === 'verify' && !/^[A-Za-z0-9._-]{1,100}$/.test(String(parsed.searchParams.get('id') || ''))) {
-      logToFile('Deep link rejected - bad verify id');
-      return null;
-    }
-
-    if (parsed.hostname === 'komga' && !komga.isValidListId(String(parsed.searchParams.get('list') || ''))) {
-      logToFile('Deep link rejected - bad komga list id');
-      return null;
-    }
-
-    // Validate manifest parameter if present (URL or base64-encoded URL)
-    const manifest = parsed.searchParams.get('manifest');
-    if (manifest) {
-      let manifestStr = manifest;
-      // Attempt base64 decode; if it becomes a plausible https URL, accept that.
-      try {
-        const decoded = Buffer.from(manifest, 'base64').toString('utf8');
-        if (decoded && typeof decoded === 'string' && decoded.startsWith('https://')) {
-          manifestStr = decoded;
-        }
-      } catch (e) { }
-
-      try {
-        const u = new URL(manifestStr);
-        if (u.protocol !== 'https:') {
-          logToFile('Deep link rejected - manifest not https');
-          return null;
-        }
-        if (!isAllowedServiceHost(u.hostname)) {
-          logToFile('Deep link rejected - manifest host not allowed: ' + u.hostname);
-          return null;
-        }
-      } catch (e) {
-        logToFile('Deep link rejected - invalid manifest URL');
-        return null;
-      }
-    }
-
-    return url;
-  } catch (e) {
-    logToFile(`Deep link validation error: ${e.message}`);
-    return null;
-  }
-}
-
-
 // ── Add a read list to the member's own Komga ───────────────────────────────────────────────
 // The site's "Add to My Komga" button opens armgddn://komga?list=<id>. The browser cannot call a Komga server
 // directly (Komga refuses other websites by default), so the app does it: it gets the reading list from the site
@@ -1474,25 +993,6 @@ const komga = require('./komga');
 const KOMGA_LISTS = komga.LISTS;
 let komgaPromptWin = null;
 let komgaPromptResolve = null;
-
-function promptKomgaSettings() {
-  return new Promise((resolve) => {
-    if (komgaPromptWin && !komgaPromptWin.isDestroyed()) { komgaPromptWin.focus(); return resolve(null); }
-    komgaPromptResolve = resolve;
-    komgaPromptWin = new BrowserWindow({
-      width: 460, height: 400, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true,
-      title: 'Add to My Komga', icon: getAppIcon(),
-      webPreferences: { preload: path.join(__dirname, 'preload-komga.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
-    });
-    try { komgaPromptWin.setMenu(null); } catch (e) { }
-    denyNewWindows(komgaPromptWin);
-    komgaPromptWin.loadFile(path.join(__dirname, 'renderer', 'komga.html'));
-    komgaPromptWin.on('closed', () => {
-      komgaPromptWin = null;
-      if (komgaPromptResolve) { const r = komgaPromptResolve; komgaPromptResolve = null; r(null); }
-    });
-  });
-}
 
 ipcMain.handle('komga-get-defaults', () => ({ url: 'http://localhost:25600' }));
 ipcMain.handle('komga-cancel', () => { if (komgaPromptWin && !komgaPromptWin.isDestroyed()) komgaPromptWin.close(); });
@@ -1533,26 +1033,6 @@ ipcMain.handle('native-komga-save', async (event, data) => {
   return { ok: true, url };
 });
 ipcMain.handle('native-komga-forget', () => { forgetKomgaKey(); return { ok: true }; });
-// Builds (or replaces) a read list in the member's own Komga from the site's catalog, the way the pipeline identifies comics: by the exact file,
-// then by Comic Vine id, never by series name (see komga.js). Shared by the classic window and the native window.
-// -> the result of komga.addCatalogReadList plus { name }, or { ok: false, catalogMissing: true, error } when the site has no such reading order.
-async function komgaAddFromCatalog(cfg, listId) {
-  const cat = await comicsGet('/api/comics/catalog?list=' + encodeURIComponent(listId));
-  if (!cat || !cat.ok || !cat.json || !Array.isArray(cat.json.items) || !cat.json.items.length) {
-    logToFile('Komga: no catalog list for "' + listId + '": ' + ((cat && cat.error) || 'no answer'));
-    return { ok: false, catalogMissing: true, error: (cat && cat.error) || 'Could not get the reading order from ARMGDDN. Try again in a moment.' };
-  }
-  const title = String((cat.json.list && cat.json.list.name) || (KOMGA_LISTS[listId] && KOMGA_LISTS[listId].title) || listId);
-  const name = `${title} - Suggested Reading Order`;
-  const r = await komga.addCatalogReadList({ baseUrl: cfg.url, apiKey: cfg.key, name, items: cat.json.items });
-  if (r.ok) {
-    logToFile(`Komga: ${r.replaced ? 'updated' : 'added'} "${name}" (${r.count} of ${r.total} comics: ${r.byFile} by file, ${r.byCv} by Comic Vine id; ${r.missing} not in this Komga)`);
-    return { ...r, name };
-  }
-  logToFile('Komga: add failed (' + r.reason + (r.step ? ' at ' + r.step + ', status ' + r.status : '') + ')');
-  return r;
-}
-
 // The reading orders a member can add: the site's catalog lists with more than 40 comics (the pipeline's own rule for a real reading order),
 // biggest first. Without a sign-in the six classic ones are offered, so the card is never empty.
 ipcMain.handle('native-komga-lists', async () => {
@@ -1584,160 +1064,7 @@ ipcMain.handle('native-komga-add', async (event, listId) => {
   } finally { komgaBusy = false; }
 });
 
-async function komgaMessage(type, message, detail) {
-  const opts = { type, title: 'Add to My Komga', message, detail: detail || undefined, buttons: ['OK'] };
-  try { return mainWindowAlive() ? await dialog.showMessageBox(mainWindow, opts) : await dialog.showMessageBox(opts); } catch (e) { }
-}
-
 let komgaBusy = false;
-async function addReadListToKomga(listId) {
-  if (!komga.isValidListId(listId)) return;
-  if (komgaBusy) return;
-  komgaBusy = true;
-  try {
-    if (!sessionToken) {
-      await komgaMessage('info', 'Log in to the Companion first', 'Open the Companion, log in, then click Add to My Komga on the site again.');
-      return;
-    }
-    let cfg = await loadKomgaConfig();
-    if (!cfg) {
-      cfg = await promptKomgaSettings();
-      if (!cfg) return;
-      await saveKomgaConfig(cfg);
-    }
-
-    // The site's catalog names every comic exactly, so the list matches the member's own files. A reading order the catalog does not know falls back
-    // to the reading-order file below (which only carries series, number and year).
-    const c = await komgaAddFromCatalog(cfg, listId);
-    if (!c.catalogMissing) {
-      if (c.ok) {
-        await komgaMessage('info', `${c.replaced ? 'Updated' : 'Added'} "${c.name}" ${c.replaced ? 'in' : 'to'} your Komga`,
-          `${c.count} of ${c.total} comics are in the read list, in reading order (${c.byFile} matched by file${c.byCv ? `, ${c.byCv} by Comic Vine id` : ''}).`
-            + (c.missing ? ` ${c.missing} are not in your Komga library yet, so they were left out.` : ''));
-        return;
-      }
-      if (c.reason === 'auth' || c.reason === 'unreachable') forgetKomgaKey();
-      await komgaMessage('error', c.message, c.reason === 'auth' || c.reason === 'unreachable'
-        ? 'Your saved Komga details were cleared. Click Add to My Komga again to enter them again.' : undefined);
-      return;
-    }
-
-    let xml;
-    let listName = (KOMGA_LISTS[listId] && KOMGA_LISTS[listId].title) || '';
-    try {
-      const resp = await fetch(`https://www.armgddnbrowser.com/api/komga-readlist?id=${encodeURIComponent(listId)}`, {  // www directly: the bare domain redirects, and a redirect drops the login header
-        headers: { 'Authorization': 'Bearer ' + sessionToken, 'User-Agent': 'ARMGDDN-Companion/' + app.getVersion() },
-        signal: AbortSignal.timeout(30000)
-      });
-      if (!resp.ok) throw new Error('HTTP ' + resp.status);
-      try { const n = decodeURIComponent(resp.headers.get('x-readlist-name') || ''); if (n) listName = n; } catch (e) { }
-      xml = await resp.text();
-      if (!/<ReadingList[\s>]/.test(xml)) throw new Error('reply was not a reading list');
-    } catch (e) {
-      logToFile('Komga: could not get read list from the site: ' + (e && e.message ? e.message : e));
-      await komgaMessage('error', 'Could not get the read list from ARMGDDN', 'Try again in a moment.');
-      return;
-    }
-
-    const r = await komga.addReadList({ baseUrl: cfg.url, apiKey: cfg.key, xml, fileName: `${listName || listId} - Suggested Reading Order.cbl` });
-    if (r.ok) {
-      logToFile(`Komga: ${r.replaced ? 'updated' : 'added'} "${listName || listId}" (${r.count} issues, ${r.missing} not in library)`);
-      await komgaMessage('info', `${r.replaced ? 'Updated' : 'Added'} "${listName || listId}" ${r.replaced ? 'in' : 'to'} your Komga`,
-        `${r.count} issues are in the read list.`
-          + (r.ambiguous ? ` ${r.ambiguous} could belong to more than one series in your Komga, so they were left out instead of guessed.` : '')
-          + ((r.missing - (r.ambiguous || 0)) > 0 ? ` ${r.missing - (r.ambiguous || 0)} are not in your Komga library yet, so they were left out.` : ''));
-      return;
-    }
-    logToFile('Komga: add failed (' + r.reason + ')');
-    if (r.reason === 'auth' || r.reason === 'unreachable') forgetKomgaKey();
-    await komgaMessage('error', r.message, r.reason === 'auth' || r.reason === 'unreachable'
-      ? 'Your saved Komga details were cleared. Click Add to My Komga again to enter them again.' : undefined);
-  } finally {
-    komgaBusy = false;
-  }
-}
-
-// Handle deep link
-async function confirmKomgaDeepLink(listId) {
-  if (!komga.isValidListId(listId)) return false;
-  const name = String((KOMGA_LISTS[listId] && KOMGA_LISTS[listId].title) || listId);
-  const r = await withDialogFocus(() => dialog.showMessageBox(getDialogParentWindow(), {
-    type: 'question', buttons: ['Add it', 'Cancel'], defaultId: 1, cancelId: 1, noLink: true,
-    title: 'Add to My Komga', message: 'Add the reading order "' + name + '" to your Komga?',
-    detail: 'A link asked the Companion to add this reading order. Choose Cancel if you did not click Add to My Komga on the ARMGDDN site.'
-  }));
-  return !!r && r.response === 0;
-}
-
-function handleDeepLink(url) {
-  // Validate before processing
-  const validatedUrl = validateDeepLink(url);
-  if (!validatedUrl) {
-    logToFile('Deep link rejected: ' + (url ? url.substring(0, 50) : 'null'));
-    return;
-  }
-
-  // Adding a read list to the member's Komga is handled here in the main process (no renderer round trip).
-  try {
-    const u = new URL(validatedUrl);
-    if (u.hostname === 'verify') {
-      const vid = String(u.searchParams.get('id') || '');
-      try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } else { mainWindow.focus(); } sendToMain('hash-check-requested', { id: vid }); } } catch (e) { }
-      runHashCheck(vid).catch(() => { });
-      return;
-    }
-    if (u.hostname === 'open') {
-      // armgddn://open: the website's "Open ARMGDDN App" button. Brings the window forward (the native one when it is on); nothing is changed.
-      try {
-        const w = (nativeWindow && !nativeWindow.isDestroyed()) ? nativeWindow : (mainWindowAlive() ? mainWindow : null);
-        if (w) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); if (process.platform === 'linux') { try { w.moveTop(); } catch (e2) { } } }
-      } catch (e) { }
-      return;
-    }
-    if (u.hostname === 'request') {
-      // armgddn://request/<id>: the link in a Telegram request notice. Opens that request in the native window.
-      const rid = Number(String(u.pathname || '').replace(/^\/+/, ''));
-      if (Number.isInteger(rid) && rid > 0 && nativeWindow && !nativeWindow.isDestroyed()) {
-        try { if (nativeWindow.isMinimized()) nativeWindow.restore(); nativeWindow.show(); nativeWindow.focus(); nativeWindow.webContents.send('native:open', { view: 'requests', id: rid }); } catch (e) { }
-      }
-      return;
-    }
-    if (u.hostname === 'comics') {
-      // Opens the "only what I'm missing" panel for a reading order. The token minted by the site is kept in memory only (never saved
-      // as the Companion's own sign-in) and is used for the catalog and the downloads of this session.
-      const tok = String(u.searchParams.get('token') || '');
-      if (tok) { comicsState.token = tok; }   // memory only: a link on a web page must never replace the member's saved sign-in
-      logToFile(`[deeplink] comics opened, site token ${tok ? 'received' : 'missing'}`);
-      try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
-      const open = () => sendToMain('comics-open', { listId: String(u.searchParams.get('list') || 'all'), folder: String(u.searchParams.get('folder') || '') });
-      if (mainWindowDidFinishLoad) open(); else setTimeout(open, 2500);
-      return;
-    }
-    if (u.hostname === 'music') {
-      // Same as comics: opens the "only what I'm missing" panel; the site's token is kept in memory for this session only.
-      const tok = String(u.searchParams.get('token') || '');
-      if (tok) { musicState.token = tok; }   // memory only, same reason
-      logToFile(`[deeplink] music opened, site token ${tok ? 'received' : 'missing'}`);
-      try { if (mainWindowAlive()) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.show(); if (process.platform === 'linux') { try { mainWindow.moveTop(); } catch (e2) { } } } } catch (e) { }
-      const open = () => sendToMain('music-open', { folder: String(u.searchParams.get('folder') || '') });
-      if (mainWindowDidFinishLoad) open(); else setTimeout(open, 2500);
-      return;
-    }
-    if (u.hostname === 'komga') {
-      // A link on any web page can open this, so the member is asked before anything is added to their Komga.
-      const listId = u.searchParams.get('list');
-      confirmKomgaDeepLink(listId).then((ok) => ok && addReadListToKomga(listId)).catch(e => logToFile('Komga add failed: ' + (e && e.message ? e.message : e)));
-      return;
-    }
-  } catch (e) { }
-
-  // Queue and flush when the renderer is ready.
-  pendingDeepLinks.push(validatedUrl);
-  // Keep queue bounded to avoid unbounded growth.
-  if (pendingDeepLinks.length > 10) pendingDeepLinks.splice(0, pendingDeepLinks.length - 10);
-  flushPendingDeepLinks();
-}
-
 function openAuthWindow() {
   return new Promise((resolve) => {
     if (authWindow) {
@@ -2606,21 +1933,6 @@ function openSettingsWindow() {
       mainWindow.webContents.executeJavaScript("(function(){var b=document.getElementById('settings-btn');if(b)b.click();})()").catch(() => { });
     }
   } catch (e) { logToFile('openSettingsWindow failed: ' + e.message); }
-}
-function checkForUpdatesFromMenu() {
-  try {
-    if (NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()) {
-      if (nativeWindow.isMinimized()) nativeWindow.restore();
-      nativeWindow.show(); nativeWindow.focus();
-      nativeWindow.webContents.send('native:open', { view: 'settings', check: true });
-      return;
-    }
-    if (mainWindow && !mainWindow.isDestroyed()) {
-      if (mainWindow.isMinimized()) mainWindow.restore();
-      mainWindow.show(); mainWindow.focus();
-      mainWindow.webContents.executeJavaScript("(function(){var b=document.getElementById('check-updates-btn');if(b)b.click();})()").catch(() => { });
-    }
-  } catch (e) { logToFile('checkForUpdatesFromMenu failed: ' + e.message); }
 }
 // Help > About: the version and what it runs on, with a button that copies those details for a support message.
 function showAboutDialog() {
@@ -5652,202 +4964,6 @@ function clampProgressUnlessFinal(download) {
   }
 }
 
-// Where an archive is unpacked: beside the download, or, when the member set an Extract folder that exists, into a folder of the same name there.
-function extractTarget(downloadDir) {
-  try {
-    const f = settings && typeof settings.extractFolder === 'string' ? settings.extractFolder.trim() : '';
-    if (f && path.isAbsolute(f) && fs.existsSync(f)) return path.join(f, path.basename(downloadDir));
-    if (f) logToFile('[extract] Extract folder is not available; unpacking beside the download instead');
-  } catch (e) { }
-  return downloadDir;
-}
-
-function run7zExtract(archivePath, outputDir, onProgress) {
-  return new Promise((resolve, reject) => {
-    const bundledExe = get7zPath();
-    if (!bundledExe) {
-      reject(new Error('7z extraction tool not found'));
-      return;
-    }
-    try { logToFile(`[7z] Extract start: ${archivePath} -> ${outputDir}`); } catch (e) { }
-    const exe = resolve7zTool();
-    if (!exe) {
-      if (!fs.existsSync(bundledExe)) {
-        // Not "failed to validate": the install itself is missing the tool (this is what
-        // 5.0.18 to 5.0.20 did when the build stopped bundling it), so say so.
-        try { logToFile(`[7z] Bundled extraction tool is missing: ${bundledExe}`); } catch (e) { }
-        reject(new Error('The extraction tool (7-Zip) is missing from this install. Please report this in the chat so we can fix it.'));
-      } else {
-        const detail = _resolved7zFailures.join('; ');
-        try { logToFile(`[7z] No working extraction tool: ${detail}`); } catch (e) { }
-        const first = (_resolved7zFailures[0] || '').replace(/^bundled: /, '');
-        reject(new Error(`The built-in extraction tool couldn't start on this system (${snip7z(first, 120)}). Install 7-Zip from your package manager (the 7zz or p7zip package) and try again, or extract the files by hand.`));
-      }
-      return;
-    }
-
-    // Packaging-convenience password only — not a security control. Electron apps are
-    // trivially unpackable via asar; this merely keeps archives from opening without the app.
-    const password = 'ARMGDDNGames';
-    const isPasswordErrorText = (text) => {
-      const t = String(text || '').toLowerCase();
-      return t.includes('enter password') || t.includes('wrong password') || t.includes('password is incorrect') || t.includes('encrypted');
-    };
-
-    const runList = () => {
-      const listArgs = ['l', '-slt', `-p${password}`, archivePath];
-      return spawnSync(exe, listArgs, { encoding: 'utf8', timeout: 30000 });
-    };
-
-    try {
-      const listResult = runList();
-
-      if (!(listResult && listResult.status === 0)) {
-        try {
-          const code = (listResult && typeof listResult.status === 'number') ? listResult.status : null;
-          const so = String((listResult && listResult.stdout) || '');
-          const se = String((listResult && listResult.stderr) || '');
-          const le = listResult && listResult.error ? (listResult.error.message || String(listResult.error)) : '';
-          const ls = listResult && listResult.signal ? String(listResult.signal) : '';
-          logToFile(`[7z] List failed: code=${code} signal=${ls} err=${le ? 'yes' : 'no'} stdoutLen=${so.length} stderrLen=${se.length}`);
-          const spawnErr = listResult && listResult.error ? `${listResult.error.code || ''} ${le}`.trim() : 'none';
-          let archiveInfo = '';
-          try { archiveInfo = `size=${fs.statSync(archivePath).size}`; } catch (eA) { archiveInfo = `stat failed: ${eA && eA.message ? eA.message : eA}`; }
-          logToFile(`[7z] List failure detail: spawnError=${spawnErr} archive=${archivePath} ${archiveInfo} stdout="${snip7z(so, 300)}" stderr="${snip7z(se, 400)}"`);
-        } catch (e) { }
-
-        if (listResult && listResult.error && listResult.error.code === 'ETIMEDOUT') {
-          reject(new Error('7z extraction failed: validation timed out'));
-          return;
-        }
-        const listText = `${String((listResult && listResult.stdout) || '')}\n${String((listResult && listResult.stderr) || '')}`;
-        const listDescribed = describe7zFailure(listText, listResult && listResult.status);
-        reject(new Error(listDescribed || 'Failed to validate archive contents before extraction'));
-        return;
-      }
-
-      const stdout = String(listResult.stdout || '');
-      const lines = stdout.split(/\r?\n/);
-      for (const line of lines) {
-        if (!line.startsWith('Path = ')) continue;
-        const entryPath = line.slice('Path = '.length).trim();
-        if (!entryPath) continue;
-        const safeRel = sanitizeRelativePath(entryPath);
-        if (!safeRel) {
-          try { logToFile(`[7z] Unsafe entry path rejected (sanitize): ${snip7z(entryPath, 200)}`); } catch (e) { }
-          reject(new Error('Unsafe archive entry path detected'));
-          return;
-        }
-        const resolved = resolveInside(outputDir, safeRel);
-        if (!resolved) {
-          try { logToFile(`[7z] Unsafe entry path rejected (outside output folder): ${snip7z(entryPath, 200)}`); } catch (e) { }
-          reject(new Error('Unsafe archive entry path detected'));
-          return;
-        }
-      }
-    } catch (e) {
-      try { logToFile(`[7z] Validation threw: ${e && e.message ? e.message : e}`); } catch (e2) { }
-      reject(new Error('Failed to validate archive contents before extraction'));
-      return;
-    }
-
-    try {
-      if (process.platform !== 'win32') {
-        try {
-          fs.chmodSync(exe, 0o755);
-        } catch (e) { }
-      }
-    } catch (e) { }
-
-    const spawnExtract = () => {
-      const args = [
-        'x',
-        '-bsp1',
-        '-y',
-        '-aos',
-        `-o${outputDir}`,
-        `-p${password}`,
-        archivePath
-      ];
-      const proc = spawn(exe, args, { cwd: outputDir });
-      let out = '';
-      let err = '';
-      let killedByTimeout = false;
-      let killedByInactivity = false;
-      let lastOutputAt = Date.now();
-      const timeout = setTimeout(() => {
-        killedByTimeout = true;
-        try { proc.kill(); } catch (e) { }
-      }, 60 * 60 * 1000);
-
-      const inactivityInterval = setInterval(() => {
-        if (killedByTimeout || killedByInactivity) return;
-        const now = Date.now();
-        if (now - lastOutputAt > 5 * 60 * 1000) {
-          killedByInactivity = true;
-          try { proc.kill(); } catch (e) { }
-        }
-      }, 15000);
-      try {
-        if (proc.stdin) proc.stdin.end();
-      } catch (e) { }
-      proc.stdout.on('data', (d) => {
-        lastOutputAt = Date.now();
-        const text = d.toString();
-        out += text;
-        if (onProgress) {                       // -bsp1 prints "  42% ..." as it goes; keep the last one in this chunk
-          const all = text.match(/(\d{1,3})%/g);
-          if (all && all.length) { const v = Math.min(100, parseInt(all[all.length - 1], 10)); if (Number.isFinite(v)) { try { onProgress(v); } catch (e) { /* ignore */ } } }
-        }
-      });
-      proc.stderr.on('data', (d) => {
-        lastOutputAt = Date.now();
-        err += d.toString();
-      });
-      proc.on('error', (e) => {
-        clearTimeout(timeout);
-        clearInterval(inactivityInterval);
-        reject(e);
-      });
-      proc.on('close', (code) => {
-        clearTimeout(timeout);
-        clearInterval(inactivityInterval);
-        if (killedByTimeout) {
-          reject(new Error('7z extraction failed: extraction timed out'));
-          return;
-        }
-        if (killedByInactivity) {
-          try {
-            logToFile(`[7z] Extract stalled (no output): ${archivePath}`);
-          } catch (e) { }
-          reject(new Error('7z extraction failed: extraction stalled'));
-          return;
-        }
-        if (code === 0) {
-          try {
-            logToFile(`[7z] Extract ok: ${archivePath}`);
-          } catch (e) { }
-          resolve({ out, err });
-          return;
-        }
-        const combined = (out + '\n' + err).trim();
-        const described = describe7zFailure(combined, code);
-        if (described) {
-          try { logToFile(`[7z] Extract failed: ${archivePath} code=${code} stderr="${snip7z(err, 400)}"`); } catch (e) { }
-          reject(new Error(described));
-          return;
-        }
-        try {
-          logToFile(`[7z] Extract failed: ${archivePath} code=${code} outLen=${out.length} errLen=${err.length} stderr="${snip7z(err, 400)}" stdoutTail="${snip7z(out.slice(-300), 300)}"`);
-        } catch (e) { }
-        reject(new Error(`7z extraction failed (code ${code})${err ? `: ${err.trim()}` : ''}`));
-      });
-    };
-
-    spawnExtract();
-  });
-}
-
 // Parse rclone progress output
 function parseRcloneProgress(downloadId, fileKey, output) {
   const download = activeDownloads.get(downloadId);
@@ -6400,54 +5516,6 @@ ipcMain.handle('reorder-downloads', (event, orderedIds) => {
 // the schedule paused are resumed when the window ends, downloads the member paused themselves are left alone.
 let lastScheduleLimit = null;
 let lastScheduleBanner = '';
-function pushScheduleState() {
-  try {
-    const w = scheduleLib.activeWindow(settings.schedule);
-    const text = !w ? '' : (w.action === 'pause'
-      ? `Downloads are paused by your quiet hours until ${scheduleLib.formatTime(w.endsAt)}.`
-      : `Downloads are limited to ${w.limitMBps} MB/s by your quiet hours until ${scheduleLib.formatTime(w.endsAt)}.`);
-    if (text !== lastScheduleBanner) {
-      lastScheduleBanner = text;
-      if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send('schedule-banner', text);
-    }
-  } catch (e) { }
-}
-function scheduleTick() {
-  try {
-    const w = scheduleLib.activeWindow(settings.schedule);
-    pushScheduleState();
-    if (w && w.action === 'pause') {
-      for (const [id, d] of activeDownloads) {
-        if (!d.paused && scheduleActiveStates().includes(d.status)) {
-          d.pausedBySchedule = true;
-          logToFile(`[schedule] pausing ${id} for quiet hours until ${scheduleLib.formatTime(w.endsAt)}`);
-          pauseDownloadById(id);
-        }
-      }
-    } else {
-      for (const [id, d] of activeDownloads) {
-        if (!d.pausedBySchedule) continue;
-        d.pausedBySchedule = false;
-        if (d.paused) {
-          logToFile(`[schedule] quiet hours ended: resuming ${id}`);
-          resumeDownloadFiles(id).catch((e) => logToFile(`[schedule] resume of ${id} failed: ${e && e.message}`));
-        }
-      }
-    }
-    // a limit window began or ended: restart running downloads so they pick it up
-    const lim = (w && w.action === 'limit') ? w.limitMBps : 0;      // only a limit window beginning or ending restarts running downloads
-    if (lastScheduleLimit !== null && lim !== lastScheduleLimit && !(w && w.action === 'pause')) {
-      for (const [id, d] of activeDownloads) {
-        if (d.paused || !scheduleActiveStates().includes(d.status)) continue;
-        logToFile(`[schedule] speed limit now ${lim || 'none'}: restarting ${id} to apply it`);
-        d.pausedBySchedule = true;               // the next tick resumes it
-        pauseDownloadById(id);
-      }
-    }
-    lastScheduleLimit = lim;
-  } catch (e) { logToFile(`[schedule] tick failed: ${e && e.message}`); }
-}
-function startScheduleTicker() { setInterval(scheduleTick, 15 * 1000); setTimeout(scheduleTick, 3000); }
 ipcMain.handle('get-schedule-banner', () => lastScheduleBanner);
 
 ipcMain.handle('pause-download', (event, downloadId) => pauseDownloadById(downloadId));
@@ -6794,209 +5862,9 @@ function finalizeCompletedDownload(downloadId) {
   logToFile(`[completeDownload] Done, download removed from activeDownloads`);
 }
 
-// Installers unpack their temp files into the Windows temp folder (usually on
-// C:) no matter where the game is installed, so a nearly-full temp drive makes
-// setup "finish" instantly with nothing installed. Warn when the drive holding
-// the temp folder has less free space than the download itself.
-// Before a download starts: will the Windows temp-folder drive have room for
-// setup's temp files once the download is done? If it's the same drive as the
-// download, the downloaded files take their share of it first.
-function preStartInstallSpaceWarning(totalSize, downloadPath) {
-  try {
-    if (process.platform !== 'win32') return null;
-    const need = Number(totalSize) || 0;
-    if (need <= 0) return null;
-    const tempDir = os.tmpdir();
-    const tempRoot = (path.parse(tempDir).root || '').toLowerCase();
-    const dlRoot = (path.parse(path.resolve(String(downloadPath || ''))).root || '').toLowerCase();
-    const free = getFreeDiskSpace(tempDir);
-    if (free < 0) return null;
-    const sameDrive = !!tempRoot && tempRoot === dlRoot;
-    const required = sameDrive ? need * 2 : need;
-    if (free >= required) return null;
-    const driveLabel = (path.parse(tempDir).root || 'C:\\').replace(/[\\/]+$/, '');
-    const dlLabel = (path.parse(path.resolve(String(downloadPath || ''))).root || '').replace(/[\\/]+$/, '') || 'your download folder';
-    return buildInstallSpaceWarning({ need, required, free, sameDrive, driveLabel, dlLabel });
-  } catch (e) {
-    return null;
-  }
-}
-
-function installSpaceTip(download) {
-  try {
-    if (process.platform !== 'win32') return '';
-    const need = Number(download && download.totalSize) || 0;
-    if (need <= 0) return '';
-    const tempDir = os.tmpdir();
-    const tempDrive = path.parse(tempDir).root || ((process.env.SystemDrive || 'C:') + '\\');
-    const free = getFreeDiskSpace(tempDir);
-    if (free < 0 || free >= need) return '';
-    const driveLabel = tempDrive.replace(/[\\/]+$/, '');
-    const msg = `Heads up: setup needs about ${formatBytes(need)} free on ${driveLabel} for its temp files ` +
-      `(your Windows temp folder is there), even if you install to another drive. You have ${formatBytes(free)} free.`;
-    logToFile(`[completeDownload] ${msg}`);
-    return msg;
-  } catch (e) {
-    return '';
-  }
-}
-
-// ---- File check (MD5 against the checksums the site listed) ----
-// Check files is only offered when files are checked automatically before they are unpacked. With Auto extract on and automatic checking off,
-// downloads are unpacked unchecked, so a later check would only report on archives that were already used.
-function hashingGated() {
-  return hashCheck.gated(settings);
-}
-
 // Told once, with an "I understand" button, the first time that combination is in force.
 let hashGateNoticeOpen = false;
-async function maybeShowHashGateNotice() {
-  try {
-    if (!hashingGated() || settings.hashGateNoticeSeen || hashGateNoticeOpen) return;
-    hashGateNoticeOpen = true;
-    await withDialogFocus(() => dialog.showMessageBox(getDialogParentWindow(), {
-      type: 'info',
-      buttons: ['I understand'],
-      defaultId: 0,
-      title: 'Check files is off',
-      message: 'Check files is unavailable while Auto extract is on without automatic checking.',
-      detail: 'Auto extract unpacks your downloads as soon as they finish, so files would be used before anything checked them. Because of that, the Check files option is hidden.\n\nWant both? Turn on "Check files after download" in Settings. Files are then checked first, and anything that fails is reported instead of being unpacked.'
-    }));
-    settings.hashGateNoticeSeen = true;
-    saveSettings();
-  } catch (e) {
-    logToFile('[hashGate] notice failed: ' + (e && e.message ? e.message : e));
-  } finally {
-    hashGateNoticeOpen = false;
-  }
-}
-
-// Tells the site why a download attempt ended and which retries it needed: counts and kinds only, no file names (site: services/engine-reports.js).
-function reportEngineToServer(download, info) {
-  try {
-    const token = (download && download.token) || null;
-    if (!download || !token) return;
-    const host = download.progressHost || 'www.armgddnbrowser.com';
-    if (!isAllowedServiceHost(host)) return;
-    const body = JSON.stringify({ ...info, version: app.getVersion() });
-    const req = https.request({
-      hostname: host, port: download.progressPort || 443, path: '/api/app-engine-report', method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': `Bearer ${token}`, 'User-Agent': `ARMGDDN-Companion/${app.getVersion()}` }
-    }, (res) => { res.resume(); });
-    req.on('error', () => { });
-    req.setTimeout(15000, () => { try { req.destroy(); } catch (e) { } });
-    req.write(body);
-    req.end();
-  } catch (e) { }
-}
-
-function reportHashUnavailableToServer(download) {
-  try {
-    const token = (download && download.token) || null;
-    if (!download || !token) return;
-    const host = download.progressHost || 'www.armgddnbrowser.com';
-    if (!isAllowedServiceHost(host)) return;
-    const body = JSON.stringify({ downloadId: download.id, remotePath: download.remotePath || '', unavailable: true });
-    const req = https.request({
-      hostname: host, port: download.progressPort || 443, path: '/api/app-hash-check', method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': `Bearer ${token}` }
-    }, (res) => { res.resume(); });
-    req.on('error', () => { });
-    req.setTimeout(15000, () => { try { req.destroy(); } catch (e) { } });
-    req.write(body);
-    req.end();
-  } catch (e) { }
-}
 const hashChecksRunning = new Map();      // download id -> { cancelled }
-
-// Live progress of a check, so the site's downloads panel can fill its bar. Sent at most every 2 seconds; the final result replaces it.
-function reportHashProgressToServer(download, token, state) {
-  try {
-    if (!download || !token) return;
-    const host = download.progressHost || 'www.armgddnbrowser.com';
-    if (!isAllowedServiceHost(host)) return;
-    const body = JSON.stringify({ downloadId: download.id, remotePath: download.remotePath || '', running: !state.cancelled, cancelled: !!state.cancelled, progress: state.percent, done: state.done, total: state.total });
-    const req = https.request({
-      hostname: host, port: download.progressPort || 443, path: '/api/app-hash-check', method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': `Bearer ${token}` }
-    }, (res) => { res.resume(); });
-    req.on('error', () => { });
-    req.setTimeout(15000, () => { try { req.destroy(); } catch (e) { } });
-    req.write(body);
-    req.end();
-  } catch (e) { }
-}
-
-function reportHashCheckToServer(download, token, result) {
-  try {
-    if (!download || !token || !result) return;
-    const host = download.progressHost || 'www.armgddnbrowser.com';
-    if (!isAllowedServiceHost(host)) return;
-    const body = JSON.stringify({
-      downloadId: download.id,
-      remotePath: download.remotePath || '',
-      checked: result.total, ok: result.ok, bad: result.bad.length, missing: result.missing.length, notChecked: result.notChecked,
-      badNames: result.bad.slice(0, 5).map((b) => b.name),
-      at: result.at
-    });
-    const req = https.request({
-      hostname: host, port: download.progressPort || 443, path: '/api/app-hash-check', method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), 'Authorization': `Bearer ${token}` }
-    }, (res) => { res.resume(); });
-    req.on('error', () => { });
-    req.setTimeout(15000, () => { try { req.destroy(); } catch (e) { } });
-    req.write(body);
-    req.end();
-  } catch (e) { }
-}
-
-// Runs the check for one download (live or finished). Progress goes to the window as 'hash-check-progress'; the result is kept and reported to the site.
-async function runHashCheck(downloadId, opts) {
-  const o = opts || {};
-  const id = String(downloadId);
-  if (hashingGated() && !o.auto) return { error: 'Check files is turned off while Auto extract is on and Check files after download is off.' };
-  if (hashChecksRunning.has(id)) return { error: 'A file check is already running for this download.' };
-  const doc = hashCheck.loadManifest(app.getPath('userData'), id);
-  if (!doc) return { error: 'This download has no checksums to compare against.' };
-  const live = activeDownloads.get(downloadId) || activeDownloads.get(id) || null;
-  const downloadDir = doc.downloadDir || (live && live.name ? path.join(settings.downloadPath, live.name) : '');
-  const state = { cancelled: false };
-  hashChecksRunning.set(id, state);
-  const siteDownload = live || { id, remotePath: '', progressHost: null };
-  const siteToken = (live && live.token) || (() => { try { return loadSession(); } catch (e) { return null; } })();
-  let lastSent = 0;
-  let lastSite = 0;
-  try {
-    sendToMain('hash-check-progress', { id, done: 0, total: doc.files.length, name: '', percent: 0 });
-    reportHashProgressToServer(siteDownload, siteToken, { percent: 0, done: 0, total: doc.files.length });
-    const result = await hashCheck.verifyManifest(doc, {
-      resolvePath: (rel) => { const safe = sanitizeRelativePath(String(rel)); return safe ? resolveInside(downloadDir, safe) : null; },
-      isCancelled: () => state.cancelled,
-      onProgress: (pr) => {
-        const now = Date.now();
-        if (live) { live.hashPercent = pr.percent; live.statusMessage = `Checking files ${pr.percent}% (${pr.done}/${pr.total})...`; }
-        if (!pr.partial || now - lastSent >= 250) { lastSent = now; sendToMain('hash-check-progress', { id, done: pr.done, total: pr.total, name: pr.name, percent: pr.percent }); }
-        if (now - lastSite >= 2000) { lastSite = now; reportHashProgressToServer(siteDownload, siteToken, { percent: pr.percent, done: pr.done, total: pr.total }); }
-      }
-    });
-    if (!result.cancelled) {
-      hashCheck.saveResult(app.getPath('userData'), id, result);
-      reportHashCheckToServer(siteDownload, siteToken, result);
-    } else {
-      reportHashProgressToServer(siteDownload, siteToken, { cancelled: true });
-    }
-    if (live) { live.hashPercent = null; }
-    const text = hashCheck.describeResult(result);
-    sendToMain('hash-check-result', { id, result, text });
-    logToFile(`[hashCheck] ${doc.name}: ok=${result.ok} bad=${result.bad.length} missing=${result.missing.length} notChecked=${result.notChecked}${result.cancelled ? ' (stopped)' : ''}`);
-    return { result, text };
-  } catch (e) {
-    logToFile(`[hashCheck] failed: ${e && e.message ? e.message : e}`);
-    return { error: 'The file check could not run: ' + (e && e.message ? e.message : e) };
-  } finally {
-    hashChecksRunning.delete(id);
-  }
-}
 
 ipcMain.handle('verify-download-files', (event, id) => runHashCheck(id));
 ipcMain.handle('cancel-hash-check', (event, id) => { const st = hashChecksRunning.get(String(id)); if (st) st.cancelled = true; return !!st; });
@@ -7214,170 +6082,6 @@ ipcMain.handle('get-session-status', async () => {
 // version field exactly, NOT the zero-padded tag format used for git tags.
 // Returns null if the file is missing/unparseable or has no entry for that version.
 let whatsNewContentCache = null;
-function getWhatsNewForVersion(version) {
-  try {
-    if (whatsNewContentCache === null) {
-      const whatsNewPath = path.join(__dirname, 'renderer', 'whats-new.json');
-      whatsNewContentCache = fs.existsSync(whatsNewPath)
-        ? JSON.parse(fs.readFileSync(whatsNewPath, 'utf8'))
-        : {};
-    }
-    const entry = whatsNewContentCache && typeof whatsNewContentCache === 'object'
-      ? whatsNewContentCache[version]
-      : null;
-    return entry ? { version, ...entry } : null;
-  } catch (e) {
-    try { logToFile(`[WhatsNew] failed to read/parse whats-new.json: ${e && e.message ? e.message : String(e)}`); } catch (e2) { }
-    return null;
-  }
-}
-
-// Shared update-check logic — returns full result including installerUrl (for internal use only).
-// The check-updates IPC handler strips installerUrl before returning to renderer (C1/H1).
-function fetchLatestReleaseInfo() {
-  return new Promise((resolve) => {
-    // CI smoke test: never call GitHub (shared runner IPs get rate limited, and any
-    // console error fails the smoke test).
-    if (SMOKE_TEST) { resolve({ hasUpdate: false, version: app.getVersion() }); return; }
-    const options = {
-      hostname: 'api.github.com',
-      path: '/repos/Nildyanna/armgddn-downloader/releases', // Fetch all releases to include prereleases for testing
-      method: 'GET',
-      headers: {
-        'User-Agent': 'ARMGDDN-Companion',
-        'Accept': 'application/vnd.github.v3+json'
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      let bytes = 0;
-      res.on('data', chunk => data += chunk);
-      res.on('data', chunk => {
-        bytes += chunk.length;
-        if (bytes > 1024 * 1024) {
-          try { res.destroy(new Error('Response too large')); } catch (e) { }
-        }
-      });
-      res.on('end', () => {
-        try {
-          const releases = JSON.parse(data);
-          if (!Array.isArray(releases)) {
-            // GitHub answers an object like {"message":"API rate limit exceeded ..."} (403/429)
-            // when an IP makes too many unauthenticated requests. Not an app error: say so.
-            const msg = releases && typeof releases.message === 'string' ? releases.message : '';
-            if (res.statusCode === 403 || res.statusCode === 429 || /rate limit/i.test(msg)) {
-              resolve({ hasUpdate: false, version: app.getVersion(), rateLimited: true,
-                error: 'GitHub is limiting update checks from your network right now. Try again in a little while.' });
-              return;
-            }
-            resolve({ error: 'Invalid releases response' });
-            return;
-          }
-          // Pick the most recent release by creation date (including prereleases for testing)
-          const latestRelease = releases.reduce((latest, current) => {
-            const latestDate = new Date(latest.created_at);
-            const currentDate = new Date(current.created_at);
-            return currentDate > latestDate ? current : latest;
-          }, releases[0]);
-          const release = latestRelease;
-          const latestVersion = (release.tag_name || '').replace(/^v/, '');
-          const currentVersion = app.getVersion();
-
-          // Compare versions
-          const newerExists = compareVersions(latestVersion, currentVersion) > 0;
-          const osTooOld = newerExists && macTooOldForRelease(latestVersion, process.platform, os.release());
-          const hasUpdate = newerExists && !osTooOld;
-
-          // Find the appropriate installer asset
-          let installerUrl = null;
-          let installerName = null;
-          const assets = release.assets || [];
-          const platform = process.platform;
-
-          if (platform === 'win32') {
-            // Look for .exe installer
-            const exeAsset = assets.find(a => a.name.endsWith('.exe'));
-            if (exeAsset) {
-              installerUrl = exeAsset.browser_download_url;
-              installerName = exeAsset.name;
-            }
-          } else if (platform === 'linux') {
-            // Look for .AppImage or .deb
-            const appImageAsset = assets.find(a => a.name.endsWith('.AppImage'));
-            const debAsset = assets.find(a => a.name.endsWith('.deb'));
-            if (appImageAsset) {
-              installerUrl = appImageAsset.browser_download_url;
-              installerName = appImageAsset.name;
-            } else if (debAsset) {
-              installerUrl = debAsset.browser_download_url;
-              installerName = debAsset.name;
-            }
-          } else if (platform === 'darwin') {
-            // Look for .dmg
-            const dmgAsset = assets.find(a => a.name.endsWith('.dmg'));
-            if (dmgAsset) {
-              installerUrl = dmgAsset.browser_download_url;
-              installerName = dmgAsset.name;
-            }
-          }
-
-          // Require a matching signature asset for auto-install.
-          // This avoids failing later with "Update signature missing" if the release is still
-          // being published/signed or if a signature upload was skipped.
-          if (installerUrl && installerName) {
-            const sigName = `${installerName}.sig`;
-            const sigAsset = assets.find(a => a && a.name === sigName);
-            if (!sigAsset) {
-              installerUrl = null;
-            }
-          }
-
-          // Security: only allow HTTPS installer URLs from allowlisted update hosts
-          if (installerUrl) {
-            try {
-              const u = new URL(installerUrl);
-              if (u.protocol !== 'https:' || !isAllowedUpdateHost(u.hostname)) {
-                installerUrl = null;
-              }
-            } catch (e) {
-              installerUrl = null;
-            }
-          }
-
-          let installerSize = 0;
-          try { const a = (release.assets || []).find(x => x && x.browser_download_url === installerUrl); installerSize = a && Number(a.size) > 0 ? Number(a.size) : 0; } catch (e) { }
-          resolve({
-            hasUpdate,
-            version: currentVersion,
-            latestVersion,
-            osTooOld,
-            installerSize,
-            notice: osTooOld ? `Version ${latestVersion} needs macOS 13 or newer, so it isn't offered on this Mac. You can keep using v${currentVersion}.` : '',
-            releaseUrl: release.html_url || 'https://github.com/Nildyanna/armgddn-downloader/releases',
-            installerUrl,  // Only used internally; stripped before sending to renderer
-            releaseNotes: release.body || ''
-          });
-        } catch (e) {
-          console.error('Failed to check for updates:', e);
-          resolve({ hasUpdate: false, version: app.getVersion(), error: 'Failed to check for updates' });
-        }
-      });
-    });
-
-    req.setTimeout(10000, () => {
-      try { req.destroy(new Error('Update check timeout')); } catch (e) { }
-    });
-
-    req.on('error', (err) => {
-      console.error('Update check failed:', err);
-      resolve({ hasUpdate: false, version: app.getVersion(), error: err.message });
-    });
-
-    req.end();
-  });
-}
-
 ipcMain.handle('check-updates', async () => safeUpdateResult(await fetchLatestReleaseInfo()));
 
 // A Companion left running (a PC that stays on, the app in the tray) never saw a new release: the check ran only at start-up. This checks once an
@@ -7385,57 +6089,10 @@ ipcMain.handle('check-updates', async () => safeUpdateResult(await fetchLatestRe
 // and a message to whichever windows are open, which show their own update prompt.
 const UPDATE_POLL_MS = 60 * 60 * 1000;
 let _updateAnnouncedVersion = '';
-async function pollForUpdateOnce() {
-  try {
-    if (SMOKE_TEST) return;
-    if (!app.isPackaged && process.env.ARMGDDN_ALLOW_DEV_UPDATE !== '1') return;          // a test or dev copy never announces updates
-    if (_installUpdateInProgress) return;
-    const raw = await fetchLatestReleaseInfo();
-    if (!raw || raw.error || !raw.hasUpdate || !raw.latestVersion) return;
-    if (_updateAnnouncedVersion === raw.latestVersion) return;                              // already told them about this one
-    _updateAnnouncedVersion = raw.latestVersion;
-    logToFile(`[Update] hourly check: version ${raw.latestVersion} is available (running ${app.getVersion()})`);
-    showDownloadNotification(NATIVE_PREVIEW ? 'ARMGDDN App update available' : 'ARMGDDN Companion update available', `Version ${raw.latestVersion} is ready. Open ${NATIVE_PREVIEW ? 'ARMGDDN App' : 'the Companion'} to install it.`);
-    const info = safeUpdateResult(raw);
-    // The native window has its own update bar; the hidden classic window must not pop a prompt of its own (Nov 20).
-    try { if (mainWindow && !mainWindow.isDestroyed() && !(NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed())) mainWindow.webContents.send('update-available', info); } catch (e) { }
-    try { if (nativeWindow && !nativeWindow.isDestroyed()) nativeWindow.webContents.send('native:updateAvailable', info); } catch (e) { }
-  } catch (e) { logToFile('[Update] hourly check failed: ' + (e && e.message ? e.message : e)); }
-}
-function startUpdatePoller() {
-  try { setInterval(pollForUpdateOnce, UPDATE_POLL_MS); } catch (e) { }
-}
-
 // Guard against concurrent install-update calls (e.g. the double-runner loop caused by
 // a relaunch-on-failure bug in older runners).  Once an install is in flight, any
 // subsequent call is silently rejected until the process exits or the install fails.
 let _installUpdateInProgress = false;
-
-// Where and how the install screen draws (Windows): the app window's spot and size in real pixels, the page's colours (sent by the
-// app as it starts the update; updateRunner turns them into #rrggbb or a default), and the logo copied out of the app package so
-// PowerShell can read it. A minimised or hidden window uses the middle of its screen at a normal size.
-function installScreen(colors, version) {
-  const c = (colors && typeof colors === 'object') ? colors : {};
-  const spec = { bg: c.bg, fg: c.fg, dim: c.dim, accent: c.accent, track: c.track, version };
-  const win = nativeWindow;   // the ARMGDDN App's own window (mainWindow is the hidden classic one)
-  try {
-    const { screen } = require('electron');   // only usable once the app is ready, which it is by the time an update installs
-    let b = win.getBounds();
-    if (win.isMinimized() || !win.isVisible()) {
-      const wa = screen.getDisplayMatching(b).workArea;
-      b = { width: Math.min(1280, wa.width), height: Math.min(800, wa.height) };
-      b.x = wa.x + Math.round((wa.width - b.width) / 2); b.y = wa.y + Math.round((wa.height - b.height) / 2);
-    }
-    const r = process.platform === 'win32' && typeof screen.dipToScreenRect === 'function' ? screen.dipToScreenRect(win, b) : b;
-    Object.assign(spec, { x: r.x, y: r.y, w: r.width, h: r.height, scale: screen.getDisplayMatching(b).scaleFactor || 1 });
-  } catch (e) { }
-  try {
-    const logo = path.join(app.getPath('userData'), 'update-logo.png');
-    fs.writeFileSync(logo, fs.readFileSync(path.join(__dirname, 'renderer', 'native', 'skull-logo.png')));
-    spec.logo = logo;
-  } catch (e) { }
-  return spec;
-}
 
 // Download and install update
 // Security (C1/H1): The renderer-supplied URL is ignored entirely. The installer URL is
@@ -8148,9 +6805,3 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
 // Older Macs stay on the version they have instead of being offered one that won't open.
 const MAC_MIN_DARWIN_MAJOR = 22;
 const MAC_MIN_DARWIN_FROM_VERSION = '5.0.20';
-function macTooOldForRelease(latestVersion, platform, osRelease) {
-  if (platform !== 'darwin') return false;
-  if (compareVersions(latestVersion, MAC_MIN_DARWIN_FROM_VERSION) < 0) return false;
-  const major = parseInt(String(osRelease || ''), 10);
-  return Number.isFinite(major) && major < MAC_MIN_DARWIN_MAJOR;
-}

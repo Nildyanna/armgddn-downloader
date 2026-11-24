@@ -4,7 +4,7 @@ const test = require('node:test'); const assert = require('node:assert'); const 
 const src = require('./mainSource')();
 test('loadSession() returns a boolean, so it must not be used as a token in the library calls', () => {
   assert.match(src, /function savedSessionToken\(\)/);
-  const catalog = src.slice(src.indexOf('function catalogTokens'), src.indexOf('async function comicsGet'));
+  const catalog = require('./mainSource').fn('catalogTokens');
   assert.ok(catalog.includes('savedSessionToken()') && !catalog.includes('loadSession()'));
   for (const h of ["ipcMain.handle('comics-download-missing'", "ipcMain.handle('music-download-missing'"]) {
     const body = src.slice(src.indexOf(h), src.indexOf(h) + 900);
@@ -12,7 +12,7 @@ test('loadSession() returns a boolean, so it must not be used as a token in the 
   }
   // the native Komga calls get their sign-in through comicsGet, which tries every token the app holds (catalogTokens above)
   assert.ok(src.slice(src.indexOf("ipcMain.handle('native-komga-lists'"), src.indexOf("ipcMain.handle('native-komga-lists'") + 600).includes('comicsGet('));
-  const helper = src.slice(src.indexOf('async function komgaAddFromCatalog'), src.indexOf('// The reading orders a member can add'));
+  const helper = require('./mainSource').fn('komgaAddFromCatalog');
   assert.ok(helper.includes('comicsGet('));
   assert.ok(src.slice(src.indexOf("ipcMain.handle('native-komga-add'"), src.indexOf("ipcMain.handle('native-komga-add'") + 1500).includes('komgaAddFromCatalog('));
 });
