@@ -763,6 +763,14 @@ header select + select { margin-left: 0; }
 .bcard.worn { border-color: var(--accent, #22c55e); box-shadow: 0 0 0 1px var(--accent, #22c55e) inset; }
 .bcard.locked { opacity: .62; } .bcard.locked .bemoji { filter: grayscale(1); }
 .bcard.hidden { opacity: .5; border-style: dashed; }
+/* An earned secret badge (Nov 24 2026): gold-filled card with a "Secret badge · <rarity>" label. Gold tints over the theme's own panel,
+   so text keeps the theme's colours and contrast in light and dark themes. */
+.bcard.gold { border-color: #e8b84a; background: linear-gradient(135deg, color-mix(in srgb, #ffc766 34%, var(--panel)), color-mix(in srgb, #b8860b 22%, var(--panel)) 70%);
+  box-shadow: 0 0 0 1px #e8b84a66 inset, 0 6px 18px -8px #e8b84a99; }
+.bcard.gold.worn { border-color: #ffd27a; box-shadow: 0 0 0 2px #ffd27a inset, 0 6px 18px -8px #e8b84acc; }
+.bcard.gold .bemoji { filter: drop-shadow(0 0 6px #ffc76699); }
+.bsecret { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
+  color: #3a2600; background: linear-gradient(90deg, #ffd98a, #e8b84a); }
 .bemoji { font-size: 30px; line-height: 1; } .bname { font-weight: 600; } .bdesc { font-size: 12px; color: var(--dim); overflow-wrap: anywhere; }
 .bnum { font-size: 11px; color: var(--dim); }
 .bprogbar { height: 6px; border-radius: 999px; background: var(--inset); overflow: hidden; } .bprogbar i { display: block; height: 100%; background: var(--accent, #22c55e); }

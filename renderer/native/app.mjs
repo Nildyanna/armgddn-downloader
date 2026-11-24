@@ -339,7 +339,10 @@ function BadgeCard({ b, worn, onWear }) {
   if (b.state === 'hidden') return html`<div class="bcard hidden" title="A secret badge"><div class="bemoji">❔</div><div class="bname">HIDDEN</div><div class="bdesc">${b.hint || 'Keep exploring to find out.'}</div></div>`;
   const earned = b.state === 'earned';
   const pct = !earned && b.need ? Math.min(100, Math.floor(((b.have || 0) / b.need) * 100)) : 0;
-  return html`<div class=${'bcard ' + (earned ? 'earned' : 'locked') + (worn ? ' worn' : '')}>
+  // An earned secret badge is gold and says it was secret and how rare it is (George, Nov 24 2026).
+  const gold = earned && b.secret;
+  return html`<div class=${'bcard ' + (earned ? 'earned' : 'locked') + (gold ? ' gold' : '') + (worn ? ' worn' : '')}>
+    ${gold ? html`<div class="bsecret">\u2726 Secret badge${b.rarity ? ' \u00b7 ' + b.rarity : ''}</div>` : ''}
     <div class="bemoji">${b.emoji}</div><div class="bname">${b.name}</div>
     <div class="bdesc">${b.desc}${b.steps > 1 ? ' (step ' + b.step + ' of ' + b.steps + ')' : ''}</div>
     ${!earned && b.need ? html`<div class="bprogbar" title=${(b.have || 0).toLocaleString('en-US') + ' of ' + b.need.toLocaleString('en-US') + (b.unit ? ' ' + b.unit : '')}><i style=${'width:' + pct + '%'}></i></div><div class="bnum">${(b.have || 0).toLocaleString('en-US')} / ${b.need.toLocaleString('en-US')}</div>` : ''}

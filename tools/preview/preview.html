@@ -56,6 +56,14 @@
     browse: () => ok({ files, folders: [] }), trending: () => ok({ windows: { week: trend, month: trend } }), appProgress: () => ok({}), gems: () => ok({ items: [] }),
     prefs: () => ok({ prefs: { introSeen: true } }), adminGet: () => ok({ role: 'member' }), downloads: () => ok(downloads), history: () => ok([]), requests: () => ok({ requests: [] }),
     pendingWhatsNew: () => null, checkUpdates: () => ({ hasUpdate: false }),
+    // Badges scene: one of each card kind (earned secret = gold, earned, worn, locked with progress, still hidden).
+    badges: () => ok({ earnedCount: 3, total: 64, permanentHave: 20, permanentTotal: 58, hiddenLeft: 5, chosen: 'bugsquash', items: [
+      { id: 'bugsquash', family: 'Craft', state: 'earned', secret: true, rarity: 'Legendary', name: 'Bug Squasher', emoji: '\u{1F41B}', desc: 'Reported a bug that got fixed', holdersPct: 0.1 },
+      { id: 'night', family: 'Craft', state: 'earned', secret: true, rarity: 'Very rare', name: 'Witching Hour', emoji: '\u{1F319}', desc: 'Downloaded at 3 AM', holdersPct: 3.2 },
+      { id: 'companion', family: 'Craft', state: 'earned', name: 'App Crew', emoji: '\u{1F91D}', desc: 'Uses the ARMGDDN App', holdersPct: 41.4 },
+      { id: 'hauler', family: 'Craft', state: 'locked', name: 'Heavy Hauler', emoji: '\u{1F69A}', desc: 'Download 1 TB', have: 412, need: 1000, unit: 'GB' },
+      { id: 'h1', family: 'Craft', state: 'hidden', hint: 'Keep exploring to find out.' }] }),
+    badgeChoose: () => ok({}),
   };
   window.nativeAPI = new Proxy({}, { get: (_, n) => {
     if (n === 'quiet') return true;
