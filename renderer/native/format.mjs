@@ -111,6 +111,14 @@ const COLLECTIONS = new Set(['Music', 'Comics']);
 export function collectionCoverPath(remote, folder, item) {
   if (!COLLECTIONS.has(remote) || !item) return '';
   const isIssue = !item.isDir && /\.(cbz|cbr|cb7|pdf|epub)$/i.test(item.name || '');
+  // A track inside an album shows the album's cover (Nov 24 2026); a disc folder ("CD1", "Disc 2") uses the album above it.
+  const isTrack = remote === 'Music' && !item.isDir && /\.(mp3|flac|m4a|aac|ogg|opus|wav|wma|alac|ape|wv)$/i.test(item.name || '');
+  if (isTrack) {
+    const parts = String(folder || '').split('/').filter(Boolean);
+    if (parts.length && /^(cd|dis[ck])\s*\d+$/i.test(parts[parts.length - 1])) parts.pop();
+    if (!parts.length) return '';
+    return `/api/collection-cover?remote=Music&path=${encodeURIComponent(parts.join('/'))}&w=480`;
+  }
   if (!item.isDir && !isIssue) return '';
   const rel = [folder, item.name].filter(Boolean).join('/');
   return `/api/collection-cover?remote=${encodeURIComponent(remote)}&path=${encodeURIComponent(rel)}&w=480`;

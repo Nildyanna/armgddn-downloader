@@ -36,6 +36,10 @@ test('grid helpers', async () => {
   assert.equal(collectionCoverPath('Comics', 'Marvel/X-Men', { name: 'Issue 1.cbz', isDir: false }), '/api/collection-cover?remote=Comics&path=Marvel%2FX-Men%2FIssue%201.cbz&w=480');
   assert.equal(collectionCoverPath('PC Games', '', { name: 'A', isDir: true }), '');
   assert.equal(collectionCoverPath('Music', '', { name: 'notes.txt', isDir: false }), '');
+  // tracks show their album's cover; a disc folder uses the album above it; loose files at the top show nothing
+  assert.equal(collectionCoverPath('Music', '30 Seconds To Mars/Hurricane 2.0', { name: '01 - Hurricane.mp3', isDir: false }), '/api/collection-cover?remote=Music&path=30%20Seconds%20To%20Mars%2FHurricane%202.0&w=480');
+  assert.equal(collectionCoverPath('Music', 'Abba/Gold/CD2', { name: '05 - SOS.flac', isDir: false }), '/api/collection-cover?remote=Music&path=Abba%2FGold&w=480');
+  assert.equal(collectionCoverPath('Music', '', { name: 'loose.mp3', isDir: false }), '');
   assert.equal(visibleItems('Music', '', [{ name: '.trash-2026-11-05', isDir: true }, { name: 'Abba', isDir: true }]).length, 1);
   const { canDownload } = await import('../renderer/native/format.mjs');
   assert.equal(canDownload('3D Printer Models', 'Bambu', { name: 'X1C', isDir: true }), false);
