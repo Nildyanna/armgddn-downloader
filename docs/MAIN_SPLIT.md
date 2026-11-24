@@ -53,6 +53,7 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
 | 7 | updates, hashing, komgaActions, deepLinks, quietHours, restore, dialogs, siteApi, failures, extract, installSpace | 53 functions in 11 groups | 6,808 |
 | 8 | progress, manifest, completion, downloadControl, downloader, appWindows, comics | the download engine (downloadFile, 1,187 lines), the windows; getAppLoadInfo and comicsGet stay (a local sessionToken shadows main.js's) | 3,263 |
 | 9 | ipcKomga, ipcSettings, ipcCollections, ipcHelp, ipcDownloads, ipcApp | all 60 IPC handler registrations (`tools/split/moveipc.js`; register() called where the last one stood) | 1,331 |
+| 10 | smokeTest, sessionAsync, supportText | the app's own start-up test and two small helpers | 1,114 |
 
 ## Shared state (from step 5)
 
@@ -62,7 +63,13 @@ nothing else changes, a function whose local names shadow one of those is refuse
 exactly. `test/mainModulesLoad.test.js` loads every module with Electron stubbed and fails when a module (or main.js) asks for a name that
 is not exported.
 
-## Next
+## What stays in main.js
+
+The start-up sequence (Sentry, single-instance lock, app.whenReady, timers, quit handling), the shared variables, the context registration,
+and two functions the tool refused because a local name shadows a shared one (getAppLoadInfo, comicsGet). main.js is now the app's
+wiring: what starts, in what order, and the state everything shares.
+
+## Next (older plan, kept for reference)
 
 What is left uses shared state: settings, the windows, the session token, activeDownloads, the scheduler. Planned order:
 logging (logToFile and friends), settings load/save, session, mirrors and the download scheduler, the downloader (downloadFile is about
