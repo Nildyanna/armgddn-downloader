@@ -73,7 +73,10 @@ for (const name of names) {
     if (x.type === 'ClassDeclaration' && x.id) locals.add(x.id.name);
   });
   fn.params.forEach((p) => { const ns = []; declNames(p, ns); ns.forEach((v) => locals.add(v)); });
-  walk(fn.body, (x, parent, key) => {
+  // Default parameter values (ttlMs = MIRROR_COOLDOWN_MS) are code too: rewrite them like the body. The names the parameters bind are not.
+  const defaults = [];
+  walk({ type: 'Params', list: fn.params }, (x) => { if (x.type === 'AssignmentPattern') defaults.push(x.right); });
+  const visitRef = (x, parent, key) => {
     if (x.type !== 'Identifier' || !top.has(x.name) || names.includes(x.name)) return;
     if (parent && parent.type === 'MemberExpression' && key === 'property' && !parent.computed) return;
     if (parent && (parent.type === 'Property' || parent.type === 'MethodDefinition') && key === 'key' && !parent.computed && !parent.shorthand) return;
@@ -84,7 +87,9 @@ for (const name of names) {
     ctxNames.add(x.name);
     if (parent && parent.type === 'Property' && parent.shorthand && key === 'value') edits.push([x.start, x.end, `${x.name}: ctx.${x.name}`]);
     else edits.push([x.start, x.end, `ctx.${x.name}`]);
-  });
+  };
+  walk(fn.body, visitRef);
+  defaults.forEach((d) => walk(d, visitRef));
 }
 
 // Module text: each function with the comment lines above it, rewritten.

@@ -15,7 +15,12 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
   2. `node --test test/*.test.js` passes (tests that read the main-process source use `test/mainSource.js`, which joins main.js and main/**);
   3. the app's own start-up test passes for real, under a virtual display:
      `ARMGDDN_SMOKE_TEST=1 ARMGDDN_SMOKE_RESULT=<file> xvfb-run -a ./node_modules/.bin/electron . --no-sandbox` prints `[smoke] PASS`
-     (link the system rclone to `rclone/rclone` first; it is git-excluded).
+     (link the system rclone to `rclone/rclone` first; it is git-excluded);
+  4. `node tools/split/undef.js --acorn <path>` finds no name a module uses without defining it (added after step 6 nearly moved a default
+     parameter, `ttlMs = MIRROR_COOLDOWN_MS`, without rewriting it; the text proof cannot see that).
+- **Before this branch is merged:** the start-up smoke test does not run the app's own download path (it downloads through rclone directly),
+  so the scheduler and downloader moves must be checked with real downloads in a built app: one game, a multi-file batch, pause and resume,
+  a cancelled download, and an update while a download is paused.
 - No circular requires between main/ modules: a cycle hands a module an unfinished copy of another, so a function is undefined at run time
   (`test/mainModulesNoCycles.test.js`).
 - `main/**/*` is in package.json build.files; `test/packagedFiles.test.js` fails if a required module would be left out of the installer.
@@ -37,6 +42,7 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
 | 3 | log | the debug log: getDebugLogPath, logToFile, debugLog and their private state | 9,148 |
 | 4 | sevenZip, platform, downloadState, komgaConfig, auth, files, errors, net | 17 freed by step 3, plus rotateLogIfNeeded into log (it made log and files require each other) | 8,744 |
 | 5 | context, settings, session, history | first moves that use shared state (settings, sessionToken, downloadHistory), through main/context.js | 8,516 |
+| 6 | mirrors, scheduler | mirror cooldowns; the download scheduler (which file starts next, how many at once) | 8,157 |
 
 ## Shared state (from step 5)
 

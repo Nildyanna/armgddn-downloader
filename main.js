@@ -4,6 +4,8 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 // ---- split-out modules (docs/MAIN_SPLIT.md) ----
+const { refreshDownloadConcurrency, getDownloadRunningCount, incDownloadRunning, decDownloadRunning, pickNextAdaptiveTask, schedulerPump, enqueueAdaptiveTask, getGlobalPoolLimit, refreshGlobalPoolLimit, acquireGlobalPoolSlot } = require('./main/scheduler');
+const { pruneMirrorCooldowns, markMirrorCooldown, clearMirrorCooldown, getActiveMirrorAvoidList } = require('./main/mirrors');
 const { loadHistory, saveHistory } = require('./main/history');
 const { loadSession, savedSessionToken, saveSession, clearSession } = require('./main/session');
 const { applyStartupRegistration, normalizeSettings, loadSettings, saveSettings } = require('./main/settings');
@@ -21,14 +23,22 @@ const { scrubForSentry, normalizeFailureLine, isNetworkStreamError, extractRclon
 const { normalizeMirrorKey, sanitizeRelativePath, resolveInside, escapePowerShellSingleQuoted, quoteDesktopExecArg, redactUrlQueryStrings, isPathInside, normalizeFileSize, formatBytes, clampInt, parseRcloneHttpStatus, parseSpeedToBytes, formatSpeed, formatEtaSeconds, compareVersions } = require('./main/util');
 // Shared state for the main/ modules (main/context.js): live getters and setters onto main.js's own variables.
 require('./main/context').provide({
+  get MIRROR_COOLDOWN_MS() { return MIRROR_COOLDOWN_MS; },
+  get activeDownloads() { return activeDownloads; }, set activeDownloads(v) { activeDownloads = v; },
+  get adaptiveScheduler() { return adaptiveScheduler; },
+  downloadFile,
   get downloadHistory() { return downloadHistory; }, set downloadHistory(v) { downloadHistory = v; },
+  getAppLoadInfo,
   get getConfigPath() { return getConfigPath; },
   get getHistoryPath() { return getHistoryPath; },
   get getSessionPath() { return getSessionPath; },
+  get globalConcurrencyPool() { return globalConcurrencyPool; },
+  get mirrorCooldowns() { return mirrorCooldowns; },
   refreshGlobalPoolLimit,
   get sessionToken() { return sessionToken; }, set sessionToken(v) { sessionToken = v; },
   get settings() { return settings; }, set settings(v) { settings = v; },
   get settingsLoadedFromDisk() { return settingsLoadedFromDisk; }, set settingsLoadedFromDisk(v) { settingsLoadedFromDisk = v; },
+  updateProgress,
 });
 // Shared state for the main/ modules (main/context.js): live getters and setters onto main.js's own variables.
 const pipeGuard = require('./pipeGuard');
@@ -415,54 +425,6 @@ const MIRROR_EARLY_STALL_MS = 45 * 1000;
 const STALL_SAME_MIRROR_RETRIES = 3;
 const mirrorCooldowns = new Map();
 
-function pruneMirrorCooldowns(now = Date.now()) {
-  try {
-    for (const [mirror, until] of mirrorCooldowns.entries()) {
-      if (!Number.isFinite(Number(until)) || Number(until) <= now) {
-        mirrorCooldowns.delete(mirror);
-      }
-    }
-  } catch (e) { }
-}
-
-function markMirrorCooldown(mirror, reason, ttlMs = MIRROR_COOLDOWN_MS) {
-  const key = normalizeMirrorKey(mirror);
-  if (!key) return false;
-  const until = Date.now() + Math.max(60 * 1000, Number(ttlMs) || MIRROR_COOLDOWN_MS);
-  mirrorCooldowns.set(key, until);
-  try {
-    logToFile(`[MirrorCooldown] ${key} cooldown=${Math.round((until - Date.now()) / 1000)}s reason=${reason || 'unknown'}`);
-  } catch (e) { }
-  return true;
-}
-
-function clearMirrorCooldown(mirror) {
-  const key = normalizeMirrorKey(mirror);
-  if (!key) return false;
-  return mirrorCooldowns.delete(key);
-}
-
-function getActiveMirrorAvoidList(additionalAvoid = []) {
-  const avoid = new Set();
-  try {
-    const now = Date.now();
-    pruneMirrorCooldowns(now);
-    for (const [mirror, until] of mirrorCooldowns.entries()) {
-      if (Number(until) > now) avoid.add(normalizeMirrorKey(mirror));
-    }
-  } catch (e) { }
-
-  try {
-    const extras = Array.isArray(additionalAvoid) ? additionalAvoid : [additionalAvoid];
-    for (const entry of extras) {
-      const key = normalizeMirrorKey(entry);
-      if (key) avoid.add(key);
-    }
-  } catch (e) { }
-
-  return Array.from(avoid).filter(Boolean);
-}
-
 // Handle deep links
 let protocolClientRegistered = false;
 let protocolClientRegisterError = '';
@@ -487,90 +449,6 @@ if (process.argv.includes('--native') || isolatedDevRun) {
     protocolClientRegistered = false;
     protocolClientRegisterError = e && e.message ? e.message : String(e);
   }
-}
-
-async function refreshDownloadConcurrency(download, token, manifestUrl) {
-  if (!download) return;
-
-  const requested = Number(settings && settings.maxConcurrentDownloads);
-  const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requested) ? requested : 3));
-
-  let effective = null;
-  let notice = '';
-
-  try {
-    const loadInfo = await Promise.race([
-      getAppLoadInfo(token, manifestUrl),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('get-app-load timeout')), 8000))
-    ]);
-
-    if (loadInfo && loadInfo.success === true && loadInfo.concurrency) {
-      const eff = Number(loadInfo.concurrency.effective);
-      if (Number.isFinite(eff) && eff > 0) {
-        effective = Math.min(requestedWorkers, eff);
-      }
-      try {
-        if (Number.isFinite(eff) && eff > 0) {
-          globalConcurrencyPool.serverLimit = Math.floor(eff);
-        } else {
-          globalConcurrencyPool.serverLimit = null;
-        }
-        refreshGlobalPoolLimit();
-      } catch (e2) { }
-      notice = (loadInfo.concurrency.notice ? String(loadInfo.concurrency.notice) : '') || '';
-      try { if (directEndpoint.configure(loadInfo.directDownload)) logToFile(`[Direct] endpoint ${directEndpoint.describe()}`); } catch (e2) { }
-      download.serverOverhead = loadInfo;
-      try {
-        logToFile(`[Concurrency] app-load ok requested=${requestedWorkers} serverEffective=${eff} appliedEffective=${effective} manifestHost=${(() => { try { return manifestUrl ? new URL(String(manifestUrl)).hostname : ''; } catch (e2) { return ''; } })()}`);
-      } catch (e) { }
-    } else if (loadInfo && loadInfo.success === false) {
-      const errMsg = loadInfo && loadInfo.error ? String(loadInfo.error) : 'Failed to fetch server load';
-      logToFile(`[Concurrency] app-load failed: ${errMsg}`);
-      try {
-        globalConcurrencyPool.serverLimit = null;
-        refreshGlobalPoolLimit();
-      } catch (e2) { }
-      // Provide a user-friendly message for quota exhaustion
-      if (errMsg && /quota|limit|exhausted|too many/i.test(errMsg)) {
-        notice = 'You are allowed 2 complete downloads per title per 24‑hour period and you have exhausted that for this title.';
-      }
-      // Any other failure (a DNS or connection error, a rate limit) only means the load check
-      // was skipped: the download carries on at the requested setting. Showing the raw error
-      // (it used to be the last fallback host's "getaddrinfo ENOTFOUND ...") made a working
-      // download look broken, so it stays in the log.
-    }
-  } catch (e) {
-    try {
-      logToFile(`[Concurrency] get-app-load threw: ${e && e.message ? e.message : String(e)}`);
-    } catch (e2) { }
-    try {
-      globalConcurrencyPool.serverLimit = null;
-      refreshGlobalPoolLimit();
-    } catch (e3) { }
-  }
-
-  download.effectiveConcurrency = effective;
-  download.serverOverhead = download.serverOverhead || null;
-
-  if (!notice) {
-    const effNow = Number(download.effectiveConcurrency);
-    if (Number.isFinite(effNow) && effNow > 0 && requestedWorkers > effNow) {
-      // Only blame load when the server is actually giving less than its
-      // normal per-user limit; otherwise the setting is just above that limit.
-      const base = Number(download.serverOverhead && download.serverOverhead.concurrency && download.serverOverhead.concurrency.base);
-      notice = (Number.isFinite(base) && base > 0 && effNow >= base)
-        ? `The server allows up to ${base} parallel downloads per user (you set ${requestedWorkers}).`
-        : `Server load is high. Concurrent downloads may be throttled (${effNow} / ${requestedWorkers}).`;
-    }
-  }
-
-  if (notice) {
-    download.statusMessage = notice;
-  } else if (effective && !isPinnedDownloadStatusMessage(download.statusMessage)) {
-    download.statusMessage = `Starting downloads...`;
-  }
-
-  try { updateProgress(download.id); } catch (e) { }
 }
 
 // Native browser preview (staging only): `--native` opens the new browse window next to the normal one. Nothing happens without the flag.
@@ -1050,243 +928,6 @@ const adaptiveScheduler = {
   lastDecisionLogAt: 0,
   lastStallLogAt: 0
 };
-
-function getDownloadRunningCount(downloadId) {
-  try {
-    const n = adaptiveScheduler.runningByDownloadId.get(String(downloadId));
-    return Number.isFinite(Number(n)) ? Number(n) : 0;
-  } catch (e) {
-    return 0;
-  }
-}
-
-function incDownloadRunning(downloadId) {
-  const key = String(downloadId);
-  const prev = getDownloadRunningCount(key);
-  adaptiveScheduler.runningByDownloadId.set(key, prev + 1);
-}
-
-function decDownloadRunning(downloadId) {
-  const key = String(downloadId);
-  const prev = getDownloadRunningCount(key);
-  const next = Math.max(0, prev - 1);
-  if (next === 0) adaptiveScheduler.runningByDownloadId.delete(key);
-  else adaptiveScheduler.runningByDownloadId.set(key, next);
-}
-
-function pickNextAdaptiveTask() {
-  const now = Date.now();
-  let best = null;
-  let bestScore = Infinity;
-  // Diagnostic only: records why each pending task was passed over this
-  // pass, so a stall (pending.length > 0 but nothing ever gets picked) is
-  // diagnosable from the log instead of looking identical to a healthy,
-  // empty-queue idle state. See the stall-summary log in schedulerPump().
-  const skipReasons = [];
-
-  for (const t of adaptiveScheduler.pending) {
-    if (!t) continue;
-    const download = activeDownloads.get(String(t.downloadId));
-    if (!download) { skipReasons.push(`${t.downloadId}/${t.file && t.file.name}: no download object`); continue; }
-    if (download.cancelled) { skipReasons.push(`${t.downloadId}/${t.file && t.file.name}: cancelled`); continue; }
-    if (download.paused) { skipReasons.push(`${t.downloadId}/${t.file && t.file.name}: paused`); continue; }
-
-    const remaining = getTaskRemainingBytes(t);
-    const ageMs = Math.max(0, now - (Number(t.enqueuedAt) || now));
-    const running = getDownloadRunningCount(t.downloadId);
-
-    // Enforce per-download concurrency limit (server effective limit when available).
-    try {
-      const requested = Number(settings && settings.maxConcurrentDownloads);
-      const requestedWorkers = Math.min(20, Math.max(1, Number.isFinite(requested) ? requested : 3));
-      const eff = Number(download && download.effectiveConcurrency);
-      const limit = (Number.isFinite(eff) && eff > 0) ? Math.min(requestedWorkers, eff) : requestedWorkers;
-      if (running >= limit) {
-        skipReasons.push(`${t.downloadId}/${t.file && t.file.name}: running=${running} >= limit=${limit} (requested=${requestedWorkers}, effective=${eff})`);
-        continue;
-      }
-    } catch (e) { }
-
-    const emaSpeedTotal = Number(download && download.__emaSpeedBytesPerSec) || 0;
-    const perTaskSpeed = (Number.isFinite(emaSpeedTotal) && emaSpeedTotal > 0)
-      ? (emaSpeedTotal / Math.max(1, Math.max(1, running)))
-      : 0;
-    const secondsToFinish = (Number.isFinite(perTaskSpeed) && perTaskSpeed > 0)
-      ? (remaining / Math.max(1, perTaskSpeed))
-      : remaining;
-
-    // Baseline: shortest estimated time-to-finish.
-    // Fairness: strongly prefer giving a slot to a download with no running tasks.
-    // Aging: small nudge so tasks don't starve.
-    let score = secondsToFinish;
-    if (running === 0) score *= 0.5;
-    score -= Math.min(5, (ageMs / 1000) * 0.05);
-
-    // User priority (drag-to-reprioritize): a PROPORTIONAL discount, not a
-    // flat offset — secondsToFinish scales with file size (seconds for a
-    // small file, hours for a large one), so a fixed constant would be
-    // meaningless next to a multi-GB download's estimate. Each priority rank
-    // halves the effective score, keeping the bias consistent regardless of
-    // file size while still letting the existing fairness/aging act as a
-    // tiebreaker between downloads of similar priority.
-    const priorityRank = Number(download && download.userPriority) || 0;
-    if (priorityRank > 0) {
-      score *= Math.pow(0.5, priorityRank);
-    }
-
-    if (score < bestScore) {
-      bestScore = score;
-      best = t;
-    }
-  }
-  // Nothing pickable despite a non-empty queue -- exactly the signature of a
-  // stalled scheduler (a real one from the field: 4 files finished, then 22
-  // remaining files sat untouched for 2.5+ minutes with no visibility into
-  // why). Always-on but throttled to once per 5s so a genuine stall doesn't
-  // flood the log.
-  if (!best && adaptiveScheduler.pending.length > 0) {
-    const nowThrottle = Date.now();
-    if (nowThrottle - (Number(adaptiveScheduler.lastStallLogAt) || 0) > 5000) {
-      adaptiveScheduler.lastStallLogAt = nowThrottle;
-      try {
-        logToFile(`[Scheduler] STALL: ${adaptiveScheduler.pending.length} pending task(s), none pickable this pass:`);
-        for (const reason of skipReasons) {
-          logToFile(`[Scheduler] STALL reason: ${reason}`);
-        }
-      } catch (e) { }
-    }
-  }
-
-  return best;
-}
-
-async function schedulerPump() {
-  if (adaptiveScheduler.pumping) return;
-  adaptiveScheduler.pumping = true;
-  try {
-    while (adaptiveScheduler.pending.length > 0) {
-      const task = pickNextAdaptiveTask();
-      if (!task) break;
-
-      // Remove selected task from the pending list.
-      const idx = adaptiveScheduler.pending.indexOf(task);
-      if (idx !== -1) adaptiveScheduler.pending.splice(idx, 1);
-
-      const releaseGlobal = await acquireGlobalPoolSlot();
-
-      // Slot acquired; the download may have been cancelled/paused while waiting.
-      const download = activeDownloads.get(String(task.downloadId));
-      if (!download || download.cancelled || download.paused) {
-        try { releaseGlobal(); } catch (e) { }
-        try { if (task && typeof task.reject === 'function') task.reject(new Error('Download cancelled')); } catch (e) { }
-        continue;
-      }
-
-      // Start the task (non-preemptive).
-      incDownloadRunning(task.downloadId);
-
-      try {
-        const now = Date.now();
-        // Was DEBUG_LOGGING-gated -- that flag is off in production, so this
-        // was invisible in every real-world log, including the one that
-        // originally surfaced the scheduler stall this diagnostic exists to
-        // catch. Always-on now, still throttled to avoid flooding the log.
-        if ((now - (Number(adaptiveScheduler.lastDecisionLogAt) || 0)) > 3000) {
-          adaptiveScheduler.lastDecisionLogAt = now;
-          logToFile(`[Scheduler] start downloadId=${String(task.downloadId)} file=${task && task.file && task.file.name ? String(task.file.name) : ''} pending=${adaptiveScheduler.pending.length} inUse=${Number(globalConcurrencyPool.inUse) || 0} limit=${Number(globalConcurrencyPool.limit) || 0}`);
-        }
-      } catch (e) { }
-
-      downloadFile(task.downloadId, task.file, task.downloadDir, releaseGlobal)
-        .then(() => {
-          try { decDownloadRunning(task.downloadId); } catch (e) { }
-          try {
-            logToFile(`[Scheduler] task done (ok) downloadId=${String(task.downloadId)} file=${task && task.file && task.file.name ? String(task.file.name) : ''} pending=${adaptiveScheduler.pending.length} -- re-pumping`);
-          } catch (e) { }
-          try { if (task && typeof task.resolve === 'function') task.resolve(); } catch (e) { }
-          try { schedulerPump(); } catch (e) { }
-        })
-        .catch((err) => {
-          try { decDownloadRunning(task.downloadId); } catch (e) { }
-          try {
-            logToFile(`[Scheduler] task done (err) downloadId=${String(task.downloadId)} file=${task && task.file && task.file.name ? String(task.file.name) : ''} pending=${adaptiveScheduler.pending.length} err=${err && err.message ? err.message : String(err)} -- re-pumping`);
-          } catch (e) { }
-          try { if (task && typeof task.reject === 'function') task.reject(err); } catch (e) { }
-          try { schedulerPump(); } catch (e) { }
-        });
-    }
-  } finally {
-    adaptiveScheduler.pumping = false;
-  }
-}
-
-function enqueueAdaptiveTask(downloadId, file, downloadDir) {
-  return new Promise((resolve, reject) => {
-    adaptiveScheduler.pending.push({
-      downloadId: String(downloadId),
-      file,
-      downloadDir,
-      enqueuedAt: Date.now(),
-      resolve,
-      reject
-    });
-    schedulerPump();
-  });
-}
-
-function getGlobalPoolLimit() {
-  try {
-    const raw = Number(settings && settings.maxConcurrentDownloads);
-    const n = Number.isFinite(raw) && raw > 0 ? Math.floor(raw) : 2;
-    const userLimit = Math.min(20, Math.max(1, n));
-    const serverRaw = Number(globalConcurrencyPool && globalConcurrencyPool.serverLimit);
-    const serverLimit = Number.isFinite(serverRaw) && serverRaw > 0 ? Math.floor(serverRaw) : null;
-    return serverLimit ? Math.max(1, Math.min(userLimit, serverLimit)) : userLimit;
-  } catch (e) {
-    return 2;
-  }
-}
-
-function refreshGlobalPoolLimit() {
-  try {
-    globalConcurrencyPool.limit = getGlobalPoolLimit();
-    while (globalConcurrencyPool.inUse < globalConcurrencyPool.limit && globalConcurrencyPool.waiters.length > 0) {
-      const next = globalConcurrencyPool.waiters.shift();
-      if (!next) continue;
-      globalConcurrencyPool.inUse++;
-      next(() => {
-        try {
-          globalConcurrencyPool.inUse = Math.max(0, (Number(globalConcurrencyPool.inUse) || 0) - 1);
-          refreshGlobalPoolLimit();
-        } catch (e) {
-        }
-      });
-    }
-  } catch (e) {
-  }
-}
-
-function acquireGlobalPoolSlot() {
-  refreshGlobalPoolLimit();
-  return new Promise((resolve) => {
-    try {
-      if (globalConcurrencyPool.inUse < globalConcurrencyPool.limit) {
-        globalConcurrencyPool.inUse++;
-        resolve(() => {
-          try {
-            globalConcurrencyPool.inUse = Math.max(0, (Number(globalConcurrencyPool.inUse) || 0) - 1);
-            refreshGlobalPoolLimit();
-          } catch (e) {
-          }
-        });
-        return;
-      }
-      globalConcurrencyPool.waiters.push(resolve);
-    } catch (e) {
-      resolve(() => { });
-    }
-  });
-}
 
 let settings = {
   downloadPath: path.join(defaultDownloadsBase(), 'ARMGDDN'),
