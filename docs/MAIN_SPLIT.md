@@ -36,6 +36,15 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
 | 2 | errors, sevenZip, files, net, updateCheck, downloadState, windows | 50 that use no shared state | 9,198 |
 | 3 | log | the debug log: getDebugLogPath, logToFile, debugLog and their private state | 9,148 |
 | 4 | sevenZip, platform, downloadState, komgaConfig, auth, files, errors, net | 17 freed by step 3, plus rotateLogIfNeeded into log (it made log and files require each other) | 8,744 |
+| 5 | context, settings, session, history | first moves that use shared state (settings, sessionToken, downloadHistory), through main/context.js | 8,516 |
+
+## Shared state (from step 5)
+
+`main/context.js` holds live getters and setters that main.js registers once (`require('./main/context').provide({...})` near the top).
+`tools/split/movectx.js` moves a function that uses shared state: each reference to a name that stays in main.js becomes `ctx.<name>`,
+nothing else changes, a function whose local names shadow one of those is refused, and undoing `ctx.` must give back the original text
+exactly. `test/mainModulesLoad.test.js` loads every module with Electron stubbed and fails when a module (or main.js) asks for a name that
+is not exported.
 
 ## Next
 

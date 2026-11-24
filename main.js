@@ -4,6 +4,9 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 // ---- split-out modules (docs/MAIN_SPLIT.md) ----
+const { loadHistory, saveHistory } = require('./main/history');
+const { loadSession, savedSessionToken, saveSession, clearSession } = require('./main/session');
+const { applyStartupRegistration, normalizeSettings, loadSettings, saveSettings } = require('./main/settings');
 const { clearLoginTraces } = require('./main/auth');
 const { loadKomgaConfig, saveKomgaConfig, forgetKomgaKey } = require('./main/komgaConfig');
 const { ensureLinuxProtocolDesktopHandler } = require('./main/platform');
@@ -16,6 +19,18 @@ const { getTaskRemainingBytes, defaultDownloadsBase, cleanupAppImageBackup, writ
 const { snip7z, describe7zTool, find7zArchivesInDir, ensureRunnable7z, probe7z } = require('./main/sevenZip');
 const { scrubForSentry, normalizeFailureLine, isNetworkStreamError, extractRcloneErrorDetail, formatRcloneExitCodeHint, isPinnedDownloadStatusMessage, notInChannelMessage, isQuotaError, isServerBusyError, isLikelySignedExpiringUrl, isRcloneCrashOutput, isTokenExpiredError } = require('./main/errors');
 const { normalizeMirrorKey, sanitizeRelativePath, resolveInside, escapePowerShellSingleQuoted, quoteDesktopExecArg, redactUrlQueryStrings, isPathInside, normalizeFileSize, formatBytes, clampInt, parseRcloneHttpStatus, parseSpeedToBytes, formatSpeed, formatEtaSeconds, compareVersions } = require('./main/util');
+// Shared state for the main/ modules (main/context.js): live getters and setters onto main.js's own variables.
+require('./main/context').provide({
+  get downloadHistory() { return downloadHistory; }, set downloadHistory(v) { downloadHistory = v; },
+  get getConfigPath() { return getConfigPath; },
+  get getHistoryPath() { return getHistoryPath; },
+  get getSessionPath() { return getSessionPath; },
+  refreshGlobalPoolLimit,
+  get sessionToken() { return sessionToken; }, set sessionToken(v) { sessionToken = v; },
+  get settings() { return settings; }, set settings(v) { settings = v; },
+  get settingsLoadedFromDisk() { return settingsLoadedFromDisk; }, set settingsLoadedFromDisk(v) { settingsLoadedFromDisk = v; },
+});
+// Shared state for the main/ modules (main/context.js): live getters and setters onto main.js's own variables.
 const pipeGuard = require('./pipeGuard');
 pipeGuard.install(process);   // a closed stdout/stderr (started from a launcher that went away) made every console call fail with EPIPE in a loop
 
@@ -1298,109 +1313,6 @@ let settings = {
   lastSeenVersion: ''
 };
 
-function applyStartupRegistration() {
-  try {
-    // A copy that is not the installed app (a dev run, the native preview from a test folder) must never write the Windows/macOS startup
-    // entry: it shares the installed app's entry name, so it replaced it with a bare Electron path and Windows then opened an empty
-    // Electron window at every boot (2026-11-18).
-    if (!app.isPackaged) { logToFile('[Startup] not a packaged build; leaving the OS startup entry alone'); return; }
-    const enabled = !!(settings && settings.startWithOsStartup);
-
-    if (process.platform === 'win32' || process.platform === 'darwin') {
-      try {
-        app.setLoginItemSettings({
-          openAtLogin: enabled,
-          path: process.execPath,
-          args: enabled ? ['--autostart'] : []
-        });
-      } catch (e) {
-        logToFile(`[Startup] setLoginItemSettings failed: ${e && e.message ? e.message : e}`);
-      }
-      return;
-    }
-
-    if (process.platform === 'linux') {
-      const autostartDir = path.join(os.homedir(), '.config', 'autostart');
-      const desktopPath = path.join(autostartDir, 'armgddn-companion.desktop');
-
-      if (!enabled) {
-        try {
-          if (fs.existsSync(desktopPath)) fs.unlinkSync(desktopPath);
-        } catch (e) { }
-        return;
-      }
-
-      fs.mkdirSync(autostartDir, { recursive: true });
-      const execPath = process.execPath;
-      const content = [
-        '[Desktop Entry]',
-        'Type=Application',
-        'Name=ARMGDDN Companion',
-        `Exec=${execPath} --autostart`,
-        'Terminal=false',
-        'X-GNOME-Autostart-enabled=true'
-      ].join('\n') + '\n';
-
-      let existing = '';
-      try { existing = fs.readFileSync(desktopPath, 'utf8'); } catch (e) { }
-      if (existing !== content) {
-        fs.writeFileSync(desktopPath, content, 'utf8');
-        try { fs.chmodSync(desktopPath, 0o644); } catch (e) { }
-      }
-    }
-  } catch (e) {
-    logToFile(`[Startup] applyStartupRegistration failed: ${e && e.message ? e.message : e}`);
-  }
-}
-
-function normalizeSettings() {
-  try {
-    if (!settings || typeof settings !== 'object') return;
-    const maxConc = parseInt(String(settings.maxConcurrentDownloads), 10);
-    // Enforce cap of 8 for stability
-    settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 6) : 2;
-    // 0 = Auto (the app picks); otherwise the most connections one file may open.
-    settings.schedule = scheduleLib.normalize(settings.schedule);
-    const cpf = parseInt(String(settings.connectionsPerFile), 10);
-    settings.connectionsPerFile = [1, 2, 4, 8, 16].includes(cpf) ? cpf : 0;
-
-    const rawDownloadPath = settings.downloadPath;
-    const defaultDownloadPath = path.join(defaultDownloadsBase(), 'ARMGDDN');
-    if (typeof rawDownloadPath !== 'string' || !rawDownloadPath.trim()) {
-      settings.downloadPath = defaultDownloadPath;
-    } else {
-      const cleaned = rawDownloadPath.trim();
-      settings.downloadPath = path.isAbsolute(cleaned) ? cleaned : defaultDownloadPath;
-    }
-
-    const speed = Number(settings.maxDownloadSpeedMBps);
-    settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
-
-    settings.autoExtract7z = !!settings.autoExtract7z;
-    // 5.15.0 turned "Check files after download" on for everyone, once. After that the member's own choice is kept, including off.
-    if (!settings.autoHashCheckDefaultedOn) { settings.autoHashCheck = true; settings.autoHashCheckDefaultedOn = true; }
-    settings.autoHashCheck = !!settings.autoHashCheck;
-    settings.hashGateNoticeSeen = !!settings.hashGateNoticeSeen;
-    settings.comicsFolder = typeof settings.comicsFolder === 'string' ? settings.comicsFolder.slice(0, 500) : '';
-    settings.musicFolder = typeof settings.musicFolder === 'string' ? settings.musicFolder.slice(0, 500) : '';
-    settings.extractFolder = typeof settings.extractFolder === 'string' ? settings.extractFolder.slice(0, 500) : '';
-    settings.showNotifications = settings.showNotifications !== false;
-    settings.minimizeToTrayOnMinimize = !!settings.minimizeToTrayOnMinimize;
-    settings.minimizeToTrayOnClose = !!settings.minimizeToTrayOnClose;
-    settings.lightGraphics = !!settings.lightGraphics;
-
-    settings.autoUpdate = !!settings.autoUpdate;
-    settings.startWithOsStartup = !!settings.startWithOsStartup;
-    settings.startWithOsMinimized = !!settings.startWithOsMinimized;
-    settings.errorReporting = settings.errorReporting !== false;
-    settings.errorReportingAsked = settings.errorReportingAsked === true;
-
-    refreshGlobalPoolLimit();
-  } catch (e) {
-    logToFile(`[Settings] normalizeSettings failed: ${e && e.message ? e.message : e}`);
-  }
-}
-
 // DevTools policy: allow in dev always, and in packaged builds only when explicitly enabled
 // via environment variable on the owner's machine.
 const isOwnerDevToolsAllowed = !app.isPackaged || process.env.DOWNLOADER_OWNER_DEVTOOLS === '1';
@@ -1690,45 +1602,6 @@ function buildDownloadBlockedMessage(itemName, count) {
   );
 }
 
-// Load session cookie from file (encrypted)
-function loadSession() {
-  try {
-    const sessionPath = getSessionPath();
-    if (fs.existsSync(sessionPath)) {
-      const data = JSON.parse(fs.readFileSync(sessionPath, 'utf8'));
-      if (data.token && data.expiresAt && new Date(data.expiresAt) > new Date()) {
-        // Decrypt if encrypted, otherwise use plain (migration path for older sessions)
-        if (data.encrypted && !secureStore.syncAvailable) {
-          return !!sessionToken;                      // newer Electron: loadSessionAsync() decrypts it at startup
-        }
-        if (data.encrypted && secureStore.isAvailableSync()) {
-          const encryptedBuffer = Buffer.from(data.token, 'base64');
-          sessionToken = secureStore.decryptSync(encryptedBuffer);
-        } else {
-          if (!secureStore.isAvailableSync()) {
-            logToFile('WARNING: safeStorage unavailable — session token stored in plaintext. Upgrade OS keychain support to enable encryption.');
-          }
-          sessionToken = data.token;
-        }
-        logToFile('Session loaded from file');
-        return true;
-      }
-    }
-  } catch (e) {
-    logToFile('Failed to load session: ' + e.message);
-  }
-  return false;
-}
-
-// Same as loadSession, for Electron versions without the synchronous safeStorage methods (called once at startup).
-// The saved sign-in as a token string. loadSession() only fills sessionToken and returns true or false, so using its result as a token
-// sent "Bearer true" (the comics and music library calls were refused with 401 whenever no token had been handed over by the website).
-function savedSessionToken() {
-  if (sessionToken) return String(sessionToken);
-  try { loadSession(); } catch (e) { }
-  return sessionToken ? String(sessionToken) : '';
-}
-
 async function loadSessionAsync() {
   try {
     const sessionPath = getSessionPath();
@@ -1751,100 +1624,8 @@ async function loadSessionAsync() {
   }
 }
 
-// Save app session token to file (encrypted)
-function saveSession(token) {
-  try {
-    const sessionPath = getSessionPath();
-    // Session expires in 30 days
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-
-    let storedToken = token;
-    let encrypted = false;
-
-    if (!secureStore.syncAvailable) {
-      // Newer Electron: encrypt asynchronously. The token is usable in memory right away; the file follows a moment later.
-      sessionToken = token;
-      (async () => {
-        try {
-          let tok = token, enc = false;
-          if (await secureStore.isAvailable()) { tok = (await secureStore.encrypt(token)).toString('base64'); enc = true; }
-          writeSessionFile(sessionPath, { token: tok, expiresAt, encrypted: enc });
-          logToFile('Session saved to file (encrypted: ' + enc + ')');
-        } catch (e) { logToFile('Failed to save session: ' + e.message); }
-      })();
-      return;
-    }
-
-    // Encrypt if available
-    if (secureStore.isAvailableSync()) {
-      const encryptedBuffer = secureStore.encryptSync(token);
-      storedToken = encryptedBuffer.toString('base64');
-      encrypted = true;
-    }
-
-    writeSessionFile(sessionPath, { token: storedToken, expiresAt, encrypted });
-    sessionToken = token;
-    logToFile('Session saved to file (encrypted: ' + encrypted + ')');
-  } catch (e) {
-    logToFile('Failed to save session: ' + e.message);
-  }
-}
-
-// Clear session
-function clearSession() {
-  try {
-    const sessionPath = getSessionPath();
-    if (fs.existsSync(sessionPath)) {
-      fs.unlinkSync(sessionPath);
-    }
-    sessionToken = null;
-  } catch (e) {
-    logToFile('Failed to clear session: ' + e.message);
-  }
-}
-
 // Load settings
 let settingsLoadedFromDisk = false;
-function loadSettings() {
-  try {
-    const configPath = getConfigPath();
-    if (fs.existsSync(configPath)) {
-      const data = fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/, '');   // an editor or PowerShell may have added a byte-order mark
-      settings = { ...settings, ...JSON.parse(data) };
-    }
-    const hadHashDefault = !!settings.autoHashCheckDefaultedOn;
-    normalizeSettings();
-    settingsLoadedFromDisk = true;
-    if (!hadHashDefault && fs.existsSync(getConfigPath())) saveSettings();      // keep the one-time switch-on from repeating
-  } catch (e) {
-    console.error('Failed to load settings:', e);
-  }
-}
-
-// Save settings
-function saveSettings() {
-  try {
-    const configPath = getConfigPath();
-    fs.writeFileSync(configPath, JSON.stringify(settings, null, 2));
-  } catch (e) {
-    console.error('Failed to save settings:', e);
-  }
-}
-
-// Load history
-function loadHistory() {
-  try {
-    const historyPath = getHistoryPath();
-    if (fs.existsSync(historyPath)) {
-      const data = fs.readFileSync(historyPath, 'utf8');
-      downloadHistory = JSON.parse(data);
-    } else {
-    }
-  } catch (e) {
-    console.error('Failed to load history:', e);
-  }
-}
-
 // Downloads that were unfinished when the app closed (an update, a crash, a restart) come back as "Paused" in the Downloads tab. Resume asks
 // the site for a fresh link to the same item, and the files already on disk are picked up as before. See inflightStore.js.
 const inflightStore = require('./inflightStore');
@@ -1934,16 +1715,6 @@ async function resumeRestoredDownload(downloadId) {
   } catch (e) {
     say('Could not reach the site: ' + (e && e.message ? e.message : e));
     return false;
-  }
-}
-
-// Save history
-function saveHistory() {
-  try {
-    const historyPath = getHistoryPath();
-    fs.writeFileSync(historyPath, JSON.stringify(downloadHistory, null, 2));
-  } catch (e) {
-    console.error('Failed to save history:', e);
   }
 }
 

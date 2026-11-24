@@ -97,7 +97,7 @@ test('main.js closes the saved grant on resume and on cancel of a restored downl
 test('graphics saver: idle pause, Lighter graphics setting in both windows, no endless progress shimmer', () => {
   const fs = require('fs'), p = (...a) => require('path').join(__dirname, '..', ...a);
   const main = require('./mainSource')();
-  assert.ok(main.includes('lightGraphics: false') && main.includes("settings.lightGraphics = !!settings.lightGraphics") && main.includes("    'lightGraphics',\n"));
+  assert.ok(main.includes('lightGraphics: false') && /(ctx\.)?settings\.lightGraphics = !!(ctx\.)?settings\.lightGraphics/.test(main) && main.includes("    'lightGraphics',\n"));
   for (const f of ['renderer/index.html', 'renderer/native/index.html']) assert.ok(/gpu-saver\.js/.test(fs.readFileSync(p(f), 'utf8')) && /gpu-saver\.css/.test(fs.readFileSync(p(f), 'utf8')), f);
   assert.ok(fs.readFileSync(p('renderer/gpu-saver.css'), 'utf8').includes('animation-play-state: paused'));
   assert.ok(!/animation: progress-shimmer/.test(fs.readFileSync(p('renderer/styles.css'), 'utf8')));
