@@ -35,13 +35,51 @@ def find(lines, name):
     return c, j
 
 
+def auto_requires(names, acorn, module):
+    """The require lines the moved functions need, rewritten for a file in main/ (one line per module, only the names used)."""
+    import json, subprocess
+    deps = json.loads(subprocess.run(['node', str(ROOT / 'tools' / 'split' / 'deps.js'), '--acorn', acorn, '--json'],
+                                     capture_output=True, text=True, check=True).stdout)
+    by = {f['name']: f for f in deps}
+    bad = [n for n in names if by.get(n, {}).get('state') or [x for x in by.get(n, {}).get('fns', []) if x not in names]]
+    if bad:
+        sys.exit('these use shared state or other main.js functions, move them later: ' + ', '.join(bad))
+    need = sorted({r for n in names for r in by[n]['requires']})
+    text = MAIN.read_text()
+    out = {}
+    for nm in need:
+        m = re.search(r"^(?:const|let) (?:\{([^}]*)\}|(\w+)) = require\('([^']+)'\);", text, re.M) and None
+        for line in text.split('\n'):
+            mm = re.match(r"^(?:const|let) (?:\{([^}]*)\}|(\w+)) = require\('([^']+)'\)", line)
+            if not mm:
+                continue
+            names_here = [x.strip() for x in mm.group(1).split(',')] if mm.group(1) else [mm.group(2)]
+            if nm in names_here:
+                mod = mm.group(3)
+                if mod == './main/' + module:
+                    break                                     # same module: nothing to require
+                if mod.startswith('./main/'):
+                    mod = './' + mod[len('./main/'):]
+                elif mod.startswith('./'):
+                    mod = '../' + mod[2:]
+                out.setdefault((mod, bool(mm.group(1))), []).append(nm)
+                break
+    lines = []
+    for (mod, destructured), ns in sorted(out.items()):
+        lines.append(("const { %s } = require('%s');" % (', '.join(ns), mod)) if destructured else ("const %s = require('%s');" % (ns[0], mod)))
+    return lines
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('module')
     ap.add_argument('names', nargs='+')
     ap.add_argument('--requires', default='', help='lines the module needs at the top, separated by ;; ')
     ap.add_argument('--doc', default='', help='one-line description for the module header')
+    ap.add_argument('--auto-requires', default='', help='path to acorn: work out the requires the moved functions need (tools/split/deps.js)')
     a = ap.parse_args()
+    if a.auto_requires:
+        a.requires = '\n'.join(filter(None, [a.requires] + auto_requires(a.names, a.auto_requires, a.module)))
 
     lines = MAIN.read_text().split('\n')
     spans = sorted((find(lines, n) + (n,) for n in a.names), reverse=True)
@@ -67,7 +105,7 @@ def main():
         allnames = have + [n for n in names_in_order if n not in have]
     else:
         head = ["'use strict';", f'// {a.doc or a.module} (moved out of main.js unchanged, Nov 24 2026; docs/MAIN_SPLIT.md).']
-        req = [r.strip() for r in a.requires.split(';;') if r.strip()]
+        req = [r.strip() for r in re.split(r';;|\n', a.requires) if r.strip()]
         body = '\n'.join(head) + '\n' + ('\n'.join(req) + '\n' if req else '') + '\n' + '\n\n'.join(blocks[n] for n in names_in_order) + '\n\n'
         allnames = names_in_order
     mod.write_text(body + 'module.exports = { ' + ', '.join(allnames) + ' };\n')

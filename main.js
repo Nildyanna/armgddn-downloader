@@ -4,6 +4,13 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 // ---- split-out modules (docs/MAIN_SPLIT.md) ----
+const { denyNewWindows } = require('./main/windows');
+const { getActiveFileCount, isStarfieldAutoExtractTargetValue, normalizeDownloadItemKey, reportDirectGrantEnd, downloadToRenderer, waitForChildClose, waitForDownloadTasksToFinish, pruneActiveProcesses, peakOrAverageSpeedBytes, scheduleActiveStates } = require('./main/downloadState');
+const { decodeBase64Signature, verifyEd25519Signature, isAutostartLaunch, safeUpdateResult } = require('./main/updateCheck');
+const { waitForNetwork, fetchJsonWithBearer, isValidToken, isValidDownloadId, attemptResolveDownloadToken, getActiveFileKey, isProxyDownloadUrl, transformProxyUrlToDirectIfPossible } = require('./main/net');
+const { getTaskRemainingBytes, defaultDownloadsBase, cleanupAppImageBackup, rotateLogIfNeeded, writeSessionFile, komgaConfigPath, installedProfileDir, getAppIcon, isSafeLibraryFolder, comicsCacheFile, isFileCompleteOnDisk, buildInstallSpaceWarning, commonOpenDir } = require('./main/files');
+const { snip7z, describe7zTool, find7zArchivesInDir } = require('./main/sevenZip');
+const { scrubForSentry, normalizeFailureLine, isNetworkStreamError, extractRcloneErrorDetail, formatRcloneExitCodeHint, isPinnedDownloadStatusMessage, notInChannelMessage, isQuotaError, isServerBusyError, isLikelySignedExpiringUrl, isRcloneCrashOutput } = require('./main/errors');
 const { normalizeMirrorKey, sanitizeRelativePath, resolveInside, escapePowerShellSingleQuoted, quoteDesktopExecArg, redactUrlQueryStrings, isPathInside, normalizeFileSize, formatBytes, clampInt, parseRcloneHttpStatus, parseSpeedToBytes, formatSpeed, formatEtaSeconds, compareVersions } = require('./main/util');
 const pipeGuard = require('./pipeGuard');
 pipeGuard.install(process);   // a closed stdout/stderr (started from a launcher that went away) made every console call fail with EPIPE in a loop
@@ -16,22 +23,6 @@ pipeGuard.install(process);   // a closed stdout/stderr (started from a launcher
 // are removed; no IP or other personal data is collected.
 const SENTRY_DSN = 'https://44845354581cd37f9f7c13cef235aae4@o4511461480398848.ingest.us.sentry.io/4512139991187456';
 const Sentry = require('@sentry/electron/main');
-function scrubForSentry(value) {
-  let s = JSON.stringify(value);
-  s = s.replace(/https?:\/\/[^\s"'\\]+/gi, (u) => {
-    const i = u.indexOf('?');
-    return i === -1 ? u : u.slice(0, i) + '?…';
-  });
-  try {
-    const home = os.homedir();
-    if (home) {
-      for (const variant of [home, home.replace(/\\/g, '\\\\'), home.replace(/\\/g, '/')]) {
-        s = s.split(variant).join('~');
-      }
-    }
-  } catch (e) { }
-  return JSON.parse(s);
-}
 // The user can turn reporting off in Settings (errorReporting). Checked right
 // before anything is sent; if settings haven't loaded yet (an error very early
 // in startup) the saved config is read directly, so an opted-out user's
@@ -86,11 +77,6 @@ if (SENTRY_DSN) {
 const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error|Can't create the download folder|connection dropped mid-download|interfering with the secure connection|\(code (?:3221225794|1073807364|3221225786)\))/i;
 function isExpectedDownloadFailure(errorText) {
   return EXPECTED_FAILURE_RE.test(String(errorText || '').split('\n')[0]);
-}
-// rclone log lines start with a timestamp; leaving it in gave every event its
-// own issue.
-function normalizeFailureLine(line) {
-  return String(line).replace(/\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2}/g, '<time>');
 }
 function reportDownloadFailure(download, errorText) {
   if (!SENTRY_DSN || !isErrorReportingEnabled()) return;
@@ -249,18 +235,6 @@ function getUpdateEd25519PublicKeyPem() {
   return UPDATE_ED25519_PUBLIC_KEY_PINNED;
 }
 
-function decodeBase64Signature(raw) {
-  const txt = String(raw || '').trim();
-  if (!txt) return null;
-  try {
-    const buf = Buffer.from(txt, 'base64');
-    if (buf.length !== 64) return null;
-    return buf;
-  } catch (e) {
-    return null;
-  }
-}
-
 const SUPPORT_TELEGRAM_URL = 'https://t.me/+xuCOd3HqpGdmZjFh';
 
 function withSupportFooter(message, fix) {
@@ -272,20 +246,6 @@ function withSupportFooter(message, fix) {
     return [msg, fixLine, supportLine].filter(Boolean).join('\n');
   } catch (e) {
     return String(message || '');
-  }
-}
-
-function verifyEd25519Signature(message, signature, publicKeyPem) {
-  try {
-    if (!message || !Buffer.isBuffer(message)) return false;
-    if (!signature || !Buffer.isBuffer(signature)) return false;
-    if (!publicKeyPem || typeof publicKeyPem !== 'string') return false;
-
-    const keyObj = crypto.createPublicKey({ key: publicKeyPem, format: 'pem' });
-    // For Ed25519, the digest algorithm is ignored; Node requires `null`.
-    return crypto.verify(null, message, keyObj, signature);
-  } catch (e) {
-    return false;
   }
 }
 
@@ -306,21 +266,6 @@ function isNetworkDownError(err) {
   if (!err) return false;
   if (err.code && NETWORK_DOWN_CODES.has(String(err.code))) return true;
   return /getaddrinfo|ENOTFOUND|EAI_AGAIN|ENETUNREACH|ENETDOWN|EHOSTUNREACH/i.test(String(err.message || err));
-}
-
-// Wait until the service host resolves again (up to maxMs). Returns true once
-// the network looks back, false if it stayed down.
-async function waitForNetwork(maxMs = 5 * 60 * 1000, hostname = 'www.armgddnbrowser.com') {
-  const dnsPromises = require('dns').promises;
-  const deadline = Date.now() + maxMs;
-  while (Date.now() < deadline) {
-    try {
-      await dnsPromises.lookup(hostname);
-      return true;
-    } catch (e) { }
-    await new Promise(r => setTimeout(r, 15000));
-  }
-  return false;
 }
 
 // fetchManifestWithAvoidMirror, but rides out a dropped connection: on a
@@ -499,22 +444,6 @@ function getActiveMirrorAvoidList(additionalAvoid = []) {
   return Array.from(avoid).filter(Boolean);
 }
 
-function isNetworkStreamError(output) {
-  const lower = String(output || '').toLowerCase();
-  return lower.includes('stream error') ||
-    lower.includes('received from peer') ||
-    lower.includes('internal_error') ||
-    lower.includes('connection reset') ||
-    lower.includes('econnreset') ||
-    lower.includes('unexpected eof') ||
-    /(^|[":\s])eof\s*$/m.test(lower) ||
-    lower.includes('broken pipe') ||
-    lower.includes('rst_stream') ||
-    lower.includes('http2') ||
-    lower.includes('transport') ||
-    lower.includes('client connection lost');
-}
-
 // Handle deep links
 let protocolClientRegistered = false;
 let protocolClientRegisterError = '';
@@ -538,37 +467,6 @@ if (process.argv.includes('--native') || isolatedDevRun) {
   } catch (e) {
     protocolClientRegistered = false;
     protocolClientRegisterError = e && e.message ? e.message : String(e);
-  }
-}
-
-function getActiveFileCount(download) {
-  try {
-    if (!download) return 0;
-    const activeFiles = download.activeFiles || {};
-    let fileCount = 0;
-    try {
-      fileCount = Object.keys(activeFiles).length;
-    } catch (e) {
-      fileCount = 0;
-    }
-
-    let procCount = 0;
-    try {
-      const procs = Array.isArray(download.activeProcesses) ? download.activeProcesses : [];
-      for (const p of procs) {
-        if (!p) continue;
-        if (p.killed) continue;
-        // Only count processes that are actually still running.
-        // ChildProcess.exitCode is null while running.
-        if (p.exitCode === null) procCount++;
-      }
-    } catch (e) {
-      procCount = 0;
-    }
-
-    return Math.max(fileCount, procCount);
-  } catch (e) {
-    return 0;
   }
 }
 
@@ -934,48 +832,6 @@ async function getAppLoadInfo(token, manifestUrl) {
   }
 }
 
-function fetchJsonWithBearer(urlString, method, bearerToken) {
-  return new Promise((resolve, reject) => {
-    const u = new URL(urlString);
-    if (u.protocol !== 'https:') {
-      reject(new Error('Security error: URL must use HTTPS'));
-      return;
-    }
-
-    const options = {
-      hostname: u.hostname,
-      port: u.port ? Number(u.port) : 443,
-      path: u.pathname + (u.search || ''),
-      method: method || 'GET',
-      headers: {
-        'User-Agent': 'ARMGDDN-Companion/' + app.getVersion(),
-        ...(bearerToken ? { 'Authorization': 'Bearer ' + bearerToken } : {})
-      },
-      timeout: 8000
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        let json = null;
-        try {
-          json = JSON.parse(data);
-        } catch (e) {
-          // ignore parse failure
-        }
-        resolve({ statusCode: res.statusCode, json, text: data, headers: res.headers || {} });
-      });
-    });
-
-    req.on('error', reject);
-    req.on('timeout', () => {
-      try { req.destroy(new Error('Request timeout')); } catch (e) { }
-    });
-    req.end();
-  });
-}
-
 // POST a JSON body to the ARMGDDN site with the member's app-session token.
 function getJsonWithBearer(urlString, bearerToken) {
   return new Promise((resolve, reject) => {
@@ -1176,31 +1032,6 @@ const adaptiveScheduler = {
   lastDecisionLogAt: 0,
   lastStallLogAt: 0
 };
-
-function getTaskRemainingBytes(task) {
-  try {
-    const file = task && task.file ? task.file : null;
-    const downloadDir = task && task.downloadDir ? String(task.downloadDir) : '';
-    const expected = file && typeof file.size === 'number' ? Number(file.size) : 0;
-    if (!downloadDir || !(expected > 0) || !file || !file.name) return expected > 0 ? expected : 0;
-    const safeRel = sanitizeRelativePath(String(file.name));
-    if (!safeRel) return expected;
-    const outputPath = resolveInside(downloadDir, safeRel);
-    if (!outputPath) return expected;
-    if (!fs.existsSync(outputPath)) return expected;
-    const st = fs.statSync(outputPath);
-    const have = st && st.isFile && st.isFile() ? Number(st.size) : 0;
-    return Math.max(0, expected - (Number.isFinite(have) ? have : 0));
-  } catch (e) {
-    try {
-      const file = task && task.file ? task.file : null;
-      const expected = file && typeof file.size === 'number' ? Number(file.size) : 0;
-      return expected > 0 ? expected : 0;
-    } catch (e2) {
-      return 0;
-    }
-  }
-}
 
 function getDownloadRunningCount(downloadId) {
   try {
@@ -1439,18 +1270,6 @@ function acquireGlobalPoolSlot() {
   });
 }
 
-// Electron throws "Failed to get 'downloads' path" when Windows has no Downloads folder for the account (removed or redirected to a drive that
-// is not there). That error at startup stopped the app from opening at all, so fall back to Documents, then the home folder.
-function defaultDownloadsBase() {
-  for (const name of ['downloads', 'documents', 'home']) {
-    try {
-      const dir = app.getPath(name);
-      if (dir) return dir;
-    } catch (e) { /* try the next folder */ }
-  }
-  return os.homedir();
-}
-
 let settings = {
   downloadPath: path.join(defaultDownloadsBase(), 'ARMGDDN'),
   maxConcurrentDownloads: 2,
@@ -1579,21 +1398,6 @@ function normalizeSettings() {
   }
 }
 
-function isAutostartLaunch() {
-  try {
-    if (Array.isArray(process.argv) && process.argv.includes('--autostart')) return true;
-  } catch (e) { }
-
-  try {
-    if (typeof app.getLoginItemSettings === 'function') {
-      const info = app.getLoginItemSettings();
-      if (info && info.wasOpenedAtLogin) return true;
-    }
-  } catch (e) { }
-
-  return false;
-}
-
 // DevTools policy: allow in dev always, and in packaged builds only when explicitly enabled
 // via environment variable on the owner's machine.
 const isOwnerDevToolsAllowed = !app.isPackaged || process.env.DOWNLOADER_OWNER_DEVTOOLS === '1';
@@ -1628,27 +1432,6 @@ function showDownloadNotification(title, body) {
     }
   } catch (e) {
     logToFile('Notification error: ' + e.message);
-  }
-}
-
-// In-app AppImage updates rename the old file to "<AppImage>.old" and never remove it, so the folder
-// gained a leftover backup after every update. Once the new version has been running for a while it is
-// no longer needed. Returns a short status string for the log; never throws.
-function cleanupAppImageBackup(appImagePath) {
-  try {
-    const current = String(appImagePath || '');
-    if (!current) return 'skipped: not running as an AppImage';
-    const oldPath = current + '.old';
-    let oldSt;
-    try { oldSt = fs.lstatSync(oldPath); } catch (e) { return 'none'; }
-    if (!oldSt.isFile()) return `kept: ${oldPath} is not a regular file`;
-    const curSt = fs.statSync(current);
-    if (!curSt.isFile() || curSt.size < 1024 * 1024) return 'kept: the current AppImage looks wrong';
-    if (oldSt.mtimeMs > curSt.mtimeMs + 1000) return 'kept: the backup is newer than the running AppImage';
-    fs.unlinkSync(oldPath);
-    return `deleted ${oldPath}`;
-  } catch (e) {
-    return `failed: ${e && e.message ? e.message : e}`;
   }
 }
 
@@ -1747,18 +1530,6 @@ function getDebugLogPath() {
     return cachedDebugLogPath;
   }
 }
-// Security (M4): Rotate debug.log if it exceeds 10 MB to prevent unbounded disk growth.
-// Keeps at most 2 log files: debug.log and debug.log.1.
-function rotateLogIfNeeded(logPath) {
-  try {
-    const stat = fs.statSync(logPath);
-    if (stat.size > 10 * 1024 * 1024) {
-      const oldLog = logPath + '.1';
-      try { fs.unlinkSync(oldLog); } catch (e) { }
-      fs.renameSync(logPath, oldLog);
-    }
-  } catch (e) { /* file doesn't exist yet or stat failed — no rotation needed */ }
-}
 
 // Track whether startup rotation has run to avoid checking on every write
 let _logRotationDoneAtStartup = false;
@@ -1782,62 +1553,6 @@ function logToFile(message) {
       fs.appendFileSync(fallbackPath, `[${new Date().toISOString()}] [logToFile fallback] ${message} (original error: ${e && e.message ? e.message : e})\n`);
     } catch (e2) { }
   }
-}
-
-function extractRcloneErrorDetail(errorOutput) {
-  try {
-    const raw = String(errorOutput || '');
-    if (!raw.trim()) return '';
-    const redacted = redactUrlQueryStrings(raw);
-    // rclone's INFO/DEBUG lines ("Starting bandwidth limiter...") are never the reason a
-    // download failed. When they are all there is, report nothing so the caller falls back
-    // to the exit-code message instead of showing one as the cause.
-    const lines = redacted
-      .split(/\r?\n/)
-      .map(l => String(l || '').trim())
-      .filter(Boolean)
-      .filter(l => !/^(?:\S+\s+\S+\s+)?(?:INFO|DEBUG)\s*:/i.test(l));
-
-    if (!lines.length) return '';
-
-    const ignore = (l) => {
-      const lower = l.toLowerCase();
-      if (lower.startsWith('transferred:')) return true;
-      if (lower.startsWith('elapsed time:')) return true;
-      if (lower.startsWith('errors:')) return true;
-      if (lower.startsWith('checks:')) return true;
-      if (lower.startsWith('transfers:')) return true;
-      if (lower.startsWith('deleted:')) return true;
-      if (lower.startsWith('renamed:')) return true;
-      if (lower.startsWith('skipped:')) return true;
-      if (lower.startsWith('server side copies:')) return true;
-      if (lower.startsWith('elapsed:')) return true;
-      if (lower.startsWith('eta:')) return true;
-      return false;
-    };
-
-    const candidates = lines.filter(l => !ignore(l));
-    const pickFrom = candidates.length ? candidates : lines;
-
-    const interesting = pickFrom.find(l => /\berror\b|\bfatal\b|\bfailed\b|\bpanic\b/i.test(l));
-    const chosen = interesting || pickFrom[pickFrom.length - 1] || '';
-
-    const compact = chosen.replace(/\s+/g, ' ').trim();
-    return compact.length > 280 ? compact.slice(0, 280) : compact;
-  } catch (e) {
-    return '';
-  }
-}
-
-function formatRcloneExitCodeHint(code) {
-  if (code === 3221225794 || code === 1073807364 || code === 3221225786) {
-    return 'Windows ended the download (the PC was shutting down or signing out, or the app was closed). Start it again and it picks up where it stopped.';
-  }
-  if (code === 1) {
-    return 'Something went wrong while downloading. This is often caused by an expired link, temporary provider limits, a network hiccup, or not being able to write the file to disk.';
-  }
-
-  return 'Something went wrong while downloading.';
 }
 
 function formatDownloadFailedMessage(code, errorOutput) {
@@ -2046,24 +1761,6 @@ function ensureRunnable7z(exe, force = false) {
   }
 }
 
-// Diagnostics for extraction failures: one-line summaries that go to debug.log so a member
-// can paste the "[7z]" lines instead of us guessing why the tool would not run.
-function snip7z(text, max = 400) {
-  const t = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
-  return t.length > max ? `${t.slice(0, max)}...` : t;
-}
-
-function describe7zTool(exe) {
-  try {
-    const st = fs.statSync(exe);
-    let exec = 'n/a';
-    if (process.platform !== 'win32') { try { fs.accessSync(exe, fs.constants.X_OK); exec = 'yes'; } catch (e) { exec = 'no'; } }
-    return `path=${exe} size=${st.size} mode=${(st.mode & 0o777).toString(8)} executable=${exec} platform=${process.platform}/${process.arch}`;
-  } catch (e) {
-    return `path=${exe} stat failed: ${e && e.message ? e.message : e}`;
-  }
-}
-
 // Find a 7-Zip that actually starts. A Linux member's AppImage had a bundled 7za that looked
 // executable but would not spawn ("List failed: code=null err=yes"), so try the bundled tool,
 // then a private copy of it, then the system's own 7-Zip, and log each result.
@@ -2117,13 +1814,6 @@ function resolve7zTool() {
   return null;
 }
 
-function isStarfieldAutoExtractTargetValue(value) {
-  const raw = String(value || '').replace(/\\/g, '/').replace(/\/+/g, '/').trim();
-  if (!raw) return false;
-  const parts = raw.split('/').filter(Boolean);
-  return parts.some(part => /^starfield(?:[\s._-]|$)/i.test(part));
-}
-
 function isStarfieldAutoExtractTargetManifest(manifest) {
   if (!manifest || typeof manifest !== 'object') return false;
   if (manifest.autoExtractDisabled) return true;
@@ -2160,14 +1850,6 @@ const getSessionPath = () => {
 };
 
 const COMPLETION_WINDOW_MS = 24 * 60 * 60 * 1000;
-
-function normalizeDownloadItemKey(value) {
-  return String(value || '')
-    .replace(/\\/g, '/')
-    .replace(/\/+/g, '/')
-    .trim()
-    .toLowerCase();
-}
 
 function getDownloadItemKey(manifest, remotePath, name) {
   try {
@@ -2216,16 +1898,6 @@ function countRecentCompletedDownloads(itemKey, windowMs = COMPLETION_WINDOW_MS)
     count++;
   }
   return count;
-}
-
-function isPinnedDownloadStatusMessage(message) {
-  const text = String(message || '').trim();
-  return !!text && (
-    /^starfield detected:/i.test(text) ||
-    /^skipped \d+\/\d+ files already on disk\./i.test(text) ||
-    /^all files already on disk\./i.test(text) ||
-    /^no existing files found\./i.test(text)
-  );
 }
 
 function buildDownloadBlockedMessage(itemName, count) {
@@ -2295,12 +1967,6 @@ async function loadSessionAsync() {
     logToFile('Failed to load session: ' + e.message);
     return false;
   }
-}
-
-// The saved sign-in is readable by this user only (matters when the system has no keychain and the token is not encrypted).
-function writeSessionFile(sessionPath, data) {
-  fs.writeFileSync(sessionPath, JSON.stringify(data, null, 2), { mode: 0o600 });
-  try { fs.chmodSync(sessionPath, 0o600); } catch (e) { /* not supported on this system */ }
 }
 
 // Save app session token to file (encrypted)
@@ -2615,8 +2281,6 @@ const KOMGA_LISTS = komga.LISTS;
 let komgaPromptWin = null;
 let komgaPromptResolve = null;
 
-function komgaConfigPath() { return path.join(app.getPath('userData'), 'komga.json'); }
-
 async function loadKomgaConfig() {
   try {
     const d = JSON.parse(fs.readFileSync(komgaConfigPath(), 'utf8'));
@@ -2665,15 +2329,6 @@ ipcMain.handle('komga-submit', (event, data) => {
   return { ok: true };
 });
 
-// The native window's Komga section: the same saved server and key as the classic dialog, answered as data instead of message boxes.
-// The installed Companion's profile folder, when this is a different profile (the native preview keeps its own).
-function installedProfileDir() {
-  try {
-    const dir = path.join(app.getPath('appData'), 'armgddn-downloader');
-    if (path.resolve(dir) === path.resolve(app.getPath('userData'))) return null;
-    return fs.existsSync(path.join(dir, 'komga.json')) ? dir : null;
-  } catch (e) { return null; }
-}
 ipcMain.handle('native-komga-import', async () => {
   const dir = installedProfileDir();
   if (!dir) return { ok: false, error: 'There is no other Companion profile with a saved Komga key to import.' };
@@ -3104,23 +2759,6 @@ async function verifySession() {
 
     makeRequest('https://www.armgddnbrowser.com/api/auth-status');
   });
-}
-
-// Helper to get consistent app icon
-function getAppIcon() {
-  let iconPath = process.platform === 'win32'
-    ? path.join(__dirname, 'assets', 'icon.ico')
-    : path.join(__dirname, 'assets', 'icon.png');
-
-  if (!fs.existsSync(iconPath)) {
-    const resourcePath = process.platform === 'win32'
-      ? path.join(process.resourcesPath, 'assets', 'icon.ico')
-      : path.join(process.resourcesPath, 'assets', 'icon.png');
-    if (fs.existsSync(resourcePath)) {
-      iconPath = resourcePath;
-    }
-  }
-  return nativeImage.createFromPath(iconPath);
 }
 
 // Create main window
@@ -3841,16 +3479,6 @@ function showAboutDialog() {
   } catch (e) { logToFile('showAboutDialog failed: ' + e.message); }
 }
 
-// A download that has finally failed (no automatic retry waiting) tells the site how much of its direct-from-Drive grant was not downloaded, so
-// the member's daily allowance is credited back. A paused download sends nothing: it can resume, and the allowance window rolls on its own.
-function reportDirectGrantEnd(download) {
-  try {
-    if (!download || !download.directGrant || !download.manifestUrl) return;
-    if (download.paused || download.__autoRetryPending) return;
-    driveDirectClient.finish(download.directGrant, String(download.manifestUrl), download.token);
-  } catch (e) { }
-}
-
 function scheduleAutoRetry(downloadId, download) {
   try {
     if (!download || download.__autoRetryPending) return;
@@ -3994,12 +3622,7 @@ ipcMain.handle('browse-folder', async () => {
 const comicsScan = require('./comicsScan');
 const comicsState = { running: false, worker: null, rows: null, root: '', at: 0, last: null, token: '' };
 const COMICS_LIST_RE = /^[a-z0-9-]{1,80}$/;
-// A folder inside the library ("Artist", "Artist/Album", "Thor Collection/Thor"): relative, no "." or ".." parts, no backslash or control characters.
-function isSafeLibraryFolder(f) {
-  return typeof f === 'string' && f.length > 0 && f.length <= 400 && !/[\\\u0000-\u001f]/.test(f) && f.split('/').every((seg) => seg !== '' && seg !== '.' && seg !== '..');
-}
 
-function comicsCacheFile() { return path.join(app.getPath('userData'), 'comics-scan-cache.json'); }
 function loadComicsCache(root) {
   try { const d = JSON.parse(fs.readFileSync(comicsCacheFile(), 'utf8')); return d && d.root === root && d.files ? d.files : {}; } catch (e) { return {}; }
 }
@@ -4462,66 +4085,6 @@ ipcMain.handle('get-downloads', () => {
   return downloads;
 });
 
-function downloadToRenderer(download) {
-  return {
-    id: download.id,
-    name: download.name,
-    manifestUrl: download.manifestUrl,
-    remotePath: download.remotePath,
-    progressHost: download.progressHost,
-    progressPort: download.progressPort,
-    progressPath: download.progressPath,
-    status: download.status,
-    progress: download.progress,
-    speed: download.speed,
-    eta: download.eta,
-    totalSize: download.totalSize,
-    downloadedSize: download.downloadedSize,
-    fileCount: download.fileCount,
-    completedFiles: download.completedFiles,
-    activeFiles: download.activeFiles,
-    totalSpeed: download.totalSpeed,
-    totalSpeedBytes: download.totalSpeedBytes || 0,
-    peakSpeedBytes: download.peakSpeedBytes,
-    startTime: download.startTime,
-    cancelled: download.cancelled,
-    paused: download.paused,
-    failedFiles: download.failedFiles,
-    quotaNotified: download.quotaNotified,
-    forceDisableAutoExtract: download.forceDisableAutoExtract,
-    serverOverhead: download.serverOverhead,
-    effectiveConcurrency: download.effectiveConcurrency,
-    statusMessage: download.statusMessage,
-    extractPercent: typeof download.extractPercent === 'number' ? download.extractPercent : null,
-    actualRemote: download.actualRemote,
-    mirrorSwitches: download.mirrorSwitches,
-    triedMirrors: download.triedMirrors,
-    extractionError: download.extractionError,
-    lowDiskSpaceWarning: !!download.lowDiskSpaceWarning,
-    userPriority: download.userPriority || 0,
-    resumeRemote: (download.resume && download.resume.remote) || '',
-    resumePath: (download.resume && download.resume.path) || ''
-  };
-}
-
-// Validate token format.
-// Security (L2): Session tokens are generated by server.js as crypto.randomBytes(32).toString('hex')
-// — a 64-character lowercase hex string. We enforce this exact format.
-function isValidToken(token) {
-  if (typeof token !== 'string') return false;
-  // 64-char lowercase hex (32 random bytes)
-  if (/^[0-9a-f]{64}$/.test(token)) return true;
-  // Fallback: accept any reasonable-length alphanumeric token in case the format changes
-  if (token.length >= 10 && token.length <= 500 && /^[A-Za-z0-9_\-+/=.]+$/.test(token)) return true;
-  return false;
-}
-
-function isValidDownloadId(downloadId) {
-  if (typeof downloadId !== 'string' || !downloadId) return false;
-  // crypto.randomUUID() format
-  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(downloadId);
-}
-
 // Internal function to fetch manifest (can be called recursively for redirects)
 async function fetchManifestInternal(manifestUrl, token, redirectCount = 0) {
   // Prevent infinite redirect loops
@@ -4644,56 +4207,6 @@ ipcMain.handle('fetch-manifest', async (event, manifestUrl, token) => {
 
   return fetchManifestInternal(manifestUrl, effectiveToken);
 });
-
-// Resolve short-lived browser download token into a manifest URL
-// Single attempt to resolve a download token against the API using a given bearer
-// token. Never throws — resolves { ok: true, json } or { ok: false, statusCode, errMsg }
-// so callers can decide whether to fall back rather than treating every failure as fatal.
-function attemptResolveDownloadToken(downloadToken, bearerToken) {
-  const host = 'www.armgddnbrowser.com';
-  const pathWithQuery = `/api/external-download-token/resolve?downloadToken=${encodeURIComponent(downloadToken)}`;
-
-  return new Promise((resolve) => {
-    const options = {
-      hostname: host,
-      port: 443,
-      path: pathWithQuery,
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${bearerToken}`,
-        'User-Agent': 'ARMGDDN-Companion/' + app.getVersion()
-      }
-    };
-
-    const req = https.request(options, (res) => {
-      let data = '';
-      res.on('data', (chunk) => { data += chunk; });
-      res.on('end', () => {
-        try {
-          const json = JSON.parse(data || '{}');
-          if (!json || json.success !== true || !json.manifestUrl) {
-            const errMsg = (json && json.error) ? String(json.error) : 'Failed to resolve download token';
-            resolve({ ok: false, statusCode: res.statusCode, errMsg, code: json && json.code, message: json && json.message });
-            return;
-          }
-          resolve({ ok: true, json });
-        } catch (e) {
-          resolve({ ok: false, statusCode: res.statusCode, errMsg: 'Invalid JSON response' });
-        }
-      });
-    });
-
-    req.on('error', (err) => resolve({ ok: false, statusCode: 0, errMsg: err.message }));
-    req.end();
-  });
-}
-
-// The site answers NOT_IN_CHANNEL when the member has left the ARMGDDN group. Retrying or
-// logging in again can't fix that, so show the site's rejoin steps instead of "session expired".
-function notInChannelMessage(result) {
-  if (!result || result.code !== 'NOT_IN_CHANNEL') return null;
-  return String(result.message || 'You are no longer a member of the ARMGDDN group. Rejoin it, then retry the download.');
-}
 
 ipcMain.handle('resolve-download-token', async (event, downloadToken, urlToken) => {
   if (!downloadToken || typeof downloadToken !== 'string') {
@@ -4827,46 +4340,6 @@ async function reportFileProgressToServer(download, token, file, status, bytesDo
   }
 }
 
-function isFileCompleteOnDisk(downloadDir, file) {
-  try {
-    if (!downloadDir || !file || !file.name) return false;
-    const expected = normalizeFileSize(file.size);
-    if (!(expected > 0)) return false;
-    const safeRel = sanitizeRelativePath(String(file.name));
-    if (!safeRel) return false;
-    const outputPath = resolveInside(downloadDir, safeRel);
-    if (!outputPath) return false;
-    if (!fs.existsSync(outputPath)) return false;
-    const st = fs.statSync(outputPath);
-    return st && st.isFile && st.isFile() && st.size === expected;
-  } catch (e) {
-    return false;
-  }
-}
-
-function waitForChildClose(proc, timeoutMs = 10000) {
-  return new Promise((resolve) => {
-    if (!proc || proc.exitCode !== null || proc.signalCode !== null) {
-      resolve(true);
-      return;
-    }
-    let settled = false;
-    const finish = (closed) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timer);
-      proc.removeListener('close', onClose);
-      resolve(closed);
-    };
-    const onClose = () => finish(true);
-    const timer = setTimeout(() => finish(false), timeoutMs);
-    try { timer.unref(); } catch (e) { }
-    proc.once('close', onClose);
-    // Close may have fired between the first check and listener registration.
-    if (proc.exitCode !== null || proc.signalCode !== null) finish(true);
-  });
-}
-
 async function stopDownloadProcesses(processes) {
   const active = (Array.isArray(processes) ? processes : []).filter((proc) =>
     proc && proc.exitCode === null && proc.signalCode === null
@@ -4893,14 +4366,6 @@ async function stopDownloadProcesses(processes) {
     try { proc.kill('SIGKILL'); } catch (e) { }
   }
   if (waits.length) await Promise.all(waits);
-}
-
-function waitForDownloadTasksToFinish(download) {
-  if (!download || !(Number(download.pendingTaskCount) > 0)) return Promise.resolve();
-  return new Promise((resolve) => {
-    if (!Array.isArray(download.cancelWaiters)) download.cancelWaiters = [];
-    download.cancelWaiters.push(resolve);
-  });
 }
 
 async function cleanupCancelledDownloadFiles(download) {
@@ -5657,76 +5122,6 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
   return downloadId;
 });
 
-// Check if output indicates quota exceeded
-function isQuotaError(output) {
-  const lowerOutput = output.toLowerCase();
-  // Strong upstream quota signals (Google Drive / provider throttling)
-  const strongTokens = [
-    'downloadquotaexceeded',
-    'download quota exceeded',
-    'too many users have viewed or downloaded this file',
-    'exceeded your current quota',
-    'bandwidth limit exceeded',
-    'download limit exceeded',
-    'suspicious activity',
-    'suspicious downloads detected'
-  ];
-
-  for (const t of strongTokens) {
-    if (lowerOutput.includes(t)) return true;
-  }
-
-  // Weak tokens can appear in unrelated errors. Only treat as quota if
-  // there's evidence it's coming from the upstream provider.
-  const weakTokens = [
-    'quota exceeded',
-    'rate limit exceeded',
-    'user rate limit exceeded'
-  ];
-
-  const mentionsProvider = lowerOutput.includes('google') || lowerOutput.includes('drive') || lowerOutput.includes('gdrive');
-  const mentionsHttpQuota = lowerOutput.includes(' 403') || lowerOutput.includes(' 429') || lowerOutput.includes('status code 403') || lowerOutput.includes('status code 429');
-
-  for (const t of weakTokens) {
-    if (lowerOutput.includes(t) && (mentionsProvider || mentionsHttpQuota)) return true;
-  }
-
-  return false;
-}
-
-// Check if output indicates our server is busy / concurrency-limited
-function isServerBusyError(output) {
-  const lowerOutput = output.toLowerCase();
-  return lowerOutput.includes('too many active downloads') ||
-    lowerOutput.includes('download rejected due to concurrency') ||
-    lowerOutput.includes('global concurrency') ||
-    lowerOutput.includes('please try again shortly');
-}
-
-function isLikelySignedExpiringUrl(urlString) {
-  try {
-    const u = new URL(String(urlString || ''));
-    const host = (u && u.hostname) ? String(u.hostname).toLowerCase() : '';
-    const pathname = (u && u.pathname) ? String(u.pathname) : '';
-    const hasJd2 = !!u.searchParams.get('jd2');
-    const hasWhatboxSig = !!(u.searchParams.get('exp') && u.searchParams.get('sig'));
-    const isArmgddnHost = host === 'www.armgddnbrowser.com' || host === 'armgddnbrowser.com' || host.endsWith('.armgddnbrowser.com');
-    return hasJd2 || hasWhatboxSig || (isArmgddnHost && (pathname === '/api/download-file' || pathname === '/dl'));
-  } catch (e) {
-    return false;
-  }
-}
-
-// Check output for expired-token indicators.
-// IMPORTANT: do not treat a generic 401 as "expired" unless the URL is actually
-// a signed/expiring URL. Direct Whatbox paths should not surface as "expired".
-// rclone is a Go program: when it dies with a runtime crash (memory fault,
-// SIGSEGV, panic) its stderr holds a goroutine dump full of words like "lookup"
-// and "not found" that used to be misread as DNS or expired-link errors.
-function isRcloneCrashOutput(output) {
-  return downloadErrors.isCrashOutput(output);
-}
-
 function isTokenExpiredError(output, fileUrl) {
   const lowerOutput = String(output || '').toLowerCase();
   const isExpiringUrl = isLikelySignedExpiringUrl(fileUrl);
@@ -5856,57 +5251,6 @@ async function refetchManifestAndRetryExpiredLink(downloadId, download, file, do
     return false;
   } finally {
     if (download) download.recovering = false;
-  }
-}
-
-function getActiveFileKey(file) {
-  try {
-    const url = file && file.url ? String(file.url) : '';
-    const name = file && file.name ? String(file.name) : '';
-    const seed = `${url}::${name}`;
-    if (!seed || seed === '::') return crypto.randomUUID();
-    return crypto.createHash('sha1').update(seed).digest('hex').slice(0, 12);
-  } catch (e) {
-    try {
-      return crypto.randomUUID();
-    } catch (e2) {
-      return String(Date.now());
-    }
-  }
-}
-
-function isProxyDownloadUrl(urlString) {
-  try {
-    const u = new URL(String(urlString || ''));
-    const host = (u && u.hostname) ? String(u.hostname).toLowerCase() : '';
-    const isArmgddnHost = host === 'www.armgddnbrowser.com' || host === 'armgddnbrowser.com' || host.endsWith('.armgddnbrowser.com');
-    if (!isArmgddnHost) return false;
-    const pathname = (u && u.pathname) ? String(u.pathname) : '';
-    // /api/download-file is a redirect endpoint to the direct file host.
-    // Do not treat it as a proxy-routed download.
-    if (pathname === '/api/download-file') return false;
-    return true;
-  } catch (e) {
-    return false;
-  }
-}
-
-function transformProxyUrlToDirectIfPossible(urlString) {
-  try {
-    const s = String(urlString || '');
-    if (!s || !s.includes('armgddnbrowser.com')) return s;
-    const u = new URL(s);
-
-    // Legacy/alternate proxy URL format: https://www.armgddnbrowser.com/?path=...
-    // or similar routes that include a `path` query param.
-    const rpath = u.searchParams.get('path');
-    if (rpath) {
-      return `https://dl.neatbarb.box.ca/${rpath}`;
-    }
-
-    return s;
-  } catch (e) {
-    return String(urlString || '');
   }
 }
 
@@ -7251,28 +6595,6 @@ function updateProgressBackoffFromResponse(res, responseData) {
   }
 }
 
-// Best practice (Nov 24 2026, docs/BEST_PRACTICES.md): no window may open another window by itself (window.open, target=_blank).
-// Links that should open go through shell.openExternal on purpose. test/bestPractices.test.js checks every window calls this.
-// allowHosts: the only sites it may open a popup for (the sign-in window needs Telegram's own login popup, oauth.telegram.org).
-function denyNewWindows(win, allowHosts) {
-  const allow = (allowHosts || []).map((h) => String(h).toLowerCase());
-  try {
-    win.webContents.setWindowOpenHandler(({ url }) => {
-      try { const u = new URL(url); if (u.protocol === 'https:' && allow.includes(u.hostname.toLowerCase())) return { action: 'allow' }; } catch (e) { }
-      return { action: 'deny' };
-    });
-  } catch (e) { }
-}
-
-function pruneActiveProcesses(download) {
-  if (!download || !Array.isArray(download.activeProcesses)) return;
-  download.activeProcesses = download.activeProcesses.filter((p) => {
-    if (!p) return false;
-    if (p.exitCode === null) return true;
-    return false;
-  });
-}
-
 // Periodically re-check downloads to ensure completion isn't missed when rclone
 // stops emitting progress lines near the end.
 setInterval(() => {
@@ -7370,47 +6692,6 @@ function clampProgressUnlessFinal(download) {
   if (download.progress >= 100 && !shouldFinalizeDownload(download)) {
     download.progress = 99;
   }
-}
-
-function find7zArchivesInDir(rootDir) {
-  const results = [];
-  const seen = new Set();
-
-  const walk = (dir) => {
-    let entries = [];
-    try {
-      entries = fs.readdirSync(dir, { withFileTypes: true });
-    } catch (e) {
-      return;
-    }
-    for (const ent of entries) {
-      if (!ent) continue;
-      const full = path.join(dir, ent.name);
-      if (ent.isDirectory()) {
-        walk(full);
-        continue;
-      }
-      if (!ent.isFile()) continue;
-      const lower = String(ent.name || '').toLowerCase();
-      if (lower.endsWith('.7z.001')) {
-        const base = lower.slice(0, -('.001'.length));
-        if (!seen.has(full)) {
-          results.push(full);
-          seen.add(full);
-        }
-        seen.add(path.join(dir, base));
-        continue;
-      }
-      if (lower.endsWith('.7z')) {
-        if (seen.has(full)) continue;
-        results.push(full);
-        seen.add(full);
-      }
-    }
-  };
-
-  walk(rootDir);
-  return results;
 }
 
 // Where an archive is unpacked: beside the download, or, when the member set an Extract folder that exists, into a folder of the same name there.
@@ -8017,18 +7298,6 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   }
 }
 
-// Format bytes per second to human readable (decimal MB/s, not binary MiB/s)
-// Peak speed comes from rclone progress lines. Albums of tiny files finish before any line reports a speed,
-// so the peak stays 0: fall back to the average over the whole download.
-function peakOrAverageSpeedBytes(download) {
-  const peak = Number(download && download.peakSpeedBytes) || 0;
-  if (peak > 0) return peak;
-  const started = download && download.startTime ? new Date(download.startTime).getTime() : 0;
-  const bytes = Number(download && (download.downloadedSize || download.totalSize)) || 0;
-  const seconds = started ? (Date.now() - started) / 1000 : 0;
-  return seconds > 0.5 && bytes > 0 ? bytes / seconds : 0;
-}
-
 // Update overall progress
 function updateProgress(downloadId) {
   const download = activeDownloads.get(downloadId);
@@ -8173,7 +7442,6 @@ ipcMain.handle('reorder-downloads', (event, orderedIds) => {
 // the schedule paused are resumed when the window ends, downloads the member paused themselves are left alone.
 let lastScheduleLimit = null;
 let lastScheduleBanner = '';
-function scheduleActiveStates() { return ['downloading', 'in_progress']; }
 function pushScheduleState() {
   try {
     const w = scheduleLib.activeWindow(settings.schedule);
@@ -8596,24 +7864,6 @@ function preStartInstallSpaceWarning(totalSize, downloadPath) {
   }
 }
 
-// The words of the "Low Space" box, kept apart from the disk checks so they can be tested. The point to get across:
-// the download folder is fine, but setup always unpacks its temp files into the Windows temp folder (C: by default).
-function buildInstallSpaceWarning({ need, required, free, sameDrive, driveLabel, dlLabel }) {
-  const needed = formatBytes(need);
-  const lead = sameDrive
-    ? `Your download folder is on ${driveLabel}, so the downloaded files and setup's temporary files both need room there. Setup unpacks about ${needed} of temporary files into your Windows temp folder, even if you install the game to another drive.`
-    : `Your download folder (${dlLabel}) is fine. Setup unpacks about ${needed} of temporary files into your Windows temp folder, which is on ${driveLabel}, no matter where you save or install the game.`;
-  return {
-    title: sameDrive ? `Low space on ${driveLabel}` : `Your download folder is fine - ${driveLabel} needs room for setup`,
-    message: sameDrive
-      ? `${driveLabel} may not have enough room to download and install this game.`
-      : `Downloads will go to ${dlLabel}. ${driveLabel} needs free space for setup.`,
-    detail: `${lead}\n\nSpace needed: about ${formatBytes(required)}\nAvailable on ${driveLabel} now: ${formatBytes(free)}\n\n` +
-      `You can still download now. Before running setup, free up space on ${driveLabel} or move your Windows temp folder to another drive. ` +
-      `Steps are in the ARMGDDN App Wiki (Companion troubleshooting): "Low space on my temp drive even though I save to another drive".`
-  };
-}
-
 function installSpaceTip(download) {
   try {
     if (process.platform !== 'win32') return '';
@@ -8938,23 +8188,6 @@ function completeDownload(downloadId, afterHashCheck) {
   finalizeCompletedDownload(downloadId);
 }
 
-// The folder that holds what a download wrote. For Music and Comics the files go below the library folder (Artist/Album, Series/Volume), so
-// it is the deepest folder they all share; anything else (or no shared folder) is the base folder itself.
-function commonOpenDir(baseDir, files) {
-  try {
-    if (!Array.isArray(files) || !files.length) return baseDir;
-    let common = null;
-    for (const f of files) {
-      const parts = String((f && f.name) || '').split('/').filter(Boolean).slice(0, -1);
-      if (common === null) common = parts;
-      else { let i = 0; while (i < common.length && i < parts.length && common[i] === parts[i]) i++; common = common.slice(0, i); }
-      if (!common.length) break;
-    }
-    if (!common || !common.length) return baseDir;
-    return resolveInside(baseDir, common.join('/')) || baseDir;
-  } catch (e) { return baseDir; }
-}
-
 // Open folder: the folder of the download whose id the window passes (its real folder: an album, a series, the unpacked game); the main
 // download folder when the id is not known (older entries, the classic window).
 ipcMain.handle('open-folder', async (event, arg) => {
@@ -9187,16 +8420,6 @@ function fetchLatestReleaseInfo() {
   });
 }
 
-// Check for updates via GitHub releases
-// Security (C1/H1): installerUrl is NOT returned to the renderer — the install-update
-// handler derives the URL internally to prevent renderer-supplied URL attacks.
-function safeUpdateResult(result) {
-  // Strip installerUrl — renderer must not supply it back to install-update
-  const { installerUrl: _stripped, ...safeResult } = result;
-  // Surface whether auto-install is available without exposing the URL
-  safeResult.canAutoInstall = !!_stripped;
-  return safeResult;
-}
 ipcMain.handle('check-updates', async () => safeUpdateResult(await fetchLatestReleaseInfo()));
 
 // A Companion left running (a PC that stays on, the app in the tray) never saw a new release: the check ran only at start-up. This checks once an

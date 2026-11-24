@@ -68,7 +68,8 @@ test('a download that failed and was retried reports its later files without cre
 test('the app reports a finally failed download, not a paused one, and not while an automatic retry is waiting', () => {
   const fs = require('fs'); const path = require('path');
   const src = require('./mainSource')();
-  const helper = src.slice(src.indexOf('function reportDirectGrantEnd'), src.indexOf('function scheduleAutoRetry'));
+  const at = src.indexOf('function reportDirectGrantEnd');
+  const helper = src.slice(at, src.indexOf('\n}\n', at) + 2);      // the function's own text (it may sit in main/ since the main.js split)
   assert.ok(helper.includes('download.paused') && helper.includes('__autoRetryPending') && helper.includes('driveDirectClient.finish'));
   assert.ok(src.includes('if (!download.paused && !download.cancelled) reportDirectGrantEnd(download);'));            // end of the first run
   assert.ok(src.includes('if (hasErrors && !download.paused && !download.cancelled) reportDirectGrantEnd(download);'));  // end of a retried run
