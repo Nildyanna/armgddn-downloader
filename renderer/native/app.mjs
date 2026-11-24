@@ -635,7 +635,7 @@ function UpdateRow({ say }) {
   const [state, setState] = useState({ busy: false, text: '' });
   const [found, setFound] = useState(null);     // an update was found: the button now installs it
   const install = async () => {
-    setState({ busy: true, text: 'Updating... ARMGDDN Browser will restart by itself.' });
+    setState({ busy: true, text: 'Updating... ARMGDDN App will restart by itself.' });
     try {
       const r = await api.installUpdate({ silent: true, relaunchAfterInstall: true, source: 'native-settings' });
       if (r && r.success === false && !r.installerPath) setState({ busy: false, text: (r && r.error) || 'The update could not be started' });
@@ -646,14 +646,14 @@ function UpdateRow({ say }) {
     try {
       const r = await api.checkUpdates();
       if (!r || r.error) setState({ busy: false, text: 'Could not check: ' + ((r && r.error) || 'no answer') });
-      else if (r.hasUpdate) setState({ busy: false, text: `v${r.latestVersion} is available (you have v${r.version}). Finish or pause your downloads first: updating restarts ARMGDDN Browser.` });
+      else if (r.hasUpdate) setState({ busy: false, text: `v${r.latestVersion} is available (you have v${r.version}). Finish or pause your downloads first: updating restarts ARMGDDN App.` });
       if (r.hasUpdate && r.canAutoInstall) setFound(r);
       else setState({ busy: false, text: `You are on the latest version (v${r.version}).` });
       if (r && r.hasUpdate) { try { window.dispatchEvent(new CustomEvent('native-update-found', { detail: r })); } catch (e) { } }
     } catch (e) { setState({ busy: false, text: 'Could not check for updates.' }); }
   };
   useEffect(() => { const run = () => check(); window.addEventListener('native-run-update-check', run); return () => window.removeEventListener('native-run-update-check', run); }, []);
-  return html`<div class="srow"><span class="slabel">ARMGDDN Browser updates <span class="sval">${state.text || 'It checks once an hour by itself.'}</span></span>${found ? html`<button class="dbtn go" disabled=${state.busy} onClick=${install}>Update to v${found.latestVersion}</button>` : html`<button class="dbtn" disabled=${state.busy} onClick=${check}>Check for updates</button>`}</div>`;
+  return html`<div class="srow"><span class="slabel">ARMGDDN App updates <span class="sval">${state.text || 'It checks once an hour by itself.'}</span></span>${found ? html`<button class="dbtn go" disabled=${state.busy} onClick=${install}>Update to v${found.latestVersion}</button>` : html`<button class="dbtn" disabled=${state.busy} onClick=${check}>Check for updates</button>`}</div>`;
 }
 
 // The download schedule, as in the classic Settings: pause or slow downloads between two times on chosen days.
@@ -1541,7 +1541,7 @@ function App() {
       </div>
       <div class="banner-credit"><div class="fire-particles"><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i></div><span class="fire-text">Created by Old Man of the Hills v${(status && status.version) || ''}</span></div>
       <img class="banner-logo" src="skull-logo.png" alt="ARMGDDN" />
-      <div class="banner-text"><h1>ARMGDDN BROWSER</h1><p>Secure Multi-Remote Game Browser</p></div>
+      <div class="banner-text"><h1>ARMGDDN APP</h1><p>Secure Multi-Remote Game Browser</p></div>
     </div>
     <header class="topbar">
       <button class=${view === 'home' ? 'tab on' : 'tab'} onClick=${() => setView('home')}>Home</button>
@@ -1571,7 +1571,7 @@ function App() {
       </${Fragment}>` : ''}
       ${(view === 'library' || view === 'mylist') ? html`<span class="viewsel" title="How the titles are shown"><button class=${viewMode === 'grid' ? 'tab on' : 'tab'} onClick=${() => setViewMode('grid')}>Grid</button><button class=${viewMode === 'list' ? 'tab on' : 'tab'} onClick=${() => setViewMode('list')}>List</button></span>` : ''}
     </div>
-    ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN Browser ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN Browser.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
+    ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN App ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN App.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} />` : ''}
     ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor' && (!!admin || staffOk)} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor' && (!!admin || staffOk)} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>

@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.7.0] - 2026-11-24
+
+### Changed
+
+- The app is now called "ARMGDDN App" (it was "ARMGDDN Browser"): window title, header, tray, update notices, login window, Settings text and the Wiki. The desktop and Start Menu shortcut renames itself, and a shortcut named "ARMGDDN Browser" moves to the new name. Installer, install folder and update channel are unchanged, so nothing needs reinstalling.
+
 ## [6.6.1] - 2026-11-23
 
 ### Fixed

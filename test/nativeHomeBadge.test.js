@@ -29,8 +29,8 @@ test('Back remembers the scroll position and filters, and there is a Forward but
   assert.ok(app.includes('fwdStack.current = []'));
 });
 
-test('clicking a folder card name opens its page, and the window is titled ARMGDDN Browser', () => {
+test('clicking a folder card name opens its page, and the window is titled ARMGDDN App', () => {
   const app = read('renderer', 'native', 'app.mjs');
   assert.ok(app.includes("(item.isDir ? ' clickable' : '')} onClick=${item.isDir ? () => onOpen(item) : undefined}"));
-  assert.ok(read('renderer', 'native', 'index.html').includes('<title>ARMGDDN Browser</title>'));
+  assert.ok(read('renderer', 'native', 'index.html').includes('<title>ARMGDDN App</title>'));
 });

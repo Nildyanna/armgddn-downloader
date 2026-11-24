@@ -2880,7 +2880,7 @@ function handleDeepLink(url) {
       return;
     }
     if (u.hostname === 'open') {
-      // armgddn://open: the website's "Open ARMGDDN Browser" button. Brings the window forward (the native one when it is on); nothing is changed.
+      // armgddn://open: the website's "Open ARMGDDN App" button. Brings the window forward (the native one when it is on); nothing is changed.
       try {
         const w = (nativeWindow && !nativeWindow.isDestroyed()) ? nativeWindow : (mainWindowAlive() ? mainWindow : null);
         if (w) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); if (process.platform === 'linux') { try { w.moveTop(); } catch (e2) { } } }
@@ -2976,7 +2976,7 @@ function openAuthWindow() {
         contextIsolation: true
       },
       icon: getAppIcon(),
-      title: 'Login to ARMGDDN Browser'
+      title: 'Login to ARMGDDN App'
     });
 
     // companionAuth=1 tells the site this is the re-auth popup, not a real visit —
@@ -3325,7 +3325,7 @@ function createTray() {
     { label: 'Quit', click: () => { app.isQuitting = true; app.quit(); } }
   ]);
 
-  tray.setToolTip(NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion');
+  tray.setToolTip(NATIVE_PREVIEW ? 'ARMGDDN App' : 'ARMGDDN Companion');
   tray.setContextMenu(buildTrayMenu());
 
   tray.on('click', showMainWindow);
@@ -3386,7 +3386,7 @@ function createAppMenu() {
         },
         { label: 'Open the log folder', click: () => { try { shell.openPath(path.dirname(getDebugLogPath())); } catch (e) { } } },
         { type: 'separator' },
-        { label: NATIVE_PREVIEW ? 'About ARMGDDN Browser' : 'About ARMGDDN Companion', click: () => showAboutDialog() }
+        { label: NATIVE_PREVIEW ? 'About ARMGDDN App' : 'About ARMGDDN Companion', click: () => showAboutDialog() }
       ]
     }
   ];
@@ -3681,7 +3681,7 @@ app.whenReady().then(() => {
   }
 
   applyStartupRegistration();
-  // The desktop and Start Menu shortcuts say ARMGDDN Browser while the native window is on for this member, ARMGDDN Companion otherwise (installed Windows app only).
+  // The desktop and Start Menu shortcuts say ARMGDDN App while the native window is on for this member, ARMGDDN Companion otherwise (installed Windows app only).
   try {
     if (process.platform === 'win32' && app.isPackaged) {
       const dirs = [app.getPath('desktop'), process.env.APPDATA ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs') : ''].filter(Boolean);
@@ -3846,7 +3846,7 @@ function checkForUpdatesFromMenu() {
 // Help > About: the version and what it runs on, with a button that copies those details for a support message.
 function showAboutDialog() {
   try {
-    const name = NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion';
+    const name = NATIVE_PREVIEW ? 'ARMGDDN App' : 'ARMGDDN Companion';
     const details = [name + ' v' + app.getVersion(), 'Electron ' + process.versions.electron + ', Chromium ' + process.versions.chrome, process.platform + ' ' + process.arch + (NATIVE_PREVIEW ? ', built-in window' : ', classic window')].join('\n');
     const win = (NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()) ? nativeWindow : ((mainWindow && !mainWindow.isDestroyed()) ? mainWindow : null);
     const opts = { type: 'info', title: 'About ' + name, message: name, detail: 'Version ' + app.getVersion() + '\nCreated by Old Man of the Hills\n\n' + details.split('\n').slice(1).join('\n'), buttons: ['OK', 'Copy details'], defaultId: 0, cancelId: 0 };
@@ -8701,7 +8701,7 @@ function buildInstallSpaceWarning({ need, required, free, sameDrive, driveLabel,
       : `Downloads will go to ${dlLabel}. ${driveLabel} needs free space for setup.`,
     detail: `${lead}\n\nSpace needed: about ${formatBytes(required)}\nAvailable on ${driveLabel} now: ${formatBytes(free)}\n\n` +
       `You can still download now. Before running setup, free up space on ${driveLabel} or move your Windows temp folder to another drive. ` +
-      `Steps are in the ARMGDDN Browser Wiki (Companion troubleshooting): "Low space on my temp drive even though I save to another drive".`
+      `Steps are in the ARMGDDN App Wiki (Companion troubleshooting): "Low space on my temp drive even though I save to another drive".`
   };
 }
 
@@ -9305,7 +9305,7 @@ async function pollForUpdateOnce() {
     if (_updateAnnouncedVersion === raw.latestVersion) return;                              // already told them about this one
     _updateAnnouncedVersion = raw.latestVersion;
     logToFile(`[Update] hourly check: version ${raw.latestVersion} is available (running ${app.getVersion()})`);
-    showDownloadNotification(NATIVE_PREVIEW ? 'ARMGDDN Browser update available' : 'ARMGDDN Companion update available', `Version ${raw.latestVersion} is ready. Open ${NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'the Companion'} to install it.`);
+    showDownloadNotification(NATIVE_PREVIEW ? 'ARMGDDN App update available' : 'ARMGDDN Companion update available', `Version ${raw.latestVersion} is ready. Open ${NATIVE_PREVIEW ? 'ARMGDDN App' : 'the Companion'} to install it.`);
     const info = safeUpdateResult(raw);
     // The native window has its own update bar; the hidden classic window must not pop a prompt of its own (Nov 20).
     try { if (mainWindow && !mainWindow.isDestroyed() && !(NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed())) mainWindow.webContents.send('update-available', info); } catch (e) { }
@@ -9829,7 +9829,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                     // Menu shortcut, even after the user moved or deleted it.
                     const silentArg = silent ? '/S --updated' : '--updated';
                     const runner = updateRunner.buildRunner({
-                      pid, filePath, appExe: process.execPath, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut: startMenuShortcut, appName: NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion'
+                      pid, filePath, appExe: process.execPath, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut: startMenuShortcut, appName: NATIVE_PREVIEW ? 'ARMGDDN App' : 'ARMGDDN Companion'
                     });
                     // Tell any app that starts while the installer works (the member opens it again) not to start a second install.
                     try { fs.writeFileSync(resultPath, JSON.stringify({ state: 'installing', ts: Date.now() })); } catch (e) { }

@@ -361,7 +361,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   });
 
   const win = new BrowserWindow({
-    width: 1280, height: 860, minWidth: 900, minHeight: 600, backgroundColor: '#0b1220', title: 'ARMGDDN Browser',
+    width: 1280, height: 860, minWidth: 900, minHeight: 600, backgroundColor: '#0b1220', title: 'ARMGDDN App',
     webPreferences: { preload: path.join(appDir, 'preload-native.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, autoplayPolicy: 'no-user-gesture-required', additionalArguments: process.argv.some((x) => x.startsWith('--native-shot') || x === '--native-quiet') ? ['--native-quiet'] : [] }
   });
   win.maximize();   // opens maximized

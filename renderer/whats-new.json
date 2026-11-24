@@ -1001,5 +1001,11 @@
       "Fix: My List showed \"This page ran into a problem\" as soon as you saved a game. It works again.",
       "Admin: the stat cards on the Overview page no longer touch each other."
     ]
+  },
+  "6.7.0": {
+    "title": "Now called ARMGDDN App",
+    "highlights": [
+      "The app is now simply \"ARMGDDN App\", in its window, update notices and shortcut. Your shortcut renames itself; nothing to reinstall."
+    ]
   }
 }

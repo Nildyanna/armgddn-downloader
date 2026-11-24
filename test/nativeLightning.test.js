@@ -76,16 +76,16 @@ test('the native window has the classic tools: schedule, game updates, .7z help 
   assert.ok(html.includes("media-src 'self' blob: file:"), 'the local help video may play');
 });
 
-test('members on the native window see ARMGDDN Browser in the update window, notification and bar; everyone else keeps ARMGDDN Companion', () => {
+test('members on the native window see ARMGDDN App in the update window, notification and bar; everyone else keeps ARMGDDN Companion', () => {
   const u = require('../updateRunner');
   const base = { pid: 1, filePath: 'a', appExe: 'b', wrapperLogPath: 'c', resultPath: 'd', silentArg: '/S', shouldRelaunch: true };
-  const nat = u.buildRunner({ ...base, appName: 'ARMGDDN Browser' });
-  assert.ok(nat.includes("$form.Text = 'ARMGDDN Browser'") && nat.includes('Installing the update. ARMGDDN Browser reopens by itself'));
+  const nat = u.buildRunner({ ...base, appName: 'ARMGDDN App' });
+  assert.ok(nat.includes("$form.Text = 'ARMGDDN App'") && nat.includes('Installing the update. ARMGDDN App reopens by itself'));
   const classic = u.buildRunner(base);
   assert.ok(classic.includes("$form.Text = 'ARMGDDN Companion'") && classic.includes('Installing the update. ARMGDDN Companion reopens by itself'));
   assert.ok(!u.buildRunner({ ...base, appName: "x'; Remove-Item *" }).includes("Remove-Item *'"), 'the name cannot break out of the script');
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
-  assert.ok(main.includes("appName: NATIVE_PREVIEW ? 'ARMGDDN Browser' : 'ARMGDDN Companion'") && main.includes("NATIVE_PREVIEW ? 'ARMGDDN Browser update available'"));
+  assert.ok(main.includes("appName: NATIVE_PREVIEW ? 'ARMGDDN App' : 'ARMGDDN Companion'") && main.includes("NATIVE_PREVIEW ? 'ARMGDDN App update available'"));
 });
 
 test('the native window has a fixed top bar (every page, the current one lit) and a page bar below it with the page controls and a Grid / List switch', () => {
@@ -169,7 +169,7 @@ test('the themed backdrop is a single fixed layer behind the window, not a tiled
 test('Help has an About item that shows the version and can copy the details', () => {
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
   const menu = main.slice(main.indexOf('function createAppMenu()'), main.indexOf('Menu.setApplicationMenu(menu)'));
-  assert.ok(menu.includes("'About ARMGDDN Browser' : 'About ARMGDDN Companion'") && menu.includes('showAboutDialog()'));
+  assert.ok(menu.includes("'About ARMGDDN App' : 'About ARMGDDN Companion'") && menu.includes('showAboutDialog()'));
   assert.ok(main.includes('function showAboutDialog()') && main.includes("buttons: ['OK', 'Copy details']") && main.includes('app.getVersion()'));
 });
 

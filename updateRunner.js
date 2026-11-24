@@ -11,7 +11,7 @@ function escapePsPath(p) {
 // The runner shows a small always-on-top "Updating..." window while the silent installer works (it takes 20-80 seconds and the
 // app itself is closed by then, so without it the member sees nothing and starts the app again, which starts a second installer).
 function buildRunner({ pid, filePath, appExe, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut, appName }) {
-  // Members on the new built-in window know the app as "ARMGDDN Browser"; everyone else sees "ARMGDDN Companion".
+  // Members on the new built-in window know the app as "ARMGDDN App"; everyone else sees "ARMGDDN Companion".
   const name = String(appName || 'ARMGDDN Companion').replace(/[^A-Za-z0-9 ]/g, '');
   return [
     '# ARMGDDN Companion update runner — auto-generated, do not edit',
