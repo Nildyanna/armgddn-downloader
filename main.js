@@ -1027,6 +1027,7 @@ function postJsonWithBearer(urlString, bodyObj, bearerToken) {
 let mainWindow;
 let authWindow;
 let progressWin = null; // Update progress window
+let refreshShortcutIconsAfterUpdate = false;      // set on the first start after an update (see the shortcut refresh at start-up)
 let pendingWhatsNewEntryNative = null; // the same entry, held for the native window, which asks for it once at start-up
 let pendingWhatsNewEntry = null; // Set once at startup if this launch is a version bump with curated content; pushed to renderer on did-finish-load
 let tray;
@@ -3722,6 +3723,7 @@ app.whenReady().then(() => {
       pendingWhatsNewEntryNative = pendingWhatsNewEntry;
     }
     if (settings.lastSeenVersion !== currentVersion) {
+      if (settings.lastSeenVersion) refreshShortcutIconsAfterUpdate = true;      // first start after an update: redraw the shortcut icons below
       settings.lastSeenVersion = currentVersion;
       saveSettings();
     }
@@ -3734,10 +3736,17 @@ app.whenReady().then(() => {
   try {
     if (process.platform === 'win32' && app.isPackaged) {
       const dirs = [app.getPath('desktop'), process.env.APPDATA ? path.join(process.env.APPDATA, 'Microsoft', 'Windows', 'Start Menu', 'Programs') : ''].filter(Boolean);
-      shortcutNames.syncShortcutNames({
+      const renamed = shortcutNames.syncShortcutNames({
         dirs, native: !!NATIVE_PREVIEW, fs, log: logToFile,
         opensThisApp: (file) => { try { return String(shell.readShortcutLink(file).target || '').toLowerCase() === String(process.execPath).toLowerCase(); } catch (e) { return false; } }
       });
+      // After an update or a rename Windows can show a blank shortcut icon: write the shortcuts again and have Windows redraw icons.
+      if (refreshShortcutIconsAfterUpdate || renamed.some((r) => r.ok)) {
+        shortcutNames.refreshShortcutIcons({
+          dirs, fs, shell, execPath: process.execPath, log: logToFile,
+          run: (file, args) => { try { spawn(file, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref(); } catch (e) { } }
+        });
+      }
     }
   } catch (e) { logToFile('[Shortcut] sync failed: ' + (e && e.message ? e.message : e)); }
   loadHistory();

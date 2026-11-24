@@ -38,3 +38,36 @@ test('main.js syncs the names only for the installed Windows app and the build s
   assert.ok(m.includes("process.platform === 'win32' && app.isPackaged") && m.includes('shortcutNames.syncShortcutNames') && m.includes('shortcutNames.startMenuShortcutPath'));
   assert.ok(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).build.files.includes('shortcutNames.js'));
 });
+
+// Nov 24 2026: a blank shortcut icon after an update was cured by writing the shortcut again with the program's icon and redrawing icons.
+test('refreshShortcutIcons rewrites only this app\'s shortcuts with the program\'s icon, then asks Windows to redraw once', () => {
+  const { refreshShortcutIcons } = require('../shortcutNames');
+  const exe = 'C:\\Users\\x\\AppData\\Local\\Programs\\ARMGDDN Companion\\ARMGDDN Companion.exe';
+  const files = { 'D:\\Desk': ['ARMGDDN App.lnk', 'UNO.lnk', 'ARMGDDN Companion.lnk'] };
+  const removed = [], written = [], runs = [];
+  const fs = { readdirSync: (d) => files[d] || [], unlinkSync: (f) => removed.push(f) };
+  const links = { 'ARMGDDN App.lnk': { target: exe, args: '' }, 'ARMGDDN Companion.lnk': { target: 'C:\\other\\old.exe' } };
+  const shell = {
+    readShortcutLink: (f) => links[require('path').basename(f)] || { target: 'x' },
+    writeShortcutLink: (f, op, o) => { written.push([require('path').basename(f), op, o.icon, o.iconIndex, o.target]); return true; },
+  };
+  const done = refreshShortcutIcons({ dirs: ['D:\\Desk'], fs, shell, execPath: exe, run: (f, a) => runs.push([f, a]) });
+  assert.strictEqual(done.length, 1);
+  assert.deepStrictEqual(written, [['ARMGDDN App.lnk', 'create', exe, 0, exe]]);
+  assert.strictEqual(removed.length, 1);
+  assert.strictEqual(runs.length, 1);
+  assert.ok(/ie4uinit\.exe$/i.test(runs[0][0]) && runs[0][1][0] === '-show');
+});
+
+test('refreshShortcutIcons does nothing (and does not touch Windows) when no shortcut opens this app', () => {
+  const { refreshShortcutIcons } = require('../shortcutNames');
+  const runs = [];
+  const done = refreshShortcutIcons({ dirs: ['D:\\Desk'], fs: { readdirSync: () => ['UNO.lnk'] }, shell: { readShortcutLink: () => ({ target: 'x' }) }, execPath: 'y', run: () => runs.push(1) });
+  assert.deepStrictEqual([done.length, runs.length], [0, 0]);
+});
+
+test('main.js refreshes the shortcut icons on the first start after an update or after a rename', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  assert.ok(src.includes('if (settings.lastSeenVersion) refreshShortcutIconsAfterUpdate = true;'));
+  assert.ok(src.includes('if (refreshShortcutIconsAfterUpdate || renamed.some((r) => r.ok)) {'));
+});

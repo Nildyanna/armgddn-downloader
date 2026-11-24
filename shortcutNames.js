@@ -53,4 +53,36 @@ function startMenuShortcutPath(dir, fs) {
   return path.join(dir, COMPANION + '.lnk');
 }
 
-module.exports = { COMPANION, BROWSER, OLD_BROWSER, wantedName, planShortcutRenames, syncShortcutNames, startMenuShortcutPath };
+// After an update (or a rename) Windows can keep showing a blank icon for the app's shortcuts (George's desktop, Nov 24 2026: the shortcut and
+// the program's icon were both fine; the cached icon was stale, and the OneDrive-synced shortcut file was in an odd state). The cure that worked:
+// write each shortcut that opens this app again, as a fresh file with the program's own icon, then ask Windows to redraw icons (ie4uinit -show).
+// shell: Electron's shell (readShortcutLink / writeShortcutLink); run(file, args): starts a program without waiting. Returns the shortcuts redone.
+function refreshShortcutIcons({ dirs = [], fs, shell, execPath, run = () => { }, log = () => { } }) {
+  const redone = [];
+  const exe = String(execPath || '').toLowerCase();
+  for (const dir of dirs) {
+    let names = [];
+    try { names = fs.readdirSync(dir); } catch (e) { continue; }
+    for (const n of names) {
+      if (!/\.lnk$/i.test(n) || ![COMPANION, BROWSER, OLD_BROWSER].some((w) => n.toLowerCase() === (w + '.lnk').toLowerCase())) continue;
+      const file = path.join(dir, n);
+      try {
+        const link = shell.readShortcutLink(file);
+        if (String(link.target || '').toLowerCase() !== exe) continue;
+        const fresh = { ...link, target: execPath, icon: execPath, iconIndex: 0 };
+        try { fs.unlinkSync(file); } catch (e) { }
+        if (!shell.writeShortcutLink(file, 'create', fresh)) throw new Error('write failed');
+        redone.push(file);
+        log('[Shortcut] refreshed ' + file);
+      } catch (e) {
+        log('[Shortcut] could not refresh ' + file + ': ' + (e && e.message ? e.message : e));
+      }
+    }
+  }
+  if (redone.length) {
+    try { run(path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'ie4uinit.exe'), ['-show']); } catch (e) { }
+  }
+  return redone;
+}
+
+module.exports = { COMPANION, BROWSER, OLD_BROWSER, wantedName, planShortcutRenames, syncShortcutNames, startMenuShortcutPath, refreshShortcutIcons };
