@@ -1029,5 +1029,14 @@
     "highlights": [
       "Tracks inside an album now show the album's cover."
     ]
+  },
+  "6.10.0": {
+    "title": "See every step of your downloads",
+    "highlights": [
+      "Each download now shows its steps: Download, Check, Unpack, Ready. You can see when a game is done downloading and is being checked or unpacked.",
+      "The app works from the keyboard: arrow keys between games, Enter to open, / to search, Esc to go back. It also works better with screen readers.",
+      "The app asks once whether to send crash reports, and remembers your answer. You can change it any time in Settings.",
+      "Fixes on the Downloads page: the size done and \"Left\" match the percent, the speed at the top uses the unit you picked, and a game being unpacked no longer shows under Waiting."
+    ]
   }
 }

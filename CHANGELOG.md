@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.0] - 2026-11-24
+
 ### Added
 
 - A step bar on every download: Download, Check, Unpack, Ready, with the step it is on lit (a check or unpack that was skipped is marked).
