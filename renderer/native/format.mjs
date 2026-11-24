@@ -581,3 +581,61 @@ export function activeFileRows(activeFiles, max = 8) {
     .map((x) => ({ name: String(x.name || '').split('/').pop() || String(x.name || ''), pct: Math.max(0, Math.min(100, Math.round(Number(x.progress) || 0))), speed: String(x.speed || ''), bytes: Math.max(0, Number(x.speedBytes) || 0), source: x.source === 'drive' ? 'Drive' : (x.source === 'gateway' ? 'Gateway' : '') }));
   return { rows: rows.slice(0, max), more: Math.max(0, rows.length - max), total: rows.length };
 }
+
+// ---- Shared by the classic pages and the Harbor theme's pages (Nov 24 2026). Harbor had its own copies of these, so a fix in one could miss the other.
+
+// Running/paused, waiting and finished downloads, in the order the lists show them (finished: newest first).
+const RUNNING_STATES = ['in_progress', 'downloading', 'starting', 'paused'];
+export function splitDownloads(list) {
+  const all = Array.isArray(list) ? list : [];
+  const st = (d) => String((d && d.status) || '').toLowerCase();
+  const active = all.filter((d) => RUNNING_STATES.includes(st(d)));
+  const waiting = all.filter((d) => isActiveDownload(d) && !active.includes(d));
+  const done = all.filter((d) => !isActiveDownload(d)).slice().reverse();
+  return { active, waiting, done };
+}
+
+// Bytes still to fetch across downloads.
+export function bytesLeft(list) {
+  return (Array.isArray(list) ? list : []).reduce((n, d) => n + Math.max(0, (Number(d && d.totalSize) || 0) - (Number(d && d.downloadedSize) || 0)), 0);
+}
+
+// Which library listing a download's title sits in: {group, folder, name}, or null (batches, unknown sections).
+export function downloadPlace(d) {
+  if (!d) return null;
+  const parts = String(d.remotePath || '').split('/').filter(Boolean);
+  if (parts.length >= 2) {
+    const first = parts[0];
+    const group = /^PCVR\d*$/.test(first) ? 'PCVR Games' : /^PC\d*$/.test(first) ? 'PC Games' : null;
+    if (group) { const name = parts.pop(); return { group, folder: parts.join('/'), name }; }
+  }
+  const rp = String(d.resumePath || '').split('/').filter(Boolean);
+  if (d.resumeRemote && rp.length && !rp[0].startsWith('__batch__')) {
+    const name = rp.pop();
+    const rem = /^PCVR-\d$/.test(d.resumeRemote) ? 'PCVR Games' : /^PC-\d$/.test(d.resumeRemote) ? 'PC Games' : d.resumeRemote;
+    return { group: rem, folder: rp.join('/'), name };
+  }
+  return null;
+}
+
+// A trending window's entries, one per title, with count = that window's PC + PCVR downloads, most first.
+// vr: true/false keeps only VR/PC titles; exclude: lower-case titles to skip; needCover: only entries with art; limit.
+export function rankTrending(entries, { vr = null, exclude = [], needCover = false, limit = 9 } = {}) {
+  const seen = new Set(exclude.map((t) => String(t).toLowerCase()));
+  const out = [];
+  for (const e of (Array.isArray(entries) ? entries : [])) {
+    if (!e) continue;
+    const count = (Number(e.pc) || 0) + (Number(e.pcvr) || 0);
+    const isVr = (Number(e.pcvr) || 0) > (Number(e.pc) || 0);
+    const key = cleanTitle(e.title || e.path || '').toLowerCase();
+    if (!count || !key || seen.has(key)) continue;
+    if (vr !== null && isVr !== vr) continue;
+    if (needCover && !e.coverUrl) continue;
+    seen.add(key);
+    out.push({ ...e, count, isVr });
+  }
+  return out.sort((a, b) => b.count - a.count).slice(0, limit);
+}
+
+// The build number in a folder name ("Game v19260982 -ARMGDDN" -> "19260982"), or ''.
+export function buildNumber(name) { const m = String(name || '').match(/\bv(\d{4,})\b/i); return m ? m[1] : ''; }

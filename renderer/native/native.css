@@ -755,3 +755,6 @@ header select + select { margin-left: 0; }
 .bnum { font-size: 11px; color: var(--dim); }
 .bprogbar { height: 6px; border-radius: 999px; background: var(--inset); overflow: hidden; } .bprogbar i { display: block; height: 100%; background: var(--accent, #22c55e); }
 .bprog { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--dim); max-width: 420px; }
+
+/* The window is hidden or minimised (app.mjs sets data-hidden): every CSS animation waits instead of drawing frames nobody sees. */
+html[data-hidden="1"] *, html[data-hidden="1"] *::before, html[data-hidden="1"] *::after { animation-play-state: paused !important; }

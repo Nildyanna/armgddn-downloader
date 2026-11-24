@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Harbor theme (staff test): fits wide screens (more columns, content centred on very wide windows), no animations that loop forever, Library and My List redesigned to match Home and Downloads, and the Downloads page scrolls on its own instead of squeezing the bars above it. Harbor's Downloads page now has the Mbps / MiB/s switch and the files-at-once list like the classic one.
+- Animations pause while the window is minimised or hidden (every theme).
+
 ### Fixed
 
 - PCs where the app kept closing at start with "GPU process isn't usable" even after switching to software drawing: if it still fails in software mode, the next launches run with no graphics process at all for a week (Sentry ARMGDDN-COMPANION-2Q).

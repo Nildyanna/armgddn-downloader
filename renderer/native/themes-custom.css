@@ -2,16 +2,34 @@
 
 /* Harbor: staff-only test of the redesign. Flat dark surfaces, Archivo type, art-first cards, one acid-green accent. */
 @font-face { font-family: 'Archivo'; src: url('fonts/Archivo-variable.woff2') format('woff2'); font-weight: 400 900; font-stretch: 62% 125%; font-display: swap; }
-html[data-theme="harbor"] body { font-family: 'Archivo', system-ui, sans-serif; background: #0d0a12; }
-html[data-theme="harbor"] { --surface: #17121e; --inset: #211a2a; }
-html[data-theme="harbor"] .banner { margin: 0; padding: 10px 24px; min-height: 0; border: 0; border-radius: 0; background: #17121e; box-shadow: none; justify-content: flex-start; gap: 14px; }
+/* Every Harbor colour is a named value here (Nov 24 2026: most were typed into the rules). A light Harbor only needs a second block of these. */
+html[data-theme="harbor"] {
+  --hb-bg: #0d0a12;          /* page */
+  --surface: #17121e;        /* panels and cards */
+  --inset: #211a2a;          /* fields, chips, empty art */
+  --hb-raise: #2b2236;       /* hover, tags */
+  --hb-track: #3a3046;       /* progress track */
+  --hb-text2: #cfc6d9;       /* secondary text on art */
+  --hb-hi: #fff;             /* the open tab, strongest text */
+  --hb-ph: #4a3f5c;          /* placeholder letter when there is no art */
+  --hb-gold: #ffc766;        /* kicker lines, warnings */
+  --hb-bad: #ff7a8a;         /* errors */
+  --hb-hero: #1d1726;        /* behind the top art while it loads (was a warm brown that flashed before the art arrived) */
+  --hb-crumb: #d6cfe0;       /* breadcrumbs and labels over art */
+  --hb-tag: #d9d1e3;         /* tag text */
+  --hb-line: rgba(243, 239, 248, .07);
+  --hb-line2: rgba(243, 239, 248, .08);
+  --hb-max: 1880px;          /* widest the content gets; wider windows centre it */
+}
+html[data-theme="harbor"] body { font-family: 'Archivo', system-ui, sans-serif; background: var(--hb-bg); }
+html[data-theme="harbor"] .banner { margin: 0; padding: 10px 24px; min-height: 0; border: 0; border-radius: 0; background: var(--surface); box-shadow: none; justify-content: flex-start; gap: 14px; }
 html[data-theme="harbor"] .banner::before, html[data-theme="harbor"] .banner::after, html[data-theme="harbor"] .banner p { display: none; }
 html[data-theme="harbor"] .banner-logo { position: static; transform: none; width: 40px; height: 40px; filter: none; }
 html[data-theme="harbor"] .banner-text { text-align: left; }
 html[data-theme="harbor"] .banner h1 { font-family: 'Archivo', system-ui, sans-serif; font-weight: 800; font-stretch: 125%; font-size: 19px; letter-spacing: .04em; margin: 0; color: var(--fg); text-shadow: none; }
 html[data-theme="harbor"] .banner-actions { position: static; margin-left: auto; }
 html[data-theme="harbor"] .tab { border-radius: 0; border: 0; padding: 10px 12px; font-weight: 500; }
-html[data-theme="harbor"] .tab.on, html[data-theme="harbor"] .topbar .tab.on { background: transparent; color: #fff; font-weight: 700; border: 0; box-shadow: inset 0 -3px 0 var(--accent); }
+html[data-theme="harbor"] .tab.on, html[data-theme="harbor"] .topbar .tab.on { background: transparent; color: var(--hb-hi); font-weight: 700; border: 0; box-shadow: inset 0 -3px 0 var(--accent); }
 html[data-theme="harbor"] .subbar { background: transparent; border-bottom: 0; }
 html[data-theme="harbor"] .card { background: var(--surface); border: 0; border-radius: 12px; }
 html[data-theme="harbor"] .card:hover { transform: none; box-shadow: 0 0 0 2px var(--accent); }
@@ -21,7 +39,7 @@ html[data-theme="harbor"] .title { font-weight: 700; }
 html[data-theme="harbor"] .dl { background: var(--accent); color: var(--on-accent); border: 0; font-weight: 700; border-radius: 8px; }
 html[data-theme="harbor"] .dl.ghost, html[data-theme="harbor"] .dl.heart { background: var(--inset); color: var(--fg); }
 html[data-theme="harbor"] .strip, html[data-theme="harbor"] .drow { background: var(--surface); border: 0; border-radius: 16px; }
-html[data-theme="harbor"] .bar { height: 8px; background: #3a3046; }
+html[data-theme="harbor"] .bar { height: 8px; background: var(--hb-track); }
 html[data-theme="harbor"] .fill { background: var(--accent); }
 html[data-theme="harbor"] .primary { border-radius: 10px; }
 html[data-theme="harbor"] .banner .header-stars { display: none; }
@@ -34,12 +52,12 @@ html[data-theme="harbor"] .settings, html[data-theme="harbor"] .adminpage { widt
 html[data-theme="harbor"] .settings h2, html[data-theme="harbor"] .adminpage h2, html[data-theme="harbor"] .reqhead h2 { font-weight: 800; font-stretch: 125%; font-size: 34px; line-height: 1; margin: 0 0 6px; }
 html[data-theme="harbor"] .sgroup, html[data-theme="harbor"] .toolcard { background: var(--surface); border: 0; border-radius: 16px; padding: 18px 22px 20px; margin-top: 0; }
 html[data-theme="harbor"] .sgroup h3, html[data-theme="harbor"] .toolcard h3 { font-weight: 800; font-stretch: 125%; font-size: 20px; letter-spacing: 0; text-transform: none; color: var(--fg); margin: 0 0 8px; }
-html[data-theme="harbor"] .sgroup .srow { border-top: 1px solid rgba(243, 239, 248, .07); padding: 12px 0; }
+html[data-theme="harbor"] .sgroup .srow { border-top: 1px solid var(--hb-line); padding: 12px 0; }
 html[data-theme="harbor"] .srow { background: transparent; border: 0; border-radius: 0; }
 html[data-theme="harbor"] .toolcard .srow { background: var(--inset); border-radius: 12px; padding: 10px 14px; }
 html[data-theme="harbor"] .srow .sval { font-variant-numeric: tabular-nums; }
 html[data-theme="harbor"] .dbtn { background: var(--inset); border: 0; color: var(--fg); font-weight: 600; font-size: 13px; border-radius: 10px; padding: 8px 14px; }
-html[data-theme="harbor"] .dbtn:hover { background: #2b2236; color: var(--fg); }
+html[data-theme="harbor"] .dbtn:hover { background: var(--hb-raise); color: var(--fg); }
 html[data-theme="harbor"] .dbtn.go, html[data-theme="harbor"] .primary { background: var(--accent); color: var(--on-accent); }
 html[data-theme="harbor"] select, html[data-theme="harbor"] input[type=text], html[data-theme="harbor"] input[type=search], html[data-theme="harbor"] input[type=number], html[data-theme="harbor"] input:not([type]), html[data-theme="harbor"] textarea, html[data-theme="harbor"] .toolcard input.wide { background: var(--inset); border: 0; border-radius: 10px; color: var(--fg); padding: 8px 12px; font-family: inherit; }
 html[data-theme="harbor"] .toolcard .srow select { border: 0; border-radius: 10px; }
@@ -48,7 +66,7 @@ html[data-theme="harbor"] input[type=checkbox] { accent-color: var(--accent); }
 html[data-theme="harbor"] .wiki { gap: 8px; padding: 0 32px; }
 html[data-theme="harbor"] .wikitoc { border-right: 0; width: 290px; padding: 16px 8px 16px 0; }
 html[data-theme="harbor"] .wikitoc button { border-radius: 10px; padding: 9px 12px; font-weight: 500; }
-html[data-theme="harbor"] .wikitoc button.on { background: var(--inset); color: #fff; font-weight: 700; box-shadow: inset 3px 0 0 var(--accent); }
+html[data-theme="harbor"] .wikitoc button.on { background: var(--inset); color: var(--hb-hi); font-weight: 700; box-shadow: inset 3px 0 0 var(--accent); }
 html[data-theme="harbor"] .wikibody { padding: 20px 28px 48px; max-width: 860px; }
 html[data-theme="harbor"] .wikibody h2 { font-weight: 800; font-stretch: 125%; font-size: 34px; line-height: 1.05; margin: 0 0 14px; }
 html[data-theme="harbor"] .wikibody h3 { font-weight: 800; font-stretch: 125%; font-size: 20px; color: var(--fg); margin: 26px 0 8px; }
@@ -60,9 +78,9 @@ html[data-theme="harbor"] .rqcard.hot { box-shadow: inset 3px 0 0 var(--accent2)
 html[data-theme="harbor"] .rqtitle { font-weight: 700; }
 html[data-theme="harbor"] .rqstatus { border-radius: 999px; }
 /* Admin: one green underline for every tab instead of a colour per tab */
-html[data-theme="harbor"] .atabs { gap: 2px; border-bottom: 1px solid rgba(243, 239, 248, .08); }
+html[data-theme="harbor"] .atabs { gap: 2px; border-bottom: 1px solid var(--hb-line2); }
 html[data-theme="harbor"] .atabs .tab[class*="h-"] { border: 0; border-radius: 0; background: transparent; }
-html[data-theme="harbor"] .atabs .tab[class*="h-"].on { background: transparent; box-shadow: inset 0 -3px 0 var(--accent); color: #fff; font-weight: 700; }
+html[data-theme="harbor"] .atabs .tab[class*="h-"].on { background: transparent; box-shadow: inset 0 -3px 0 var(--accent); color: var(--hb-hi); font-weight: 700; }
 html[data-theme="harbor"] .atabs .tab[class*="h-"]:hover { background: var(--inset); }
 html[data-theme="harbor"] .adminpage section, html[data-theme="harbor"] .adminpage .acard, html[data-theme="harbor"] .atable { border: 0; border-radius: 16px; }
 html[data-theme="harbor"] .atable th { color: var(--dim); font-weight: 600; }
@@ -74,7 +92,7 @@ html[data-theme="harbor"] .acard .alabel, html[data-theme="harbor"] .apanel h4 {
 html[data-theme="harbor"] .acard .avalue { font-weight: 800; font-stretch: 125%; font-size: 26px; color: var(--fg); }
 html[data-theme="harbor"] .acard.t-ok .avalue { color: var(--accent); }
 html[data-theme="harbor"] .acard.t-warn, html[data-theme="harbor"] .acard.t-bad { background: var(--surface); }
-html[data-theme="harbor"] .acard.t-warn .avalue { color: #ffc766; } html[data-theme="harbor"] .acard.t-bad .avalue { color: #ff7a8a; }
+html[data-theme="harbor"] .acard.t-warn .avalue { color: var(--hb-gold); } html[data-theme="harbor"] .acard.t-bad .avalue { color: var(--hb-bad); }
 html[data-theme="harbor"] .adminpage [class*="map"], html[data-theme="harbor"] .adminpage [class*="route"], html[data-theme="harbor"] .adminpage [class*="live"] { border-radius: 16px; }
 html[data-theme="harbor"] .reqpane { flex: none; height: auto; align-self: center; min-width: min(760px, 92%); }
 /* Harbor focus: no browser ring on the open tab (it drew a white box around it); keyboard focus gets a soft green ring instead. */
@@ -86,17 +104,17 @@ html[data-theme="harbor"] .acards + .acards { margin-top: 16px; }
 html[data-theme="harbor"] .acard { min-height: 104px; }
 
 /* Harbor Home (the mockup): hero, ranked chart with pictures, fresh builds, downloading now */
-.hb-home { display: flex; flex-direction: column; gap: 36px; }
-.hb-hero { position: relative; border-radius: 20px; overflow: hidden; background: #2f2313; }
+.hb-home { display: flex; flex-direction: column; gap: 36px; width: 100%; max-width: var(--hb-max); margin: 0 auto; }
+.hb-hero { position: relative; border-radius: 20px; overflow: hidden; background: var(--hb-hero); }
 .hb-herobg { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; filter: blur(40px) brightness(.38) saturate(1.5); transform: scale(1.3); }
 .hb-heroin { position: relative; display: flex; flex-wrap: wrap; gap: 36px; padding: 32px; align-items: flex-start; }
-.hb-heroart { width: 616px; max-width: 100%; aspect-ratio: 616 / 353; object-fit: contain; border-radius: 12px; background: rgba(0,0,0,.25); flex: 0 1 616px; cursor: pointer; }
+.hb-heroart { width: clamp(320px, 42vw, 860px); max-width: 100%; aspect-ratio: 616 / 353; object-fit: contain; border-radius: 12px; background: rgba(0,0,0,.25); flex: 0 1 auto; cursor: pointer; }
 .hb-herotext { flex: 1 1 340px; min-width: 0; display: flex; flex-direction: column; gap: 18px; }
-.hb-kick { font-weight: 700; font-size: 15px; color: #ffc766; font-variant-numeric: tabular-nums; }
-.hb-herotext h2 { margin: 0; font-weight: 800; font-stretch: 125%; font-size: 42px; line-height: 1.02; letter-spacing: -.01em; }
+.hb-kick { font-weight: 700; font-size: 15px; color: var(--hb-gold); font-variant-numeric: tabular-nums; }
+.hb-herotext h2 { margin: 0; font-weight: 800; font-stretch: 125%; font-size: clamp(34px, 2.6vw, 58px); line-height: 1.02; letter-spacing: -.01em; }
 .hb-facts { display: flex; gap: 32px; flex-wrap: wrap; font-variant-numeric: tabular-nums; }
 .hb-facts div { display: flex; flex-direction: column; gap: 4px; }
-.hb-facts span { color: #cfc6d9; font-size: 13px; }
+.hb-facts span { color: var(--hb-text2); font-size: 13px; }
 .hb-facts b { font-weight: 700; font-size: 22px; }
 .hb-actions { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 6px; }
 .hb-go, .hb-ghost, .hb-text { height: 48px; border-radius: 10px; font-weight: 700; font-size: 15px; font-family: inherit; cursor: pointer; }
@@ -107,18 +125,18 @@ html[data-theme="harbor"] .acard { min-height: 104px; }
 .hb-sechead { display: flex; align-items: baseline; gap: 16px; flex-wrap: wrap; }
 .hb-sechead h3 { margin: 0; font-weight: 800; font-stretch: 125%; font-size: 26px; }
 .hb-sechead span { color: var(--dim); }
-.hb-chart3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px 24px; }
+.hb-chart3 { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); gap: 8px 24px; }
 .hb-crow { display: grid; grid-template-columns: 52px 160px minmax(0, 1fr); gap: 14px; align-items: center; padding: 8px 10px; border: 0; border-radius: 12px; background: transparent; color: inherit; text-align: left; cursor: pointer; font-family: inherit; }
 .hb-crow:hover { background: var(--surface); }
 .hb-rank { font-weight: 800; font-stretch: 125%; font-size: 34px; color: var(--accent2); text-align: right; font-variant-numeric: tabular-nums; }
-.hb-crow img, .hb-noimg { width: 160px; aspect-ratio: 616 / 353; border-radius: 8px; object-fit: contain; background: #211a2a; display: block; }
+.hb-crow img, .hb-noimg { width: 160px; aspect-ratio: 616 / 353; border-radius: 8px; object-fit: contain; background: var(--inset); display: block; }
 .hb-cinfo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .hb-cinfo b { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hb-cinfo span { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
-.hb-cinfo i { align-self: flex-start; font-style: normal; font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: #2b2236; color: #d9d1e3; }
+.hb-cinfo i { align-self: flex-start; font-style: normal; font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 5px; background: var(--hb-raise); color: var(--hb-tag); }
 .hb-fresh { display: flex; gap: 20px; overflow-x: auto; padding-bottom: 8px; }
 .hb-fcard { flex: 0 0 264px; border: 0; padding: 0; background: none; color: inherit; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 10px; font: inherit; }
-.hb-fcard img { width: 264px; aspect-ratio: 616 / 353; border-radius: 10px; object-fit: contain; background: #211a2a; display: block; }
+.hb-fcard img { width: 264px; aspect-ratio: 616 / 353; border-radius: 10px; object-fit: contain; background: var(--inset); display: block; }
 .hb-fcard b { font-weight: 700; }
 .hb-fcard span { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; margin-top: -6px; }
 .hb-now { padding: 18px 22px; border-radius: 16px; background: var(--surface); display: flex; align-items: center; gap: 28px; flex-wrap: wrap; }
@@ -126,15 +144,15 @@ html[data-theme="harbor"] .acard { min-height: 104px; }
 .hb-nowhead b { font-weight: 800; font-stretch: 125%; font-size: 18px; }
 .hb-nowhead span { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
 .hb-nowitem { display: flex; align-items: center; gap: 14px; }
-.hb-nowdot { width: 96px; height: 6px; border-radius: 3px; background: #3a3046; overflow: hidden; display: block; }
+.hb-nowdot { width: 96px; height: 6px; border-radius: 3px; background: var(--hb-track); overflow: hidden; display: block; }
 .hb-nowdot i { display: block; height: 100%; background: var(--accent); }
 .hb-nowtext { display: flex; flex-direction: column; gap: 2px; }
 .hb-nowtext b { font-size: 14px; }
 .hb-nowtext span { color: var(--accent); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; }
-@media (max-width: 1100px) { .hb-chart3 { grid-template-columns: 1fr; } }
 
 /* Harbor Downloads page (the mockup) */
-.hb-dls { width: 100%; align-self: stretch; display: flex; flex-direction: column; gap: 32px; padding: 8px 32px 40px; box-sizing: border-box; }
+/* The page scrolls in its own area (it used to grow taller than the window and squeeze the bars above it); wide windows centre the content via the side padding. */
+.hb-dls { flex: 1; min-height: 0; overflow-y: auto; width: 100%; display: flex; flex-direction: column; gap: 32px; padding: 8px max(32px, calc((100% - var(--hb-max)) / 2 + 32px)) 40px; box-sizing: border-box; }
 .hb-dtitlebar { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
 .hb-dtitlebar h2 { margin: 0 0 8px; font-weight: 800; font-stretch: 125%; font-size: 44px; line-height: 1; }
 .hb-dsub { color: var(--dim); }
@@ -142,10 +160,9 @@ html[data-theme="harbor"] .acard { min-height: 104px; }
 .hb-dstats div { display: flex; flex-direction: column; gap: 4px; }
 .hb-dstats span { color: var(--dim); font-size: 13px; }
 .hb-dstats b { font-weight: 800; font-stretch: 125%; font-size: 26px; }
-.hb-dlgrid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; }
-@media (max-width: 1100px) { .hb-dlgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.hb-dlgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 360px), 1fr)); gap: 24px; }
 .hb-dcard { background: var(--surface); border-radius: 16px; overflow: hidden; display: flex; flex-direction: column; }
-.hb-dart { position: relative; aspect-ratio: 616 / 353; background: #211a2a; }
+.hb-dart { position: relative; aspect-ratio: 616 / 353; background: var(--inset); }
 .hb-dart img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; }
 .hb-dart img.hb-dbg { object-fit: cover; filter: blur(14px) grayscale(1) brightness(.3); transform: scale(1.1); }
 .hb-dgray { filter: grayscale(1) brightness(.38); }
@@ -164,58 +181,55 @@ html[data-theme="harbor"] .acard { min-height: 104px; }
 .hb-dcols h3 { margin: 0 0 4px; font-weight: 800; font-stretch: 125%; font-size: 22px; }
 .hb-dsechead { display: flex; align-items: center; justify-content: space-between; }
 .hb-drow { display: flex; align-items: center; gap: 16px; padding: 10px; border-radius: 12px; background: var(--surface); }
-.hb-thumb { width: 112px; aspect-ratio: 616 / 353; border-radius: 6px; object-fit: contain; background: #211a2a; display: block; flex: none; }
+.hb-thumb { width: 112px; aspect-ratio: 616 / 353; border-radius: 6px; object-fit: contain; background: var(--inset); display: block; flex: none; }
 .hb-thumb.gray { filter: grayscale(1) brightness(.6); }
 .hb-dinfo { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
 .hb-dinfo b { font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .hb-dinfo span { color: var(--dim); font-size: 13px; font-variant-numeric: tabular-nums; }
 .hb-dnone { color: var(--dim); padding: 8px 2px; }
-html[data-theme="harbor"] .hb-dls .dbtn { background: #2b2236; }
+html[data-theme="harbor"] .hb-dls .dbtn { background: var(--hb-raise); }
 html[data-theme="harbor"] .hb-dls .dbtns { margin-top: 0; }
 
 /* Harbor game page (the mockup's Title page) */
 .hb-page { position: fixed; inset: 0; z-index: 60; background: var(--bg); overflow-y: auto; }
 .hb-pagein { display: flex; flex-direction: column; gap: 0; padding-bottom: 56px; }
-.hb-thero { position: relative; overflow: hidden; background: #2f2313; }
-.hb-theroin { position: relative; padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 24px; }
-.hb-crumbs { display: flex; gap: 8px; align-items: center; color: #d8cdbd; font-size: 14px; }
-.hb-crumbs button { background: none; border: 0; color: #fff; font: inherit; font-weight: 700; cursor: pointer; padding: 0 8px 0 0; }
+.hb-thero { position: relative; overflow: hidden; background: var(--hb-hero); }
+.hb-theroin { position: relative; box-sizing: border-box; width: 100%; max-width: var(--hb-max); margin: 0 auto; padding: 28px 32px 40px; display: flex; flex-direction: column; gap: 24px; }
+.hb-crumbs { display: flex; gap: 8px; align-items: center; color: var(--hb-crumb); font-size: 14px; }
+.hb-crumbs button { background: none; border: 0; color: var(--hb-hi); font: inherit; font-weight: 700; cursor: pointer; padding: 0 8px 0 0; }
 .hb-tmain { display: flex; flex-wrap: wrap; gap: 40px; align-items: flex-start; }
-.hb-tmain .hb-herotext h1 { margin: 0; font-weight: 800; font-stretch: 125%; font-size: 48px; line-height: 1; letter-spacing: -.01em; }
+.hb-tmain .hb-herotext h1 { margin: 0; font-weight: 800; font-stretch: 125%; font-size: clamp(36px, 2.9vw, 64px); line-height: 1; letter-spacing: -.01em; }
 .hb-heroart.none { display: grid; place-items: center; font-size: 80px; font-weight: 800; color: var(--dim); aspect-ratio: 616 / 353; }
 .hb-dl { margin: 0; display: grid; grid-template-columns: 170px minmax(0, 1fr); row-gap: 10px; font-variant-numeric: tabular-nums; }
-.hb-dl dt { color: #d8cdbd; }
+.hb-dl dt { color: var(--hb-crumb); }
 .hb-dl dd { margin: 0; font-weight: 700; }
 .hb-dl dd.folder { font-weight: 600; font-stretch: 75%; font-size: 16px; overflow-wrap: anywhere; }
-.hb-page .hb-sec { padding: 40px 32px 0; }
+.hb-page .hb-sec { box-sizing: border-box; width: 100%; max-width: var(--hb-max); margin: 0 auto; padding: 40px 32px 0; }
 .hb-page .hb-sec h3 { margin: 0; font-weight: 800; font-stretch: 125%; font-size: 26px; }
-.hb-steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
-@media (max-width: 1000px) { .hb-steps { grid-template-columns: 1fr; } }
+.hb-steps { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 20px; }
 .hb-steps li { background: var(--surface); border-radius: 16px; padding: 24px; display: flex; flex-direction: column; gap: 10px; }
 .hb-steps b { font-weight: 800; font-stretch: 125%; font-size: 30px; color: var(--accent); }
 .hb-steps h4 { margin: 0; font-size: 18px; }
-.hb-steps p { margin: 0; color: #cfc6d9; line-height: 1.5; }
-.hb-also { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px; }
-@media (max-width: 1000px) { .hb-also { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.hb-steps p { margin: 0; color: var(--hb-text2); line-height: 1.5; }
+.hb-also { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); gap: 20px; }
 .hb-also button { display: flex; flex-direction: column; gap: 10px; border: 0; background: none; color: inherit; text-align: left; cursor: pointer; font: inherit; padding: 0; }
-.hb-also img { width: 100%; aspect-ratio: 616 / 353; border-radius: 10px; object-fit: contain; background: #211a2a; display: block; }
+.hb-also img { width: 100%; aspect-ratio: 616 / 353; border-radius: 10px; object-fit: contain; background: var(--inset); display: block; }
 .hb-also b { font-weight: 700; }
 .hb-also span { color: var(--dim); font-size: 13px; margin-top: -6px; font-variant-numeric: tabular-nums; }
 html[data-theme="harbor"] .hb-text { text-decoration: none; display: inline-flex; align-items: center; }
 html[data-theme="harbor"] .hb-text:disabled { opacity: .45; cursor: default; }
-.hb-noimg { display: grid; place-items: center; font-weight: 800; font-stretch: 125%; font-size: 40px; color: #4a3f5c; }
+.hb-noimg { display: grid; place-items: center; font-weight: 800; font-stretch: 125%; font-size: 40px; color: var(--hb-ph); }
 
 /* Harbor credit line: kept, beside the name, without the flames */
 html[data-theme="harbor"] .banner-credit { position: static; order: 2; align-self: flex-end; margin: 0 0 4px 4px; padding: 0; pointer-events: none; font-size: 12px; font-weight: 500; letter-spacing: .02em; }
 html[data-theme="harbor"] .banner-credit .fire-particles, html[data-theme="harbor"] .banner-credit .flame { display: none; }
 html[data-theme="harbor"] .banner-credit .fire-text { color: var(--dim); background: none; -webkit-text-fill-color: currentColor; animation: none; text-shadow: none; }
-html[data-theme="harbor"]:not([data-anim="0"]) .banner-credit .fire-text { background: linear-gradient(90deg, var(--dim) 0%, var(--dim) 40%, var(--accent) 50%, var(--dim) 60%, var(--dim) 100%) 0 0 / 250% 100%; -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; animation: hbShine 7s ease-in-out infinite; text-shadow: none; filter: none; }
-@keyframes hbShine { 0%, 70% { background-position: 100% 0; } 100% { background-position: -100% 0; } }
 html[data-theme="harbor"] .banner-actions { order: 3; }
 
-/* Harbor motion: calm and purposeful. Everything stops when Animations is off, or the system asks for reduced motion. */
+/* Harbor motion: calm and purposeful, and nothing loops forever (Nov 24 2026: the slow art zoom, the pulsing download edge and the shining credit
+   line ran non-stop, which costs drawing time on weak or software-rendered PCs). Only one-time entrances and transitions remain.
+   Everything stops when Animations is off, or the system asks for reduced motion. */
 html[data-theme="harbor"]:not([data-anim="0"]) .hb-hero { animation: hbRise .5s ease-out both; }
-html[data-theme="harbor"]:not([data-anim="0"]) .hb-heroart { animation: hbZoom 18s ease-in-out infinite alternate; }
 html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow { animation: hbRise .45s ease-out both; }
 html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(2) { animation-delay: .05s; } html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(3) { animation-delay: .1s; }
 html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(4) { animation-delay: .15s; } html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(5) { animation-delay: .2s; }
@@ -223,8 +237,7 @@ html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(6) { animation
 html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(8) { animation-delay: .35s; } html[data-theme="harbor"]:not([data-anim="0"]) .hb-crow:nth-child(9) { animation-delay: .4s; }
 html[data-theme="harbor"]:not([data-anim="0"]) .hb-fcard, html[data-theme="harbor"]:not([data-anim="0"]) .hb-now, html[data-theme="harbor"]:not([data-anim="0"]) .hb-dcard, html[data-theme="harbor"]:not([data-anim="0"]) .hb-drow, html[data-theme="harbor"]:not([data-anim="0"]) .hb-steps li { animation: hbRise .45s ease-out both; }
 html[data-theme="harbor"]:not([data-anim="0"]) .hb-dcolor { transition: clip-path .8s ease; }
-html[data-theme="harbor"]:not([data-anim="0"]) .hb-dedge { transition: left .8s ease; animation: hbEdge 1.8s ease-in-out infinite; }
-html[data-theme="harbor"]:not([data-anim="0"]) .hb-dcard.paused .hb-dedge { animation: none; }
+html[data-theme="harbor"]:not([data-anim="0"]) .hb-dedge { transition: left .8s ease; }
 html[data-theme="harbor"]:not([data-anim="0"]) .hb-nowdot i, html[data-theme="harbor"]:not([data-anim="0"]) .fill { transition: width .8s ease; }
 html[data-theme="harbor"]:not([data-anim="0"]) .card { transition: transform .18s ease, box-shadow .18s ease; }
 html[data-theme="harbor"]:not([data-anim="0"]) .card:hover { transform: translateY(-3px); }
@@ -234,7 +247,50 @@ html[data-theme="harbor"]:not([data-anim="0"]) .tab { transition: color .15s eas
 html[data-theme="harbor"]:not([data-anim="0"]) .hb-page { animation: hbFade .25s ease-out both; }
 html[data-theme="harbor"] .hb-fw { top: 0; left: 0; right: 0; bottom: 0; overflow: hidden; border-radius: 20px; }
 @keyframes hbRise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-@keyframes hbZoom { from { transform: scale(1); } to { transform: scale(1.025); } }
-@keyframes hbEdge { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @keyframes hbFade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { html[data-theme="harbor"] *, html[data-theme="harbor"] *::before, html[data-theme="harbor"] *::after { animation: none !important; transition: none !important; } }
+
+/* Harbor Library and My List (Nov 24 2026): the same language as Home, Downloads and the game page instead of a restyle.
+   The section name is the page heading, cards are art first (no box: rounded art, title and facts under it, a green ring on the art when pointed at),
+   and the list view is flat rows. Wide windows get more columns, never wider cards. */
+html[data-theme="harbor"] .home > * { width: 100%; max-width: var(--hb-max); margin-left: auto; margin-right: auto; box-sizing: border-box; }
+html[data-theme="harbor"] .crumbs { padding: 22px 32px 8px; gap: 6px; align-items: baseline; color: var(--dim); font-size: 15px; }
+html[data-theme="harbor"] .crumbs > button:first-child { font-weight: 800; font-stretch: 125%; font-size: 34px; line-height: 1; color: var(--fg); }
+html[data-theme="harbor"] .crumbs button { color: var(--fg); font-weight: 600; }
+html[data-theme="harbor"] .crumbs button:hover { color: var(--accent); }
+html[data-theme="harbor"] .crumbs .count { margin-left: auto; color: var(--dim); font-variant-numeric: tabular-nums; }
+html[data-theme="harbor"] .grid { padding: 12px 46px 36px 32px; gap: 30px 22px; }
+html[data-theme="harbor"] .grid.wide { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+html[data-theme="harbor"] .grid.square { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); }
+html[data-theme="harbor"] .grid.tall { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); }
+html[data-theme="harbor"] .grid .card, html[data-theme="harbor"] .hrow > .card { background: transparent; border-radius: 0; overflow: visible; }
+html[data-theme="harbor"] .grid .card:hover, html[data-theme="harbor"] .hrow > .card:hover { box-shadow: none; }
+html[data-theme="harbor"] .grid .card .cover, html[data-theme="harbor"] .hrow > .card .cover { border-radius: 12px; background: var(--inset); }
+html[data-theme="harbor"] .grid .card:hover .cover, html[data-theme="harbor"] .hrow > .card:hover .cover { box-shadow: 0 0 0 2px var(--accent); }
+html[data-theme="harbor"] .grid .card.picked .cover { box-shadow: 0 0 0 3px var(--accent); }
+html[data-theme="harbor"] .grid .card.picked, html[data-theme="harbor"] .hrow > .card.picked { box-shadow: none; }
+html[data-theme="harbor"] .grid .card .meta, html[data-theme="harbor"] .hrow > .card .meta { padding: 12px 2px 2px; }
+html[data-theme="harbor"] .grid .card .title, html[data-theme="harbor"] .hrow > .card .title { font-size: 15px; font-weight: 700; min-height: 2.6em; }
+html[data-theme="harbor"] .grid .card .sub, html[data-theme="harbor"] .hrow > .card .sub { font-size: 13px; font-variant-numeric: tabular-nums; }
+html[data-theme="harbor"] .cbtns { gap: 6px; margin-top: 10px; }
+html[data-theme="harbor"] .cbtns .dl { border-radius: 8px; padding: 6px 10px; font-size: 12px; }
+html[data-theme="harbor"] .cbtns .dl.ghost, html[data-theme="harbor"] .cbtns .dl.heart { background: transparent; color: var(--dim); box-shadow: inset 0 0 0 1px var(--hb-line2); }
+html[data-theme="harbor"] .cbtns .dl.ghost:hover, html[data-theme="harbor"] .cbtns .dl.heart:hover { background: var(--inset); color: var(--fg); }
+html[data-theme="harbor"] .cbtns .dl.heart.on { color: var(--accent); }
+html[data-theme="harbor"] .nocover { color: var(--hb-ph); }
+html[data-theme="harbor"] .list { padding: 8px 46px 32px 32px; gap: 4px; }
+html[data-theme="harbor"] .lrow { background: var(--surface); border: 0; border-radius: 10px; padding: 10px 14px; }
+html[data-theme="harbor"] .lrow:hover { background: var(--inset); border: 0; box-shadow: inset 3px 0 0 var(--accent); }
+html[data-theme="harbor"] .lrow.picked { box-shadow: inset 0 0 0 2px var(--accent); }
+html[data-theme="harbor"] .lrow .ltitle { font-weight: 700; }
+html[data-theme="harbor"] .lrow .lsub { font-size: 13px; font-variant-numeric: tabular-nums; }
+/* My List gets the same heading as a section */
+.hb-listhead { display: none; }
+html[data-theme="harbor"] .hb-listhead { display: flex; grid-column: 1 / -1; align-items: baseline; gap: 14px; padding: 10px 0 4px; }
+html[data-theme="harbor"] .hb-listhead b { font-weight: 800; font-stretch: 125%; font-size: 34px; line-height: 1; }
+html[data-theme="harbor"] .hb-listhead span { color: var(--dim); font-variant-numeric: tabular-nums; }
+/* Downloads: the files-at-once list folds away under each card */
+html[data-theme="harbor"] .dfiles.folded summary { cursor: pointer; color: var(--dim); font-size: 13px; list-style: none; }
+html[data-theme="harbor"] .dfiles.folded summary::-webkit-details-marker { display: none; }
+html[data-theme="harbor"] .dfiles.folded summary::before { content: '\25B8  '; }
+html[data-theme="harbor"] .dfiles.folded[open] summary::before { content: '\25BE  '; }

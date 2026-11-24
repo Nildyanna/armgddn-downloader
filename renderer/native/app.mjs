@@ -1,6 +1,6 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows } from './format.mjs';
+import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -35,6 +35,11 @@ function applyTheme(choice) {
 }
 const storedTheme = () => { try { return localStorage.getItem('native.theme') || 'dark'; } catch (e) { return 'dark'; } };
 applyTheme(storedTheme());
+// A hidden or minimised window draws nothing anyone sees: CSS animations pause until it is shown again (native.css, html[data-hidden]).
+try {
+  const markHidden = () => { if (document.hidden) document.documentElement.dataset.hidden = '1'; else delete document.documentElement.dataset.hidden; };
+  document.addEventListener('visibilitychange', markHidden); markHidden();
+} catch (e) { }
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
 const coverSrc = (url) => (url ? 'armgddn-img://c/?u=' + encodeURIComponent(url) : '');
 
@@ -185,17 +190,9 @@ function HarborTitle({ item, remote, art, cover, cats, trailer, readme, onClose,
   const dl30 = Number(item.downloadCount || 0);
   const date = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }); };
   const size = formatSize(item.size && Number(item.size) >= 1024 ? item.size : (item.crossRemoteSize || item.size));
-  const build = harborBuild(item.name);
+  const build = buildNumber(item.name);
   const rel = date(item.releaseDate || art.releaseDate);
-  const also = useMemo(() => {
-    const seen = new Set([cleanTitle(item.name).toLowerCase()]); const out = [];
-    for (const e of (windows && Array.isArray(windows.month) ? windows.month : [])) {
-      const isVr = (Number(e.pcvr) || 0) > (Number(e.pc) || 0);
-      const t = cleanTitle(e.title || '').toLowerCase();
-      if (isVr !== vr || !e.coverUrl || !t || seen.has(t)) continue; seen.add(t); out.push({ ...e, count: (Number(e.pc) || 0) + (Number(e.pcvr) || 0) });
-    }
-    return out.sort((a, b) => b.count - a.count).slice(0, 4);
-  }, [windows, item.name]);
+  const also = useMemo(() => rankTrending(windows && windows.month, { vr, exclude: [cleanTitle(item.name)], needCover: true, limit: 4 }), [windows, item.name]);
   const facts = [['Size', size], ['Build', build && (build + (item.modTime && date(item.modTime) ? ', updated ' + date(item.modTime) : ''))], ['Downloads, 30 days', dl30 > 0 ? dl30.toLocaleString('en-US') : ''], ['Released', rel], ['Genre', cats.slice(0, 4).join(', ')], ['Folder', item.name]].filter(([, v]) => v);
   return html`<div class="hb-page"><div class="hb-pagein">
     <section class="hb-thero">
@@ -362,7 +359,8 @@ function RequestsView({ say, openId }) {
 
 function MyListView({ list, render, listMode }) {
   if (!list.length) return html`<div class="empty">Your list is empty. Press the heart on a game, album or comic to save it here.</div>`;
-  return html`<main class=${listMode ? 'list' : 'grid wide'}>${list.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
+  // The heading only shows in the Harbor theme (themes-custom.css); other themes keep the page as it was.
+  return html`<main class=${listMode ? 'list' : 'grid wide'}><div class="hb-listhead"><b>My List</b><span>${list.length} saved</span></div>${list.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
 }
 
 function WikiView() {
@@ -921,7 +919,6 @@ function RadarStrip({ trend, progress, myList, history, onOpen, onSave, onResume
 // Harbor (staff-only test redesign): the Home of the mockup. A hero for the most downloaded title, the ranked chart with pictures, the newest builds,
 // and what is downloading now. The Game Radar and Hidden Gems strips stay below.
 const harborDate = (v) => { const d = new Date(v); return Number.isNaN(d.getTime()) ? '' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }); };
-const harborBuild = (name) => { const m = String(name || '').match(/\bv(\d{4,})\b/i); return m ? m[1] : ''; };
 async function harborNewest() {
   const out = [];
   for (const g of ['PCVR Games', 'PC Games']) {
@@ -935,41 +932,16 @@ async function harborNewest() {
 }
 function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
   const win = windows && Array.isArray(windows.month) && windows.month.length ? 'month' : 'week';
-  const rows = useMemo(() => {
-    const seen = new Set(); const out = [];
-    for (const e of (windows && Array.isArray(windows[win]) ? windows[win] : [])) {
-      const count = (Number(e.pc) || 0) + (Number(e.pcvr) || 0);   // the window's own counts only; "total" is all time
-      const key = String(e.title || e.path).toLowerCase();
-      if (!count || seen.has(key)) continue; seen.add(key); out.push({ ...e, count });
-    }
-    return out.sort((a, b) => b.count - a.count).slice(0, 9);
-  }, [windows]);
+  const rows = useMemo(() => rankTrending(windows && windows[win], { limit: 9 }), [windows]);   // the window's own counts only; "total" is all time
   // A trending entry can come without art (mods and non-Steam titles); the library listing often has it, so it is read from there as needed.
-  const [extra, setExtra] = useState({});
-  const missKey = rows.filter((e) => !e.coverUrl).map((e) => e.remote + '|' + e.path).join('||');
-  useEffect(() => {
-    let live = true;
-    (async () => {
-      const out = {}; const lists = new Map();
-      for (const e of rows.filter((x) => !x.coverUrl)) {
-        const it = homeItem(e); if (!it) continue;
-        const k = it._remote + '|' + it._folder;
-        if (!lists.has(k)) { const b = await api.browse(it._remote, it._folder); lists.set(k, b.ok ? (b.data.files || []) : []); }
-        const hit = lists.get(k).find((f) => f && f.name === it.name);
-        const url = hit && hit.coverArt && hit.coverArt.cover && hit.coverArt.cover.url;
-        if (url) out[e.path] = url;
-      }
-      if (live && Object.keys(out).length) setExtra((prev) => ({ ...prev, ...out }));
-    })();
-    return () => { live = false; };
-  }, [missKey]);
+  const extra = useListingCovers(rows.filter((e) => !e.coverUrl).map((e) => { const it = homeItem(e); return it ? { key: e.path, group: it._remote, folder: it._folder, name: it.name } : null; }).filter(Boolean));
   const coverOf = (e) => e.coverUrl || extra[e.path] || '';
   const active = (downloads || []).filter(isActiveDownload);
   const top = rows[0];
   const days = win === 'month' ? '30' : '7';
   const topItem = top ? homeItem(top) : null;
   const topFresh = top && fresh ? fresh.find((f) => f.name === (topItem && topItem.name)) : null;
-  const left = active.reduce((n, d) => n + Math.max(0, (Number(d.totalSize) || 0) - (Number(d.downloadedSize) || 0)), 0);
+  const left = bytesLeft(active);
   // A short firework celebration over the No. 1 title, once per visit to Home; off when animations are off or the system asks for less motion.
   const fw = useRef(null);
   const topPath = top && top.path;
@@ -991,7 +963,7 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
           <div class="hb-facts">
             ${top.sizeBytes ? html`<div><span>Size</span><b>${formatSize(top.sizeBytes)}</b></div>` : ''}
             <div><span>Platform</span><b>${(Number(top.pcvr) || 0) > (Number(top.pc) || 0) ? 'VR' : 'PC'}</b></div>
-            ${harborBuild(top.path) ? html`<div><span>Build</span><b>${harborBuild(top.path)}</b></div>` : ''}
+            ${buildNumber(top.path) ? html`<div><span>Build</span><b>${buildNumber(top.path)}</b></div>` : ''}
             ${topFresh && harborDate(topFresh.modTime) ? html`<div><span>Updated</span><b>${harborDate(topFresh.modTime)}</b></div>` : ''}
           </div>
           <div class="hb-actions">
@@ -1008,7 +980,7 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
       </button>`)}</div></section>` : ''}
     ${fresh && fresh.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Fresh builds</h3><span>Newest updates first</span></div>
       <div class="hb-fresh">${fresh.map((f) => html`<button class="hb-fcard" key=${f._remote + f.name} onClick=${() => onOpen({ remote: f._remote, path: (f._folder ? f._folder + '/' : '') + f.name })}>
-        <img src=${coverSrc(f.coverArt.cover.url)} alt="" /><b>${cleanTitle(f.name)}</b><span>${[harborBuild(f.name) && 'Build ' + harborBuild(f.name), harborDate(f.modTime)].filter(Boolean).join(' · ')}</span>
+        <img src=${coverSrc(f.coverArt.cover.url)} alt="" /><b>${cleanTitle(f.name)}</b><span>${[buildNumber(f.name) && 'Build ' + buildNumber(f.name), harborDate(f.modTime)].filter(Boolean).join(' · ')}</span>
       </button>`)}</div></section>` : ''}
     ${active.length ? html`<section class="hb-now"><div class="hb-nowhead"><b>Downloading now</b><span>${left > 0 ? formatSize(left) + ' left' : ''}</span></div>
       ${active.slice(0, 4).map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); return html`<div class="hb-nowitem" key=${d.id}><span class="hb-nowdot"><i style=${'width:' + pct + '%'}></i></span><span class="hb-nowtext"><b>${cleanTitle(d.name || '')}</b><span>${Math.round(pct)}%${d.totalSpeed ? ' · ' + d.totalSpeed : ''}</span></span></div>`; })}
@@ -1050,43 +1022,55 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
   </main>`;
 }
 
-// Harbor: the Downloads page of the mockup: a heading with speed, what is left and when it is done, the active downloads as art cards whose picture fills in
-// (colour, left to right) as they progress, then Waiting and Finished lists. The art is read from the library listing as needed, not saved.
-function HarborDownloads({ list, speedText, onClear }) {
+// Shared by the classic Downloads page and Harbor's: a download's buttons (with the Mbps / MiB/s switch while it runs) and the files it is fetching at once.
+function DownloadButtons({ d, mib, onFlip }) {
+  return html`<div class="dbtns">${isActiveDownload(d) && onFlip ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${onFlip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>`;
+}
+function ActiveFiles({ d, mib, folded }) {
+  const af = activeFileRows(d.activeFiles);
+  if (!af.total) return '';
+  const head = html`${af.total} file${af.total === 1 ? '' : 's'} at once`;
+  const rows = html`${af.rows.map((r) => html`<div class="dfile"><span class="dfname" title=${r.name}>${r.name}${r.source ? html` <span class=${'dfsrc ' + r.source.toLowerCase()} title=${r.source === 'Drive' ? 'Downloaded straight from Google Drive' : 'Downloaded through the ARMGDDN download gateway'}>${r.source}</span>` : ''}</span><span class="dfpct">${r.pct}%</span><div class="bar small"><div class="fill" style=${'width:' + r.pct + '%'}></div></div><span class="dfspeed">${mib && r.bytes > 0 ? formatMiBps(r.bytes) : r.speed}</span></div>`)}${af.more ? html`<div class="dfmore">and ${af.more} more</div>` : ''}`;
+  // Harbor's cards fold the list away (click to open); the classic page always shows it.
+  return folded
+    ? html`<details class="dfiles folded" title="The files being downloaded right now"><summary class="dfhead">${head}</summary>${rows}</details>`
+    : html`<div class="dfiles" title="The files being downloaded right now"><div class="dfhead">${head}</div>${rows}</div>`;
+}
+// Cover art for titles from the library listings they sit in (each listing read once): wanted = [{key, group, folder, name, collection}] -> {key: url}.
+// collection: also try the Music/Comics folder picture when the title has no cover.
+function useListingCovers(wanted) {
   const [art, setArt] = useState({});
-  const where = (d) => {
-    const parts = String(d.remotePath || '').split('/').filter(Boolean);
-    if (parts.length >= 2) { const first = parts[0]; const group = /^PCVR\d*$/.test(first) ? 'PCVR Games' : /^PC\d*$/.test(first) ? 'PC Games' : null; if (group) { const name = parts.pop(); return { group, folder: parts.join('/'), name }; } }
-    const rp = String(d.resumePath || '').split('/').filter(Boolean);
-    if (d.resumeRemote && rp.length && !rp[0].startsWith('__batch__')) { const name = rp.pop(); const rem = /^PCVR-\d$/.test(d.resumeRemote) ? 'PCVR Games' : /^PC-\d$/.test(d.resumeRemote) ? 'PC Games' : d.resumeRemote; return { group: rem, folder: rp.join('/'), name }; }
-    return null;
-  };
-  const wanted = list.map((d) => ({ id: d.id, w: where(d) })).filter((x) => x.w);
-  const key = wanted.map((x) => x.id + x.w.group + x.w.folder + x.w.name).join('|');
+  const sig = wanted.map((w) => w.key + '|' + w.group + '|' + w.folder + '|' + w.name).join('||');
   useEffect(() => {
     let live = true;
     (async () => {
       const out = {}; const listings = new Map();
-      for (const { id, w } of wanted) {
+      for (const w of wanted) {
         const k = w.group + '|' + w.folder;
         if (!listings.has(k)) { const b = await api.browse(w.group, w.folder); listings.set(k, b.ok ? (b.data.files || []) : []); }
         const hit = listings.get(k).find((f) => f && f.name === w.name);
-        const url = (hit && hit.coverArt && hit.coverArt.cover && hit.coverArt.cover.url) || collectionCoverPath(w.group, w.folder, hit || { name: w.name, isDir: true });
-        if (url) out[id] = coverSrc(url);
+        const url = (hit && hit.coverArt && hit.coverArt.cover && hit.coverArt.cover.url) || (w.collection ? collectionCoverPath(w.group, w.folder, hit || { name: w.name, isDir: true }) : '');
+        if (url) out[w.key] = url;
       }
-      if (live) setArt((prev) => ({ ...prev, ...out }));
+      if (live && Object.keys(out).length) setArt((prev) => ({ ...prev, ...out }));
     })();
     return () => { live = false; };
-  }, [key]);
+  }, [sig]);
+  return art;
+}
+
+// Harbor: the Downloads page of the mockup: a heading with speed, what is left and when it is done, the active downloads as art cards whose picture fills in
+// (colour, left to right) as they progress, then Waiting and Finished lists. The art is read from the library listing as needed, not saved.
+function HarborDownloads({ list, speedText, onClear, mib, onFlip }) {
+  const covers = useListingCovers(list.map((d) => { const w = downloadPlace(d); return w ? { key: d.id, ...w, collection: true } : null; }).filter(Boolean));
+  const art = useMemo(() => Object.fromEntries(Object.entries(covers).map(([k, u]) => [k, coverSrc(u)])), [covers]);
   const st = (d) => String(d.status || '').toLowerCase();
-  const active = list.filter((d) => ['in_progress', 'downloading', 'starting', 'paused'].includes(st(d)));
-  const waiting = list.filter((d) => isActiveDownload(d) && !active.includes(d));
-  const done = list.filter((d) => !isActiveDownload(d)).slice().reverse();
+  const { active, waiting, done } = splitDownloads(list);
   const speed = active.reduce((n, d) => n + (Number(d.totalSpeedBytes) || 0), 0);
-  const left = [...active, ...waiting].reduce((n, d) => n + Math.max(0, (Number(d.totalSize) || 0) - (Number(d.downloadedSize) || 0)), 0);
+  const left = bytesLeft([...active, ...waiting]);
   const mins = speed > 0 && left > 0 ? Math.max(1, Math.round(left / speed / 60)) : 0;
   const bytesOf = (d) => formatSize(d.totalSize) || '';
-  const actions = (d) => html`<div class="dbtns">${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>`;
+  const actions = (d) => html`<${DownloadButtons} d=${d} mib=${mib} onFlip=${onFlip} />`;
   const thumb = (d, gray) => (art[d.id] ? html`<img class=${'hb-thumb' + (gray ? ' gray' : '')} src=${art[d.id]} alt="" />` : html`<span class="hb-thumb none"></span>`);
   return html`<div class="hb-dls">
     <div class="hb-dtitlebar"><div><h2>Downloads</h2><span class="hb-dsub">Every part is checked, and the game is extracted when it is done</span></div>
@@ -1100,10 +1084,10 @@ function HarborDownloads({ list, speedText, onClear }) {
         <div class="hb-dart">${img ? html`<img class="hb-dbg" src=${img} alt="" aria-hidden="true" /><img class="hb-dgray" src=${img} alt="" /><img class="hb-dcolor" style=${'clip-path:inset(0 ' + (100 - pct) + '% 0 0)'} src=${img} alt="" />` : ''}<i class="hb-dedge" style=${'left:calc(' + pct + '% - 1px)'}></i></div>
         <div class="hb-dbody"><div class="hb-dtop"><span class="hb-dtitle">${cleanTitle(d.name || '')}</span><span class="hb-dpct">${Math.round(pct)}%</span></div>
           <div class="hb-dline">${[bytesOf(d) && (formatSize(d.downloadedSize) || '0 B') + ' of ' + bytesOf(d), paused ? 'paused' : speedText(d), !paused && etaShown(d.eta) ? etaShown(d.eta) + ' left' : ''].filter(Boolean).join(' · ')}</div>
-          ${d.error ? html`<div class="derr">${d.error}</div>` : ''}${actions(d)}</div>
+          ${d.error ? html`<div class="derr">${d.error}</div>` : ''}<${ActiveFiles} d=${d} mib=${mib} folded=${true} />${actions(d)}</div>
       </article>`; })}</div>` : ''}
     <div class="hb-dcols">
-      <section><h3>Waiting</h3>${waiting.length ? waiting.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, true)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${bytesOf(d)}${bytesOf(d) ? ' · ' : ''}starts when a slot frees up</span></span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing is waiting.</div>`}</section>
+      <section><h3>Waiting</h3>${waiting.length ? waiting.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, true)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${bytesOf(d)}${bytesOf(d) ? ' · ' : ''}starts when a slot frees up</span></span><${DownloadButtons} d=${d} /></div>`) : html`<div class="hb-dnone">Nothing is waiting.</div>`}</section>
       <section><div class="hb-dsechead"><h3>Finished</h3>${done.length ? html`<button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button>` : ''}</div>${done.length ? done.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, false)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${[bytesOf(d), st(d) === 'completed' ? 'checked and extracted' : st(d)].filter(Boolean).join(' · ')}</span></span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing finished yet.</div>`}</section>
     </div>
   </div>`;
@@ -1115,15 +1099,14 @@ function DownloadsView({ list, onClear, harbor }) {
   const flip = () => { const n = !mib; setMib(n); try { localStorage.setItem('native.speedUnit', n ? 'mib' : 'bits'); } catch (e) { } };
   const speedText = (d) => (mib && Number(d.totalSpeedBytes) > 0 ? formatMiBps(d.totalSpeedBytes) : (d.totalSpeed || formatSpeed(d.speed)));
   if (!list.length) return html`<div class="empty">No downloads yet. Press Download on any game, album or comic collection.</div>`;
-  if (harbor) return html`<${HarborDownloads} list=${list} speedText=${speedText} onClear=${onClear} />`;
-  const rows = list;
+  if (harbor) return html`<${HarborDownloads} list=${list} speedText=${speedText} onClear=${onClear} mib=${mib} onFlip=${flip} />`;
   return html`<div class="dlist"><div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
     <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
     <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(d.downloadedSize) && formatSize(d.downloadedSize) + ' of ' + formatSize(d.totalSize), speedText(d), elapsedShown(d) ? 'Elapsed ' + elapsedShown(d) : '', etaShown(d.eta) ? 'ETA ' + etaShown(d.eta) : '', d.fileCount > 1 ? (d.completedFiles || 0) + ' of ' + d.fileCount + ' files' : ''].filter(Boolean).join(' · ')}</div>
-    ${(() => { const af = activeFileRows(d.activeFiles); return af.total ? html`<div class="dfiles" title="The files being downloaded right now"><div class="dfhead">${af.total} file${af.total === 1 ? '' : 's'} at once</div>${af.rows.map((r) => html`<div class="dfile"><span class="dfname" title=${r.name}>${r.name}${r.source ? html` <span class=${'dfsrc ' + r.source.toLowerCase()} title=${r.source === 'Drive' ? 'Downloaded straight from Google Drive' : 'Downloaded through the ARMGDDN download gateway'}>${r.source}</span>` : ''}</span><span class="dfpct">${r.pct}%</span><div class="bar small"><div class="fill" style=${'width:' + r.pct + '%'}></div></div><span class="dfspeed">${mib && r.bytes > 0 ? formatMiBps(r.bytes) : r.speed}</span></div>`)}${af.more ? html`<div class="dfmore">and ${af.more} more</div>` : ''}</div>` : ''; })()}
+    <${ActiveFiles} d=${d} mib=${mib} />
     ${d.error ? html`<div class="derr">${d.error}</div>` : ''}
-    <div class="dbtns">${isActiveDownload(d) ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${flip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>
+    <${DownloadButtons} d=${d} mib=${mib} onFlip=${flip} />
   </div>`)}</div>`;
 }
 

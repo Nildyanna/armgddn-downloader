@@ -552,6 +552,7 @@ test('Harbor download cards find their art for PC, PCVR and the other sections w
   const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
   const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
   const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
-  assert.ok(app.includes('d.resumeRemote') && app.includes('collectionCoverPath(w.group, w.folder'));
+  const fmt = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'format.mjs'), 'utf8');
+  assert.ok(fmt.includes('d.resumeRemote') && app.includes('collectionCoverPath(w.group, w.folder'));
   assert.ok(bridge.includes('resumeRemote: d.resumeRemote') && main.includes('resumeRemote: (download.resume'));
 });
