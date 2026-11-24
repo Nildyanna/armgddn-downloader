@@ -376,13 +376,13 @@ test('Settings has an Extract folder row and the file list explains small files'
   const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
   assert.ok(app.includes("pickFolder('extractFolder')"));
   assert.ok(!app.includes('Small files (under 1 MB)'), 'small files go to Drive now, so the note is gone');
-  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes("'extractFolder',"));
   assert.ok(main.includes('extractTarget(downloadDir)'));
 });
 
 test('an empty file is created on the PC without being downloaded', () => {
-  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes("typeof file.size === 'number' && file.size === 0"));
   assert.ok(main.includes('fs.writeFileSync(outputPath, \'\')'));
 });
@@ -396,7 +396,7 @@ test('each file in the list carries its speed in bytes so the MiB/s toggle can c
 });
 
 test('Open folder opens the real folder of the download (the album, the series, the unpacked game)', () => {
-  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes("ipcMain.handle('open-folder', async (event, arg) =>"));
   assert.ok(main.includes('src.extractedTo || src.openDir || src.folder'));
   assert.ok(main.includes('folder: download.extractedTo || download.openDir || download.downloadDir'));
@@ -547,7 +547,7 @@ test('the Downloads tab shows time elapsed next to the ETA: running ones count u
 
 test('the Downloads tab shows the bytes written so far, not only the finished files (007 First Light read "32% . 3.9 MB of 43.4 GB", DMP Nov 21)', () => {
   const fs = require('fs'), path = require('path');
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
   assert.ok(main.includes('download.bytesSoFar = bytesSoFar;'));
   assert.ok(bridge.includes("downloadedSize: Math.max(Number(d.downloadedSize) || 0, Number(d.bytesSoFar) || 0),"));
@@ -566,7 +566,7 @@ test('Harbor download cards find their art for PC, PCVR and the other sections w
   const fs = require('fs'), path = require('path');
   const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
   const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   const fmt = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'format.mjs'), 'utf8');
   assert.ok(fmt.includes('d.resumeRemote') && app.includes('collectionCoverPath(w.group, w.folder'));
   assert.ok(bridge.includes('resumeRemote: d.resumeRemote') && main.includes('resumeRemote: (download.resume'));

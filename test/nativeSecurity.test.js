@@ -18,7 +18,7 @@ test('direct cover fetches check every hop, resolve the name, and limit time, ty
 });
 
 test('a link on a web page cannot replace the saved sign-in, and cannot add to Komga without asking', () => {
-  const m = read('main.js');
+  const m = require('./mainSource')();
   const comics = m.slice(m.indexOf("if (u.hostname === 'comics')"), m.indexOf("if (u.hostname === 'komga')"));
   assert.ok(!comics.includes('saveSession('), 'comics and music links keep the token in memory only');
   assert.ok(m.includes('confirmKomgaDeepLink(listId).then'));
@@ -43,7 +43,7 @@ test('the actions that change the site for everyone are confirmed by the app, no
 });
 
 test('a message box asked for by the hidden classic window belongs to the native window and does not block the main process', () => {
-  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   const h = main.slice(main.indexOf("ipcMain.handle('show-message-box'"), main.indexOf("ipcMain.handle('show-message-box'") + 1800);
   assert.ok(h.includes('parent = nativeWindow'));
   assert.ok(h.includes('dialog.showMessageBox(parent, safeOptions)') && !h.includes('showMessageBoxSync'));
@@ -51,14 +51,14 @@ test('a message box asked for by the hidden classic window belongs to the native
 });
 
 test('the software-rendering marker expires after 24 hours so one GPU crash does not leave the app slow for good', () => {
-  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes('24 * 3600 * 1000') && main.includes('trying the graphics card again'));
 });
 
 test('Music and Comics downloads from the native window go to the folder chosen in Settings, and a big collection is not refused', () => {
   const fs = require('fs'), path = require('path');
   const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(bridge.includes('new URLSearchParams(downloadParams(t.downloadToken, remote))'));
   assert.equal((bridge.match(/downloadParams\(t\.downloadToken, remote\)/g) || []).length, 2);     // the single download and the batch
   assert.ok(bridge.includes("if (dest === 'music' || dest === 'comics') q.dest = dest;"));
@@ -67,7 +67,7 @@ test('Music and Comics downloads from the native window go to the folder chosen 
 });
 
 test('updating never starts the installer while a download runs, and quitting for an update does not ask again', () => {
-  const main = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes("if (anyDownloadRunning()) {\n    logToFile('install-update: a download is running; not updating now');"));
   assert.ok(main.includes("['in_progress', 'downloading', 'starting'].includes(d.status)).length;\n    if (activeCount > 0 && !_installUpdateInProgress && !_closeConfirmed) {"));
   // the native window asks the same question before a real close, and the old window then does not ask a second time

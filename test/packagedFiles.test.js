@@ -9,11 +9,17 @@ test('every local module the main process requires is listed in the packaged fil
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   const listed = new Set(pkg.build.files);
   const missing = [];
-  for (const file of ['main.js', 'setupReport.js', 'setupCheck.js', 'updateRunner.js']) {
+  const splitOut = require('./mainSource').files().map((f) => path.relative(root, f)).filter((f) => f !== 'main.js');
+  for (const file of ['main.js', 'setupReport.js', 'setupCheck.js', 'updateRunner.js', ...splitOut]) {
     const src = fs.readFileSync(path.join(root, file), 'utf8');
-    for (const m of src.matchAll(/require\('\.\/([A-Za-z0-9_-]+)(\.js)?'\)/g)) {
-      const name = m[1] + '.js';
-      if (fs.existsSync(path.join(root, name)) && !listed.has(name)) missing.push(name);
+    const base = path.dirname(path.join(root, file));
+    for (const m of src.matchAll(/require\('(\.\.?\/[A-Za-z0-9_\/-]+?)(\.js)?'\)/g)) {
+      const abs = path.resolve(base, m[1] + '.js');
+      const name = path.relative(root, abs).split(path.sep).join('/');
+      if (!fs.existsSync(abs) || name.startsWith('..')) continue;
+      // listed by name, or inside a folder entry such as 'main/**/*' or 'native/**/*'
+      const inFolder = [...listed].some((e) => e.endsWith('/**/*') && name.startsWith(e.slice(0, -4)));
+      if (!listed.has(name) && !inFolder) missing.push(name);
     }
   }
   assert.deepStrictEqual([...new Set(missing)], []);

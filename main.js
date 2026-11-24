@@ -3,6 +3,8 @@ const secureStore = require('./secureStore');   // safeStorage, with the asynchr
 const path = require('path');
 const fs = require('fs');
 const os = require('os');
+// ---- split-out modules (docs/MAIN_SPLIT.md) ----
+const { normalizeMirrorKey, sanitizeRelativePath, resolveInside, escapePowerShellSingleQuoted, quoteDesktopExecArg, redactUrlQueryStrings, isPathInside, normalizeFileSize, formatBytes, clampInt, parseRcloneHttpStatus, parseSpeedToBytes, formatSpeed, formatEtaSeconds, compareVersions } = require('./main/util');
 const pipeGuard = require('./pipeGuard');
 pipeGuard.install(process);   // a closed stdout/stderr (started from a launcher that went away) made every console call fail with EPIPE in a loop
 
@@ -448,15 +450,6 @@ const MIRROR_COOLDOWN_MS = 20 * 60 * 1000;
 const MIRROR_EARLY_STALL_MS = 45 * 1000;
 const STALL_SAME_MIRROR_RETRIES = 3;
 const mirrorCooldowns = new Map();
-
-function normalizeMirrorKey(mirror) {
-  try {
-    const key = String(mirror == null ? '' : mirror).trim();
-    return key;
-  } catch (e) {
-    return '';
-  }
-}
 
 function pruneMirrorCooldowns(now = Date.now()) {
   try {
@@ -1112,41 +1105,6 @@ const { describe7zFailure } = require('./sevenZipErrors');
 const downloadErrors = require('./downloadErrors');
 let ignoreProxyEnv = false;   // set when the PC's proxy settings point at a dead proxy: rclone then runs without them
 
-function sanitizeRelativePath(input) {
-  if (input == null || input === '') return null;
-  if (typeof input !== 'string') return null;
-  if (input.includes('\0')) return null;
-  let cleaned = input.replace(/\\/g, '/');
-
-  // Some archives contain Windows drive-prefixed paths (e.g. "C:Games/file") or
-  // leading slashes ("/Games/file"). Treat these as "anchored" paths and
-  // normalize them back into a relative path rooted at the extraction directory.
-  if (/^[a-zA-Z]:/.test(cleaned)) {
-    cleaned = cleaned.slice(2);
-  }
-  cleaned = cleaned.replace(/^\/+/, '');
-
-  // If it is still absolute after normalization rules, reject.
-  if (path.isAbsolute(cleaned)) return null;
-
-  const normalized = path.posix.normalize(cleaned);
-  if (normalized.startsWith('../') || normalized === '..' || normalized.includes('/../')) return null;
-  if (normalized.startsWith('/')) return null;
-
-  // 7z listings can include "Path = ." for the root entry.
-  if (normalized === '.' || normalized === './') return '';
-
-  return normalized;
-}
-
-function resolveInside(baseDir, relPath) {
-  const full = path.resolve(baseDir, relPath);
-  const base = path.resolve(baseDir);
-  if (full === base) return full;
-  if (!full.startsWith(base + path.sep)) return null;
-  return full;
-}
-
 function fetchJsonWithCookies(urlString, method, cookieHeader) {
   return new Promise((resolve, reject) => {
     const u = new URL(urlString);
@@ -1518,10 +1476,6 @@ let settings = {
   lastSeenVersion: ''
 };
 
-function escapePowerShellSingleQuoted(value) {
-  return String(value).replace(/'/g, "''");
-}
-
 function applyStartupRegistration() {
   try {
     // A copy that is not the installed app (a dev run, the native preview from a test folder) must never write the Windows/macOS startup
@@ -1677,17 +1631,6 @@ function showDownloadNotification(title, body) {
   }
 }
 
-// Desktop Entry spec: an Exec argument containing spaces or shell-special characters must be
-// double-quoted, with " ` $ and \ backslash-escaped, and then every backslash doubled again by the
-// general string-escape rule. An unquoted path with a space (e.g. "~/My Apps/Companion.AppImage")
-// made the armgddn:// handler silently do nothing. Also "%" is a field code, so it becomes "%%".
-function quoteDesktopExecArg(arg) {
-  const raw = String(arg == null ? '' : arg).replace(/%/g, '%%');
-  if (!/[\s"'\\<>~|&;$*?#()`=]/.test(raw)) return raw;
-  const quoted = '"' + raw.replace(/(["`$\\])/g, '\\$1') + '"';
-  return quoted.replace(/\\/g, '\\\\');
-}
-
 // In-app AppImage updates rename the old file to "<AppImage>.old" and never remove it, so the folder
 // gained a leftover backup after every update. Once the new version has been running for a while it is
 // no longer needed. Returns a short status string for the log; never throws.
@@ -1838,20 +1781,6 @@ function logToFile(message) {
       const fallbackPath = path.join(os.tmpdir(), 'armgddn-downloader-debug.log');
       fs.appendFileSync(fallbackPath, `[${new Date().toISOString()}] [logToFile fallback] ${message} (original error: ${e && e.message ? e.message : e})\n`);
     } catch (e2) { }
-  }
-}
-
-function redactUrlQueryStrings(text) {
-  try {
-    const s = String(text || '');
-    if (!s) return '';
-    return s.replace(/https?:\/\/\S+/gi, (u) => {
-      const idx = u.indexOf('?');
-      if (idx === -1) return u;
-      return u.slice(0, idx) + '?…';
-    });
-  } catch (e) {
-    return '';
   }
 }
 
@@ -4915,13 +4844,6 @@ function isFileCompleteOnDisk(downloadDir, file) {
   }
 }
 
-function isPathInside(parentPath, childPath) {
-  const parent = path.resolve(parentPath);
-  const child = path.resolve(childPath);
-  const relative = path.relative(parent, child);
-  return relative !== '' && relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
-}
-
 function waitForChildClose(proc, timeoutMs = 10000) {
   return new Promise((resolve) => {
     if (!proc || proc.exitCode !== null || proc.signalCode !== null) {
@@ -5102,11 +5024,6 @@ async function cleanupCancelledDownloadFiles(download) {
   return cleanupOk;
 }
 
-function normalizeFileSize(size) {
-  const n = Number(size);
-  return Number.isFinite(n) && n > 0 ? n : 0;
-}
-
 // Report progress to website server
 async function reportProgressToServer(download, token) {
   logToFile(`reportProgressToServer called - token: ${token ? 'present' : 'MISSING'}, download: ${download?.name}`);
@@ -5221,16 +5138,6 @@ async function reportProgressToServer(download, token) {
     console.error('[Progress] Stack:', err.stack);
     debugLog(`Progress report exception: ${err.message}`);
   }
-}
-
-// Format bytes
-function formatBytes(bytes, decimals = 2) {
-  if (!Number.isFinite(bytes) || bytes === 0) return '0 Bytes';
-  const k = 1024;
-  const dm = decimals < 0 ? 0 : decimals;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(k));
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
 
 // Check free disk space
@@ -7307,12 +7214,6 @@ function maybeClearServerNotice() {
   }
 }
 
-function clampInt(n, min, max) {
-  const v = Math.floor(Number(n));
-  if (!Number.isFinite(v)) return min;
-  return Math.max(min, Math.min(max, v));
-}
-
 function updateProgressBackoffFromResponse(res, responseData) {
   try {
     const now = Date.now();
@@ -7462,23 +7363,6 @@ function shouldFinalizeDownload(download) {
   logToFile(`[shouldFinalizeDownload] downloadedSize=${downloadedSize}, totalSize=${totalSize}, completedFiles=${completed}, fileCount=${fileCount}`);
 
   return result;
-}
-
-function parseRcloneHttpStatus(errorOutput) {
-  try {
-    const s = String(errorOutput || '');
-    if (!s) return null;
-
-    const m = s.match(/\b(\d{3})\b\s+([A-Za-z][A-Za-z\s-]{1,50})/);
-    if (!m) return null;
-    const code = Number(m[1]);
-    if (!Number.isFinite(code)) return null;
-    if (code < 100 || code > 599) return null;
-    const text = String(m[2] || '').trim();
-    return { code, text };
-  } catch (e) {
-    return null;
-  }
 }
 
 function clampProgressUnlessFinal(download) {
@@ -8133,22 +8017,6 @@ function parseRcloneProgress(downloadId, fileKey, output) {
   }
 }
 
-// Parse speed string to bytes per second
-function parseSpeedToBytes(value, unit) {
-  const num = parseFloat(value);
-  const unitLower = unit.toLowerCase();
-  if (!Number.isFinite(num)) return NaN;
-
-  const isBinary = unitLower.includes('ib');
-  const k = isBinary ? 1024 : 1000;
-
-  if (unitLower.startsWith('t')) return num * k * k * k * k;
-  if (unitLower.startsWith('g')) return num * k * k * k;
-  if (unitLower.startsWith('m')) return num * k * k;
-  if (unitLower.startsWith('k')) return num * k;
-  return num;
-}
-
 // Format bytes per second to human readable (decimal MB/s, not binary MiB/s)
 // Peak speed comes from rclone progress lines. Albums of tiny files finish before any line reports a speed,
 // so the peak stays 0: fall back to the average over the whole download.
@@ -8159,38 +8027,6 @@ function peakOrAverageSpeedBytes(download) {
   const bytes = Number(download && (download.downloadedSize || download.totalSize)) || 0;
   const seconds = started ? (Date.now() - started) / 1000 : 0;
   return seconds > 0.5 && bytes > 0 ? bytes / seconds : 0;
-}
-
-function formatSpeed(bytesPerSec) {
-  const bitsPerSec = (Number.isFinite(bytesPerSec) ? bytesPerSec : 0) * 8;
-  const units = ['bp/s', 'Kbp/s', 'Mbp/s', 'Gbp/s', 'Tbp/s'];
-  if (bitsPerSec <= 0) return '0 bp/s';
-  const i = Math.min(
-    units.length - 1,
-    Math.floor(Math.log(bitsPerSec) / Math.log(1000))
-  );
-  const value = bitsPerSec / Math.pow(1000, i);
-  const decimals = i >= 2 ? 1 : 0;
-  const s = value.toFixed(decimals).replace(/\.0$/, '');
-  return s + ' ' + units[i];
-}
-
-// Format seconds to human readable ETA
-function formatEtaSeconds(totalSeconds) {
-  try {
-    const s = Math.floor(Number(totalSeconds));
-    if (!Number.isFinite(s) || s <= 0) return '';
-    const sec = s % 60;
-    const min = Math.floor(s / 60) % 60;
-    const hr = Math.floor(s / 3600) % 24;
-    const day = Math.floor(s / 86400);
-    if (day > 0) return `${day}d ${hr}h`;
-    if (hr > 0) return `${hr}h ${min}m`;
-    if (min > 0) return `${min}m ${sec}s`;
-    return `${sec}s`;
-  } catch (e) {
-    return '';
-  }
 }
 
 // Update overall progress
@@ -10136,18 +9972,4 @@ function macTooOldForRelease(latestVersion, platform, osRelease) {
   if (compareVersions(latestVersion, MAC_MIN_DARWIN_FROM_VERSION) < 0) return false;
   const major = parseInt(String(osRelease || ''), 10);
   return Number.isFinite(major) && major < MAC_MIN_DARWIN_MAJOR;
-}
-
-function compareVersions(a, b) {
-  if (!a || !b) return 0;
-  const partsA = a.split('.').map(n => parseInt(n, 10) || 0);
-  const partsB = b.split('.').map(n => parseInt(n, 10) || 0);
-
-  for (let i = 0; i < Math.max(partsA.length, partsB.length); i++) {
-    const numA = partsA[i] || 0;
-    const numB = partsB[i] || 0;
-    if (numA > numB) return 1;
-    if (numA < numB) return -1;
-  }
-  return 0;
 }

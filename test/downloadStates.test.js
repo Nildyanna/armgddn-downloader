@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const MAIN = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+const MAIN = require('./mainSource')();
 
 function statusesInMain() {
   const found = new Set();

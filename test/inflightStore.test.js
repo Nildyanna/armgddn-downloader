@@ -60,7 +60,7 @@ test('old entries expire and a damaged file loads as empty', () => {
 });
 
 test('the app saves a download when it starts or is paused, restores it as paused, and Resume asks for a fresh link', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes('persistInflight(download);\n  sendToMain(\'download-started\''));
   assert.ok(main.includes("download.status = 'paused';\n  persistInflight(download);"));
   assert.ok(main.includes("dropInflight(downloadId);\n"));
@@ -70,7 +70,7 @@ test('the app saves a download when it starts or is paused, restores it as pause
 });
 
 test('Resume of a batch makes the batch again, then asks for a token for it', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes("/api/batch-manifest', { remote: d.resume.remote, paths: d.resume.paths, exclude: d.resume.exclude || [] }"));
   assert.ok(main.includes("tokenPath = '__batch__/' + b.json.batchId;"));
   assert.ok(main.includes('manifest.batchExclude'));
@@ -102,7 +102,7 @@ test('6.0.0 loads the unfinished-downloads file exactly as 5.41 to 5.43 wrote it
   assert.deepEqual(list[2].resume.paths, ['Comix/Marvel/A', 'Comix/Marvel/B', 'Comix/Marvel/C']);
   assert.equal(list[0].progress, 37);
   // and the 6.0.0 app restores them at start whatever window opens, and a restored one resumes through a fresh token (so through Drive)
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(/\n  loadOrphanedDownloads\(\);\n/.test(main), 'restore runs unconditionally at start');
   assert.ok(main.includes("if (download.restored) return resumeRestoredDownload(downloadId);"));
 });

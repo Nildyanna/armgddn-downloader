@@ -34,7 +34,7 @@ test('after an update the app relaunches through whichever Start Menu shortcut e
 });
 
 test('main.js syncs the names only for the installed Windows app and the build ships the module', () => {
-  const m = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const m = require('./mainSource')();
   assert.ok(m.includes("process.platform === 'win32' && app.isPackaged") && m.includes('shortcutNames.syncShortcutNames') && m.includes('shortcutNames.startMenuShortcutPath'));
   assert.ok(JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8')).build.files.includes('shortcutNames.js'));
 });

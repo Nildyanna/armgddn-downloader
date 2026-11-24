@@ -67,7 +67,7 @@ test('a download that failed and was retried reports its later files without cre
 
 test('the app reports a finally failed download, not a paused one, and not while an automatic retry is waiting', () => {
   const fs = require('fs'); const path = require('path');
-  const src = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const src = require('./mainSource')();
   const helper = src.slice(src.indexOf('function reportDirectGrantEnd'), src.indexOf('function scheduleAutoRetry'));
   assert.ok(helper.includes('download.paused') && helper.includes('__autoRetryPending') && helper.includes('driveDirectClient.finish'));
   assert.ok(src.includes('if (!download.paused && !download.cancelled) reportDirectGrantEnd(download);'));            // end of the first run
@@ -88,14 +88,14 @@ test('reportOrphan sends the estimate for a grant the app never closed, and refu
 });
 
 test('main.js closes the saved grant on resume and on cancel of a restored download', () => {
-  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'main.js'), 'utf8');
+  const src = require('./mainSource')();
   assert.ok(src.includes("download.directGrant ? (download.directGrant.finished ? '' : download.directGrant.grantId) : (download.grantId || '')"));
   assert.equal((src.match(/endOrphanedGrant\(/g) || []).length, 4);   // the definition, the startup pass and its two callers
 });
 
 test('graphics saver: idle pause, Lighter graphics setting in both windows, no endless progress shimmer', () => {
   const fs = require('fs'), p = (...a) => require('path').join(__dirname, '..', ...a);
-  const main = fs.readFileSync(p('main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes('lightGraphics: false') && main.includes("settings.lightGraphics = !!settings.lightGraphics") && main.includes("    'lightGraphics',\n"));
   for (const f of ['renderer/index.html', 'renderer/native/index.html']) assert.ok(/gpu-saver\.js/.test(fs.readFileSync(p(f), 'utf8')) && /gpu-saver\.css/.test(fs.readFileSync(p(f), 'utf8')), f);
   assert.ok(fs.readFileSync(p('renderer/gpu-saver.css'), 'utf8').includes('animation-play-state: paused'));

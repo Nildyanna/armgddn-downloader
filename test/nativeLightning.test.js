@@ -24,7 +24,7 @@ test('the assets the intro loads sit next to the page, so they are packaged with
 });
 
 test('an unpackaged copy never runs an installer (a test copy once updated the real Companion this way)', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   const handler = main.slice(main.indexOf("ipcMain.handle('install-update'"), main.indexOf("ipcMain.handle('install-update'") + 900);
   const guard = handler.indexOf('!app.isPackaged && process.env.ARMGDDN_ALLOW_DEV_UPDATE');
   assert.ok(guard > -1 && guard < handler.indexOf('_installUpdateInProgress'), 'the guard comes first');
@@ -32,7 +32,7 @@ test('an unpackaged copy never runs an installer (a test copy once updated the r
 });
 
 test('opening the Companion again or using the tray brings up the native window when the app runs in native mode, and closing it can keep the app in the tray', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes('function showAppWindow()') && main.includes('NATIVE_PREVIEW && nativeWindow && !nativeWindow.isDestroyed()'));
   const second = main.slice(main.indexOf("app.on('second-instance'"), main.indexOf("app.on('second-instance'") + 400);
   assert.ok(second.indexOf('showAppWindow()') > -1, 'a second launch shows the native window first');
@@ -47,7 +47,7 @@ test('opening the Companion again or using the tray brings up the native window 
 });
 
 test('the Companion checks for updates once an hour in the main process, announces each new version once, and the native window has a Check for updates button and an Update now bar', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes('const UPDATE_POLL_MS = 60 * 60 * 1000;') && main.includes('setInterval(pollForUpdateOnce, UPDATE_POLL_MS)'));
   assert.ok(main.includes('app.whenReady().then(() => {\n  startUpdatePoller();'), 'the poller starts with the app');
   const poll = main.slice(main.indexOf('async function pollForUpdateOnce'), main.indexOf('function startUpdatePoller'));
@@ -70,7 +70,7 @@ test('the native window has the classic tools: schedule, game updates, .7z help 
     'function WhatsNewBox', 'api.pendingWhatsNew()', '<${WhatsNewButton} />', 'api.clearHistory()', 'onClear=${']) assert.ok(app.includes(piece), piece);
   const preN = fs.readFileSync(path.join(__dirname, '..', 'preload-native.js'), 'utf8');
   for (const piece of ["getScheduleBanner: call('get-schedule-banner')", "checkGameUpdates: call('check-game-updates')", "clearHistory: call('clear-history')", "pendingWhatsNew: call('native-pending-whats-new')", "getHelp7zVideoSrc: call('get-help-7z-video-src')"]) assert.ok(preN.includes(piece), piece);
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes("ipcMain.handle('native-pending-whats-new'") && main.includes('pendingWhatsNewEntryNative = pendingWhatsNewEntry;'));
   const html = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'index.html'), 'utf8');
   assert.ok(html.includes("media-src 'self' blob: file:"), 'the local help video may play');
@@ -84,7 +84,7 @@ test('members on the native window see ARMGDDN App in the update window, notific
   const classic = u.buildRunner(base);
   assert.ok(classic.includes("$form.Text = 'ARMGDDN Companion'") && classic.includes('Installing the update. ARMGDDN Companion reopens by itself'));
   assert.ok(!u.buildRunner({ ...base, appName: "x'; Remove-Item *" }).includes("Remove-Item *'"), 'the name cannot break out of the script');
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes("appName: NATIVE_PREVIEW ? 'ARMGDDN App' : 'ARMGDDN Companion'") && main.includes("NATIVE_PREVIEW ? 'ARMGDDN App update available'"));
 });
 
@@ -143,7 +143,7 @@ test('the Requests page no longer throws (a notice that used the library page\'s
 });
 
 test('the File and Help menus reach Settings and the update check, and offer no way back to the classic window', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   const menu = main.slice(main.indexOf('function createAppMenu()'), main.indexOf('Menu.setApplicationMenu(menu)'));
   for (const piece of ["label: 'Settings'", "label: 'Check for updates'", 'Open the log folder']) assert.ok(menu.includes(piece), piece);
   assert.ok(!menu.includes('classic window') && !menu.includes('Switch to the'));
@@ -154,7 +154,7 @@ test('the File and Help menus reach Settings and the update check, and offer no 
 });
 
 test('File > Exit really exits: it marks the app as quitting so the keep-running-in-the-tray close handlers do not swallow it', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes("label: 'Exit', accelerator: 'CmdOrCtrl+Q', click: () => { app.isQuitting = true; app.quit(); }"));
   assert.ok(main.includes("app.on('before-quit', () => { app.isQuitting = true; });"));
   assert.ok(!/label: 'File',\s*submenu: \[[^\]]*role: 'quit'/.test(main), 'the File menu no longer uses the plain quit role');
@@ -167,14 +167,14 @@ test('the themed backdrop is a single fixed layer behind the window, not a tiled
 });
 
 test('Help has an About item that shows the version and can copy the details', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   const menu = main.slice(main.indexOf('function createAppMenu()'), main.indexOf('Menu.setApplicationMenu(menu)'));
   assert.ok(menu.includes("'About ARMGDDN App' : 'About ARMGDDN Companion'") && menu.includes('showAboutDialog()'));
   assert.ok(main.includes('function showAboutDialog()') && main.includes("buttons: ['OK', 'Copy details']") && main.includes('app.getVersion()'));
 });
 
 test('the Minimize button hides the native window to the tray when that setting is on, and Start minimized is honoured (Gal, Nov 21: the setting did nothing)', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   assert.ok(main.includes("nativeWindow.on('minimize', (event) => {\n            if (settings && settings.minimizeToTrayOnMinimize) { try { event.preventDefault(); } catch (e) { } nativeWindow.hide(); }"));
   assert.ok(main.includes("settings.startWithOsMinimized && isAutostartLaunch()") && main.includes("if (settings.minimizeToTrayOnMinimize) nativeWindow.hide(); else nativeWindow.minimize();"));
   const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');

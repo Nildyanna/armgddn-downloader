@@ -40,7 +40,7 @@ test('nothing outside the download folder is ever touched, and the limit itself 
 });
 
 test('main.js removes the empty folders after the cancelled files, but not while another running download shares the folder, and the module is packaged', () => {
-  const main = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+  const main = require('./mainSource')();
   const pkg = JSON.parse(fs.readFileSync(path.join(__dirname, '..', 'package.json'), 'utf8'));
   assert.ok(pkg.build.files.includes('emptyDirs.js'));
   assert.ok(main.includes("const { pruneEmptyDirs } = require('./emptyDirs');") && main.includes('removedParents.add(path.dirname(targetPath));'));

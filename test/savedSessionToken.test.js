@@ -1,7 +1,7 @@
 const test = require('node:test'); const assert = require('node:assert'); const fs = require('fs'); const path = require('path');
 // main.js is not importable in a test (Electron), so check the source: the catalog and download-missing code must use the token string,
 // never the true/false that loadSession() returns.
-const src = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+const src = require('./mainSource')();
 test('loadSession() returns a boolean, so it must not be used as a token in the library calls', () => {
   assert.match(src, /function savedSessionToken\(\)/);
   const catalog = src.slice(src.indexOf('function catalogTokens'), src.indexOf('async function comicsGet'));

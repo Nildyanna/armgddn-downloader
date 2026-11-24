@@ -6,7 +6,7 @@ const assert = require('node:assert');
 const fs = require('fs');
 const path = require('path');
 
-const src = fs.readFileSync(path.join(__dirname, '..', 'main.js'), 'utf8');
+const src = require('./mainSource')();
 
 test('a fresh no-GPU marker turns the GPU process off before the app is ready', () => {
   const block = src.slice(src.indexOf('const GPU_HARD_MARKER'), src.indexOf('function armNoGpuProcess'));

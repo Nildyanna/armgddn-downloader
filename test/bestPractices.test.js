@@ -36,7 +36,9 @@ function tags(name) {
 const where = (t) => t.file + ':' + t.line;
 
 test('Security: every window has context isolation, no Node in the page, the sandbox, and cannot open windows by itself', () => {
-  for (const f of ['main.js', 'native/bridge.js']) {
+  let total = 0;
+  const mainFiles = require('./mainSource').files().map((f) => path.relative(ROOT, f));
+  for (const f of [...mainFiles, 'native/bridge.js']) {
     const src = read(f);
     const re = /(\w+)\s*=\s*new BrowserWindow\(\{/g;
     let m, n = 0;
@@ -50,8 +52,9 @@ test('Security: every window has context isolation, no Node in the page, the san
       assert.ok(new RegExp('denyNewWindows\\(' + name + '\\b|' + name + '\\.webContents\\.setWindowOpenHandler').test(after), f + ': window ' + name + ' can open new windows (call denyNewWindows)');
       void body;
     }
-    assert.ok(n > 0, 'no windows found in ' + f + ' (the check is broken)');
+    total += n;
   }
+  assert.ok(total >= 5, 'expected at least 5 windows, found ' + total + ' (the check is broken)');
 });
 
 test('Security: the app page keeps a content security policy with no inline scripts', () => {
@@ -126,7 +129,7 @@ test('Performance: every font face says how to show text while it loads (font-di
 test('Privacy: crash reports need the member\'s answer, asked once, before or after an update', () => {
   const app = read('renderer/native/app.mjs');
   assert.ok(app.includes('ErrorReportingAsk'), 'the question component is missing');
-  const main = read('main.js');
+  const main = require('./mainSource')();
   assert.ok(/errorReportingAsked/.test(main), 'the "already answered" flag is missing from the settings');
 });
 

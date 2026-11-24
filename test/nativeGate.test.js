@@ -15,7 +15,7 @@ test('the native window always opens; only the developer flag --classic opens th
 });
 
 test('nothing lets a member turn the native window off or switch back', () => {
-  const main = read('main.js');
+  const main = require('./mainSource')();
   const pkg = JSON.parse(read('package.json'));
   assert.ok(pkg.build.files.includes('nativeGate.js'));
   assert.ok(main.includes('const NATIVE_PREVIEW = nativeGate.wantsNative({ argv: process.argv });'));
