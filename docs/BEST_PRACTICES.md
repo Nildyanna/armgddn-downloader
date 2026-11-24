@@ -63,7 +63,7 @@ When a rule has to be broken on purpose, write why next to the code and in the t
 | Crash reports need the member's answer: asked once (first start, or first start after the update that added it), remembered in `errorReportingAsked`; changeable in Settings | Test |
 | Reports never carry the member's IP, name, Telegram account, home folder or link tokens (`scrubForSentry`, `sendDefaultPii: false`); a failed download's report names the title | Review |
 | Whatever the question tells members a report contains must stay true; change the question when the reports change | Review |
-| The per-PC ID (deviceId.js) is random, made on first use, and only its SHA-256 fingerprint is sent (X-ARMGDDN-Device); it reads nothing about the PC and is used only to recognise a banned member's PC (Tulip's ban-evasion check) | `test/deviceId.test.js`, Review |
+| The install ID (deviceId.js) is random, made on first use, and only its SHA-256 fingerprint is sent (X-ARMGDDN-Device); it reads nothing about the PC | `test/deviceId.test.js`, Review |
 
 ## 5b. Words members see
 

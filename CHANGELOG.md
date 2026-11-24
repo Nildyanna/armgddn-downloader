@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.10.1] - 2026-11-24
+
+### Internal
+
+- A random install ID (deviceId.js); the API client sends only its SHA-256 fingerprint (X-ARMGDDN-Device).
+
 ## [6.10.0] - 2026-11-24
 
 ### Added

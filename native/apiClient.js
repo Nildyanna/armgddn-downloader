@@ -31,7 +31,7 @@ function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgd
     if (!token) throw new ApiError('Not signed in', 'auth', 401);
     const headers = { Authorization: `Bearer ${token}`, 'User-Agent': `ARMGDDN-Companion/${version}`, Accept: raw ? '*/*' : 'application/json' };
     if (body !== undefined) headers['Content-Type'] = 'application/json';
-    if (deviceFp) headers['X-ARMGDDN-Device'] = deviceFp;      // per-PC ID fingerprint (deviceId.js), for the ban-evasion check
+    if (deviceFp) headers['X-ARMGDDN-Device'] = deviceFp;      // install ID fingerprint (deviceId.js)
     if (extra) Object.assign(headers, extra);
     let attempt = 0;
     for (;;) {

@@ -1,5 +1,5 @@
 'use strict';
-// The per-PC ID (Nov 24 2026): random, kept in two places so a reinstall keeps it, and only its fingerprint is sent.
+// The install ID (Nov 24 2026): random, kept in two places so a reinstall keeps it, and only its fingerprint is sent.
 const test = require('node:test');
 const assert = require('node:assert');
 const fs = require('fs');

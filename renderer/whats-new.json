@@ -1038,5 +1038,11 @@
       "The app asks once whether to send crash reports, and remembers your answer. You can change it any time in Settings.",
       "Fixes on the Downloads page: the size done and \"Left\" match the percent, the speed at the top uses the unit you picked, and a game being unpacked no longer shows under Waiting."
     ]
+  },
+  "6.10.1": {
+    "title": "Small fixes and improvements",
+    "highlights": [
+      "Behind-the-scenes improvements."
+    ]
   }
 }

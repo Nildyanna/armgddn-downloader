@@ -1,7 +1,6 @@
 'use strict';
-// A random ID for this PC, so the site can recognise a banned member's PC when they come back on a new Telegram account and a new IP
-// (Nov 24 2026, George: "is there any way to still manage this if a user just changes their IP?"). Nothing about the PC is read: the ID is
-// 32 random bytes made on first use. Only a SHA-256 fingerprint of it ever leaves the PC (header X-ARMGDDN-Device).
+// A random install ID for this PC (Nov 24 2026). Nothing about the PC is read: the ID is 32 random bytes made on first use.
+// Only a SHA-256 fingerprint of it is sent to the site (header X-ARMGDDN-Device).
 // Kept in two places so reinstalling the app does not reset it: the app's data folder and ~/.armgddn in the user's home folder.
 const crypto = require('crypto');
 const fs = require('fs');
