@@ -736,13 +736,14 @@ function GameUpdatesRow({ onOpenGame }) {
     ${st.list.length ? html`<ul class="gu">${st.list.map((u, i) => html`<li key=${i}><a class="glink" href="#" title="Open it in the library" onClick=${(e) => { e.preventDefault(); if (onOpenGame) onOpenGame(u.remote || 'PC Games', u.latestFolder); }}>${u.latestFolder}</a> <span class="sval">(you have ${u.current}, newest is ${u.latest})</span></li>`)}</ul>` : ''}</div>`;
 }
 
-// "New to .7z files?": the short help video, played from the app's own files.
+// "New to .7z files?": the short help video, played from the app's own files. It starts playing as soon as Watch the video is clicked,
+// centred in the row (George, Nov 24 2026).
 function Help7zRow() {
   const [src, setSrc] = useState('');
   const [open, setOpen] = useState(false);
   const show = async () => { setOpen(!open); if (!open && !src) { try { setSrc(await api.getHelp7zVideoSrc()); } catch (e) { } } };
   return html`<div><div class="srow"><span class="slabel">New to .7z files? <span class="sval">A short video on opening multi-part archives after a download.</span></span><button class="dbtn" onClick=${show}>${open ? 'Hide the video' : 'Watch the video'}</button></div>
-    ${open && src ? html`<video class="help7z" controls src=${src}></video>` : ''}</div>`;
+    ${open && src ? html`<video class="help7z" controls autoplay src=${src} ref=${(v) => { if (v && v.paused && !v.dataset.started) { v.dataset.started = '1'; v.play().catch(() => { }); } }}></video>` : ''}</div>`;
 }
 
 // What's New: the changes in the running version, shown once after an update and on request.

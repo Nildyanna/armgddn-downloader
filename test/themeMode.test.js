@@ -51,3 +51,10 @@ test('every page module of the app window parses (a duplicate name breaks the wh
   const dir = path.join(__dirname, '..', 'renderer', 'native');
   for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.mjs'))) execFileSync(process.execPath, ['--check', path.join(dir, f)], { stdio: 'pipe' });
 });
+
+test('the .7z help video plays as soon as it is opened and sits centred in its row', () => {
+  const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
+  const css = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'native.css'), 'utf8');
+  assert.match(app, /<video class="help7z" controls autoplay /);
+  assert.match(css, /\.help7z \{ display: block;[^}]*margin: 6px auto 12px;/);
+});
