@@ -616,7 +616,16 @@ export function splitDownloads(list) {
 
 // Bytes still to fetch across downloads.
 export function bytesLeft(list) {
-  return (Array.isArray(list) ? list : []).reduce((n, d) => n + Math.max(0, (Number(d && d.totalSize) || 0) - (Number(d && d.downloadedSize) || 0)), 0);
+  return (Array.isArray(list) ? list : []).reduce((n, d) => n + Math.max(0, (Number(d && d.totalSize) || 0) - bytesDone(d)), 0);
+}
+
+// How much of a download is on disk, matching its percent. `downloadedSize` counts finished files only, while the percent also counts the parts of the
+// files fetched at once (6 at a time: 32% showed "504 MB of 39.6 GB", Nov 24), so the larger of the two is used.
+export function bytesDone(d) {
+  if (!d) return 0;
+  const total = Number(d.totalSize) || 0;
+  const fromPct = total > 0 ? Math.round(Math.max(0, Math.min(100, Number(d.progress) || 0)) / 100 * total) : 0;
+  return Math.max(Number(d.downloadedSize) || 0, fromPct);
 }
 
 // Which library listing a download's title sits in: {group, folder, name}, or null (batches, unknown sections).

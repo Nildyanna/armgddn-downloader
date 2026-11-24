@@ -15,6 +15,18 @@ test('splitDownloads: running and paused, then waiting, then finished newest fir
   assert.deepStrictEqual(splitDownloads(null), { active: [], waiting: [], done: [] });
 });
 
+test('bytesDone matches the percent when files are fetched several at once', async () => {
+  const { bytesDone, bytesLeft } = await import('../renderer/native/format.mjs');
+  const GB = 1e9;
+  // Nov 24: 32% of 39.6 GB with only 504 MB of finished files.
+  const d = { totalSize: 39.6 * GB, downloadedSize: 504e6, progress: 32 };
+  assert.strictEqual(bytesDone(d), Math.round(0.32 * 39.6 * GB));
+  assert.strictEqual(bytesLeft([d]), 39.6 * GB - Math.round(0.32 * 39.6 * GB));
+  assert.strictEqual(bytesDone({ totalSize: 100, downloadedSize: 60, progress: 50 }), 60);
+  assert.strictEqual(bytesDone({ downloadedSize: 7 }), 7);
+  assert.strictEqual(bytesDone(null), 0);
+});
+
 test('bytesLeft adds what each download still has to fetch, never below zero', async () => {
   const { bytesLeft } = await import('../renderer/native/format.mjs');
   assert.strictEqual(bytesLeft([{ totalSize: 100, downloadedSize: 40 }, { totalSize: 10, downloadedSize: 20 }, {}]), 60);
