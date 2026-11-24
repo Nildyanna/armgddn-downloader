@@ -175,6 +175,8 @@ html[data-theme="harbor"] .acard { min-height: 104px; }
 .hb-dpct { font-weight: 800; font-stretch: 125%; font-size: 22px; color: var(--accent); font-variant-numeric: tabular-nums; }
 .hb-dcard.paused .hb-dpct { color: var(--dim); }
 .hb-dline { color: var(--dim); font-size: 14px; font-variant-numeric: tabular-nums; }
+.hb-dcard .dsteps { font-size: 13px; margin: 10px 0 4px; }
+.hb-dcard.paused .dstep.now i { border-color: var(--dim); box-shadow: none; }
 .hb-dcols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 32px; }
 @media (max-width: 1100px) { .hb-dcols { grid-template-columns: 1fr; } }
 .hb-dcols section { display: flex; flex-direction: column; gap: 12px; }

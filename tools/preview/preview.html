@@ -1,0 +1,73 @@
+<!doctype html>
+<!--
+  Preview of the app's pages in an ordinary browser, with made-up data (Nov 24 2026). Not part of the app: tools/ is not in build.files.
+  Run:  npm run preview            (then open the address it prints)
+  Ask for a page and theme in the address:  ?scene=downloads|home|library|mylist|settings  &theme=harbor|classic|light
+  The Downloads scene has one download in every state the app has (DOWNLOAD_STATES in renderer/native/format.mjs), so a change to that page
+  can be looked at, and screenshotted, before a release.
+-->
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>ARMGDDN App preview</title>
+<link rel="stylesheet" href="fonts.css"><link rel="stylesheet" href="native.css"><link rel="stylesheet" href="themes.css"><link rel="stylesheet" href="themes-custom.css"><link rel="stylesheet" href="../gpu-saver.css">
+<script>
+(function () {
+  const q = new URLSearchParams(location.search);
+  const scene = q.get('scene') || 'downloads';
+  const theme = { classic: 'dark', harbor: 'harbor', light: 'light' }[q.get('theme') || 'harbor'] || q.get('theme');
+  try { localStorage.setItem('native.theme', theme); localStorage.setItem('native.lightningSeen', '1'); localStorage.setItem('native.harborDefault', '1'); } catch (e) { }
+
+  // Made-up covers: a gradient and the title, so no game art is kept in the repo.
+  const hues = [265, 200, 15, 330, 150, 45, 285, 180, 0, 230];
+  const cover = (title, i) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="920" height="430" viewBox="0 0 920 430"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">'
+    + '<stop offset="0" stop-color="hsl(' + hues[i % hues.length] + ',60%,38%)"/><stop offset="1" stop-color="hsl(' + ((hues[i % hues.length] + 50) % 360) + ',55%,14%)"/></linearGradient></defs>'
+    + '<rect width="920" height="430" fill="url(#g)"/><text x="50" y="250" font-family="Arial Black,Arial" font-size="64" font-weight="900" fill="#fff" opacity=".9">'
+    + title.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</text></svg>');
+
+  const GB = 1e9;
+  const titles = ['Starfall Outpost', 'Neon Drift', 'Ironvale', 'Hollow Signal', 'Tidebreak', 'Ember Run', 'Glasswing', 'Quiet Orbit', 'Rust Choir', 'Paper Moons'];
+  const files = titles.map((t, i) => ({ name: t + ' v' + (16396650 - i * 1111) + ' -ARMGDDN', size: (8 + i * 4.3) * GB, isDir: true, modTime: '2026-11-' + String(20 - i).padStart(2, '0') + 'T10:00:00Z', coverArt: { cover: { url: cover(t, i) } }, downloadCount: 300 - i * 17 }));
+  const trend = titles.map((t, i) => ({ remote: 'PC-1', path: 'PC1/' + files[i].name, title: t, pc: 200 - i * 9, pcvr: 0, total: 200 - i * 9, sizeBytes: files[i].size, coverUrl: cover(t, i), norm: t.toLowerCase(), platform: 'pc' }));
+  const part = (t, n, pct, size, mibs) => ({ name: t + ' -ARMGDDN.7z.' + String(n).padStart(3, '0'), progress: pct, size, status: 'downloading', speed: mibs.toFixed(1) + ' MiB/s', speedBytes: mibs * 1048576 });
+
+  // One download in every state (keep in step with DOWNLOAD_STATES).
+  const mk = (i, status, pct, extra) => {
+    const total = files[i].size;
+    return Object.assign({ id: 'd' + i, name: files[i].name, remotePath: 'PC1/' + files[i].name, status, progress: pct, totalSize: total, downloadedSize: Math.round(total * Math.max(0, pct - 25) / 100),
+      totalSpeed: '1 Gbp/s', totalSpeedBytes: 123 * 1048576, eta: '4m 4s', fileCount: 10, completedFiles: 2, activeFiles: {}, statusMessage: '' }, extra || {});
+  };
+  const fetching = {};
+  [1, 2, 3, 4, 5, 6].forEach((n) => { fetching['f' + n] = part(titles[0], n + 2, 10 + n * 9, 4 * GB, 20.5); });
+  const downloads = [
+    mk(0, 'downloading', 32, { activeFiles: fetching }),
+    mk(1, 'paused', 41, { totalSpeedBytes: 0, totalSpeed: '', eta: '' }),
+    mk(2, 'in_progress', 99, { statusMessage: 'Checking files...', totalSpeedBytes: 0, eta: '', downloadedSize: files[2].size, completedFiles: 10 }),
+    mk(3, 'extracting', 99, { extractPercent: 45, totalSpeedBytes: 0, eta: '', downloadedSize: files[3].size, completedFiles: 10 }),
+    mk(4, 'queued', 0, { totalSpeedBytes: 0, totalSpeed: '', eta: '', downloadedSize: 0, completedFiles: 0 }),
+    mk(5, 'completed', 100, { eta: '', totalSpeed: '', totalSpeedBytes: 0, downloadedSize: files[5].size, completedFiles: 10 }),
+    mk(6, 'completed', 100, { eta: '', totalSpeed: '', totalSpeedBytes: 0, downloadedSize: files[6].size, completedFiles: 10, statusMessage: '1 file did not match. Automatic extraction was skipped.' }),
+    mk(7, 'failed', 63, { eta: '', totalSpeed: '', totalSpeedBytes: 0, error: 'The server stopped answering. Press Retry to continue where it stopped.' }),
+    mk(8, 'cancelled', 12, { eta: '', totalSpeed: '', totalSpeedBytes: 0 }),
+  ];
+  window.__previewDownloads = downloads;
+
+  const ok = (data) => ({ ok: true, data });
+  const table = {
+    status: () => ok({ signedIn: true, version: 'preview' }), remotes: () => ok({ remotes: ['PC-1', 'PCVR-1', 'Music', 'Comics'], remoteStatus: {} }),
+    browse: () => ok({ files, folders: [] }), trending: () => ok({ windows: { week: trend, month: trend } }), appProgress: () => ok({}), gems: () => ok({ items: [] }),
+    prefs: () => ok({ prefs: { introSeen: true } }), adminGet: () => ok({ role: 'member' }), downloads: () => ok(downloads), history: () => ok([]), requests: () => ok({ requests: [] }),
+    pendingWhatsNew: () => null, checkUpdates: () => ({ hasUpdate: false }),
+  };
+  window.nativeAPI = new Proxy({}, { get: (_, n) => {
+    if (n === 'quiet') return true;
+    if (n === 'then') return undefined;
+    if (n === 'onOpen') return (cb) => setTimeout(() => cb({ view: scene }), 50);    // opens the page asked for in the address
+    if (typeof n === 'string' && n.startsWith('on')) return () => { };
+    return async (...a) => (table[n] ? table[n](...a) : { ok: true, data: {} });
+  } });
+  // The app asks for pictures through its own armgddn-img: scheme; a browser cannot, so the real address is put back.
+  new MutationObserver(() => { for (const img of document.querySelectorAll('img[src^="armgddn-img:"]')) { try { img.src = decodeURIComponent(img.getAttribute('src').split('?u=')[1]); } catch (e) { } } })
+    .observe(document, { subtree: true, childList: true, attributes: true, attributeFilter: ['src'] });
+})();
+</script>
+<script src="../gpu-saver.js"></script>
+</head><body><div id="app"></div><script type="module" src="app.mjs"></script></body></html>

@@ -1,6 +1,6 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText } from './format.mjs';
+import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -93,26 +93,32 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
   const year = releaseYear(item);
   const gameSection = ['PC Games', 'PCVR Games', 'Testing'].includes(remote);
   const coverClick = gameSection && cover && item.isDir ? () => onPreview(item) : (item.isDir ? () => onOpen(item) : null);
+  // Keyboard (Nov 24 2026): a card can be focused with Tab or the arrow keys; Enter opens it the way a click on its art does (a file you can read opens to read).
+  const cardKey = (e) => {
+    if (e.target !== e.currentTarget || (e.key !== 'Enter' && e.key !== ' ')) return;
+    const go = item.isDir ? (coverClick || (() => onOpen(item))) : (canRead ? () => setReading(true) : null);
+    if (go) { e.preventDefault(); go(); }
+  };
   if (listMode) {
     // The list view: one line per title, no art, like the legacy browser.
-    return html`<div class=${'lrow' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
+    return html`<div class=${'lrow' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name} tabIndex="0" aria-label=${shownTitle} onKeyDown=${cardKey}>
       ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
       <span class="ltitle" onClick=${item.isDir ? () => onOpen(item) : undefined}>${shownTitle}${badgeEl}</span>${suffixEl}${platformEl}
       <span class="lsub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</span>
       ${stub ? html`<span class="stubnote inline">${stub.message} <button class="dl ghost" onClick=${(e) => { e.stopPropagation(); onStub(stub); }}>Go there</button></span>` : ''}
-      <span class="lbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
+      <span class="lbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} aria-label=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
       ${item.isDir && canDl && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
       ${canRead ? readEl : canDl ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</span>${readModal}
     </div>`;
   }
-  return html`<div class=${'card' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name}>
+  return html`<div class=${'card' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name} tabIndex="0" aria-label=${shownTitle} onKeyDown=${cardKey}>
     ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
     <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img class="cbg" aria-hidden="true" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="cfg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onLoad=${(e) => { const im = e.target; im.classList.toggle('fill', coverFills(im.naturalWidth, im.naturalHeight, shapeFor(remote))); }} onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
     <div class="meta"><div class=${'title' + (platform ? ' withp' : '') + (item.isDir ? ' clickable' : '')} onClick=${item.isDir ? () => onOpen(item) : undefined}>${platform ? html`<span class="ttext">${shownTitle}${badgeEl}</span>${platformEl}` : html`${shownTitle}${badgeEl}`}</div>
       ${suffixEl ? html`<div class="fextrow">${suffixEl}</div>` : ''}
       <div class="sub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</div>${stubEl}
-      <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
+      <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} aria-label=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
       ${item.isDir ? html`<button class="dl ghost" title="Browse" onClick=${(e) => { e.stopPropagation(); onOpen(item); }}>Browse</button>` : ''}
       ${item.isDir && canDl && !isPatchFolder(item.name) ? html`<button class="dl ghost" title="Details" onClick=${(e) => { e.stopPropagation(); onDetails(item); }}>Details</button>` : ''}
       ${canRead ? readEl : canDl ? html`<button class="dl" title="Download" onClick=${(e) => { e.stopPropagation(); onDownload(item); }}>Download</button>` : ''}</div></div>${readModal}
@@ -1080,7 +1086,7 @@ function UpdateScreen() {
 
 // Shared by the classic Downloads page and Harbor's: a download's buttons (with the Mbps / MiB/s switch while it runs) and the files it is fetching at once.
 function DownloadButtons({ d, mib, onFlip }) {
-  return html`<div class="dbtns">${isActiveDownload(d) && onFlip ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${onFlip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>`;
+  return html`<div class="dbtns">${isActiveDownload(d) && onFlip && !finishingStage(d) ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${onFlip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>`;
 }
 function ActiveFiles({ d, mib, folded }) {
   const af = activeFileRows(d.activeFiles);
@@ -1115,6 +1121,14 @@ function useListingCovers(wanted) {
   return art;
 }
 
+// Download > Check > Unpack > Ready, with the step it is on lit (Nov 24: members could not tell a finished-but-unpacking title from a stuck one).
+function StepBar({ d }) {
+  const steps = downloadSteps(d);
+  if (!steps) return '';
+  const now = steps.find((s) => s.state === 'now');
+  return html`<ol class="dsteps" aria-label=${'Download steps' + (now ? ', now: ' + now.label : ', all done')}>${steps.map((s) => html`<li key=${s.key} class=${'dstep ' + s.state} aria-current=${s.state === 'now' ? 'step' : undefined}><i aria-hidden="true"></i>${s.label}${s.state === 'skip' ? html`<span class="dskip"> (skipped)</span>` : ''}</li>`)}</ol>`;
+}
+
 // Harbor: the Downloads page of the mockup: a heading with speed, what is left and when it is done, the active downloads as art cards whose picture fills in
 // (colour, left to right) as they progress, then Waiting and Finished lists. The art is read from the library listing as needed, not saved.
 function HarborDownloads({ list, speedText, onClear, mib, onFlip }) {
@@ -1140,6 +1154,7 @@ function HarborDownloads({ list, speedText, onClear, mib, onFlip }) {
         <div class="hb-dart">${img ? html`<img class="hb-dbg" src=${img} alt="" aria-hidden="true" /><img class="hb-dgray" src=${img} alt="" /><img class="hb-dcolor" style=${'clip-path:inset(0 ' + (100 - pct) + '% 0 0)'} src=${img} alt="" />` : ''}<i class="hb-dedge" style=${'left:calc(' + pct + '% - 1px)'}></i></div>
         <div class="hb-dbody"><div class="hb-dtop"><span class="hb-dtitle">${cleanTitle(d.name || '')}</span><span class="hb-dpct">${Math.round(pct)}%</span></div>
           <div class="hb-dline">${[bytesOf(d) && (formatSize(bytesDone(d)) || '0 B') + ' of ' + bytesOf(d), paused ? 'paused' : finishingText(d) || speedText(d), !paused && !finishingStage(d) && etaShown(d.eta) ? etaShown(d.eta) + ' left' : ''].filter(Boolean).join(' · ')}</div>
+          <${StepBar} d=${d} />
           ${d.error ? html`<div class="derr">${d.error}</div>` : ''}<${ActiveFiles} d=${d} mib=${mib} folded=${true} />${actions(d)}</div>
       </article>`; })}</div>` : ''}
     <div class="hb-dcols">
@@ -1160,6 +1175,7 @@ function DownloadsView({ list, onClear, harbor }) {
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
     <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
     <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(bytesDone(d)) && formatSize(bytesDone(d)) + ' of ' + formatSize(d.totalSize), finishingText(d) || speedText(d), elapsedShown(d) ? 'Elapsed ' + elapsedShown(d) : '', etaShown(d.eta) ? 'ETA ' + etaShown(d.eta) : '', d.fileCount > 1 ? (d.completedFiles || 0) + ' of ' + d.fileCount + ' files' : ''].filter(Boolean).join(' · ')}</div>
+    ${isActiveDownload(d) ? html`<${StepBar} d=${d} />` : ''}
     <${ActiveFiles} d=${d} mib=${mib} />
     ${d.error ? html`<div class="derr">${d.error}</div>` : ''}
     <${DownloadButtons} d=${d} mib=${mib} onFlip=${flip} />
@@ -1216,7 +1232,7 @@ function App() {
   const navRestoring = useRef(false);
   const [canBack, setCanBack] = useState(false);
   const [openRequest, setOpenRequest] = useState(null);
-  useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setView('requests'); setOpenRequest(m.id); } else if (m && m.view === 'settings') { setView('settings'); if (m.check) setTimeout(() => { try { window.dispatchEvent(new Event('native-run-update-check')); } catch (e) { } }, 500); } }); }, []);
+  useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setView('requests'); setOpenRequest(m.id); } else if (m && m.view === 'settings') { setView('settings'); if (m.check) setTimeout(() => { try { window.dispatchEvent(new Event('native-run-update-check')); } catch (e) { } }, 500); } else if (m && ['downloads', 'home', 'library', 'mylist', 'wiki', 'badges'].includes(m.view)) setView(m.view); }); }, []);
   const [downloads, setDownloads] = useState([]);
   const [toast, setToast] = useState('');
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
@@ -1388,7 +1404,29 @@ function App() {
     applyNav(next);
   };
   useEffect(() => {
-    const key = (e) => { if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); goBack(); } else if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); goForward(); } };
+    const key = (e) => {
+      if (e.altKey && e.key === 'ArrowLeft') { e.preventDefault(); goBack(); return; }
+      if (e.altKey && e.key === 'ArrowRight') { e.preventDefault(); goForward(); return; }
+      if (e.altKey || e.ctrlKey || e.metaKey || e.defaultPrevented) return;
+      // Keyboard (Nov 24 2026): / searches, Esc goes back (or leaves the search box), the arrow keys move between cards.
+      const t = e.target;
+      const typing = t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName));
+      const open = document.querySelector('.overlay, .modal');     // a window on top handles its own Esc
+      if (typing) { if (e.key === 'Escape' && !open && t.classList && t.classList.contains('search')) t.blur(); return; }
+      if (e.key === '/') { const box = document.querySelector('input.search'); if (box) { e.preventDefault(); box.focus(); box.select(); } return; }
+      if (e.key === 'Escape') { if (!open && canBack) { e.preventDefault(); goBack(); } return; }
+      const dir = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down' }[e.key];
+      if (!dir || open) return;
+      const cards = [...document.querySelectorAll('.card[tabindex], .lrow[tabindex]')].filter((c) => c.offsetParent);
+      if (!cards.length) return;
+      const box = (c) => { const r = c.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; };
+      const i = cards.indexOf(document.activeElement);
+      const next = i < 0 ? 0 : nearestCard(box(cards[i]), cards.map(box), dir);
+      if (next == null || next === i) return;
+      e.preventDefault();
+      cards[next].focus();
+      cards[next].scrollIntoView({ block: 'nearest', inline: 'nearest' });
+    };
     const mouse = (e) => { if (e.button === 3) { e.preventDefault(); goBack(); } else if (e.button === 4) { e.preventDefault(); goForward(); } };
     window.addEventListener('keydown', key); window.addEventListener('mouseup', mouse);
     return () => { window.removeEventListener('keydown', key); window.removeEventListener('mouseup', mouse); };

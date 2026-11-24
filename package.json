@@ -15,7 +15,8 @@
     "build:win": "electron-builder --win",
     "build:linux": "electron-builder --linux",
     "build:mac": "electron-builder --mac",
-    "postversion": "node sync-version.js"
+    "postversion": "node sync-version.js",
+    "preview": "node tools/preview/serve.js"
   },
   "build": {
     "appId": "com.armgddn.downloader",

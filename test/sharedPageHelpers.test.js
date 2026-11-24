@@ -90,3 +90,19 @@ test('Harbor pages use the shared helpers and the same download buttons as the c
   assert.ok(lead.includes('rankTrending(') && lead.includes('useListingCovers(') && !lead.includes('api.browse('));
   assert.ok(!app.includes('harborBuild'), 'one build-number helper');
 });
+
+test('arrow keys move to the nearest card in that direction', async () => {
+  const { nearestCard } = await import('../renderer/native/format.mjs');
+  // A 3x2 grid, 100 apart.
+  const g = [{ x: 0, y: 0 }, { x: 100, y: 0 }, { x: 200, y: 0 }, { x: 0, y: 100 }, { x: 100, y: 100 }, { x: 200, y: 100 }];
+  assert.strictEqual(nearestCard(g[0], g, 'right'), 1);
+  assert.strictEqual(nearestCard(g[0], g, 'down'), 3);
+  assert.strictEqual(nearestCard(g[4], g, 'up'), 1);
+  assert.strictEqual(nearestCard(g[4], g, 'left'), 3);
+  assert.strictEqual(nearestCard(g[2], g, 'right'), null);
+  assert.strictEqual(nearestCard(g[0], g, 'up'), null);
+  // A list (one column): down is the next row.
+  const l = [{ x: 0, y: 0 }, { x: 0, y: 40 }, { x: 0, y: 80 }];
+  assert.strictEqual(nearestCard(l[1], l, 'down'), 2);
+  assert.strictEqual(nearestCard(l[1], l, 'right'), null);
+});

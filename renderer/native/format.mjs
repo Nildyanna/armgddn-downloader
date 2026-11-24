@@ -130,10 +130,15 @@ export function formatSpeed(bytesPerSec) {
   return formatSize(n) + '/s';
 }
 // Statuses the Companion uses for a download that is still running.
-export function isActiveDownload(d) { return !!d && !['completed', 'cancelled', 'error', 'failed'].includes(String(d.status || '').toLowerCase()); }
+export function isActiveDownload(d) { return !!d && downloadState(d).group !== 'done'; }
 
 // A download that is moving right now. A paused one is not: pausing is how a member gets out of the way of an update.
-export function isRunningDownload(d) { return !!d && ['in_progress', 'downloading', 'starting', 'queued', 'pending'].includes(String(d.status || '').toLowerCase()); }
+// Fetching or about to fetch (not paused, not finishing): the same states as before, now read from DOWNLOAD_STATES.
+export function isRunningDownload(d) {
+  const st = String((d && d.status) || '').toLowerCase();
+  const s = DOWNLOAD_STATES[st];
+  return !!d && !!s && s.step === 'download' && st !== 'paused';
+}
 
 // Where a Download button belongs. Files always get one. A folder gets one only when it is something you download as a whole (a game, an
 // album or artist, a comic series): the grouping folders in 3D Printer Models (Bambu / X1C ...) and the PC / PCVR buckets at the top of
@@ -604,16 +609,55 @@ export function activeFileRows(activeFiles, max = 8) {
 
 // ---- Shared by the classic pages and the Harbor theme's pages (Nov 24 2026). Harbor had its own copies of these, so a fix in one could miss the other.
 
-// Running/paused, waiting and finished downloads, in the order the lists show them (finished: newest first).
-const RUNNING_STATES = ['in_progress', 'downloading', 'starting', 'paused'];
+// THE list of download states (Nov 24 2026). Every status main.js can give a download must be here: test/downloadStates.test.js reads main.js
+// and fails on one that is missing. Before this list, the page kept its own partial lists and filed "extracting" under Waiting.
+//   group: 'running' (top of Downloads), 'waiting' (not started yet), 'done' (Finished list)
+//   step:  which step of Download > Check > Unpack > Ready it is on (null: the step bar is not shown)
+export const DOWNLOAD_STATES = {
+  starting: { group: 'running', step: 'download' },
+  in_progress: { group: 'running', step: 'download' },
+  downloading: { group: 'running', step: 'download' },
+  paused: { group: 'running', step: 'download' },
+  extracting: { group: 'running', step: 'unpack' },
+  queued: { group: 'waiting', step: 'download' },
+  pending: { group: 'waiting', step: 'download' },
+  completed: { group: 'done', step: 'ready' },
+  cancelled: { group: 'done', step: null },
+  error: { group: 'done', step: null },
+  failed: { group: 'done', step: null },
+};
+// A status this list does not know is shown as running: saying "not started" about something that is working is worse.
+export function downloadState(d) {
+  const st = String((d && d.status) || '').toLowerCase();
+  return DOWNLOAD_STATES[st] || { group: 'running', step: null };
+}
 // A fully downloaded title the app is still finishing: 'checking' (every file compared with its checksum) or 'extracting' (unpacking), else ''.
 // Nov 24: Bodycam sat under Waiting, "starts when a slot frees up", for the ~2 minutes it was being checked and unpacked.
+// The check has no status of its own: main.js keeps the status and sets statusMessage 'Checking files...'.
 export function finishingStage(d) {
   if (!d) return '';
   const st = String(d.status || '').toLowerCase();
   if (st === 'extracting') return 'extracting';
-  if (RUNNING_STATES.includes(st) && st !== 'paused' && /^checking files/i.test(String(d.statusMessage || ''))) return 'checking';
+  const s = DOWNLOAD_STATES[st];
+  if (s && s.group === 'running' && st !== 'paused' && /^checking files/i.test(String(d.statusMessage || ''))) return 'checking';
   return '';
+}
+
+// The step bar on a download card: Download > Check > Unpack > Ready, each 'done', 'now', 'todo' or 'skip'. Null when there is no bar
+// (cancelled or failed). Check and Unpack are marked skipped on a finished download whose message says so; otherwise a finished one shows all done.
+export const DOWNLOAD_STEPS = [['download', 'Download'], ['check', 'Check'], ['unpack', 'Unpack'], ['ready', 'Ready']];
+export function downloadSteps(d) {
+  if (!d) return null;
+  const fin = finishingStage(d);
+  const now = fin === 'checking' ? 'check' : fin === 'extracting' ? 'unpack' : downloadState(d).step;
+  if (!now) return null;
+  const at = DOWNLOAD_STEPS.findIndex(([k]) => k === now);
+  const msg = String(d.statusMessage || '');
+  return DOWNLOAD_STEPS.map(([key, label], i) => {
+    let state = i < at ? 'done' : i === at ? (key === 'ready' ? 'done' : 'now') : 'todo';
+    if (now === 'ready' && key === 'unpack' && /extraction was skipped/i.test(msg)) state = 'skip';
+    return { key, label, state };
+  });
 }
 // The line a finishing download shows instead of its speed and time left.
 export function finishingText(d) {
@@ -625,10 +669,9 @@ export function finishingText(d) {
 
 export function splitDownloads(list) {
   const all = Array.isArray(list) ? list : [];
-  const st = (d) => String((d && d.status) || '').toLowerCase();
-  const active = all.filter((d) => RUNNING_STATES.includes(st(d)) || finishingStage(d));
-  const waiting = all.filter((d) => isActiveDownload(d) && !active.includes(d));
-  const done = all.filter((d) => !isActiveDownload(d)).slice().reverse();
+  const active = all.filter((d) => downloadState(d).group === 'running');
+  const waiting = all.filter((d) => downloadState(d).group === 'waiting');
+  const done = all.filter((d) => downloadState(d).group === 'done').slice().reverse();
   return { active, waiting, done };
 }
 
@@ -685,3 +728,21 @@ export function rankTrending(entries, { vr = null, exclude = [], needCover = fal
 
 // The build number in a folder name ("Game v19260982 -ARMGDDN" -> "19260982"), or ''.
 export function buildNumber(name) { const m = String(name || '').match(/\bv(\d{4,})\b/i); return m ? m[1] : ''; }
+
+// Arrow keys between cards (Nov 24 2026): the card nearest in that direction, from the centre points of the cards on screen.
+// A card counts as "in that direction" when it is further that way than sideways off (a 45-degree cone); the closest one wins, with
+// the sideways distance counted double so Down picks the card straight below rather than one diagonally nearer. Null when there is none.
+export function nearestCard(from, boxes, dir) {
+  if (!from || !Array.isArray(boxes)) return null;
+  let best = null, bestScore = Infinity;
+  boxes.forEach((b, i) => {
+    if (!b) return;
+    const dx = b.x - from.x, dy = b.y - from.y;
+    const along = dir === 'right' ? dx : dir === 'left' ? -dx : dir === 'down' ? dy : dir === 'up' ? -dy : 0;
+    const side = dir === 'left' || dir === 'right' ? Math.abs(dy) : Math.abs(dx);
+    if (along <= 1 || side > along) return;
+    const score = along + side * 2;
+    if (score < bestScore) { bestScore = score; best = i; }
+  });
+  return best;
+}

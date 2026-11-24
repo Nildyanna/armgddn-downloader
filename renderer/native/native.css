@@ -62,6 +62,17 @@ header select { flex: none; }
 .fill { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
 .dmeta { color: var(--dim); font-size: 12px; }
 .derr { color: #f87171; font-size: 12px; margin-top: 4px; }
+/* Step bar on a download: Download > Check > Unpack > Ready (Nov 24 2026). Theme colours only, so every theme gets it. */
+.dsteps { list-style: none; display: flex; flex-wrap: wrap; gap: 4px 0; margin: 8px 0 2px; padding: 0; font-size: 12px; color: var(--dim); }
+.dstep { display: flex; align-items: center; gap: 6px; }
+.dstep + .dstep::before { content: ''; width: 18px; height: 1px; margin: 0 8px; background: var(--line); }
+.dstep i { width: 8px; height: 8px; border-radius: 50%; border: 1.5px solid currentColor; box-sizing: border-box; flex: none; }
+.dstep.done { color: var(--fg); }
+.dstep.done i { background: var(--accent); border-color: var(--accent); }
+.dstep.now { color: var(--fg); font-weight: 700; }
+.dstep.now i { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 30%, transparent); }
+.dstep.skip { opacity: .6; text-decoration: line-through; }
+.dstep .dskip { text-decoration: none; }
 .toast { position: fixed; z-index: 40; bottom: 18px; left: 50%; transform: translateX(-50%); background: var(--panel); border: 1px solid var(--accent); border-radius: 10px; padding: 10px 16px; }
 
 .dbtns { display: flex; gap: 8px; margin-top: 8px; }
@@ -777,3 +788,8 @@ html[data-theme="harbor"] .upscreen { background: var(--hb-bg); }
 .dcover.square { flex-basis: 220px; aspect-ratio: 1 / 1; }
 .dcover.tall { flex-basis: 200px; aspect-ratio: 2 / 3; }
 .dcover.square img, .dcover.tall img { object-fit: contain; }
+
+/* Keyboard (Nov 24 2026): the focused card shows a ring in every theme; a mouse click shows none (focus-visible only). */
+.card:focus { outline: none; }
+.card:focus-visible, .lrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 12px; }
+.lrow:focus-visible { outline-offset: 1px; border-radius: 6px; }
