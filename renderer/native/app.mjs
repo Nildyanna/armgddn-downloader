@@ -33,7 +33,17 @@ function applyTheme(choice) {
   document.documentElement.dataset.theme = useId;
   root.setProperty('color-scheme', t.mode === 'light' ? 'light' : 'dark');
 }
-const storedTheme = () => { try { return localStorage.getItem('native.theme') || 'dark'; } catch (e) { return 'dark'; } };
+// Harbor is the default for everyone from 6.9.0 (George, Nov 24 2026; it was a staff test before). Anyone still on the old default ("dark",
+// now called Classic) moves to Harbor once; any other choice (Light, System, a website theme) stays. Classic is one click away in the menu.
+const DEFAULT_THEME = 'harbor';
+try {
+  if (!localStorage.getItem('native.harborDefault')) {
+    const t = localStorage.getItem('native.theme');
+    if (!t || t === 'dark') localStorage.setItem('native.theme', DEFAULT_THEME);
+    localStorage.setItem('native.harborDefault', '1');
+  }
+} catch (e) { }
+const storedTheme = () => { try { return localStorage.getItem('native.theme') || DEFAULT_THEME; } catch (e) { return DEFAULT_THEME; } };
 applyTheme(storedTheme());
 // A hidden or minimised window draws nothing anyone sees: CSS animations pause until it is shown again (native.css, html[data-hidden]).
 try {
@@ -1263,7 +1273,8 @@ function App() {
     if (listOnly) { if (m.added) say('Added ' + m.added + ' new My List item' + (m.added === 1 ? '' : 's') + ' from the website.'); return; }
     try {
       for (const [id, on] of Object.entries(p.strips)) localStorage.setItem('native.strip.' + id, on ? '1' : '0');
-      if (p.theme && themeKeyOk(p.theme)) { localStorage.setItem('native.theme', p.theme); setThemeChoice(p.theme); applyTheme(p.theme); }
+      // the website's own default ("dark") is not a choice the member made, so it does not replace the Harbor default
+      if (p.theme && p.theme !== 'dark' && themeKeyOk(p.theme)) { localStorage.setItem('native.theme', p.theme); setThemeChoice(p.theme); applyTheme(p.theme); }
       if (p.searches.length) localStorage.setItem('native.recentSearches', JSON.stringify(p.searches));
       if (p.komgaUrl) localStorage.setItem('native.komgaUrl', p.komgaUrl);
       if (p.animations !== null) localStorage.setItem('native.animations', p.animations ? '1' : '0');
@@ -1278,7 +1289,7 @@ function App() {
   const inMyList = (it) => myListHas(myList, ctxRemote(it), itemPath(it));
   const pendingScroll = useRef('');
   const openTrend = (e) => { const it = homeItem(e); if (!it) return; pendingScroll.current = it.name; goTo(it._remote, it._folder); };
-  const [themeChoice, setThemeChoice] = useState(() => (themeKeyOk(storedTheme()) ? storedTheme() : 'dark'));
+  const [themeChoice, setThemeChoice] = useState(() => (themeKeyOk(storedTheme()) ? storedTheme() : DEFAULT_THEME));
   const chooseTheme = (id) => { setThemeChoice(id); applyTheme(id); try { localStorage.setItem('native.theme', id); } catch (e) { } };
   useEffect(() => { if (themeChoice !== 'system') return; let mq; try { mq = window.matchMedia('(prefers-color-scheme: light)'); } catch (e) { return; } const on = () => applyTheme('system'); mq.addEventListener('change', on); return () => mq.removeEventListener('change', on); }, [themeChoice]);
   const [animOn, setAnimOn] = useState(() => { try { return localStorage.getItem('native.animations') !== '0'; } catch (e) { return true; } });
@@ -1478,9 +1489,8 @@ function App() {
     let pulled = null;
     let staffNow = adminOk;
     try { const pr = await api.prefs(); if (pr.ok && pr.data && pr.data.prefs) pulled = pr.data; if (pr.ok && pr.data && pr.data.isStaff) staffNow = true; } catch (e) { }
-    // Staff-only test features (the Harbor theme): current staff as Tulip lists them, or an owner or admin. Anyone else who has it saved goes back to the default.
+    // Current staff as Tulip lists them, or an owner or admin (Harbor used to be limited to them; it is for everyone since 6.9.0).
     setStaffOk(staffNow);
-    if (!staffNow && storedTheme() === 'harbor') chooseTheme('dark');
     // The lightning reveal: a welcome for the first sign-in here (see introDecision); not for anyone already signed in when the window opens, and
     // not for anyone who has seen it on the website. Never in a screenshot run.
     try {
@@ -1565,7 +1575,7 @@ function App() {
       <div class="header-stars"><div class="header-star header-star-1"></div><div class="header-star header-star-2"></div><div class="header-star header-star-3"></div></div>
       <div class="banner-actions">
         <button class="dbtn" title="Turn the moving effects on or off" onClick=${toggleAnim}>\u2728 Animations ${animOn ? 'on' : 'off'}</button>
-      <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['dark', 'Default', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light' && (k !== 'harbor' || admin || staffOk)).sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
+      <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['harbor', 'Harbor (default)', '\u2693'], ['dark', 'Classic', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light' && k !== 'harbor').sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
         ${status && status.signedIn ? html`<button class="dbtn" title="Sign out of this PC" onClick=${logout}>Logout</button>` : ''}
       </div>
       <div class="banner-credit"><div class="fire-particles"><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i></div><span class="fire-text">Created by Old Man of the Hills v${(status && status.version) || ''}</span></div>
@@ -1603,7 +1613,7 @@ function App() {
     ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN App ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN App.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} />` : ''}
-    ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor' && (!!admin || staffOk)} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor' && (!!admin || staffOk)} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor'} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor'} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? (() => { const total = items.filter((x) => !isHiddenItem(x)).length; return `${shown.length}${shown.length !== total ? ' of ' + total : ''} items`; })() : ''}</span></div>
     ${remote === '3D Printer Models' && !everywhere ? html`<div class="notice soft" role="note"><strong>Heads up:</strong> many 3D printer models don't have a cover picture yet. Missing covers in this section are expected and are not a bug; pictures are being added as we go.</div>` : ''}
@@ -1616,7 +1626,7 @@ function App() {
     ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${viewMode === 'list' ? 'list' : "grid " + shapeFor(remote)}>${showBundles ? html`<section class="bundles">${bundlesPresent(bundles, items).map((b) => html`<div class="bundle" key=${b.id}><div class="bcover"><img loading="lazy" decoding="async" src=${coverSrc(b.cover)} alt="" /></div><div class="binfo"><strong>${b.title}</strong><span class="sval">${formatSize(b.total)} · ${b.present.length} series: ${b.present.slice(0, 3).join(', ')}${b.present.length > 3 ? ' and ' + (b.present.length - 3) + ' more' : ''}</span><span class="sval">Downloads everything copied so far. Series still being added join in later.</span></div><button class="primary" onClick=${() => downloadBundle(b)}>Download All</button></div>`)}</section>` : ''}${shown.map((it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onStub=${(st) => { goTo(st.remote, st.folder); if (st.name) setQuery(st.name); }} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { recordVisit(x, remote, folder); setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
     </${PageGuard}>
-    ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} harbor=${themeChoice === 'harbor' && (!!admin || staffOk)} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === ctxRemote(it) && m.path === itemPath(it)) }} onOpenTrend=${openTrend} />` : ''}
+    ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} harbor=${themeChoice === 'harbor'} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === ctxRemote(it) && m.path === itemPath(it)) }} onOpenTrend=${openTrend} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}

@@ -438,7 +438,11 @@ test('hand-made themes load from their own files, which the theme generator neve
   assert.ok(fs.readFileSync(path.join(dir, 'index.html'), 'utf8').includes('<link rel="stylesheet" href="themes-custom.css">'));
   const custom = JSON.parse(fs.readFileSync(path.join(dir, 'themes-custom.json'), 'utf8'));
   assert.deepEqual(Object.keys(custom), ['harbor']);
-  assert.ok(app.includes("k !== 'harbor' || admin"), 'Harbor is offered to staff only');
+  // Harbor is for everyone and the default from 6.9.0: first in the menu, no staff lock, old-default members moved once, other choices kept
+  assert.ok(app.includes("['harbor', 'Harbor (default)'") && app.includes("['dark', 'Classic'"));
+  assert.ok(!app.includes("k !== 'harbor' || admin") && !app.includes('(!!admin || staffOk)'));
+  assert.ok(app.includes("const DEFAULT_THEME = 'harbor';") && app.includes("if (!t || t === 'dark') localStorage.setItem('native.theme', DEFAULT_THEME);"));
+  assert.ok(app.includes("p.theme !== 'dark' && themeKeyOk(p.theme)"), "the website's default does not override Harbor");
   const gen = fs.readFileSync(path.join(__dirname, '..', 'scripts', 'extract_themes.py'), 'utf8');
   assert.ok(!gen.includes('themes-custom'), 'the generator does not touch the custom files');
 });
