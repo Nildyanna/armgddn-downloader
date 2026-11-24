@@ -4546,6 +4546,7 @@ function downloadToRenderer(download) {
     serverOverhead: download.serverOverhead,
     effectiveConcurrency: download.effectiveConcurrency,
     statusMessage: download.statusMessage,
+    extractPercent: typeof download.extractPercent === 'number' ? download.extractPercent : null,
     actualRemote: download.actualRemote,
     mirrorSwitches: download.mirrorSwitches,
     triedMirrors: download.triedMirrors,

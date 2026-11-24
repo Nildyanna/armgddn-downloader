@@ -15,6 +15,24 @@ test('splitDownloads: running and paused, then waiting, then finished newest fir
   assert.deepStrictEqual(splitDownloads(null), { active: [], waiting: [], done: [] });
 });
 
+test('a download being checked or unpacked stays on top, never under Waiting', async () => {
+  const { splitDownloads, finishingStage, finishingText, downloadActions } = await import('../renderer/native/format.mjs');
+  // Nov 24: Bodycam, fully downloaded, showed "starts when a slot frees up" while it was checked and unpacked.
+  const checking = { id: 'a', status: 'in_progress', statusMessage: 'Checking files...', progress: 99 };
+  const unpacking = { id: 'b', status: 'extracting', extractPercent: 45, progress: 99 };
+  const queued = { id: 'c', status: 'queued' };
+  const s = splitDownloads([checking, unpacking, queued]);
+  assert.deepStrictEqual(s.active.map((d) => d.id), ['a', 'b']);
+  assert.deepStrictEqual(s.waiting.map((d) => d.id), ['c']);
+  assert.strictEqual(finishingStage(checking), 'checking');
+  assert.strictEqual(finishingText(checking), 'Download done, checking every file…');
+  assert.strictEqual(finishingText(unpacking), 'Unpacking 45%');
+  assert.strictEqual(finishingText({ status: 'extracting' }), 'Unpacking…');
+  assert.deepStrictEqual(downloadActions(unpacking), ['cancel']);
+  assert.strictEqual(finishingStage({ status: 'paused', statusMessage: 'Checking files...' }), '');
+  assert.strictEqual(finishingStage({ status: 'downloading' }), '');
+});
+
 test('bytesDone matches the percent when files are fetched several at once', async () => {
   const { bytesDone, bytesLeft } = await import('../renderer/native/format.mjs');
   const GB = 1e9;

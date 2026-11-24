@@ -153,6 +153,7 @@ export function downloadActions(d) {
   if (['cancelled'].includes(st)) return [];
   if (st === 'paused') return ['resume', 'cancel'];
   if (['error', 'failed'].includes(st)) return ['retry', 'cancel'];
+  if (finishingStage(d)) return ['cancel'];   // nothing left to pause once every file is downloaded
   return ['pause', 'cancel'];
 }
 
@@ -605,10 +606,27 @@ export function activeFileRows(activeFiles, max = 8) {
 
 // Running/paused, waiting and finished downloads, in the order the lists show them (finished: newest first).
 const RUNNING_STATES = ['in_progress', 'downloading', 'starting', 'paused'];
+// A fully downloaded title the app is still finishing: 'checking' (every file compared with its checksum) or 'extracting' (unpacking), else ''.
+// Nov 24: Bodycam sat under Waiting, "starts when a slot frees up", for the ~2 minutes it was being checked and unpacked.
+export function finishingStage(d) {
+  if (!d) return '';
+  const st = String(d.status || '').toLowerCase();
+  if (st === 'extracting') return 'extracting';
+  if (RUNNING_STATES.includes(st) && st !== 'paused' && /^checking files/i.test(String(d.statusMessage || ''))) return 'checking';
+  return '';
+}
+// The line a finishing download shows instead of its speed and time left.
+export function finishingText(d) {
+  const s = finishingStage(d);
+  if (s === 'checking') return 'Download done, checking every file…';
+  if (s === 'extracting') { const p = Number(d.extractPercent); return 'Unpacking' + (Number.isFinite(p) && p > 0 ? ' ' + Math.round(p) + '%' : '…'); }
+  return '';
+}
+
 export function splitDownloads(list) {
   const all = Array.isArray(list) ? list : [];
   const st = (d) => String((d && d.status) || '').toLowerCase();
-  const active = all.filter((d) => RUNNING_STATES.includes(st(d)));
+  const active = all.filter((d) => RUNNING_STATES.includes(st(d)) || finishingStage(d));
   const waiting = all.filter((d) => isActiveDownload(d) && !active.includes(d));
   const done = all.filter((d) => !isActiveDownload(d)).slice().reverse();
   return { active, waiting, done };
