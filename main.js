@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const os = require('os');
 // ---- split-out modules (docs/MAIN_SPLIT.md) ----
+const { getDebugLogPath, logToFile, debugLog } = require('./main/log');
 const { denyNewWindows } = require('./main/windows');
 const { getActiveFileCount, isStarfieldAutoExtractTargetValue, normalizeDownloadItemKey, reportDirectGrantEnd, downloadToRenderer, waitForChildClose, waitForDownloadTasksToFinish, pruneActiveProcesses, peakOrAverageSpeedBytes, scheduleActiveStates } = require('./main/downloadState');
 const { decodeBase64Signature, verifyEd25519Signature, isAutostartLaunch, safeUpdateResult } = require('./main/updateCheck');
@@ -1014,7 +1015,6 @@ async function mintAppSessionTokenFromCookies(cookieHeader) {
   return String(json.token);
 }
 
-const DEBUG_LOGGING = process.env.ARMGDDN_DEBUG === '1';
 
 const POOL_ID = crypto.randomUUID();
 
@@ -1509,49 +1509,6 @@ function ensureLinuxProtocolDesktopHandler() {
     }
   } catch (e) {
     logToFile(`[Protocol][linux] ensure handler failed: ${e && e.message ? e.message : e}`);
-  }
-}
-
-// Debug log file for troubleshooting
-let cachedDebugLogPath = null;
-function getDebugLogPath() {
-  if (cachedDebugLogPath) return cachedDebugLogPath;
-  try {
-    const userData = app.getPath('userData');
-    cachedDebugLogPath = path.join(userData, 'debug.log');
-    return cachedDebugLogPath;
-  } catch (e) {
-    // app.getPath('userData') can fail before the app is ready in some packaged environments.
-    // Fall back to a best-effort location.
-    const appData = process.env.APPDATA || path.join(os.homedir(), 'AppData', 'Roaming');
-    const legacyPath = path.join(appData, 'ARMGDDN Downloader', 'debug.log');
-    const newPath = path.join(appData, 'ARMGDDN Companion', 'debug.log');
-    cachedDebugLogPath = fs.existsSync(path.dirname(legacyPath)) ? legacyPath : newPath;
-    return cachedDebugLogPath;
-  }
-}
-
-// Track whether startup rotation has run to avoid checking on every write
-let _logRotationDoneAtStartup = false;
-
-function logToFile(message) {
-  try {
-    const timestamp = new Date().toISOString();
-    const logPath = getDebugLogPath();
-    const dir = path.dirname(logPath);
-    fs.mkdirSync(dir, { recursive: true });
-    // Rotate at startup (once) and on each write if already over limit
-    if (!_logRotationDoneAtStartup) {
-      _logRotationDoneAtStartup = true;
-      rotateLogIfNeeded(logPath);
-    }
-    fs.appendFileSync(logPath, `[${timestamp}] ${message}\n`);
-  } catch (e) {
-    try {
-      // Last-resort fallback to temp directory
-      const fallbackPath = path.join(os.tmpdir(), 'armgddn-downloader-debug.log');
-      fs.appendFileSync(fallbackPath, `[${new Date().toISOString()}] [logToFile fallback] ${message} (original error: ${e && e.message ? e.message : e})\n`);
-    } catch (e2) { }
   }
 }
 
@@ -4273,13 +4230,6 @@ ipcMain.handle('resolve-download-token', async (event, downloadToken, urlToken) 
 });
 
 // Debug log to file for troubleshooting
-function debugLog(message) {
-  if (!DEBUG_LOGGING) return;
-  const logPath = path.join(app.getPath('userData'), 'debug.log');
-  const timestamp = new Date().toISOString();
-  const logLine = `[${timestamp}] ${message}\n`;
-  fs.appendFileSync(logPath, logLine);
-}
 
 // Report file progress to server (exclude from quota counting)
 async function reportFileProgressToServer(download, token, file, status, bytesDownloadedOverride) {

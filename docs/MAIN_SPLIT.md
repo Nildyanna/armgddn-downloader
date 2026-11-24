@@ -32,6 +32,7 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
 |---|---|---|---|
 | 1 | util | 15 stateless helpers (sizes, speeds, times, versions, safe paths, quoting) | 9,966 |
 | 2 | errors, sevenZip, files, net, updateCheck, downloadState, windows | 50 that use no shared state | 9,198 |
+| 3 | log | the debug log: getDebugLogPath, logToFile, debugLog and their private state | 9,148 |
 
 ## Next
 
