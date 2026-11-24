@@ -717,17 +717,56 @@ try {
     }
   }
 } catch (e) { }
+// Second step. Software drawing still starts a GPU process (for its software renderer), and on some PCs that one dies too, so Chromium
+// still ends the app with "GPU process isn't usable" (Sentry ARMGDDN-COMPANION-2Q: 21 of 25 crashes by Nov 24 had gpu_fallback=on).
+// When the GPU process fails while software drawing is already on, the next launches run with no GPU process at all
+// (--disable-gpu + --disable-software-rasterizer: Chromium draws in the main process; only WebGL is lost, which the app never uses).
+// This marker lasts 7 days, then the app goes back to the first step.
+const GPU_HARD_MARKER = (() => {
+  try { return path.join(app.getPath('userData'), 'gpu-disabled-hard'); } catch (e) { return null; }
+})();
+const softwareDrawingOn = (() => {
+  try { return !!GPU_FALLBACK_MARKER && fs.existsSync(GPU_FALLBACK_MARKER); } catch (e) { return false; }
+})();
+let noGpuProcess = false;
+try {
+  if (GPU_HARD_MARKER && fs.existsSync(GPU_HARD_MARKER)) {
+    let fresh = true;
+    try { fresh = Date.now() - fs.statSync(GPU_HARD_MARKER).mtimeMs < 7 * 24 * 3600 * 1000; } catch (e2) { }
+    if (fresh) {
+      try { app.disableHardwareAcceleration(); } catch (e2) { }
+      app.commandLine.appendSwitch('disable-gpu');
+      app.commandLine.appendSwitch('disable-software-rasterizer');
+      noGpuProcess = true;
+      console.log('[gpu] no GPU process (it failed even with software drawing)');
+    } else {
+      try { fs.unlinkSync(GPU_HARD_MARKER); } catch (e2) { }
+    }
+  }
+} catch (e) { }
+function armNoGpuProcess(why) {
+  try {
+    if (!GPU_HARD_MARKER || noGpuProcess || fs.existsSync(GPU_HARD_MARKER)) return false;
+    fs.writeFileSync(GPU_HARD_MARKER, `${new Date().toISOString()} ${why}\n`);
+    console.warn('[gpu] GPU process failed with software drawing on (' + why + '); no GPU process from next launch');
+    return true;
+  } catch (e) { return false; }
+}
 // Sentry tag so a GPU crash on a PC already in software mode (fallback not
 // enough) can be told apart from a first crash: on / off / armed (marker
-// written this session, takes effect next launch).
+// written this session, takes effect next launch) / hard (no GPU process) / hard-armed.
 function setGpuFallbackTag(value) {
   try { if (SENTRY_DSN) Sentry.setTag('gpu_fallback', value); } catch (e) { }
 }
-try { setGpuFallbackTag(GPU_FALLBACK_MARKER && fs.existsSync(GPU_FALLBACK_MARKER) ? 'on' : 'off'); } catch (e) { }
+try { setGpuFallbackTag(noGpuProcess ? 'hard' : (softwareDrawingOn ? 'on' : 'off')); } catch (e) { }
 app.on('child-process-gone', (event, details) => {
   try {
     if (!details || details.type !== 'GPU') return;
     if (details.reason === 'clean-exit' || details.reason === 'killed') return;
+    if (softwareDrawingOn) {
+      if (armNoGpuProcess(details.reason + ' ' + details.exitCode)) setGpuFallbackTag('hard-armed');
+      return;
+    }
     if (GPU_FALLBACK_MARKER && !fs.existsSync(GPU_FALLBACK_MARKER)) {
       fs.writeFileSync(GPU_FALLBACK_MARKER, `${new Date().toISOString()} ${details.reason} ${details.exitCode}\n`);
       console.warn('[gpu] GPU process gone (' + details.reason + '); software rendering from next launch');
@@ -773,6 +812,9 @@ if (!gotTheLock) {
         app.disableHardwareAcceleration();
         setGpuFallbackTag('armed');
         console.warn('[gpu] ' + unclean + ' launches in a row did not end cleanly; software rendering from now on');
+      } else if (unclean >= 2 && softwareDrawingOn && armNoGpuProcess('unclean-exits ' + unclean)) {
+        // already drawing in software and still dying at start: the next launch runs with no GPU process
+        setGpuFallbackTag('hard-armed');
       }
       app.on('before-quit', () => { try { exitGuard.markClean(guardFile); } catch (e) { } });
     }

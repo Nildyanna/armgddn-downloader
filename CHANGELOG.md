@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- PCs where the app kept closing at start with "GPU process isn't usable" even after switching to software drawing: if it still fails in software mode, the next launches run with no graphics process at all for a week (Sentry ARMGDDN-COMPANION-2Q).
+
 ## [6.7.0] - 2026-11-24
 
 ### Changed
