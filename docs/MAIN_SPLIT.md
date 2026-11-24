@@ -52,6 +52,7 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
 | 6 | mirrors, scheduler | mirror cooldowns; the download scheduler (which file starts next, how many at once) | 8,157 |
 | 7 | updates, hashing, komgaActions, deepLinks, quietHours, restore, dialogs, siteApi, failures, extract, installSpace | 53 functions in 11 groups | 6,808 |
 | 8 | progress, manifest, completion, downloadControl, downloader, appWindows, comics | the download engine (downloadFile, 1,187 lines), the windows; getAppLoadInfo and comicsGet stay (a local sessionToken shadows main.js's) | 3,263 |
+| 9 | ipcKomga, ipcSettings, ipcCollections, ipcHelp, ipcDownloads, ipcApp | all 60 IPC handler registrations (`tools/split/moveipc.js`; register() called where the last one stood) | 1,331 |
 
 ## Shared state (from step 5)
 
