@@ -1015,5 +1015,13 @@
       "Animations now pause while the app is minimised or hidden, so it uses less of your PC in the background.",
       "Harbor test theme (staff): fits wide and ultrawide screens, Library and My List are redesigned to match Home and Downloads, nothing animates forever, and Downloads now has the Mbps / MiB/s switch and the \"files at once\" list and scrolls properly when the list is long."
     ]
+  },
+  "6.9.0": {
+    "title": "A new look, and updates that stay in the app",
+    "highlights": [
+      "Harbor is the new look for everyone: big cover art, cleaner pages, and a redesigned Home, Library, My List, Downloads and game page. It fits wide screens too. The old look is still in the theme menu as Classic, and if you picked Light, System or another theme, it stays as it is.",
+      "Updating now happens inside the app. You see the download and checking in the app's own window, and while it installs, a screen in the app's look takes its place and the app opens again right where it was. No more separate pop-ups. You'll first see it on the update after this one.",
+      "Comic collections and albums now show their cover on their page, shaped to fit, instead of just the first letter."
+    ]
   }
 }

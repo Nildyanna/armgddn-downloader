@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.9.0] - 2026-11-24
+
 ### Changed
 
 - Harbor is now the default look for everyone (it was a staff test): wide art, cleaner pages, a redesigned Home, Library, Downloads and title page. Members on the old default switch to it once; the old look is still in the theme menu as Classic, and Light, System and other themes stay as chosen.
