@@ -4533,8 +4533,24 @@ ipcMain.handle('get-downloads', () => {
   return downloads;
 });
 
+// What the app will do once all of a download's files are in: check them against their checksums, and unpack them (George, Nov 24 2026:
+// a .zip that is neither should not show Check and Unpack steps, or say "checked and extracted" when it is done). Before the file list is
+// known, both are assumed. didCheck / didExtract record what actually happened.
+function finishPlan(download) {
+  const check = !!(settings && settings.autoHashCheck) && download.hasChecksums !== false;
+  const unpack = !!(settings && settings.autoExtract7z) && !download.forceDisableAutoExtract && !download.toComics &&
+    !isStarfieldAutoExtractTargetValue(download.remotePath) && !isStarfieldAutoExtractTargetValue(download.name) && download.has7z !== false;
+  return { check, unpack };
+}
+
 function downloadToRenderer(download) {
+  const plan = download.status === 'completed' && download.finishedPlan ? download.finishedPlan : finishPlan(download);
   return {
+    planCheck: plan.check,
+    planUnpack: plan.unpack,
+    didCheck: !!download.didCheck,
+    checkOk: download.checkOk !== false,
+    didExtract: !!download.didExtract,
     id: download.id,
     name: download.name,
     manifestUrl: download.manifestUrl,
@@ -5646,7 +5662,11 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
     } catch (e) { }
     download.files = allFiles;
     try { maybeShowHashGateNotice().catch(() => { }); } catch (eGate) { }
-    try { hashCheck.saveManifest(app.getPath('userData'), { id: downloadId, name, downloadDir, files: allFiles }); } catch (eHash) { }
+    let hashList = null;
+    try { hashList = hashCheck.saveManifest(app.getPath('userData'), { id: downloadId, name, downloadDir, files: allFiles }); } catch (eHash) { }
+    // What finishing will involve (finishPlan): a check needs checksums, unpacking needs a .7z archive among the files.
+    download.hasChecksums = !!hashList;
+    download.has7z = allFiles.some((f) => f && /\.7z(\.001)?$/i.test(String(f.name || '')));
     if (allFiles.length > 0) {
       const skippedMessage = completedFiles > 0
         ? `Skipped ${completedFiles}/${allFiles.length} files already on disk.`
@@ -8662,6 +8682,7 @@ function finalizeCompletedDownload(downloadId) {
   }
 
   logToFile(`[completeDownload] Setting status to completed and sending event`);
+  download.finishedPlan = finishPlan(download);   // kept as it was at the finish, so a later settings change does not rewrite it
   download.status = 'completed';
   dropInflight(downloadId);
   try { if (download.directGrant && download.manifestUrl) driveDirectClient.finish(download.directGrant, String(download.manifestUrl), download.token); } catch (e) { }
@@ -8713,7 +8734,11 @@ function finalizeCompletedDownload(downloadId) {
     startTime: download.startTime,
     endTime: download.endTime,
     folder: download.extractedTo || download.openDir || download.downloadDir || '',
-    status: 'completed'
+    status: 'completed',
+    didCheck: !!download.didCheck,
+    checkOk: download.checkOk !== false,
+    didExtract: !!download.didExtract,
+    planUnpack: !!(download.finishedPlan && download.finishedPlan.unpack)
   });
   saveHistory();
 
@@ -8990,6 +9015,8 @@ function completeDownload(downloadId, afterHashCheck) {
     runHashCheck(downloadId, { auto: true }).then((r) => {
       download.__armgddnFinalizing = false;
       const res = r && r.result;
+      download.didCheck = !!res;
+      download.checkOk = !!res && !(res.bad.length || res.missing.length);
       if (res && (res.bad.length || res.missing.length)) {
         download.forceDisableAutoExtract = true;       // unpacking a damaged archive only produces a second, more confusing error
         download.statusMessage = `${r.text} Automatic extraction was skipped.`;
@@ -9073,6 +9100,7 @@ function completeDownload(downloadId, afterHashCheck) {
           }
           if (extractTarget(downloadDir) !== downloadDir) download.extractedTo = extractTarget(downloadDir);
           download.extractPercent = 100;
+          download.didExtract = archives.length > 0;
         } catch (e) {
           download.extractionError = e && e.message ? e.message : String(e);
           try {

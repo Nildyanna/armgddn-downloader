@@ -1,6 +1,6 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard, downloadAnnouncement } from './format.mjs';
+import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard, downloadAnnouncement , finishedText } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -1188,7 +1188,7 @@ function HarborDownloads({ list, speedText, onClear, mib, onFlip }) {
       </article>`; })}</div>` : ''}
     <div class="hb-dcols">
       <section><h3>Waiting</h3>${waiting.length ? waiting.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, true)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${bytesOf(d)}${bytesOf(d) ? ' · ' : ''}starts when a slot frees up</span></span><${DownloadButtons} d=${d} /></div>`) : html`<div class="hb-dnone">Nothing is waiting.</div>`}</section>
-      <section><div class="hb-dsechead"><h3>Finished</h3>${done.length ? html`<button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button>` : ''}</div>${done.length ? done.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, false)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${[bytesOf(d), st(d) === 'completed' ? 'checked and extracted' : st(d)].filter(Boolean).join(' · ')}</span></span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing finished yet.</div>`}</section>
+      <section><div class="hb-dsechead"><h3>Finished</h3>${done.length ? html`<button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button>` : ''}</div>${done.length ? done.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, false)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${[bytesOf(d), st(d) === 'completed' ? finishedText(d) : st(d)].filter(Boolean).join(' · ')}</span></span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing finished yet.</div>`}</section>
     </div>
   </div>`;
 }
@@ -1530,8 +1530,10 @@ function App() {
       if (!live) return;
       const active = r.ok ? (r.data || []) : [];
       const ids = new Set(active.map((d) => d.id));
+      // remotePath (+ the section, actualRemote, for 3D, Apps and the like): finished rows find their cover art by where the title sits in the library
+      // (downloadPlace); without them the art vanished once a download left the live list (Nov 24 2026).
       const done = (Array.isArray(h) ? h : []).filter((d) => d && !ids.has(d.id)).slice(0, 30)
-        .map((d) => ({ id: d.id, name: d.name, status: d.status || 'completed', progress: 100, totalSize: d.totalSize, downloadedSize: d.totalSize }));
+        .map((d) => ({ id: d.id, name: d.name, status: d.status || 'completed', progress: 100, totalSize: d.totalSize, downloadedSize: d.totalSize, remotePath: d.remotePath || '', resumeRemote: d.actualRemote || '', resumePath: d.actualRemote ? (d.remotePath || '') : '', didCheck: d.didCheck, checkOk: d.checkOk, didExtract: d.didExtract, planUnpack: d.planUnpack }));
       setDownloads([...done.reverse(), ...active]);   // oldest first; the list is shown newest first
     };
     tick(); const t = setInterval(tick, 1500);
