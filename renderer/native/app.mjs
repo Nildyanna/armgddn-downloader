@@ -635,7 +635,7 @@ function UpdateRow({ say }) {
   const install = async () => {
     setState({ busy: true, text: 'Updating... ARMGDDN App will restart by itself.' });
     try {
-      const r = await api.installUpdate({ silent: true, relaunchAfterInstall: true, source: 'native-settings' });
+      const r = await runAppUpdate('native-settings');
       if (r && r.success === false && !r.installerPath) setState({ busy: false, text: (r && r.error) || 'The update could not be started' });
     } catch (e) { setState({ busy: false, text: 'The update could not be started' }); }
   };
@@ -1022,6 +1022,49 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
   </main>`;
 }
 
+// Updating happens inside the app (Nov 24 2026; it used to open a download popup, then a grey Windows box): runAppUpdate starts it from any
+// button, UpdateScreen covers the app window with the progress, and the install screen that shows while the app is closed uses these colours.
+function pageColors() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (n) => cs.getPropertyValue(n).trim();
+  const body = getComputedStyle(document.body).backgroundColor;
+  const bg = body && body !== 'transparent' && !/rgba\([^)]*,\s*0\)$/.test(body) ? body : v('--bg');
+  return { bg, fg: v('--fg'), dim: v('--dim'), accent: v('--accent'), track: v('--inset') || v('--surface') || v('--line') };
+}
+async function runAppUpdate(source) {
+  window.dispatchEvent(new CustomEvent('app-update', { detail: { kind: 'start' } }));
+  let r;
+  try { r = await api.installUpdate({ silent: true, relaunchAfterInstall: true, source, screen: pageColors() }); } catch (e) { r = { success: false, error: 'The update could not be started' }; }
+  // Still running means the app is about to close for the install; anything else (an error, "install it yourself" on Linux/macOS) puts the app back.
+  if (!r || r.success === false || r.message) window.dispatchEvent(new CustomEvent('app-update', { detail: { kind: 'stop' } }));
+  return r;
+}
+function UpdateScreen() {
+  const [st, setSt] = useState(null);
+  useEffect(() => {
+    const onEv = (e) => { const k = e.detail && e.detail.kind; if (k === 'start') setSt({ pct: null, text: 'Getting the update ready...' }); else if (k === 'stop') setSt(null); };
+    window.addEventListener('app-update', onEv);
+    try {
+      if (api.onUpdate) api.onUpdate((m) => setSt((prev) => {
+        const s = { ...(prev || { pct: null }), version: (m && m.version) || (prev && prev.version) || '' };
+        const p = m && m.payload;
+        if (m && m.channel === 'update-progress' && p) { s.pct = typeof p.percent === 'number' ? p.percent : null; s.text = [p.status, p.speed].filter(Boolean).join(' · '); }
+        else if (m && m.channel === 'update-status') { const t = String(p || ''); s.text = /^Installing update/i.test(t) ? 'Closing to install. ARMGDDN App opens again by itself in about a minute, right here.' : t; s.closing = /^Installing update/i.test(t); if (s.closing) s.pct = 100; }
+        return s;
+      }));
+    } catch (e) { }
+    return () => window.removeEventListener('app-update', onEv);
+  }, []);
+  if (!st) return '';
+  return html`<div class="upscreen" role="dialog" aria-live="polite" aria-label="Updating ARMGDDN App"><div class="upbox">
+    <img class="uplogo" src="skull-logo.png" alt="" />
+    <h2>${st.version ? 'Updating to v' + st.version : 'Updating ARMGDDN App'}</h2>
+    <div class=${'upbar' + (st.pct == null ? ' busy' : '')}><i style=${st.pct == null ? '' : 'width:' + Math.round(st.pct) + '%'}></i></div>
+    <p class="uptext">${st.text || ''}${st.pct != null && !st.closing ? ' · ' + Math.round(st.pct) + '%' : ''}</p>
+    ${st.closing ? '' : html`<p class="upnote">When it is ready the app closes for about a minute to install, then opens again right here.</p>`}
+  </div></div>`;
+}
+
 // Shared by the classic Downloads page and Harbor's: a download's buttons (with the Mbps / MiB/s switch while it runs) and the files it is fetching at once.
 function DownloadButtons({ d, mib, onFlip }) {
   return html`<div class="dbtns">${isActiveDownload(d) && onFlip ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${onFlip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>`;
@@ -1180,7 +1223,7 @@ function App() {
   const installUpdate = async () => {
     setUpdating(true);
     try {
-      const r = await api.installUpdate({ silent: true, relaunchAfterInstall: true, source: 'native-banner' });
+      const r = await runAppUpdate('native-banner');
       if (r && r.success === false && !r.installerPath) { setUpdating(false); say((r && r.error) || 'The update could not be started'); }
     } catch (e) { setUpdating(false); say('The update could not be started'); }
   };
@@ -1578,6 +1621,7 @@ function App() {
     ${whatsNew ? html`<${WhatsNewBox} entry=${whatsNew} onClose=${() => setWhatsNew(null)} />` : ''}
     ${admin && admin.role === 'owner' ? html`<${OwnerDock} onOpenAnalytics=${() => { setAdminStart({ tab: 'analytics', n: Date.now() }); setView('admin'); }} />` : ''}
     ${toast ? html`<div class="toast">${toast}</div>` : ''}
+    <${UpdateScreen} />
   </div>`;
 }
 render(html`<${App} />`, document.getElementById('app'));

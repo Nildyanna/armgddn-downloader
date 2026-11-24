@@ -758,3 +758,17 @@ header select + select { margin-left: 0; }
 
 /* The window is hidden or minimised (app.mjs sets data-hidden): every CSS animation waits instead of drawing frames nobody sees. */
 html[data-hidden="1"] *, html[data-hidden="1"] *::before, html[data-hidden="1"] *::after { animation-play-state: paused !important; }
+
+/* Updating inside the app (UpdateScreen in app.mjs): the whole window, in the theme's colours, instead of a separate popup. */
+.upscreen { position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; background: var(--bg); }
+html[data-theme="harbor"] .upscreen { background: var(--hb-bg); }
+.upbox { width: min(520px, 90vw); display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+.uplogo { width: 96px; height: 96px; object-fit: contain; }
+.upbox h2 { margin: 4px 0 0; font-size: 28px; font-weight: 800; color: var(--fg); }
+.upbar { width: 100%; height: 8px; border-radius: 4px; background: var(--inset, var(--line)); overflow: hidden; position: relative; }
+.upbar i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 4px; transition: width .4s ease; }
+.upbar.busy i { width: 30%; position: absolute; left: -30%; animation: upBusy 1.2s ease-in-out infinite; }
+@keyframes upBusy { to { left: 100%; } }
+.uptext { margin: 0; color: var(--fg); font-variant-numeric: tabular-nums; }
+.upnote { margin: 0; color: var(--dim); font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .upbar.busy i { animation: none; left: 0; width: 100%; opacity: .5; } }

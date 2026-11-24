@@ -9363,6 +9363,32 @@ function startUpdatePoller() {
 // subsequent call is silently rejected until the process exits or the install fails.
 let _installUpdateInProgress = false;
 
+// Where and how the install screen draws (Windows): the app window's spot and size in real pixels, the page's colours (sent by the
+// app as it starts the update; updateRunner turns them into #rrggbb or a default), and the logo copied out of the app package so
+// PowerShell can read it. A minimised or hidden window uses the middle of its screen at a normal size.
+function installScreen(colors, version) {
+  const c = (colors && typeof colors === 'object') ? colors : {};
+  const spec = { bg: c.bg, fg: c.fg, dim: c.dim, accent: c.accent, track: c.track, version };
+  const win = nativeWindow;   // the ARMGDDN App's own window (mainWindow is the hidden classic one)
+  try {
+    const { screen } = require('electron');   // only usable once the app is ready, which it is by the time an update installs
+    let b = win.getBounds();
+    if (win.isMinimized() || !win.isVisible()) {
+      const wa = screen.getDisplayMatching(b).workArea;
+      b = { width: Math.min(1280, wa.width), height: Math.min(800, wa.height) };
+      b.x = wa.x + Math.round((wa.width - b.width) / 2); b.y = wa.y + Math.round((wa.height - b.height) / 2);
+    }
+    const r = process.platform === 'win32' && typeof screen.dipToScreenRect === 'function' ? screen.dipToScreenRect(win, b) : b;
+    Object.assign(spec, { x: r.x, y: r.y, w: r.width, h: r.height, scale: screen.getDisplayMatching(b).scaleFactor || 1 });
+  } catch (e) { }
+  try {
+    const logo = path.join(app.getPath('userData'), 'update-logo.png');
+    fs.writeFileSync(logo, fs.readFileSync(path.join(__dirname, 'renderer', 'native', 'skull-logo.png')));
+    spec.logo = logo;
+  } catch (e) { }
+  return spec;
+}
+
 // Download and install update
 // Security (C1/H1): The renderer-supplied URL is ignored entirely. The installer URL is
 // derived freshly in the main process from the GitHub releases API to prevent renderer
@@ -9399,10 +9425,12 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
   // Derive the installer URL internally — never trust the renderer-supplied value
   let installerUrl;
   let installerSize = 0;
+  let updateVersion = '';
   try {
     const releaseInfo = await fetchLatestReleaseInfo();
     installerUrl = releaseInfo.installerUrl || null;
     installerSize = releaseInfo.installerSize || 0;
+    updateVersion = /^\d+\.\d+\.\d+$/.test(String(releaseInfo.latestVersion || '')) ? String(releaseInfo.latestVersion) : '';
     if (!installerUrl) {
       _installUpdateInProgress = false;
       return { success: false, error: 'No installer available for this platform' };
@@ -9432,6 +9460,10 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
     return { success: false, error: 'Invalid installer URL' };
   }
 
+  // The ARMGDDN App (native window) shows the update inside its own window: download, checking and "closing to install" arrive on
+  // native:update, and the install screen that follows looks like the app (updateRunner.screenSpec). The old app keeps the popup window.
+  const nativeAlive = () => { try { return !!nativeWindow && !nativeWindow.isDestroyed(); } catch (e) { return false; } };
+  const inApp = NATIVE_PREVIEW && nativeAlive();
   // Show progress window
   let progressWinReady = false;
   const pendingUpdateEvents = [];
@@ -9445,6 +9477,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
     }
   };
   const safeSendUpdateEvent = (channel, payload) => {
+    if (inApp) { try { if (nativeAlive()) nativeWindow.webContents.send('native:update', { channel, payload, version: updateVersion }); } catch (e) { } return; }
     if (!progressWin || progressWin.isDestroyed()) return;
     if (progressWinReady) {
       try {
@@ -9454,7 +9487,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
     }
     pendingUpdateEvents.push({ channel, payload });
   };
-  try {
+  if (!inApp) try {
     progressWin = new BrowserWindow({
       width: 400,
       height: 380,
@@ -9871,7 +9904,8 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
                     // Menu shortcut, even after the user moved or deleted it.
                     const silentArg = silent ? '/S --updated' : '--updated';
                     const runner = updateRunner.buildRunner({
-                      pid, filePath, appExe: process.execPath, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut: startMenuShortcut, appName: NATIVE_PREVIEW ? 'ARMGDDN App' : 'ARMGDDN Companion'
+                      pid, filePath, appExe: process.execPath, wrapperLogPath, resultPath, silentArg, shouldRelaunch, shortcut: startMenuShortcut, appName: NATIVE_PREVIEW ? 'ARMGDDN App' : 'ARMGDDN Companion',
+                      screen: inApp ? installScreen(opts.screen, updateVersion) : null
                     });
                     // Tell any app that starts while the installer works (the member opens it again) not to start a second install.
                     try { fs.writeFileSync(resultPath, JSON.stringify({ state: 'installing', ts: Date.now() })); } catch (e) { }
