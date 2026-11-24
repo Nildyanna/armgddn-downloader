@@ -16,7 +16,13 @@ function files(dir) {
   });
 }
 
-const undoCtx = (s) => s.replace(/(\w+): ctx\.\1\b/g, '$1').replace(/\bctx\.(\w+)/g, '$1');
+// Each module names the context once: const ctx = require('./context') (or mainState, where a function already uses ctx itself).
+const undoCtx = (s) => {
+  const m = s.match(/^const (\w+) = require\('\.\/context'\);/m);
+  if (!m) return s;
+  const a = m[1];
+  return s.replace(new RegExp('(\\w+): ' + a + '\\.\\1\\b', 'g'), '$1').replace(new RegExp('\\b' + a + '\\.(\\w+)', 'g'), '$1');
+};
 
 function mainSource() {
   return [path.join(ROOT, 'main.js'), ...files(path.join(ROOT, 'main'))].map((f) => undoCtx(fs.readFileSync(f, 'utf8'))).join('\n');

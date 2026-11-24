@@ -19,6 +19,12 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
      (link the system rclone to `rclone/rclone` first; it is git-excluded);
   4. `node tools/split/undef.js --acorn <path>` finds no name a module uses without defining it (added after step 6 nearly moved a default
      parameter, `ttlMs = MIRROR_COOLDOWN_MS`, without rewriting it; the text proof cannot see that).
+- **Location-dependent code** is the trap the text proof cannot see: the same words mean something else in main/. `__dirname`/`__filename`
+  go through the context (`ctx.__dirname`), and a `require('./x')` inside a moved function becomes `require('../x')`; movectx does both and
+  its proof undoes them. Step 8's smoke test caught the window loading main/preload.js; the same fault was then found in the app icon
+  (step 2), the Komga prompt, What's New and the install-screen logo (step 7), and four inline requires (Linux notifications, the window
+  freeze watch, download speed estimate, engine reason), two of them inside try blocks that would have failed silently. Guarded by
+  `test/mainModulesNoDirname.test.js` and `test/mainModulesRequirePaths.test.js`.
 - **Before this branch is merged:** the start-up smoke test does not run the app's own download path (it downloads through rclone directly),
   so the scheduler and downloader moves must be checked with real downloads in a built app: one game, a multi-file batch, pause and resume,
   a cancelled download, and an update while a download is paused.
@@ -45,6 +51,7 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
 | 5 | context, settings, session, history | first moves that use shared state (settings, sessionToken, downloadHistory), through main/context.js | 8,516 |
 | 6 | mirrors, scheduler | mirror cooldowns; the download scheduler (which file starts next, how many at once) | 8,157 |
 | 7 | updates, hashing, komgaActions, deepLinks, quietHours, restore, dialogs, siteApi, failures, extract, installSpace | 53 functions in 11 groups | 6,808 |
+| 8 | progress, manifest, completion, downloadControl, downloader, appWindows, comics | the download engine (downloadFile, 1,187 lines), the windows; getAppLoadInfo and comicsGet stay (a local sessionToken shadows main.js's) | 3,263 |
 
 ## Shared state (from step 5)
 

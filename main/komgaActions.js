@@ -16,11 +16,11 @@ function promptKomgaSettings() {
     ctx.komgaPromptWin = new BrowserWindow({
       width: 460, height: 400, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true,
       title: 'Add to My Komga', icon: getAppIcon(),
-      webPreferences: { preload: path.join(__dirname, 'preload-komga.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
+      webPreferences: { preload: path.join(ctx.__dirname, 'preload-komga.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
     });
     try { ctx.komgaPromptWin.setMenu(null); } catch (e) { }
     denyNewWindows(ctx.komgaPromptWin);
-    ctx.komgaPromptWin.loadFile(path.join(__dirname, 'renderer', 'komga.html'));
+    ctx.komgaPromptWin.loadFile(path.join(ctx.__dirname, 'renderer', 'komga.html'));
     ctx.komgaPromptWin.on('closed', () => {
       ctx.komgaPromptWin = null;
       if (ctx.komgaPromptResolve) { const r = ctx.komgaPromptResolve; ctx.komgaPromptResolve = null; r(null); }

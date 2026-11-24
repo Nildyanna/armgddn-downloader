@@ -48,7 +48,7 @@ function checkForUpdatesFromMenu() {
 function getWhatsNewForVersion(version) {
   try {
     if (ctx.whatsNewContentCache === null) {
-      const whatsNewPath = path.join(__dirname, 'renderer', 'whats-new.json');
+      const whatsNewPath = path.join(ctx.__dirname, 'renderer', 'whats-new.json');
       ctx.whatsNewContentCache = fs.existsSync(whatsNewPath)
         ? JSON.parse(fs.readFileSync(whatsNewPath, 'utf8'))
         : {};
@@ -251,7 +251,7 @@ function installScreen(colors, version) {
   } catch (e) { }
   try {
     const logo = path.join(app.getPath('userData'), 'update-logo.png');
-    fs.writeFileSync(logo, fs.readFileSync(path.join(__dirname, 'renderer', 'native', 'skull-logo.png')));
+    fs.writeFileSync(logo, fs.readFileSync(path.join(ctx.__dirname, 'renderer', 'native', 'skull-logo.png')));
     spec.logo = logo;
   } catch (e) { }
   return spec;

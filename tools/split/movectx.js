@@ -58,6 +58,10 @@ for (const n of ast.body) {
 const fnNodes = new Map(ast.body.filter((n) => n.type === 'FunctionDeclaration').map((n) => [n.id.name, n]));
 for (const n of names) if (!fnNodes.has(n)) { console.error('no top-level function ' + n); process.exit(1); }
 
+// The context's name in the new module: ctx, unless a moved function already uses the name ctx itself (downloadFile's getFreshUrl takes
+// a parameter called ctx), then mainState.
+let ALIAS = 'ctx';
+for (const n of names) walk(fnNodes.get(n), (x) => { if (x.type === 'Identifier' && x.name === 'ctx') ALIAS = 'mainState'; });
 const ctxNames = new Set(), requireNames = new Map();
 const edits = [];   // [start, end, text] in src
 for (const name of names) {
@@ -77,19 +81,30 @@ for (const name of names) {
   const defaults = [];
   walk({ type: 'Params', list: fn.params }, (x) => { if (x.type === 'AssignmentPattern') defaults.push(x.right); });
   const visitRef = (x, parent, key) => {
-    if (x.type !== 'Identifier' || !top.has(x.name) || names.includes(x.name)) return;
+    // __dirname and __filename name main.js's own folder and file; in a module under main/ they would name main/ instead (Nov 24 2026:
+    // the moved createWindow looked for main/preload.js). They go through the context like shared state.
+    const fileName = x.type === 'Identifier' && (x.name === '__dirname' || x.name === '__filename');
+    if (x.type !== 'Identifier' || (!fileName && (!top.has(x.name) || names.includes(x.name)))) return;
     if (parent && parent.type === 'MemberExpression' && key === 'property' && !parent.computed) return;
     if (parent && (parent.type === 'Property' || parent.type === 'MethodDefinition') && key === 'key' && !parent.computed && !parent.shorthand) return;
     if (parent && parent.type === 'VariableDeclarator' && key === 'id') return;
     if (locals.has(x.name)) { console.error(`${name}: local name ${x.name} shadows main.js's ${x.name}; refusing`); process.exit(1); }
-    const t = top.get(x.name);
+    const t = fileName ? { kind: 'const' } : top.get(x.name);
     if (t.kind === 'require') { requireNames.set(x.name, t); return; }
     ctxNames.add(x.name);
-    if (parent && parent.type === 'Property' && parent.shorthand && key === 'value') edits.push([x.start, x.end, `${x.name}: ctx.${x.name}`]);
-    else edits.push([x.start, x.end, `ctx.${x.name}`]);
+    if (parent && parent.type === 'Property' && parent.shorthand && key === 'value') edits.push([x.start, x.end, `${x.name}: ${ALIAS}.${x.name}`]);
+    else edits.push([x.start, x.end, `${ALIAS}.${x.name}`]);
   };
   walk(fn.body, visitRef);
   defaults.forEach((d) => walk(d, visitRef));
+  // require('./x') inside the function: from main/ it must be '../x' (the app folder), as main.js meant it.
+  walk(fn.body, (x) => {
+    if (x.type === 'CallExpression' && x.callee.type === 'Identifier' && x.callee.name === 'require' && x.arguments[0] &&
+        x.arguments[0].type === 'Literal' && typeof x.arguments[0].value === 'string' && x.arguments[0].value.startsWith('./')) {
+      const lit = x.arguments[0];
+      edits.push([lit.start, lit.end, src.slice(lit.start, lit.end).replace('./', '../')]);
+    }
+  });
 }
 
 // Module text: each function with the comment lines above it, rewritten.
@@ -113,7 +128,9 @@ for (const name of names.slice().sort((a, b) => fnNodes.get(a).start - fnNodes.g
 
 // Proof: undoing the rewrite gives the original text.
 for (const b of blocks) {
-  const back = b.text.replace(/(\w+): ctx\.\1\b/g, '$1').replace(/\bctx\.(\w+)/g, '$1');
+  if (b.original.includes(ALIAS + '.') || b.original.includes("require('../")) { console.error(`${b.name}: the original already contains "${ALIAS}."; the proof would be unsound; refusing`); process.exit(1); }
+  const back = b.text.replace(new RegExp('(\\w+): ' + ALIAS + '\\.\\1\\b', 'g'), '$1').replace(new RegExp('\\b' + ALIAS + '\\.(\\w+)', 'g'), '$1')
+    .replace(/require\('\.\.\//g, "require('./");
   if (back !== b.original) { console.error('rewrite check failed for ' + b.name); process.exit(1); }
 }
 if (CHECK_ONLY) { console.log('would move', names.join(', '), '| ctx:', [...ctxNames].join(', ')); process.exit(0); }
@@ -135,7 +152,7 @@ const modPath = path.join(ROOT, 'main', moduleName + '.js');
 if (fs.existsSync(modPath)) { console.error(`main/${moduleName}.js exists; movectx makes new modules only`); process.exit(1); }
 fs.writeFileSync(modPath, ["'use strict';",
   `// ${doc || moduleName} (moved out of main.js, Nov 24 2026; docs/MAIN_SPLIT.md). Shared state is reached through ctx (main/context.js).`,
-  "const ctx = require('./context');", ...reqText, '', blocks.map((b) => b.text).join('\n\n'), '',
+  `const ${ALIAS} = require('./context');`, ...reqText, '', blocks.map((b) => b.text).join('\n\n'), '',
   `module.exports = { ${blocks.map((b) => b.name).join(', ')} };`, ''].join('\n'));
 
 // main.js: drop the functions, require the module, and offer the ctx names.
@@ -154,7 +171,7 @@ if (pStart >= 0) {
 }
 const all = [...new Set([...have, ...want])].sort();
 const entry = (nm) => {
-  const t = top.get(nm) || { kind: 'function' };
+  const t = (nm === '__dirname' || nm === '__filename') ? { kind: 'const' } : (top.get(nm) || { kind: 'function' });
   if (t.kind === 'function') return `  ${nm},`;
   if (t.kind === 'let' || t.kind === 'var') return `  get ${nm}() { return ${nm}; }, set ${nm}(v) { ${nm} = v; },`;
   return `  get ${nm}() { return ${nm}; },`;

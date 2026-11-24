@@ -1,5 +1,6 @@
 'use strict';
 // Files and folders: where things are kept, what is already on disk, the app icon, log rotation (moved out of main.js unchanged, Nov 24 2026; docs/MAIN_SPLIT.md).
+const ctx = require('./context');
 const { formatBytes, normalizeFileSize, resolveInside, sanitizeRelativePath } = require('./util');
 const { app, nativeImage } = require('electron');
 const fs = require('fs');
@@ -86,8 +87,8 @@ function installedProfileDir() {
 // Helper to get consistent app icon
 function getAppIcon() {
   let iconPath = process.platform === 'win32'
-    ? path.join(__dirname, 'assets', 'icon.ico')
-    : path.join(__dirname, 'assets', 'icon.png');
+    ? path.join(ctx.__dirname, 'assets', 'icon.ico')
+    : path.join(ctx.__dirname, 'assets', 'icon.png');
 
   if (!fs.existsSync(iconPath)) {
     const resourcePath = process.platform === 'win32'
