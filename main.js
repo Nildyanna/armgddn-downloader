@@ -324,8 +324,13 @@ try {
 // When the GPU process fails while software drawing is already on, the next launches run with no GPU process at all
 // (--disable-gpu + --disable-software-rasterizer: Chromium draws in the main process; only WebGL is lost, which the app never uses).
 // This marker lasts 7 days, then the app goes back to the first step.
+// A PC that needed this step once (a virtual machine such as Parallels, Sentry ARMGDDN-COMPANION-2Q Nov 24: the same member crashed twice
+// every time the marker ran out) keeps a '.past' note: its next GPU failure skips straight to this step, and the marker then lasts 30 days.
 const GPU_HARD_MARKER = (() => {
   try { return path.join(app.getPath('userData'), 'gpu-disabled-hard'); } catch (e) { return null; }
+})();
+const gpuHardBefore = (() => {
+  try { return !!GPU_HARD_MARKER && fs.existsSync(GPU_HARD_MARKER + '.past'); } catch (e) { return false; }
 })();
 const softwareDrawingOn = (() => {
   try { return !!GPU_FALLBACK_MARKER && fs.existsSync(GPU_FALLBACK_MARKER); } catch (e) { return false; }
@@ -334,7 +339,7 @@ let noGpuProcess = false;
 try {
   if (GPU_HARD_MARKER && fs.existsSync(GPU_HARD_MARKER)) {
     let fresh = true;
-    try { fresh = Date.now() - fs.statSync(GPU_HARD_MARKER).mtimeMs < 7 * 24 * 3600 * 1000; } catch (e2) { }
+    try { fresh = Date.now() - fs.statSync(GPU_HARD_MARKER).mtimeMs < (gpuHardBefore ? 30 : 7) * 24 * 3600 * 1000; } catch (e2) { }
     if (fresh) {
       try { app.disableHardwareAcceleration(); } catch (e2) { }
       app.commandLine.appendSwitch('disable-gpu');
@@ -342,7 +347,7 @@ try {
       noGpuProcess = true;
       console.log('[gpu] no GPU process (it failed even with software drawing)');
     } else {
-      try { fs.unlinkSync(GPU_HARD_MARKER); } catch (e2) { }
+      try { fs.renameSync(GPU_HARD_MARKER, GPU_HARD_MARKER + '.past'); } catch (e2) { }
     }
   }
 } catch (e) { }
@@ -351,7 +356,7 @@ app.on('child-process-gone', (event, details) => {
   try {
     if (!details || details.type !== 'GPU') return;
     if (details.reason === 'clean-exit' || details.reason === 'killed') return;
-    if (softwareDrawingOn) {
+    if (softwareDrawingOn || gpuHardBefore) {
       if (armNoGpuProcess(details.reason + ' ' + details.exitCode)) setGpuFallbackTag('hard-armed');
       return;
     }
@@ -381,7 +386,7 @@ if (!gotTheLock) {
         app.disableHardwareAcceleration();
         setGpuFallbackTag('armed');
         console.warn('[gpu] ' + unclean + ' launches in a row did not end cleanly; software rendering from now on');
-      } else if (unclean >= 2 && softwareDrawingOn && armNoGpuProcess('unclean-exits ' + unclean)) {
+      } else if (unclean >= 2 && (softwareDrawingOn || gpuHardBefore) && armNoGpuProcess('unclean-exits ' + unclean)) {
         // already drawing in software and still dying at start: the next launch runs with no GPU process
         setGpuFallbackTag('hard-armed');
       }
