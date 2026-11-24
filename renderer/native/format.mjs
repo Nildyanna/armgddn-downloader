@@ -746,3 +746,18 @@ export function nearestCard(from, boxes, dir) {
   });
   return best;
 }
+
+// What a screen reader hears about downloads (Nov 24 2026, docs/BEST_PRACTICES.md): each download's step in words, without percents, so it
+// speaks only when a step changes ("Bodycam: unpacking"), not on every progress tick. Paused, waiting and cancelled ones are left out.
+export function downloadAnnouncement(list) {
+  const words = { download: 'downloading', check: 'checking files', unpack: 'unpacking', ready: 'ready' };
+  return (Array.isArray(list) ? list : []).map((d) => {
+    const st = String((d && d.status) || '').toLowerCase();
+    const name = cleanTitle((d && d.name) || '');
+    if (st === 'failed' || st === 'error') return name + ': failed';
+    if (st === 'paused' || st === 'cancelled' || downloadState(d).group === 'waiting') return '';
+    const steps = downloadSteps(d);
+    const now = steps && (steps.find((x) => x.state === 'now') || (st === 'completed' ? { key: 'ready' } : null));
+    return now ? name + ': ' + words[now.key] : '';
+  }).filter(Boolean).join('. ');
+}

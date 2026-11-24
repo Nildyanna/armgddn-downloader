@@ -53,7 +53,8 @@ header select { flex: none; }
 .card .meta { position: relative; }
 .dl { margin-top: 6px; background: transparent; border: 1px solid var(--accent); color: var(--accent); border-radius: 8px; padding: 4px 10px; font-size: 12px; }
 .dl:hover { background: var(--accent); color: var(--on-accent); }
-.badge { background: var(--accent2); color: #fff; border-radius: 999px; padding: 0 7px; font-size: 11px; margin-left: 4px; }
+/* The accent is darkened to half so white text passes 4.5:1 in every theme (lightest accent, #7dffb0, gives 4.8:1). Nov 24 2026. */
+.badge { background: color-mix(in srgb, var(--accent2) 50%, #000); color: #fff; border-radius: 999px; padding: 0 7px; font-size: 11px; font-weight: 700; margin-left: 4px; }
 .dlist { flex: 1; overflow: auto; padding: 16px 18px; display: flex; flex-direction: column; gap: 10px; }
 .drow { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; }
 .dname { font-weight: 600; display: flex; justify-content: space-between; gap: 12px; }
@@ -793,3 +794,16 @@ html[data-theme="harbor"] .upscreen { background: var(--hb-bg); }
 .card:focus { outline: none; }
 .card:focus-visible, .lrow:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 12px; }
 .lrow:focus-visible { outline-offset: 1px; border-radius: 6px; }
+
+/* Text only a screen reader hears (Nov 24 2026). */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+
+/* Long lists (Nov 24 2026, docs/BEST_PRACTICES.md): the library draws every title at once (1,000+ in a big section), so cards off screen are
+   skipped until scrolled near. contain-intrinsic-size keeps the scrollbar steady; the clip margin leaves room for hover rings and focus rings. */
+.grid > .card { content-visibility: auto; contain-intrinsic-size: auto 340px; overflow-clip-margin: 12px; }
+.list > .lrow { content-visibility: auto; contain-intrinsic-size: auto 48px; overflow-clip-margin: 6px; }
+
+/* The crash-report question (Nov 24 2026). */
+.askbody { max-width: 520px; display: flex; flex-direction: column; gap: 10px; line-height: 1.5; }
+.askbody p { margin: 0; }
+.askbtns { display: flex; gap: 10px; margin-top: 6px; }

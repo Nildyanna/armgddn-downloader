@@ -1,6 +1,6 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard } from './format.mjs';
+import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard, downloadAnnouncement } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -51,6 +51,8 @@ try {
   document.addEventListener('visibilitychange', markHidden); markHidden();
 } catch (e) { }
 const GROUPS = { 'PC Games': ['PC-1', 'PC-2', 'PC-3'], 'PCVR Games': ['PCVR-1', 'PCVR-2', 'PCVR-3'] };
+// Something clicked that is not a button (a row, a pill, a picture) also answers Enter and Space, so the keyboard reaches it (docs/BEST_PRACTICES.md).
+const kbdClick = (fn) => (e) => { if (e.target === e.currentTarget && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); fn(e); } };
 const coverSrc = (url) => (url ? 'armgddn-img://c/?u=' + encodeURIComponent(url) : '');
 
 // Library sections shown as tabs: the two game groups, then every remote that is not one of their mirrors.
@@ -103,7 +105,7 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
     // The list view: one line per title, no art, like the legacy browser.
     return html`<div class=${'lrow' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name} tabIndex="0" aria-label=${shownTitle} onKeyDown=${cardKey}>
       ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
-      <span class="ltitle" onClick=${item.isDir ? () => onOpen(item) : undefined}>${shownTitle}${badgeEl}</span>${suffixEl}${platformEl}
+      <span class="ltitle" data-kbd="card" onClick=${item.isDir ? () => onOpen(item) : undefined}>${shownTitle}${badgeEl}</span>${suffixEl}${platformEl}
       <span class="lsub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</span>
       ${stub ? html`<span class="stubnote inline">${stub.message} <button class="dl ghost" onClick=${(e) => { e.stopPropagation(); onStub(stub); }}>Go there</button></span>` : ''}
       <span class="lbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} aria-label=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
@@ -114,8 +116,8 @@ function Card({ item, onOpen, remote, folder, onDownload, onDetails, onPreview, 
   }
   return html`<div class=${'card' + (batch && batch.selected ? ' picked' : '')} data-letter=${letterOf(item.name)} title=${item.name} tabIndex="0" aria-label=${shownTitle} onKeyDown=${cardKey}>
     ${batch ? html`<label class="bsel" onClick=${(e) => e.stopPropagation()}><input type="checkbox" checked=${batch.selected} onChange=${batch.toggle} /></label>` : ''}
-    <div class=${"cover" + (coverClick ? " clickable" : "")} onClick=${coverClick || undefined}>${cover ? html`<img class="cbg" aria-hidden="true" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="cfg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onLoad=${(e) => { const im = e.target; im.classList.toggle('fill', coverFills(im.naturalWidth, im.naturalHeight, shapeFor(remote))); }} onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
-    <div class="meta"><div class=${'title' + (platform ? ' withp' : '') + (item.isDir ? ' clickable' : '')} onClick=${item.isDir ? () => onOpen(item) : undefined}>${platform ? html`<span class="ttext">${shownTitle}${badgeEl}</span>${platformEl}` : html`${shownTitle}${badgeEl}`}</div>
+    <div class=${"cover" + (coverClick ? " clickable" : "")} data-kbd="card" onClick=${coverClick || undefined}>${cover ? html`<img class="cbg" aria-hidden="true" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" /><img class="cfg" loading="lazy" decoding="async" src=${coverSrc(cover)} alt="" onLoad=${(e) => { const im = e.target; im.classList.toggle('fill', coverFills(im.naturalWidth, im.naturalHeight, shapeFor(remote))); }} onError=${() => setBroken(true)} />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
+    <div class="meta"><div class=${'title' + (platform ? ' withp' : '') + (item.isDir ? ' clickable' : '')} data-kbd="card" onClick=${item.isDir ? () => onOpen(item) : undefined}>${platform ? html`<span class="ttext">${shownTitle}${badgeEl}</span>${platformEl}` : html`${shownTitle}${badgeEl}`}</div>
       ${suffixEl ? html`<div class="fextrow">${suffixEl}</div>` : ''}
       <div class="sub">${[year, ...comicParts(item), formatSize(item.size), popularityLabel(item)].filter(Boolean).join(' · ')}${cvEl}</div>${stubEl}
       <div class="cbtns">${item.isDir ? html`<button class=${'dl heart' + (inList ? ' on' : '')} title=${inList ? 'Remove from My List' : 'Add to My List'} aria-label=${inList ? 'Remove from My List' : 'Add to My List'} onClick=${(e) => { e.stopPropagation(); onToggleList(item); }}>${inList ? '\u2665' : '\u2661'}</button>` : ''}
@@ -150,6 +152,21 @@ function Modal({ title, onClose, children, wide }) {
   useEffect(() => { const k = (e) => { if (e.key === 'Escape') onClose(); }; window.addEventListener('keydown', k); return () => window.removeEventListener('keydown', k); }, []);
   return html`<div class="overlay" onClick=${onClose}><div class=${'modal' + (wide ? ' wide' : '')} onClick=${(e) => e.stopPropagation()}>
     <div class="mhead"><div class="mtitle">${title}</div><button class="dbtn" onClick=${onClose}>Close</button></div>${children}</div></div>`;
+}
+
+// Crash reports need the member's answer (Nov 24 2026, docs/BEST_PRACTICES.md). Asked once, on the first start or the first start after the update
+// that added it; until then reports work as they always have. Either answer, or changing the setting, is remembered (errorReportingAsked).
+function ErrorReportingAsk({ onDone }) {
+  const answer = async (on) => { try { await api.saveSettings({ errorReporting: on, errorReportingAsked: true }); } catch (e) { } onDone(on); };
+  return html`<${Modal} title="Help fix crashes?" onClose=${() => onDone(null)}>
+    <div class="askbody">
+      <p>When the app crashes or runs into an error, it can send a short report to ARMGDDN so it can be fixed.</p>
+      <p>A report says what went wrong, the app version and your system (Windows, Mac or Linux). It never includes your name, Telegram account,
+        IP address or your files. When a download fails, the report names the title that failed, so the failure can be traced.</p>
+      <p class="sval">You can change this any time in Settings, under Send error reports.</p>
+      <div class="askbtns"><button class="primary" onClick=${() => answer(true)}>Send reports</button><button class="dbtn" onClick=${() => answer(false)}>Don't send</button></div>
+    </div>
+  </${Modal}>`;
 }
 
 function TrailerModal({ title, src, onClose }) {
@@ -357,20 +374,20 @@ function RequestsView({ say, openId }) {
       <div class="sub">${open.category} · ${shortDate(open.createdAt)}</div>
       ${open.decisionReason ? html`<div class="reason"><strong>Decision:</strong> ${open.decisionReason}</div>` : ''}
       <div class="thread">${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'You')} · ${shortDate(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="empty">No messages yet.</div>`}</div>
-      <div class="compose"><input type="text" maxlength="500" placeholder="Write a message…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
+      <div class="compose"><input type="text" maxlength="500" placeholder="Write a message…" aria-label="Write a message…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
     </div>`;
   }
   return html`<div class="reqpane">
     <div class="reqhead"><h2>My requests</h2><button class="primary" onClick=${() => setForm({ category: 'Music', title: '', notes: '' })}>New request</button></div>
     ${error ? html`<div class="notice">${error.message}</div>` : ''}
     ${form ? html`<div class="reqform">
-      <select value=${form.category} onChange=${(e) => setForm({ ...form, category: e.target.value })}><option>Music</option><option>Comics</option></select>
-      <input type="text" maxlength="200" placeholder="Artist and album, or comic series" value=${form.title} onInput=${(e) => setForm({ ...form, title: e.target.value })} />
-      <input type="text" maxlength="500" placeholder="Notes (optional)" value=${form.notes} onInput=${(e) => setForm({ ...form, notes: e.target.value })} />
+      <select aria-label="What to request" value=${form.category} onChange=${(e) => setForm({ ...form, category: e.target.value })}><option>Music</option><option>Comics</option></select>
+      <input type="text" maxlength="200" placeholder="Artist and album, or comic series" aria-label="Artist and album, or comic series" value=${form.title} onInput=${(e) => setForm({ ...form, title: e.target.value })} />
+      <input type="text" maxlength="500" placeholder="Notes (optional)" aria-label="Notes (optional)" value=${form.notes} onInput=${(e) => setForm({ ...form, notes: e.target.value })} />
       <div class="dbtns"><button class="primary" onClick=${submit}>Send request</button><button class="dbtn" onClick=${() => setForm(null)}>Cancel</button></div>
       <div class="sub">Game requests are closed for now.</div>
     </div>` : ''}
-    ${list === null ? html`<div class="loading">Loading…</div>` : list.length ? html`<div class="dlist">${list.map((r) => { const [label, tone] = statusInfo(r.status); return html`<div class="drow clickable" key=${r.id} onClick=${() => openThread(r)}>
+    ${list === null ? html`<div class="loading">Loading…</div>` : list.length ? html`<div class="dlist">${list.map((r) => { const [label, tone] = statusInfo(r.status); return html`<div class="drow clickable" key=${r.id} tabIndex="0" role="button" onKeyDown=${kbdClick(() => openThread(r))} onClick=${() => openThread(r)}>
       <div class="dname">#${r.id} ${r.gameTitle}<span><span class=${'chip ' + tone}>${label}</span>${r.unreadCount ? html` <span class="badge">${r.unreadCount}</span>` : ''}</span></div>
       <div class="dmeta">${r.category} · ${shortDate(r.createdAt)}</div></div>`; })}</div>` : html`<div class="empty">You haven't made any requests.</div>`}
   </div>`;
@@ -437,7 +454,7 @@ function WatchlistModal({ onClose, say, startTitle }) {
   return html`<div class="overlay" onClick=${onClose}><div class="modal" onClick=${(e) => e.stopPropagation()}>
     <h3>My watchlist</h3>
     <p class="sval">You get a Telegram message when a title on this list is added to the library, or when a newer build of it appears.</p>
-    <div class="srow"><input class="wide" type="text" placeholder="Game title" value=${title} onInput=${(e) => setTitle(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') add(); }} /><button class="dbtn go" onClick=${add}>Watch</button></div>
+    <div class="srow"><input class="wide" type="text" placeholder="Game title" aria-label="Game title" value=${title} onInput=${(e) => setTitle(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') add(); }} /><button class="dbtn go" onClick=${add}>Watch</button></div>
     ${items === null ? html`<div class="loading">Loading...</div>` : !items.length ? html`<div class="empty">You are not watching anything yet.</div>` : items.map((w) => html`<div class="srow" key=${w.id}><span class="slabel">${w.title}${w.notifiedAt ? html` <span class="sval">(told you on ${shortDate(w.notifiedAt)})</span>` : ''}</span><button class="dbtn" onClick=${() => remove(w.id)}>Stop watching</button></div>`)}
     <div class="dbtns"><button class="dbtn" onClick=${onClose}>Close</button></div>
   </div></div>`;
@@ -447,7 +464,7 @@ function WatchlistModal({ onClose, say, startTitle }) {
 // A number box you can type in. The old one took its value from the saved setting on every redraw, so a typed number was put back to the old one
 // before it could be committed (the window redraws all the time while downloads run). Here what is typed is kept while the box has focus, and it
 // is saved when you press Enter, click away, or use the little arrows.
-function NumField({ value, min, max, onCommit, style, step }) {
+function NumField({ value, min, max, onCommit, style, step, label }) {
   const [draft, setDraft] = useState(String(value));
   const [focused, setFocused] = useState(false);
   useEffect(() => { if (!focused) setDraft(String(value)); }, [value, focused]);
@@ -456,7 +473,7 @@ function NumField({ value, min, max, onCommit, style, step }) {
     setDraft(String(n));
     if (n !== Number(value)) onCommit(n);
   };
-  return html`<input type="number" min=${min} max=${max} step=${step || 1} style=${style || ''} value=${draft}
+  return html`<input type="number" aria-label=${label || undefined} min=${min} max=${max} step=${step || 1} style=${style || ''} value=${draft}
     onInput=${(e) => setDraft(e.target.value)} onFocus=${() => setFocused(true)}
     onChange=${(e) => commit(e.target.value)}
     onBlur=${(e) => { setFocused(false); commit(e.target.value); }}
@@ -521,7 +538,7 @@ function PrefsImport({ onClose, onApply, say }) {
       <li>It prints a long code starting <code>ARMGDDN-PREFS</code> (and copies it if it can). Paste the code in the box here.</li>
     </ol>
     <div class="srow"><span class="slabel">The snippet</span><button class="dbtn" onClick=${async () => { const r = await api.copy(PREFS_SNIPPET); say(r.ok ? 'Snippet copied' : 'Could not copy'); }}>Copy snippet</button></div>
-    <textarea class="prefs-box" placeholder="Paste the ARMGDDN-PREFS code here" value=${code} onInput=${(e) => { setCode(e.target.value); setProblem(''); }}></textarea>
+    <textarea class="prefs-box" placeholder="Paste the ARMGDDN-PREFS code here" aria-label="Paste the ARMGDDN-PREFS code here" value=${code} onInput=${(e) => { setCode(e.target.value); setProblem(''); }}></textarea>
     ${problem ? html`<div class="derr">${problem}</div>` : ''}
     <div class="dbtns"><button class="dbtn" onClick=${go}>Import</button></div>
   </${Modal}>`;
@@ -684,9 +701,9 @@ function ScheduleRow({ s, save }) {
   const toggleDay = (d) => put({ days: days.includes(d) ? days.filter((x) => x !== d) : days.concat(d).sort() });
   return html`<div class="sched">
     <div class="srow"><span class="slabel">Download schedule <span class="sval">Pause or slow downloads at set times.</span></span><label class="chk"><input type="checkbox" checked=${!!sch.enabled} onChange=${(e) => put({ enabled: e.target.checked })} /> On</label></div>
-    ${sch.enabled ? html`<div class="srow schedfields"><span class="slabel">From <input type="time" value=${sch.start || '23:00'} onChange=${(e) => put({ start: e.target.value || '23:00' })} /> to <input type="time" value=${sch.end || '07:00'} onChange=${(e) => put({ end: e.target.value || '07:00' })} />
-      <select value=${sch.action === 'limit' ? 'limit' : 'pause'} onChange=${(e) => put({ action: e.target.value })}><option value="pause">Pause downloads</option><option value="limit">Limit speed to</option></select>
-      ${sch.action === 'limit' ? html`<${NumField} min=${1} max=${10000} style="width:70px" value=${sch.limitMBps || 5} onCommit=${(n) => put({ limitMBps: n })} /> MB/s` : ''}</span></div>
+    ${sch.enabled ? html`<div class="srow schedfields"><span class="slabel">From <input type="time" aria-label="Start time" value=${sch.start || '23:00'} onChange=${(e) => put({ start: e.target.value || '23:00' })} /> to <input type="time" aria-label="End time" value=${sch.end || '07:00'} onChange=${(e) => put({ end: e.target.value || '07:00' })} />
+      <select aria-label="What to do at those times" value=${sch.action === 'limit' ? 'limit' : 'pause'} onChange=${(e) => put({ action: e.target.value })}><option value="pause">Pause downloads</option><option value="limit">Limit speed to</option></select>
+      ${sch.action === 'limit' ? html`<${NumField} label="Speed limit in MB/s" min=${1} max=${10000} style="width:70px" value=${sch.limitMBps || 5} onCommit=${(n) => put({ limitMBps: n })} /> MB/s` : ''}</span></div>
       <div class="srow"><span class="slabel">${DAY_LABELS.map(([d, l]) => html`<label class="chk" key=${d}><input type="checkbox" checked=${days.includes(d)} onChange=${() => toggleDay(d)} /> ${l}</label>`)}</span></div>` : ''}
     ${banner ? html`<div class="note">${banner}</div>` : ''}
   </div>`;
@@ -736,7 +753,8 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
   const [prefsOpen, setPrefsOpen] = useState(false);
   useEffect(() => { api.getSettings().then((r) => setS(r && typeof r === 'object' ? r : {})).catch(() => setS({})); }, []);
   if (!s) return html`<div class="loading">Loading settings...</div>`;
-  const save = async (patch) => { const next = { ...s, ...patch }; setS(next); if ('lightGraphics' in patch && window.setLiteGraphics) window.setLiteGraphics(patch.lightGraphics); try { await api.saveSettings(patch); } catch (e) { say('Could not save'); } };
+  const save = async (patch) => { if ('errorReporting' in patch) patch = { ...patch, errorReportingAsked: true };   // changing it is an answer
+    const next = { ...s, ...patch }; setS(next); if ('lightGraphics' in patch && window.setLiteGraphics) window.setLiteGraphics(patch.lightGraphics); try { await api.saveSettings(patch); } catch (e) { say('Could not save'); } };
   const pickFolder = async (key) => { const r = await api.browseFolder(); if (r) save({ [key]: r }); };
   const folderRow = (key, label) => html`<div class="srow"><span class="slabel">${label}</span><span class="sval">${s[key] || 'Not set'}</span><button class="dbtn" onClick=${() => pickFolder(key)}>Change</button></div>`;
   const settingRow = (k) => { const [kind, key, label, min, max] = SETTING_ROWS.find((r) => r[1] === k); return kind === 'select'
@@ -781,7 +799,7 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
     <label class="srow"><input type="checkbox" checked=${localStorage.getItem('native.lightningOff') !== '1'} onChange=${(e) => { try { localStorage.setItem('native.lightningOff', e.target.checked ? '0' : '1'); } catch (er) { } }} /> <span class="slabel">Play the login animation on a first sign-in</span></label>
     </section>
     <section class="sgroup"><h3>Import</h3>
-    <div class="srow"><span class="slabel">Import the settings of the installed Companion (folders, speed, toggles)</span><button class="dbtn" onClick=${async () => { const r = await api.importSettings(); if (r && r.same) say('This already is the installed Companion\'s settings'); else if (r && r.imported) { say('Imported ' + r.imported + ' settings'); const g = await api.getSettings(); if (g) setS(g); } else say('No installed Companion settings were found'); }}>Import</button></div>
+    <div class="srow"><span class="slabel">Import the settings of an earlier ARMGDDN App install (folders, speed, toggles)</span><button class="dbtn" onClick=${async () => { const r = await api.importSettings(); if (r && r.same) say('This already is the installed Companion\'s settings'); else if (r && r.imported) { say('Imported ' + r.imported + ' settings'); const g = await api.getSettings(); if (g) setS(g); } else say('No installed Companion settings were found'); }}>Import</button></div>
     <div class="srow"><span class="slabel">Import my website preferences (My List, theme, hidden sections, recent searches)</span><button class="dbtn" onClick=${() => setPrefsOpen(true)}>Import</button></div>
     ${prefsOpen ? html`<${PrefsImport} onClose=${() => setPrefsOpen(false)} onApply=${onPrefs} say=${say} />` : ''}
     </section>
@@ -865,7 +883,7 @@ function TrendingStrip({ windows, onOpen }) {
   if (!cur) return html`<div class="empty">Nothing is trending yet.</div>`;
   return html`<${Fragment}><div class="tbar"><span class=${'tbadge ' + (cur.goat ? 'goat' : cur.win)} title="Which set is showing">${cur.label}</span></div>
   <div class=${'ticker' + (cur.goat ? ' goatmode' : '')} ref=${view} onMouseEnter=${() => { try { anim.current && anim.current.pause(); } catch (e) { } }} onMouseLeave=${() => { try { anim.current && anim.current.play(); } catch (e) { } }}>
-    <div class="ticker-track" ref=${track} key=${idx + '-' + cycle}>${cur.items.map((e) => html`<div class="tpill" key=${e.norm + e.platform} onClick=${() => onOpen(e)}>
+    <div class="ticker-track" ref=${track} key=${idx + '-' + cycle}>${cur.items.map((e) => html`<div class="tpill" key=${e.norm + e.platform} tabIndex="0" role="button" onKeyDown=${kbdClick(() => onOpen(e))} onClick=${() => onOpen(e)}>
       <div class="tcover">${e.coverUrl ? html`<img src=${coverSrc(e.coverUrl)} alt="" />` : html`<div class="nocover small">Non-Steam Game</div>`}</div>
       <div class="ttext"><div class="ttitle">${cleanTitle(e.title)}</div>
         <div class="tmeta"><span>\u{1F525} ${Number(e.count).toLocaleString('en-US')} downloads</span>${e.sizeBytes ? html`<span>${formatSize(e.sizeBytes)}</span>` : ''}${e.lastDownloadTs ? html`<span>${shortDate(e.lastDownloadTs)}</span>` : ''}</div></div>
@@ -975,7 +993,7 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
       ${coverOf(top) ? html`<img class="hb-herobg" src=${coverSrc(coverOf(top))} alt="" aria-hidden="true" />` : ''}
       <div class="fireworks hb-fw" ref=${fw}></div>
       <div class="hb-heroin">
-        ${coverOf(top) ? html`<img class="hb-heroart" src=${coverSrc(coverOf(top))} alt=${cleanTitle(top.title)} onClick=${() => onOpen(top)} />` : ''}
+        ${coverOf(top) ? html`<img class="hb-heroart" src=${coverSrc(coverOf(top))} alt=${cleanTitle(top.title)} tabIndex="0" role="button" onKeyDown=${kbdClick(() => onOpen(top))} onClick=${() => onOpen(top)} />` : ''}
         <div class="hb-herotext">
           <span class="hb-kick">No. 1 in the last ${days} days · ${top.count.toLocaleString('en-US')} downloads</span>
           <h2>${cleanTitle(top.title)}</h2>
@@ -1151,7 +1169,7 @@ function HarborDownloads({ list, speedText, onClear, mib, onFlip }) {
       </div></div>
     ${active.length ? html`<div class="hb-dlgrid">${active.map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); const img = art[d.id]; const paused = st(d) === 'paused';
       return html`<article class=${'hb-dcard' + (paused ? ' paused' : '')} key=${d.id}>
-        <div class="hb-dart">${img ? html`<img class="hb-dbg" src=${img} alt="" aria-hidden="true" /><img class="hb-dgray" src=${img} alt="" /><img class="hb-dcolor" style=${'clip-path:inset(0 ' + (100 - pct) + '% 0 0)'} src=${img} alt="" />` : ''}<i class="hb-dedge" style=${'left:calc(' + pct + '% - 1px)'}></i></div>
+        <div class="hb-dart" role="progressbar" aria-label=${cleanTitle(d.name || '') + ' progress'} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(pct)}>${img ? html`<img class="hb-dbg" src=${img} alt="" aria-hidden="true" /><img class="hb-dgray" src=${img} alt="" /><img class="hb-dcolor" style=${'clip-path:inset(0 ' + (100 - pct) + '% 0 0)'} src=${img} alt="" />` : ''}<i class="hb-dedge" style=${'left:calc(' + pct + '% - 1px)'}></i></div>
         <div class="hb-dbody"><div class="hb-dtop"><span class="hb-dtitle">${cleanTitle(d.name || '')}</span><span class="hb-dpct">${Math.round(pct)}%</span></div>
           <div class="hb-dline">${[bytesOf(d) && (formatSize(bytesDone(d)) || '0 B') + ' of ' + bytesOf(d), paused ? 'paused' : finishingText(d) || speedText(d), !paused && !finishingStage(d) && etaShown(d.eta) ? etaShown(d.eta) + ' left' : ''].filter(Boolean).join(' · ')}</div>
           <${StepBar} d=${d} />
@@ -1169,11 +1187,12 @@ function DownloadsView({ list, onClear, harbor }) {
   const [mib, setMib] = useState(() => { try { return localStorage.getItem('native.speedUnit') === 'mib'; } catch (e) { return false; } });
   const flip = () => { const n = !mib; setMib(n); try { localStorage.setItem('native.speedUnit', n ? 'mib' : 'bits'); } catch (e) { } };
   const speedText = (d) => (mib && Number(d.totalSpeedBytes) > 0 ? formatMiBps(d.totalSpeedBytes) : (d.totalSpeed || formatSpeed(d.speed)));
+  const heard = html`<div class="sr-only" role="status" aria-live="polite">${downloadAnnouncement(list)}</div>`;
   if (!list.length) return html`<div class="empty">No downloads yet. Press Download on any game, album or comic collection.</div>`;
-  if (harbor) return html`<${HarborDownloads} list=${list} speedText=${speedText} onClear=${onClear} mib=${mib} onFlip=${flip} />`;
-  return html`<div class="dlist"><div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
+  if (harbor) return html`${heard}<${HarborDownloads} list=${list} speedText=${speedText} onClear=${onClear} mib=${mib} onFlip=${flip} />`;
+  return html`${heard}<div class="dlist"><div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
-    <div class="bar"><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
+    <div class="bar" role="progressbar" aria-label=${cleanTitle(d.name || '') + ' progress'} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(Math.max(0, Math.min(100, Number(d.progress) || 0)))}><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
     <div class="dmeta">${[Math.round(Number(d.progress) || 0) + '%', formatSize(bytesDone(d)) && formatSize(bytesDone(d)) + ' of ' + formatSize(d.totalSize), finishingText(d) || speedText(d), elapsedShown(d) ? 'Elapsed ' + elapsedShown(d) : '', etaShown(d.eta) ? 'ETA ' + etaShown(d.eta) : '', d.fileCount > 1 ? (d.completedFiles || 0) + ' of ' + d.fileCount + ' files' : ''].filter(Boolean).join(' · ')}</div>
     ${isActiveDownload(d) ? html`<${StepBar} d=${d} />` : ''}
     <${ActiveFiles} d=${d} mib=${mib} />
@@ -1237,6 +1256,8 @@ function App() {
   const [toast, setToast] = useState('');
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
   const [whatsNew, setWhatsNew] = useState(null);
+  const [askReports, setAskReports] = useState(false);
+  useEffect(() => { api.getSettings().then((r) => { if (r && typeof r === 'object' && r.errorReportingAsked !== true) setAskReports(true); }).catch(() => { }); }, []);
   useEffect(() => { api.pendingWhatsNew().then((e) => { if (e) setWhatsNew(e); }).catch(() => { }); }, []);
   // A new Companion version: found at start-up, or announced by the hourly check in the main process.
   const [updateInfo, setUpdateInfo] = useState(null);
@@ -1638,9 +1659,9 @@ function App() {
       <span class="subtitle">${pageLabel}</span>
       ${view === 'library' ? html`<${Fragment}>
       <label class="everywhere" title="Search every section, not just this list"><input type="checkbox" checked=${everywhere} onChange=${(e) => { setEverywhere(e.target.checked); setView('library'); }} /> Everywhere</label>
-      <input class="search" type="search" placeholder=${everywhere ? "Search every section" : "Search this list"} value=${query} onInput=${(e) => setQuery(e.target.value)} />
-      ${cats.length ? html`<select value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All categories</option>${cats.slice(0, 80).map((c) => html`<option value=${c.name}>${c.name} (${c.count})</option>`)}</select>` : ''}
-      <select value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="popularity">Popularity</option><option value="newest">Added</option><option value="released">Released</option><option value="size">Size</option></select>
+      <input class="search" type="search" placeholder=${everywhere ? "Search every section" : "Search this list"} aria-label=${everywhere ? "Search every section" : "Search this list"} value=${query} onInput=${(e) => setQuery(e.target.value)} />
+      ${cats.length ? html`<select aria-label="Category" value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All categories</option>${cats.slice(0, 80).map((c) => html`<option value=${c.name}>${c.name} (${c.count})</option>`)}</select>` : ''}
+      <select aria-label="Sort by" value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="popularity">Popularity</option><option value="newest">Added</option><option value="released">Released</option><option value="size">Size</option></select>
       <button class="tab" title="Reverse the order" onClick=${() => setReverse(!reverse)}>${reverse ? '\u2191' : '\u2193'}</button>
       ${batchOk ? html`<label class="everywhere" title="Pick several items and download them together"><input type="checkbox" checked=${batchOn} onChange=${(e) => setBatch(e.target.checked)} /> Batch</label>` : ''}
       ${batchActive ? html`<label class="everywhere"><input type="checkbox" checked=${allPicked} onChange=${(e) => setPicked(e.target.checked ? new Set(shown.map(itemKeyOf)) : new Set())} /> Select all</label><button class="primary" disabled=${!picked.size} onClick=${startBatch}>Download ${picked.size || ''} selected</button>` : ''}
@@ -1670,8 +1691,9 @@ function App() {
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}
     ${watchOpen ? html`<${WatchlistModal} onClose=${() => setWatchOpen(false)} say=${say} startTitle=${watchStart} />` : ''}
     ${whatsNew ? html`<${WhatsNewBox} entry=${whatsNew} onClose=${() => setWhatsNew(null)} />` : ''}
+    ${!whatsNew && askReports ? html`<${ErrorReportingAsk} onDone=${(on) => { setAskReports(false); if (on !== null) say(on ? 'Thanks, error reports are on' : 'Error reports are off'); }} />` : ''}
     ${admin && admin.role === 'owner' ? html`<${OwnerDock} onOpenAnalytics=${() => { setAdminStart({ tab: 'analytics', n: Date.now() }); setView('admin'); }} />` : ''}
-    ${toast ? html`<div class="toast">${toast}</div>` : ''}
+    <div class="sr-only" role="status" aria-live="polite">${toast}</div>${toast ? html`<div class="toast" aria-hidden="true">${toast}</div>` : ''}
     <${UpdateScreen} />
   </div>`;
 }

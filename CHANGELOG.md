@@ -11,17 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A step bar on every download: Download, Check, Unpack, Ready, with the step it is on lit (a check or unpack that was skipped is marked).
 - Keyboard: the arrow keys move between cards, Enter opens the card, / jumps to the search box, Esc goes back (or closes a window), and the card in focus shows a ring.
+- The app asks once whether to send crash reports (on the first start after this update, and on a new install), and remembers the answer. It stays changeable in Settings.
+- Screen readers: every text box and menu has a label, progress bars say their percent, and messages and download steps are read out.
 
 ### Fixed
 
 - A game being checked or unpacked after its download stays at the top of Downloads ("checking every file" / "Unpacking 45%") instead of being listed under Waiting as "starts when a slot frees up".
 - The size done and "Left" match the percent when several files download at once (32% showed "504 MB of 39.6 GB").
 - The speed at the top of Downloads uses the unit picked on the cards (Mbps or MiB/s).
+- The Downloads count in the menu is easier to read (darker bubble) in every theme.
+- Request rows, the trending list and the Home banner picture can be opened from the keyboard.
+- The update window and the Settings import line said "Companion"; they say ARMGDDN App.
 
 ### Internal
 
 - One list of download states for the pages, with a test that fails when the main process uses a state the list does not know.
 - `npm run preview` shows the pages in a browser with made-up data (one download in every state) for checks before a release.
+- docs/BEST_PRACTICES.md: the app follows common website practice (security, accessibility, performance, reliability, privacy); test/bestPractices.test.js guards the rules, tools/preview/page-check.js checks drawn pages before a release.
+- Every window is sandboxed and cannot open other windows (the sign-in window allows only Telegram's login popup).
+- Long library lists skip drawing cards that are off screen.
+- The login sound is Opus (0.46 MB) instead of a 4.8 MB WAV.
+- Removed the retired Android app's folder (mobile/), which carried 22 of the repo's 24 security alerts.
 
 ## [6.9.1] - 2026-11-24
 

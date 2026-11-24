@@ -7,7 +7,7 @@ test('every name the intro uses is defined in the module (the port once used one
   // identifiers written in capitals with underscores are constants; each one used must be declared here
   const used = new Set((src.match(/\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+\b/g) || []));
   for (const name of used) assert.ok(new RegExp('(?:const|let|var)\\s+' + name + '\\b').test(src), name + ' is used but never declared');
-  assert.ok(/const LOGIN_LIGHTNING_REAL_SRC = 'login-thunder\.wav'/.test(src));
+  assert.ok(/const LOGIN_LIGHTNING_REAL_SRC = 'login-thunder\.ogg'/.test(src));
 });
 
 test('a failed intro cannot trap the screen: sound errors are contained, a thrown error removes the stage, and a loop that never draws removes it too', () => {
@@ -19,7 +19,7 @@ test('a failed intro cannot trap the screen: sound errors are contained, a throw
 
 test('the assets the intro loads sit next to the page, so they are packaged with it', () => {
   const dir = path.join(__dirname, '..', 'renderer', 'native');
-  assert.ok(fs.existsSync(path.join(dir, 'login-thunder.wav')) && fs.existsSync(path.join(dir, 'login-lightning-logo.png')));
+  assert.ok(fs.existsSync(path.join(dir, 'login-thunder.ogg')) && fs.existsSync(path.join(dir, 'login-lightning-logo.png')));
   assert.ok(src.includes("logo.src = 'login-lightning-logo.png'"));
 });
 

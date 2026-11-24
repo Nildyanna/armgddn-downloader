@@ -1513,6 +1513,7 @@ let settings = {
   startWithOsStartup: false,
   startWithOsMinimized: false,
   errorReporting: true,
+  errorReportingAsked: false,   // set once the member has answered the crash-report question (or flipped the setting); docs/BEST_PRACTICES.md
   lastSeenVersion: ''
 };
 
@@ -1615,6 +1616,7 @@ function normalizeSettings() {
     settings.startWithOsStartup = !!settings.startWithOsStartup;
     settings.startWithOsMinimized = !!settings.startWithOsMinimized;
     settings.errorReporting = settings.errorReporting !== false;
+    settings.errorReportingAsked = settings.errorReportingAsked === true;
 
     refreshGlobalPoolLimit();
   } catch (e) {
@@ -2709,9 +2711,10 @@ function promptKomgaSettings() {
     komgaPromptWin = new BrowserWindow({
       width: 460, height: 400, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true,
       title: 'Add to My Komga', icon: getAppIcon(),
-      webPreferences: { preload: path.join(__dirname, 'preload-komga.js'), contextIsolation: true, nodeIntegration: false }
+      webPreferences: { preload: path.join(__dirname, 'preload-komga.js'), contextIsolation: true, nodeIntegration: false, sandbox: true }
     });
     try { komgaPromptWin.setMenu(null); } catch (e) { }
+    denyNewWindows(komgaPromptWin);
     komgaPromptWin.loadFile(path.join(__dirname, 'renderer', 'komga.html'));
     komgaPromptWin.on('closed', () => {
       komgaPromptWin = null;
@@ -3015,11 +3018,13 @@ function openAuthWindow() {
       ...(process.platform !== 'linux' ? { parent: mainWindow, modal: true } : {}),
       webPreferences: {
         nodeIntegration: false,
-        contextIsolation: true
+        contextIsolation: true,
+        sandbox: true
       },
       icon: getAppIcon(),
       title: 'Login to ARMGDDN App'
     });
+    denyNewWindows(authWindow, ['oauth.telegram.org']);
 
     // companionAuth=1 tells the site this is the re-auth popup, not a real visit —
     // it skips the full-site login animation/audio, which would otherwise fire as if
@@ -3201,11 +3206,13 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      sandbox: true,
       devTools: isOwnerDevToolsAllowed
     },
     icon: windowIcon,
     show: false
   });
+  denyNewWindows(mainWindow);
 
   try { require('./native/hangWatch').watchWindow(mainWindow, debugLog, 'Classic'); } catch (e) { }
   mainWindowDidFinishLoad = false;
@@ -4015,6 +4022,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'startWithOsStartup',
     'startWithOsMinimized',
     'errorReporting',
+    'errorReportingAsked',
     'lastSeenVersion'
   ]);
 
@@ -7333,6 +7341,19 @@ function updateProgressBackoffFromResponse(res, responseData) {
   }
 }
 
+// Best practice (Nov 24 2026, docs/BEST_PRACTICES.md): no window may open another window by itself (window.open, target=_blank).
+// Links that should open go through shell.openExternal on purpose. test/bestPractices.test.js checks every window calls this.
+// allowHosts: the only sites it may open a popup for (the sign-in window needs Telegram's own login popup, oauth.telegram.org).
+function denyNewWindows(win, allowHosts) {
+  const allow = (allowHosts || []).map((h) => String(h).toLowerCase());
+  try {
+    win.webContents.setWindowOpenHandler(({ url }) => {
+      try { const u = new URL(url); if (u.protocol === 'https:' && allow.includes(u.hostname.toLowerCase())) return { action: 'allow' }; } catch (e) { }
+      return { action: 'deny' };
+    });
+  } catch (e) { }
+}
+
 function pruneActiveProcesses(download) {
   if (!download || !Array.isArray(download.activeProcesses)) return;
   download.activeProcesses = download.activeProcesses.filter((p) => {
@@ -9492,7 +9513,7 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
     progressWin = new BrowserWindow({
       width: 400,
       height: 380,
-      title: 'Updating ARMGDDN Companion',
+      title: 'Updating ARMGDDN App',
       // On Linux/KDE, setting parent creates a WM_TRANSIENT_FOR hint that causes KDE's
       // compositor to raise the parent (main) window whenever this window is shown or
       // receives focus. Remove the parent relationship on Linux — alwaysOnTop + skipTaskbar
@@ -9509,9 +9530,11 @@ ipcMain.handle('install-update', async (event, _ignoredRendererUrl, options) => 
       webPreferences: {
         preload: path.join(__dirname, 'preload.js'),
         contextIsolation: true,
-        nodeIntegration: false
+        nodeIntegration: false,
+        sandbox: true
       }
     });
+    denyNewWindows(progressWin);
 
     progressWin.loadFile(path.join(__dirname, 'renderer', 'update.html'));
     try { progressWin.setMenu(null); } catch (e) { }

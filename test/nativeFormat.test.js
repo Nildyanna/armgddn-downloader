@@ -426,7 +426,7 @@ test('narrow windows get smaller tabs so the tab bar fits on one or two rows', (
 
 test('number settings keep what you type until you press Enter, click away or use the arrows (they used to snap back while typing)', () => {
   const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
-  assert.ok(app.includes('function NumField({ value, min, max, onCommit, style, step })'));
+  assert.ok(app.includes('function NumField({ value, min, max, onCommit, style, step, label })'));
   assert.ok(app.includes('onInput=${(e) => setDraft(e.target.value)}') && app.includes("if (e.key === 'Enter') e.target.blur();"));
   assert.ok(app.includes('<${NumField} min=${min} max=${max} value=${Number(s[key]) || 0} onCommit=${(n) => save({ [key]: n })} />'));
   assert.ok(!/type="number" min=\$\{min\} max=\$\{max\} value=\$\{Number\(s\[key\]\)/.test(app), 'the controlled box is gone');

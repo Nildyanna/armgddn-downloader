@@ -1,7 +1,7 @@
 // The website's full-screen lightning reveal (bolts and sparks around the logo, ember glow, thunder), ported unchanged apart from the asset paths.
 // Plays once after a first sign-in and can be replayed from Settings. Copied from the website's default.php (mountLoginLightning).
 let _loginLightningActive = null;
-const LOGIN_LIGHTNING_REAL_SRC = 'login-thunder.wav';   // the website keeps this in its page; the port forgot it and the intro never started
+const LOGIN_LIGHTNING_REAL_SRC = 'login-thunder.ogg';   // Opus, 0.46 MB (was a 4.8 MB WAV, Nov 24 2026); the website keeps this in its page; the port forgot it and the intro never started
 
         function mountLoginLightningInner() {
             // Guard against double-mount (e.g. rapid double-click on the replay button).
@@ -11,7 +11,7 @@ const LOGIN_LIGHTNING_REAL_SRC = 'login-thunder.wav';   // the website keeps thi
             const rand = (min, max) => min + Math.random() * (max - min);
             const LIGHTNING_COLOR = '#5EEBFF';
             const SPARK_INTENSITY = 3;
-            const FALLBACK_DURATION = 27.33; // seconds — matches login-thunder.wav
+            const FALLBACK_DURATION = 27.33; // seconds — matches login-thunder.ogg
             const HOLD_EXTRA = 1.6; // seconds of continued crackle after audio ends
 
             const stage = document.createElement('div');

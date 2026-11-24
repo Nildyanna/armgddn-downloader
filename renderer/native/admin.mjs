@@ -50,7 +50,7 @@ function useAdminAction(after) {
     ${msg ? html`<div class="notice soft">${msg}</div>` : ''}
     ${pending ? html`<div class="overlay" onClick=${() => !busy && setPending(null)}><div class="modal" onClick=${(e) => e.stopPropagation()}>
       <h3>${pending.c.title}</h3><p>${pending.c.text}</p>
-      ${pending.action === 'requestStatus' ? html`<div class="compose"><input class="wide" type="text" maxlength="500" placeholder="Reason for the member (optional)" value=${reason} onInput=${(e) => setReason(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && !busy) go(); }} /></div>` : ''}
+      ${pending.action === 'requestStatus' ? html`<div class="compose"><input class="wide" type="text" maxlength="500" placeholder="Reason for the member (optional)" aria-label="Reason for the member (optional)" value=${reason} onInput=${(e) => setReason(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter' && !busy) go(); }} /></div>` : ''}
       <div class="dbtns"><button class="primary danger" disabled=${busy} onClick=${go}>${busy ? 'Working...' : pending.c.ok}</button><button class="dbtn" disabled=${busy} onClick=${() => setPending(null)}>Cancel</button></div>
     </div></div>` : ''}
   </div>`;
@@ -187,7 +187,7 @@ function RequestThread({ req, onClose }) {
     <div class="dtools"><strong>#${req.id} ${req.title}</strong> <span class="sval">${req.category} · ${req.status} · by ${req.by ? '@' + req.by : 'unknown'}</span><button class="dbtn" onClick=${onClose}>Close</button></div>
     <div class="thread"><div class="msg reqinfo"><div class="who">The request</div>${requestInfoLines(req.raw || { id: req.id, gameTitle: req.title, category: req.category, status: req.status, username: req.by, createdAt: req.requested }).map(([k, v]) => html`<div class="ri"><span class="rk">${k}</span> ${k === 'Link' && /^https:\/\//i.test(v) ? html`<a href="#" onClick=${(e) => { e.preventDefault(); api.openLink(v); }}>${v}</a>` : v}</div>`)}</div>${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'Member')} · ${when(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="empty">No comments yet.</div>`}</div>
     ${note ? html`<div class="notice soft">${note}</div>` : ''}
-    <div class="compose"><input type="text" maxlength="500" placeholder="Write a comment…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
+    <div class="compose"><input type="text" maxlength="500" placeholder="Write a comment…" aria-label="Write a comment…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
   </div>`;
 }
 // One request, laid out like the website's request list: the same details, the status box, Comments, Send requester link, Copy /warn and (owner) Delete.
@@ -212,7 +212,7 @@ function RequestCard({ r, owner, onComments, act }) {
       </div>
     </div>
     <div class="rqside">
-      <select class=${'rqstatus st-' + c.status} value=${c.status} onChange=${(e) => { const v = e.target.value; if (v && v !== c.status) act('requestStatus', { id: r.id, title: r.title, status: v }); }}>${REQUEST_STATUS_CHOICES.map((x) => html`<option value=${x}>${({ pending: '\u23F3 Pending', approved: '\u{1F44D} Approved', completed: '\u2705 Completed', rejected: '\u274C Rejected', duplicate: 'Duplicate' })[x] || x}</option>`)}</select>
+      <select aria-label="Request status" class=${'rqstatus st-' + c.status} value=${c.status} onChange=${(e) => { const v = e.target.value; if (v && v !== c.status) act('requestStatus', { id: r.id, title: r.title, status: v }); }}>${REQUEST_STATUS_CHOICES.map((x) => html`<option value=${x}>${({ pending: '\u23F3 Pending', approved: '\u{1F44D} Approved', completed: '\u2705 Completed', rejected: '\u274C Rejected', duplicate: 'Duplicate' })[x] || x}</option>`)}</select>
       ${owner ? html`<button class="rqdel" onClick=${() => act('requestDelete', { id: r.id, title: r.title })}>Delete</button>` : ''}
     </div>
   </div>`;
@@ -274,13 +274,13 @@ function MissingPage() {
     <${Cards} items=${missingCards(st.data)} />
     <div class="afilters">
       <label>Show <select value=${what} onChange=${(e) => setWhat(e.target.value)}><option value="all">Everything missing</option><option value="cover">Missing a cover</option><option value="trailer">Missing a trailer</option></select></label>
-      <input class="search" type="search" placeholder="Search titles" value=${query} onInput=${(e) => setQuery(e.target.value)} />
+      <input class="search" type="search" placeholder="Search titles" aria-label="Search titles" value=${query} onInput=${(e) => setQuery(e.target.value)} />
       <span class="sval">${rows.length} shown</span><button class="dbtn" onClick=${reload}>Refresh</button><button class="dbtn" onClick=${() => act('autofixArt', {})}>Auto-fix covers</button>
     </div>
     ${actionUi}
     ${fix ? html`<div class="apanel"><h4>Fix: ${fix.title}</h4>
-      <div class="afilters"><input class="search wide" type="url" placeholder="Picture address (https://...)" value=${coverUrl} onInput=${(e) => setCoverUrl(e.target.value)} /><button class="dbtn" disabled=${!/^https:\/\//i.test(coverUrl.trim())} onClick=${() => act('addCover', { gameKey: fix.folder, title: fix.title, coverUrl: coverUrl.trim() })}>Set cover</button></div>
-      <div class="afilters"><input class="search wide" type="url" placeholder="YouTube address (https://www.youtube.com/...)" value=${trailerUrl} onInput=${(e) => setTrailerUrl(e.target.value)} /><button class="dbtn" disabled=${!/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(trailerUrl.trim())} onClick=${() => act('addTrailer', { gameKey: fix.folder, title: fix.title, trailerYoutube: trailerUrl.trim() })}>Set trailer</button><button class="dbtn" onClick=${() => search(fix.title)}>Search YouTube</button><button class="dbtn" onClick=${() => setFix(null)}>Close</button></div>
+      <div class="afilters"><input class="search wide" type="url" placeholder="Picture address (https://...)" aria-label="Picture address (https://...)" value=${coverUrl} onInput=${(e) => setCoverUrl(e.target.value)} /><button class="dbtn" disabled=${!/^https:\/\//i.test(coverUrl.trim())} onClick=${() => act('addCover', { gameKey: fix.folder, title: fix.title, coverUrl: coverUrl.trim() })}>Set cover</button></div>
+      <div class="afilters"><input class="search wide" type="url" placeholder="YouTube address (https://www.youtube.com/...)" aria-label="YouTube address (https://www.youtube.com/...)" value=${trailerUrl} onInput=${(e) => setTrailerUrl(e.target.value)} /><button class="dbtn" disabled=${!/^https:\/\/(www\.)?(youtube\.com|youtu\.be)\//i.test(trailerUrl.trim())} onClick=${() => act('addTrailer', { gameKey: fix.folder, title: fix.title, trailerYoutube: trailerUrl.trim() })}>Set trailer</button><button class="dbtn" onClick=${() => search(fix.title)}>Search YouTube</button><button class="dbtn" onClick=${() => setFix(null)}>Close</button></div>
       ${found ? (found.loading ? html`<div class="sval">Searching YouTube...</div>` : found.error ? html`<div class="sval">${found.error}</div>` : !found.list.length ? html`<div class="sval">No videos found.</div>` : html`<div class="ytlist">${found.list.map((v) => html`<div class="ytrow" key=${v.videoId}><span class="yttitle">${v.title}</span><span class="sval">${[v.channel, v.duration, v.views].filter(Boolean).join(' - ')}</span><button class="dbtn" onClick=${() => act('addTrailer', { gameKey: fix.folder, title: fix.title, trailerYoutube: 'https://www.youtube.com/watch?v=' + v.videoId })}>Use this trailer</button></div>`)}</div>`) : ''}</div>` : ''}
     <${DataTable} rows=${rows} columns=${['title', 'cover', 'trailer', 'folder']} empty="Nothing is missing." extra=${(r) => html`<span><button class="dbtn" onClick=${() => { setFix(r); setFound(null); setCoverUrl(''); setTrailerUrl(''); }}>Fix</button> <button class="dbtn" onClick=${() => act('clearMissing', { gameKey: r.folder, title: r.title })}>Stop listing</button></span>`} extraLabel="Action" />
   </div>`;
@@ -433,9 +433,9 @@ function IpBansPage() {
   return html`<div>
     <${Cards} items=${[{ label: 'Banned addresses', value: String(st.data.totalBanned || 0), hint: '' }, { label: 'Members tracked', value: String(st.data.totalUsersTracked || 0), hint: '' }]} />
     ${actionUi}
-    <div class="afilters"><input class="search" type="text" placeholder="IP address" value=${ip} onInput=${(e) => setIp(e.target.value)} /><input class="search" type="text" placeholder="Reason" value=${reason} onInput=${(e) => setReason(e.target.value)} /><button class="dbtn" disabled=${!ip.trim()} onClick=${() => { act('banIp', { ip: ip.trim(), reason }); setIp(''); setReason(''); }}>Ban this address</button></div>
-    <div class="afilters"><input class="search" type="text" placeholder="Telegram id to ban (digits)" value=${uid} onInput=${(e) => setUid(e.target.value)} /><button class="dbtn" disabled=${!/^\d{3,20}$/.test(uid.trim())} onClick=${() => { act('banUser', { telegramId: uid.trim(), reason }); setUid(''); }}>Ban this member's addresses</button>
-      <input class="search" type="text" placeholder="Look up: @username or Telegram id" value=${who} onInput=${(e) => setWho(e.target.value)} /><button class="dbtn" disabled=${!who.trim()} onClick=${lookup}>Look up</button></div>
+    <div class="afilters"><input class="search" type="text" placeholder="IP address" aria-label="IP address" value=${ip} onInput=${(e) => setIp(e.target.value)} /><input class="search" type="text" placeholder="Reason" aria-label="Reason" value=${reason} onInput=${(e) => setReason(e.target.value)} /><button class="dbtn" disabled=${!ip.trim()} onClick=${() => { act('banIp', { ip: ip.trim(), reason }); setIp(''); setReason(''); }}>Ban this address</button></div>
+    <div class="afilters"><input class="search" type="text" placeholder="Telegram id to ban (digits)" aria-label="Telegram id to ban (digits)" value=${uid} onInput=${(e) => setUid(e.target.value)} /><button class="dbtn" disabled=${!/^\d{3,20}$/.test(uid.trim())} onClick=${() => { act('banUser', { telegramId: uid.trim(), reason }); setUid(''); }}>Ban this member's addresses</button>
+      <input class="search" type="text" placeholder="Look up: @username or Telegram id" aria-label="Look up: @username or Telegram id" value=${who} onInput=${(e) => setWho(e.target.value)} /><button class="dbtn" disabled=${!who.trim()} onClick=${lookup}>Look up</button></div>
     ${found ? html`<div class="apanel"><h4>Member lookup</h4>${found.error ? html`<div class="notice">${found.error}</div>` : html`<${Tree} value=${found} />`}</div>` : ''}
     <${DataTable} rows=${rows} columns=${['ip', 'reason', 'bannedAt', 'bannedBy']} empty="No banned addresses." extra=${(r) => html`<button class="dbtn" onClick=${() => act('unbanIp', { ip: r.ip })}>Unban</button>`} />
   </div>`;
@@ -471,7 +471,7 @@ function ConsolePage() {
   return html`<div>
     <${Panel} title="Owner console" wide=${true}>
       <p class="sub">The same commands as the website's owner console. Bans and admin changes ask you to confirm first. Type help for the list.</p>
-      <div class="arow"><input class="search wide" type="text" style="flex:1 1 auto;width:auto;max-width:none;min-width:0" placeholder="Type a command (try: lookup @name)" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${key} disabled=${busy} /><button class="primary" disabled=${busy || !text.trim()} onClick=${run}>${busy ? 'Working...' : 'Run'}</button></div>
+      <div class="arow"><input class="search wide" type="text" style="flex:1 1 auto;width:auto;max-width:none;min-width:0" placeholder="Type a command (try: lookup @name)" aria-label="Type a command (try: lookup @name)" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${key} disabled=${busy} /><button class="primary" disabled=${busy || !text.trim()} onClick=${run}>${busy ? 'Working...' : 'Run'}</button></div>
       <pre class="aconsole" ref=${box}>${log.map((x) => '> ' + x.cmd + '\n' + x.out).join('\n\n') || 'Cleared.'}</pre>
     <//>
   </div>`;
@@ -487,7 +487,7 @@ function AccessPage() {
   return html`<div>
     <p class="sval">Who counts as an admin. The list below shows the list chosen in the box, and Add puts a new id on that same list. Owners are set in the site's own settings and are not changed here.</p>
     ${actionUi}
-    <div class="afilters"><label>List <select value=${list} onChange=${(e) => setList(e.target.value)}><option value="request">Request admin (requests only) - ${(eff.requestAdminIds || []).length}</option><option value="channel">Full admin - ${(eff.channelAdminIds || []).length}</option></select></label><input class="search" type="text" placeholder="Telegram id (digits)" value=${id} onInput=${(e) => setId(e.target.value)} /><button class="dbtn" disabled=${!/^\d{3,20}$/.test(id.trim())} onClick=${() => { act('accessAdd', { list, id: id.trim() }); setId(''); }}>Add</button></div>
+    <div class="afilters"><label>List <select aria-label="Which list" value=${list} onChange=${(e) => setList(e.target.value)}><option value="request">Request admin (requests only) - ${(eff.requestAdminIds || []).length}</option><option value="channel">Full admin - ${(eff.channelAdminIds || []).length}</option></select></label><input class="search" type="text" placeholder="Telegram id (digits)" aria-label="Telegram id (digits)" value=${id} onInput=${(e) => setId(e.target.value)} /><button class="dbtn" disabled=${!/^\d{3,20}$/.test(id.trim())} onClick=${() => { act('accessAdd', { list, id: id.trim() }); setId(''); }}>Add</button></div>
     <${DataTable} rows=${rows.filter((r) => r.list === list)} columns=${['id', 'role']} empty=${'Nobody is on the ' + (list === 'channel' ? 'Full admin' : 'Request admin') + ' list.'} extra=${(r) => html`<button class="dbtn" onClick=${() => act('accessRemove', { list: r.list, id: r.id })}>Remove</button>`} />
   </div>`;
 }
