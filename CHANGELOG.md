@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- Wiki FAQ: what to do when a game crashes at launch or right after the loading screen (crashfix.bat in newer repacks turns off the game's built-in Steam overlay).
+
 ### Fixed
 - On PCs whose graphics can't run the app's GPU process (for example a Windows virtual machine), the app no longer crashes twice more every week: once it needed the no-GPU mode, it goes straight back to it and keeps it for 30 days.
 
