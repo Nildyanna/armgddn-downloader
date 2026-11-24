@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dark, Light and System are viewing modes with their own menu, next to the theme menu. The theme menu lists only the themes for the mode on screen, and each mode remembers its own theme (Harbor and Light by default). System follows the computer's light or dark setting and switches between the two picks when it changes. A theme saved before this becomes its mode plus that theme (renderer/native/themeMode.mjs).
+
+### Added
+
+- Badges: a secret badge you have earned gets a gold card with its rarity ("✦ Secret · Legendary"), without numbers.
+
 ## [6.10.2] - 2026-11-24
 
 ### Fixed
