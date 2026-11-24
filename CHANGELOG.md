@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.11.0] - 2026-11-24
+
 ### Internal
 
 - main.js split into 45 modules under main/ (docs/MAIN_SPLIT.md); main.js is now start-up wiring (about 1,100 lines, was about 9,500). Tests guard against circular requires, names used but never defined, __dirname and relative requires in moved code, and IPC channels that are no longer registered.

@@ -1050,5 +1050,15 @@
     "highlights": [
       "On Windows, if the ARMGDDN App's desktop or Start menu shortcut showed a blank icon after an update, the app now fixes it by itself the first time it opens after updating."
     ]
+  },
+  "6.11.0": {
+    "title": "Light and dark modes",
+    "highlights": [
+      "Dark, Light and System now have their own menu next to Theme. The theme list shows only the themes for the mode you pick, and each mode remembers your choice. System switches between your dark and light picks when Windows does.",
+      "Secret badges you've earned now get a gold card showing how rare they are.",
+      "Downloads only show the Check and Unpack steps when the app will actually do them, and finished items say what was done.",
+      "Finished downloads keep their cover art.",
+      "The \"New to .7z files?\" video in Settings now plays as soon as you open it."
+    ]
   }
 }
