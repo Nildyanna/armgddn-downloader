@@ -52,6 +52,7 @@
 
   const ok = (data) => ({ ok: true, data });
   const table = {
+    getHelp7zVideoSrc: () => window.__previewHelpVideo || "",   // the real app returns a file link; a check can set a clip here
     status: () => ok({ signedIn: true, version: 'preview' }), remotes: () => ok({ remotes: ['PC-1', 'PCVR-1', 'Music', 'Comics'], remoteStatus: {} }),
     browse: () => ok({ files, folders: [] }), trending: () => ok({ windows: { week: trend, month: trend } }), appProgress: () => ok({}), gems: () => ok({ items: [] }),
     prefs: () => ok({ prefs: { introSeen: true } }), adminGet: () => ok({ role: 'member' }), downloads: () => ok(downloads), history: () => ok([]), requests: () => ok({ requests: [] }),

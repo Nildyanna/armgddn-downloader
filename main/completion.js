@@ -6,7 +6,7 @@ const driveDirectClient = require('../driveDirectClient');
 const { pruneEmptyDirs } = require('../emptyDirs');
 const hashCheck = require('../hashCheck');
 const { mainWindowAlive, sendToMain } = require('./dialogs');
-const { isStarfieldAutoExtractTargetValue, peakOrAverageSpeedBytes, getDownloadItemKey, normalizeDownloadItemKey, getHistoryItemKey } = require('./downloadState');
+const { finishPlan, isStarfieldAutoExtractTargetValue, peakOrAverageSpeedBytes, getDownloadItemKey, normalizeDownloadItemKey, getHistoryItemKey } = require('./downloadState');
 const { extractRcloneErrorDetail, isRcloneCrashOutput, formatRcloneExitCodeHint } = require('./errors');
 const { extractTarget, run7zExtract } = require('./extract');
 const { clockCertMessage } = require('./failures');
@@ -321,6 +321,7 @@ function finalizeCompletedDownload(downloadId) {
   }
 
   logToFile(`[completeDownload] Setting status to completed and sending event`);
+  download.finishedPlan = finishPlan(download);   // kept as it was at the finish, so a later settings change does not rewrite it
   download.status = 'completed';
   dropInflight(downloadId);
   try { if (download.directGrant && download.manifestUrl) driveDirectClient.finish(download.directGrant, String(download.manifestUrl), download.token); } catch (e) { }
@@ -372,7 +373,11 @@ function finalizeCompletedDownload(downloadId) {
     startTime: download.startTime,
     endTime: download.endTime,
     folder: download.extractedTo || download.openDir || download.downloadDir || '',
-    status: 'completed'
+    status: 'completed',
+    didCheck: !!download.didCheck,
+    checkOk: download.checkOk !== false,
+    didExtract: !!download.didExtract,
+    planUnpack: !!(download.finishedPlan && download.finishedPlan.unpack)
   });
   saveHistory();
 
@@ -419,6 +424,8 @@ function completeDownload(downloadId, afterHashCheck) {
     runHashCheck(downloadId, { auto: true }).then((r) => {
       download.__armgddnFinalizing = false;
       const res = r && r.result;
+      download.didCheck = !!res;
+      download.checkOk = !!res && !(res.bad.length || res.missing.length);
       if (res && (res.bad.length || res.missing.length)) {
         download.forceDisableAutoExtract = true;       // unpacking a damaged archive only produces a second, more confusing error
         download.statusMessage = `${r.text} Automatic extraction was skipped.`;
@@ -502,6 +509,7 @@ function completeDownload(downloadId, afterHashCheck) {
           }
           if (extractTarget(downloadDir) !== downloadDir) download.extractedTo = extractTarget(downloadDir);
           download.extractPercent = 100;
+          download.didExtract = archives.length > 0;
         } catch (e) {
           download.extractionError = e && e.message ? e.message : String(e);
           try {

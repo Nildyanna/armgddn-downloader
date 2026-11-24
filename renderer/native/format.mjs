@@ -652,12 +652,29 @@ export function downloadSteps(d) {
   const now = fin === 'checking' ? 'check' : fin === 'extracting' ? 'unpack' : downloadState(d).step;
   if (!now) return null;
   const at = DOWNLOAD_STEPS.findIndex(([k]) => k === now);
-  const msg = String(d.statusMessage || '');
+  const finished = now === 'ready';
+  const known = finished ? (d.didCheck !== undefined || d.didExtract !== undefined) : (d.planCheck !== undefined || d.planUnpack !== undefined);
+  // Only the steps this download goes through (George, Nov 24 2026): a .zip, or one with Auto-extract or Check files off, shows no Unpack or Check.
+  // A finished one shows what was done; an Unpack that was planned but did not happen (damaged files found) stays, marked skipped.
+  const shows = (key) => {
+    if (!known || key === 'download' || key === 'ready') return true;
+    if (key === 'check') return finished ? !!d.didCheck : d.planCheck !== false;
+    return finished ? (!!d.didExtract || !!d.planUnpack) : d.planUnpack !== false;
+  };
   return DOWNLOAD_STEPS.map(([key, label], i) => {
     let state = i < at ? 'done' : i === at ? (key === 'ready' ? 'done' : 'now') : 'todo';
-    if (now === 'ready' && key === 'unpack' && /extraction was skipped/i.test(msg)) state = 'skip';
+    if (finished && key === 'unpack' && known && !d.didExtract) state = 'skip';
     return { key, label, state };
-  });
+  }).filter((s) => shows(s.key));
+}
+
+// The Finished list's line for what happened after the files came in: "checked and extracted", "checked", "extracted", "check found
+// damaged files", "not extracted" (planned, skipped). Empty when nothing was done, or for a record from before the app kept this.
+export function finishedText(d) {
+  if (!d || (d.didCheck === undefined && d.didExtract === undefined)) return '';
+  const check = d.didCheck ? (d.checkOk === false ? 'check found damaged files' : 'checked') : '';
+  const unpack = d.didExtract ? 'extracted' : (d.planUnpack ? 'not extracted' : '');
+  return [check, unpack].filter(Boolean).join(' and ');
 }
 // The line a finishing download shows instead of its speed and time left.
 export function finishingText(d) {

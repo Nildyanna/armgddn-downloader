@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- Dark, Light and System are viewing modes with their own menu, next to the theme menu. The theme menu lists only the themes for the mode on screen, and each mode remembers its own theme (Harbor and Light by default). System follows the computer's light or dark setting and switches between the two picks when it changes. A theme saved before this becomes its mode plus that theme (renderer/native/themeMode.mjs).
+- Settings: the "New to .7z files?" video starts playing as soon as Watch the video is clicked, and sits centred in its row.
+- Downloads: the step bar shows only the steps a download goes through: no Check when Check files is off or there are no checksums, no Unpack for a .zip, a Comics download, or with Auto-extract off. The Finished list says only what was done ("checked and extracted", "checked", "extracted", "check found damaged files and not extracted"), and nothing for older records. main.js records the plan (finishPlan) and what happened (didCheck, checkOk, didExtract), also in history.
+
+### Fixed
+
+- Downloads: finished titles lost their cover art once they left the live list; history rows now keep the library path and section the art is found by.
+
+### Added
+
+- Badges: a secret badge you have earned gets a gold card with its rarity ("✦ Secret · Legendary"), without numbers.
+
 ## [6.10.2] - 2026-11-24
 
 ### Fixed

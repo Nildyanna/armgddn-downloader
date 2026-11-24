@@ -1,11 +1,12 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard, downloadAnnouncement } from './format.mjs';
+import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard, downloadAnnouncement , finishedText } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
 
 import { AdminView } from './admin.mjs';
+import { THEME_MODES, effectiveMode, themeFor, loadChoice, withWebsiteTheme, withTheme, themesForMode } from './themeMode.mjs';
 import { OwnerDock } from './ownerDock.mjs';
 const api = window.nativeAPI;
 try { api.getSettings().then((r) => { if (r && window.setLiteGraphics) window.setLiteGraphics(!!r.lightGraphics); }).catch(() => { }); } catch (e) { }   // the Lighter graphics setting, applied as the window opens
@@ -43,8 +44,14 @@ try {
     localStorage.setItem('native.harborDefault', '1');
   }
 } catch (e) { }
-const storedTheme = () => { try { return localStorage.getItem('native.theme') || DEFAULT_THEME; } catch (e) { return DEFAULT_THEME; } };
-applyTheme(storedTheme());
+const osLight = () => { try { return window.matchMedia('(prefers-color-scheme: light)').matches; } catch (e) { return false; } };
+const lsRaw = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+// Saves the mode, each mode's theme, and the theme on screen (themeMode.mjs); returns the choice so it can be handed to setState.
+function persistChoice(c) {
+  try { localStorage.setItem('native.themeMode', c.mode); localStorage.setItem('native.theme.dark', c.dark); localStorage.setItem('native.theme.light', c.light); localStorage.setItem('native.theme', themeFor(c, osLight())); } catch (e) { }
+  return c;
+}
+applyTheme(themeFor(loadChoice(THEMES, lsRaw), osLight()));
 // A hidden or minimised window draws nothing anyone sees: CSS animations pause until it is shown again (native.css, html[data-hidden]).
 try {
   const markHidden = () => { if (document.hidden) document.documentElement.dataset.hidden = '1'; else delete document.documentElement.dataset.hidden; };
@@ -729,13 +736,14 @@ function GameUpdatesRow({ onOpenGame }) {
     ${st.list.length ? html`<ul class="gu">${st.list.map((u, i) => html`<li key=${i}><a class="glink" href="#" title="Open it in the library" onClick=${(e) => { e.preventDefault(); if (onOpenGame) onOpenGame(u.remote || 'PC Games', u.latestFolder); }}>${u.latestFolder}</a> <span class="sval">(you have ${u.current}, newest is ${u.latest})</span></li>`)}</ul>` : ''}</div>`;
 }
 
-// "New to .7z files?": the short help video, played from the app's own files.
+// "New to .7z files?": the short help video, played from the app's own files. It starts playing as soon as Watch the video is clicked,
+// centred in the row (George, Nov 24 2026).
 function Help7zRow() {
   const [src, setSrc] = useState('');
   const [open, setOpen] = useState(false);
   const show = async () => { setOpen(!open); if (!open && !src) { try { setSrc(await api.getHelp7zVideoSrc()); } catch (e) { } } };
   return html`<div><div class="srow"><span class="slabel">New to .7z files? <span class="sval">A short video on opening multi-part archives after a download.</span></span><button class="dbtn" onClick=${show}>${open ? 'Hide the video' : 'Watch the video'}</button></div>
-    ${open && src ? html`<video class="help7z" controls src=${src}></video>` : ''}</div>`;
+    ${open && src ? html`<video class="help7z" controls autoplay src=${src} ref=${(v) => { if (v && v.paused && !v.dataset.started) { v.dataset.started = '1'; v.play().catch(() => { }); } }}></video>` : ''}</div>`;
 }
 
 // What's New: the changes in the running version, shown once after an update and on request.
@@ -1180,7 +1188,7 @@ function HarborDownloads({ list, speedText, onClear, mib, onFlip }) {
       </article>`; })}</div>` : ''}
     <div class="hb-dcols">
       <section><h3>Waiting</h3>${waiting.length ? waiting.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, true)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${bytesOf(d)}${bytesOf(d) ? ' · ' : ''}starts when a slot frees up</span></span><${DownloadButtons} d=${d} /></div>`) : html`<div class="hb-dnone">Nothing is waiting.</div>`}</section>
-      <section><div class="hb-dsechead"><h3>Finished</h3>${done.length ? html`<button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button>` : ''}</div>${done.length ? done.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, false)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${[bytesOf(d), st(d) === 'completed' ? 'checked and extracted' : st(d)].filter(Boolean).join(' · ')}</span></span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing finished yet.</div>`}</section>
+      <section><div class="hb-dsechead"><h3>Finished</h3>${done.length ? html`<button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button>` : ''}</div>${done.length ? done.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, false)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${[bytesOf(d), st(d) === 'completed' ? finishedText(d) : st(d)].filter(Boolean).join(' · ')}</span></span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing finished yet.</div>`}</section>
     </div>
   </div>`;
 }
@@ -1314,7 +1322,7 @@ function App() {
     try {
       for (const [id, on] of Object.entries(p.strips)) localStorage.setItem('native.strip.' + id, on ? '1' : '0');
       // the website's own default ("dark") is not a choice the member made, so it does not replace the Harbor default
-      if (p.theme && p.theme !== 'dark' && themeKeyOk(p.theme)) { localStorage.setItem('native.theme', p.theme); setThemeChoice(p.theme); applyTheme(p.theme); }
+      if (p.theme && p.theme !== 'dark' && themeKeyOk(p.theme)) setThemeSel((c) => persistChoice(withWebsiteTheme(c, THEMES, p.theme)));
       if (p.searches.length) localStorage.setItem('native.recentSearches', JSON.stringify(p.searches));
       if (p.komgaUrl) localStorage.setItem('native.komgaUrl', p.komgaUrl);
       if (p.animations !== null) localStorage.setItem('native.animations', p.animations ? '1' : '0');
@@ -1329,9 +1337,15 @@ function App() {
   const inMyList = (it) => myListHas(myList, ctxRemote(it), itemPath(it));
   const pendingScroll = useRef('');
   const openTrend = (e) => { const it = homeItem(e); if (!it) return; pendingScroll.current = it.name; goTo(it._remote, it._folder); };
-  const [themeChoice, setThemeChoice] = useState(() => (themeKeyOk(storedTheme()) ? storedTheme() : DEFAULT_THEME));
-  const chooseTheme = (id) => { setThemeChoice(id); applyTheme(id); try { localStorage.setItem('native.theme', id); } catch (e) { } };
-  useEffect(() => { if (themeChoice !== 'system') return; let mq; try { mq = window.matchMedia('(prefers-color-scheme: light)'); } catch (e) { return; } const on = () => applyTheme('system'); mq.addEventListener('change', on); return () => mq.removeEventListener('change', on); }, [themeChoice]);
+  // Viewing mode (Dark, Light, System) and a theme for each side; the theme menu lists only the themes of the side on screen (themeMode.mjs).
+  const [themeSel, setThemeSel] = useState(() => loadChoice(THEMES, lsRaw));
+  const [osIsLight, setOsIsLight] = useState(osLight);
+  const shownMode = effectiveMode(themeSel.mode, osIsLight);
+  const themeChoice = themeSel[shownMode];
+  const chooseMode = (m) => setThemeSel((c) => persistChoice({ ...c, mode: m }));
+  const chooseTheme = (id) => setThemeSel((c) => persistChoice(withTheme(c, THEMES, id)));
+  useEffect(() => { applyTheme(themeChoice); }, [themeChoice]);
+  useEffect(() => { let mq; try { mq = window.matchMedia('(prefers-color-scheme: light)'); } catch (e) { return; } const on = () => { setOsIsLight(mq.matches); setThemeSel((c) => persistChoice(c)); }; mq.addEventListener('change', on); return () => mq.removeEventListener('change', on); }, []);
   const [animOn, setAnimOn] = useState(() => { try { return localStorage.getItem('native.animations') !== '0'; } catch (e) { return true; } });
   useEffect(() => { document.documentElement.dataset.anim = animOn ? '1' : '0'; }, [animOn]);
   const toggleAnim = () => { const v = !animOn; setAnimOn(v); try { localStorage.setItem('native.animations', v ? '1' : '0'); } catch (e) { } };
@@ -1516,8 +1530,10 @@ function App() {
       if (!live) return;
       const active = r.ok ? (r.data || []) : [];
       const ids = new Set(active.map((d) => d.id));
+      // remotePath (+ the section, actualRemote, for 3D, Apps and the like): finished rows find their cover art by where the title sits in the library
+      // (downloadPlace); without them the art vanished once a download left the live list (Nov 24 2026).
       const done = (Array.isArray(h) ? h : []).filter((d) => d && !ids.has(d.id)).slice(0, 30)
-        .map((d) => ({ id: d.id, name: d.name, status: d.status || 'completed', progress: 100, totalSize: d.totalSize, downloadedSize: d.totalSize }));
+        .map((d) => ({ id: d.id, name: d.name, status: d.status || 'completed', progress: 100, totalSize: d.totalSize, downloadedSize: d.totalSize, remotePath: d.remotePath || '', resumeRemote: d.actualRemote || '', resumePath: d.actualRemote ? (d.remotePath || '') : '', didCheck: d.didCheck, checkOk: d.checkOk, didExtract: d.didExtract, planUnpack: d.planUnpack }));
       setDownloads([...done.reverse(), ...active]);   // oldest first; the list is shown newest first
     };
     tick(); const t = setInterval(tick, 1500);
@@ -1637,7 +1653,8 @@ function App() {
       <div class="header-stars"><div class="header-star header-star-1"></div><div class="header-star header-star-2"></div><div class="header-star header-star-3"></div></div>
       <div class="banner-actions">
         <button class="dbtn" title="Turn the moving effects on or off" onClick=${toggleAnim}>\u2728 Animations ${animOn ? 'on' : 'off'}</button>
-      <select class="themesel" title="Theme" value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${[['harbor', 'Harbor (default)', '\u2693'], ['dark', 'Classic', '\u{1F3A8}'], ['light', 'Light', '\u2600\uFE0F'], ['system', 'System', '\u{1F5A5}\uFE0F'], ...Object.entries(THEMES).filter(([k]) => k !== 'dark' && k !== 'light' && k !== 'harbor').sort((x, y) => String(x[1].label).localeCompare(String(y[1].label))).map(([k, v]) => [k, v.label || k, v.icon || ''])].map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
+      <select class="themesel modesel" title="Dark, Light, or System (follows this computer's setting)" value=${themeSel.mode} onChange=${(e) => chooseMode(e.target.value)}>${THEME_MODES.map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
+      <select class="themesel" title=${shownMode === 'light' ? 'Theme (light themes)' : 'Theme (dark themes)'} value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${themesForMode(THEMES, shownMode).map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
         ${status && status.signedIn ? html`<button class="dbtn" title="Sign out of this PC" onClick=${logout}>Logout</button>` : ''}
       </div>
       <div class="banner-credit"><div class="fire-particles"><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i><i class="flame"></i></div><span class="fire-text">Created by Old Man of the Hills v${(status && status.version) || ''}</span></div>

@@ -523,7 +523,11 @@ ipcMain.handle('start-download', async (event, manifest, token, manifestUrl, des
     } catch (e) { }
     download.files = allFiles;
     try { maybeShowHashGateNotice().catch(() => { }); } catch (eGate) { }
-    try { hashCheck.saveManifest(app.getPath('userData'), { id: downloadId, name, downloadDir, files: allFiles }); } catch (eHash) { }
+    let hashList = null;
+    try { hashList = hashCheck.saveManifest(app.getPath('userData'), { id: downloadId, name, downloadDir, files: allFiles }); } catch (eHash) { }
+    // What finishing will involve (finishPlan): a check needs checksums, unpacking needs a .7z archive among the files.
+    download.hasChecksums = !!hashList;
+    download.has7z = allFiles.some((f) => f && /\.7z(\.001)?$/i.test(String(f.name || '')));
     if (allFiles.length > 0) {
       const skippedMessage = completedFiles > 0
         ? `Skipped ${completedFiles}/${allFiles.length} files already on disk.`

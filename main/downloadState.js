@@ -59,8 +59,25 @@ function reportDirectGrantEnd(download) {
   } catch (e) { }
 }
 
+// What the app will do once all of a download's files are in: check them against their checksums, and unpack them (George, Nov 24 2026:
+// a .zip that is neither should not show Check and Unpack steps, or say "checked and extracted" when it is done). Before the file list is
+// known, both are assumed. didCheck / didExtract record what actually happened.
+function finishPlan(download) {
+  const settings = require('./context').settings;
+  const check = !!(settings && settings.autoHashCheck) && download.hasChecksums !== false;
+  const unpack = !!(settings && settings.autoExtract7z) && !download.forceDisableAutoExtract && !download.toComics &&
+    !isStarfieldAutoExtractTargetValue(download.remotePath) && !isStarfieldAutoExtractTargetValue(download.name) && download.has7z !== false;
+  return { check, unpack };
+}
+
 function downloadToRenderer(download) {
+  const plan = download.status === 'completed' && download.finishedPlan ? download.finishedPlan : finishPlan(download);
   return {
+    planCheck: plan.check,
+    planUnpack: plan.unpack,
+    didCheck: !!download.didCheck,
+    checkOk: download.checkOk !== false,
+    didExtract: !!download.didExtract,
     id: download.id,
     name: download.name,
     manifestUrl: download.manifestUrl,
@@ -264,4 +281,4 @@ function shouldFinalizeDownload(download) {
   return result;
 }
 
-module.exports = { getActiveFileCount, isStarfieldAutoExtractTargetValue, normalizeDownloadItemKey, reportDirectGrantEnd, downloadToRenderer, waitForChildClose, waitForDownloadTasksToFinish, pruneActiveProcesses, peakOrAverageSpeedBytes, scheduleActiveStates, isStarfieldAutoExtractTargetManifest, getDownloadItemKey, getHistoryItemKey, stopDownloadProcesses, shouldFinalizeDownload };
+module.exports = { finishPlan, getActiveFileCount, isStarfieldAutoExtractTargetValue, normalizeDownloadItemKey, reportDirectGrantEnd, downloadToRenderer, waitForChildClose, waitForDownloadTasksToFinish, pruneActiveProcesses, peakOrAverageSpeedBytes, scheduleActiveStates, isStarfieldAutoExtractTargetManifest, getDownloadItemKey, getHistoryItemKey, stopDownloadProcesses, shouldFinalizeDownload };

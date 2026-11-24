@@ -450,7 +450,8 @@ test('hand-made themes load from their own files, which the theme generator neve
   const custom = JSON.parse(fs.readFileSync(path.join(dir, 'themes-custom.json'), 'utf8'));
   assert.deepEqual(Object.keys(custom), ['harbor']);
   // Harbor is for everyone and the default from 6.9.0: first in the menu, no staff lock, old-default members moved once, other choices kept
-  assert.ok(app.includes("['harbor', 'Harbor (default)'") && app.includes("['dark', 'Classic'"));
+  const modes = fs.readFileSync(path.join(dir, 'themeMode.mjs'), 'utf8');   // the menu labels live with the viewing modes (test/themeMode.test.js checks the order)
+  assert.ok(modes.includes("k === 'harbor' ? 'Harbor (default)'") && modes.includes("k === 'dark' ? 'Classic'") && modes.includes("dark: 'harbor'"));
   assert.ok(!app.includes("k !== 'harbor' || admin") && !app.includes('(!!admin || staffOk)'));
   assert.ok(app.includes("const DEFAULT_THEME = 'harbor';") && app.includes("if (!t || t === 'dark') localStorage.setItem('native.theme', DEFAULT_THEME);"));
   assert.ok(app.includes("p.theme !== 'dark' && themeKeyOk(p.theme)"), "the website's default does not override Harbor");
