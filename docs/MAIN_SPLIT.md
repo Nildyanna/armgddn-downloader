@@ -28,6 +28,9 @@ the website's server.js was split into routes/, lib/ and services/. Approved by 
 - **Before this branch is merged:** the start-up smoke test does not run the app's own download path (it downloads through rclone directly),
   so the scheduler and downloader moves must be checked with real downloads in a built app: one game, a multi-file batch, pause and resume,
   a cancelled download, and an update while a download is paused.
+  Done Nov 24 2026: George ran the side-by-side test build (electron-builder.test.js, build.yml input test_build) through real downloads;
+  everything worked apart from three page issues fixed on main before the merge. Merged into main the same day. The test build stays
+  available for the next large change.
 - No circular requires between main/ modules: a cycle hands a module an unfinished copy of another, so a function is undefined at run time
   (`test/mainModulesNoCycles.test.js`).
 - `main/**/*` is in package.json build.files; `test/packagedFiles.test.js` fails if a required module would be left out of the installer.

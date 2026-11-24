@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Internal
+
+- main.js split into 45 modules under main/ (docs/MAIN_SPLIT.md); main.js is now start-up wiring (about 1,100 lines, was about 9,500). Tests guard against circular requires, names used but never defined, __dirname and relative requires in moved code, and IPC channels that are no longer registered.
+- A side-by-side Windows test build (electron-builder.test.js; build.yml workflow_dispatch input test_build): its own name, profile and app id, never claims armgddn:// links, installs updates, writes the startup entry or renames shortcuts.
+
 ### Changed
 
 - Dark, Light and System are viewing modes with their own menu, next to the theme menu. The theme menu lists only the themes for the mode on screen, and each mode remembers its own theme (Harbor and Light by default). System follows the computer's light or dark setting and switches between the two picks when it changes. A theme saved before this becomes its mode plus that theme (renderer/native/themeMode.mjs).
