@@ -342,7 +342,7 @@ function BadgeCard({ b, worn, onWear }) {
   // An earned secret badge is gold and says it was secret and how rare it is (George, Nov 24 2026).
   const gold = earned && b.secret;
   return html`<div class=${'bcard ' + (earned ? 'earned' : 'locked') + (gold ? ' gold' : '') + (worn ? ' worn' : '')}>
-    ${gold ? html`<div class="bsecret">\u2726 Secret badge${b.rarity ? ' \u00b7 ' + b.rarity : ''}</div>` : ''}
+    ${gold ? html`<div class="bsecret" title="A secret badge you discovered">\u2726 Secret${b.rarity ? ' \u00b7 ' + b.rarity : ''}</div>` : ''}
     <div class="bemoji">${b.emoji}</div><div class="bname">${b.name}</div>
     <div class="bdesc">${b.desc}${b.steps > 1 ? ' (step ' + b.step + ' of ' + b.steps + ')' : ''}</div>
     ${!earned && b.need ? html`<div class="bprogbar" title=${(b.have || 0).toLocaleString('en-US') + ' of ' + b.need.toLocaleString('en-US') + (b.unit ? ' ' + b.unit : '')}><i style=${'width:' + pct + '%'}></i></div><div class="bnum">${(b.have || 0).toLocaleString('en-US')} / ${b.need.toLocaleString('en-US')}</div>` : ''}

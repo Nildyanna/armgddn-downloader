@@ -769,7 +769,7 @@ header select + select { margin-left: 0; }
   box-shadow: 0 0 0 1px #e8b84a66 inset, 0 6px 18px -8px #e8b84a99; }
 .bcard.gold.worn { border-color: #ffd27a; box-shadow: 0 0 0 2px #ffd27a inset, 0 6px 18px -8px #e8b84acc; }
 .bcard.gold .bemoji { filter: drop-shadow(0 0 6px #ffc76699); }
-.bsecret { align-self: flex-start; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
+.bsecret { align-self: flex-start; white-space: nowrap; font-size: 11px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px;
   color: #3a2600; background: linear-gradient(90deg, #ffd98a, #e8b84a); }
 .bemoji { font-size: 30px; line-height: 1; } .bname { font-weight: 600; } .bdesc { font-size: 12px; color: var(--dim); overflow-wrap: anywhere; }
 .bnum { font-size: 11px; color: var(--dim); }
