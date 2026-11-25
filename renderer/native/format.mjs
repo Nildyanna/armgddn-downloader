@@ -778,3 +778,13 @@ export function downloadAnnouncement(list) {
     return now ? name + ': ' + words[now.key] : '';
   }).filter(Boolean).join('. ');
 }
+
+// Settings > Check for updates: what the row says after a check. A failed check, or an update this PC has no automatic installer for, used to
+// fall through to "You are on the latest version (vundefined)" (Nov 25 2026 review). install: show the Update button; announce: show the update bar.
+export function updateCheckResult(r) {
+  if (!r || r.error) return { text: 'Could not check: ' + ((r && r.error) || 'no answer'), install: false, announce: false };
+  if (r.hasUpdate) {
+    return { text: `v${r.latestVersion} is available (you have v${r.version}).` + (r.canAutoInstall ? ' Finish or pause your downloads first: updating restarts ARMGDDN App.' : ''), install: !!r.canAutoInstall, announce: true };
+  }
+  return { text: r.version ? `You are on the latest version (v${r.version}).` : 'You are on the latest version.', install: false, announce: false };
+}

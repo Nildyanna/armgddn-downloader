@@ -1,6 +1,6 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard, downloadAnnouncement , finishedText } from './format.mjs';
+import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard, downloadAnnouncement , finishedText, updateCheckResult } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -690,11 +690,10 @@ function UpdateRow({ say }) {
     setState({ busy: true, text: 'Checking...' });
     try {
       const r = await api.checkUpdates();
-      if (!r || r.error) setState({ busy: false, text: 'Could not check: ' + ((r && r.error) || 'no answer') });
-      else if (r.hasUpdate) setState({ busy: false, text: `v${r.latestVersion} is available (you have v${r.version}). Finish or pause your downloads first: updating restarts ARMGDDN App.` });
-      if (r.hasUpdate && r.canAutoInstall) setFound(r);
-      else setState({ busy: false, text: `You are on the latest version (v${r.version}).` });
-      if (r && r.hasUpdate) { try { window.dispatchEvent(new CustomEvent('native-update-found', { detail: r })); } catch (e) { } }
+      const out = updateCheckResult(r);
+      setState({ busy: false, text: out.text });
+      if (out.install) setFound(r);
+      if (out.announce) { try { window.dispatchEvent(new CustomEvent('native-update-found', { detail: r })); } catch (e) { } }
     } catch (e) { setState({ busy: false, text: 'Could not check for updates.' }); }
   };
   useEffect(() => { const run = () => check(); window.addEventListener('native-run-update-check', run); return () => window.removeEventListener('native-run-update-check', run); }, []);
