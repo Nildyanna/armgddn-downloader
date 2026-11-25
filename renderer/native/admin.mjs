@@ -173,8 +173,12 @@ function QueuePage() {
 }
 
 const REQUEST_STATUSES = ['', 'pending', 'approved', 'completed', 'rejected'];
+// The status box: the same one on a request's card and in its opened panel (a change asks for confirmation and an optional reason first).
+function StatusSelect({ id, title, status, act }) {
+  return html`<select aria-label="Request status" class=${'rqstatus st-' + status} value=${status} onChange=${(e) => { const v = e.target.value; if (v && v !== status) act('requestStatus', { id, title, status: v }); }}>${REQUEST_STATUS_CHOICES.map((x) => html`<option value=${x}>${({ pending: '\u23F3 Pending', approved: '\u{1F44D} Approved', completed: '\u2705 Completed', rejected: '\u274C Rejected', duplicate: 'Duplicate' })[x] || x}</option>`)}</select>`;
+}
 // The comments on one request: read the thread and add to it (staff can do both on any request, the same thread the member sees on their Requests page).
-function RequestThread({ req, onClose }) {
+function RequestThread({ req, onClose, act }) {
   const [thread, setThread] = useState(null);
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
@@ -191,7 +195,7 @@ function RequestThread({ req, onClose }) {
   };
   const when = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
   return html`<div class="apanel reqthread">
-    <div class="dtools"><strong>#${req.id} ${req.title}</strong> <span class="sval">${req.category} · ${req.status} · by ${req.by ? '@' + req.by : 'unknown'}</span><button class="dbtn" onClick=${onClose}>Close</button></div>
+    <div class="dtools"><strong>#${req.id} ${req.title}</strong> <span class="sval">${req.category} · ${req.status} · by ${req.by ? '@' + req.by : 'unknown'}</span>${act ? html`<${StatusSelect} id=${req.id} title=${req.title} status=${req.status || 'pending'} act=${act} />` : ''}<button class="dbtn" onClick=${onClose}>Close</button></div>
     <div class="thread"><div class="msg reqinfo"><div class="who">The request</div>${requestInfoLines(req.raw || { id: req.id, gameTitle: req.title, category: req.category, status: req.status, username: req.by, createdAt: req.requested }).map(([k, v]) => html`<div class="ri"><span class="rk">${k}</span> ${k === 'Link' && /^https:\/\//i.test(v) ? html`<a href="#" onClick=${(e) => { e.preventDefault(); api.openLink(v); }}>${v}</a>` : v}</div>`)}</div>${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'Member')} · ${when(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="empty">No comments yet.</div>`}</div>
     ${note ? html`<div class="notice soft">${note}</div>` : ''}
     <div class="compose"><input type="text" maxlength="500" placeholder="Write a comment…" aria-label="Write a comment…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
@@ -219,7 +223,7 @@ function RequestCard({ r, owner, onComments, act }) {
       </div>
     </div>
     <div class="rqside">
-      <select aria-label="Request status" class=${'rqstatus st-' + c.status} value=${c.status} onChange=${(e) => { const v = e.target.value; if (v && v !== c.status) act('requestStatus', { id: r.id, title: r.title, status: v }); }}>${REQUEST_STATUS_CHOICES.map((x) => html`<option value=${x}>${({ pending: '\u23F3 Pending', approved: '\u{1F44D} Approved', completed: '\u2705 Completed', rejected: '\u274C Rejected', duplicate: 'Duplicate' })[x] || x}</option>`)}</select>
+      <${StatusSelect} id=${r.id} title=${r.title} status=${c.status} act=${act} />
       ${owner ? html`<button class="rqdel" onClick=${() => act('requestDelete', { id: r.id, title: r.title })}>Delete</button>` : ''}
     </div>
   </div>`;
@@ -267,7 +271,7 @@ function RequestsPage({ audit, owner, openId }) {
       <span class="sval">${rows.length} shown</span>
     </div>
     ${actionUi}
-    ${openReq ? html`<${RequestThread} key=${openReq.id} req=${openReq} onClose=${() => setOpenReq(null)} />` : ''}
+    ${openReq ? html`<${RequestThread} key=${openReq.id} req=${all.find((x) => x.id === openReq.id) || openReq} act=${act} onClose=${() => setOpenReq(null)} />` : ''}
     ${audit ? html`<${DataTable} rows=${rows} columns=${['id', 'title', 'status', 'handledBy', 'handledAt', 'by', 'category']} empty="No handled requests." />` : rows.length ? html`<div class="rqlist">${rows.map((r) => html`<${RequestCard} key=${r.id} r=${r} owner=${owner} onComments=${setOpenReq} act=${act} />`)}</div>` : html`<div class="empty">No requests.</div>`}
   </div>`;
 }

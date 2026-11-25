@@ -494,10 +494,10 @@ test('the very smallest window shows covers as thumbnails beside the title, so s
 
 test('the admin Requests table has a Comments button that opens the thread with an add box', () => {
   const a = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
-  assert.ok(a.includes('function RequestThread({ req, onClose })'));
+  assert.ok(a.includes('function RequestThread({ req, onClose, act })'));
   assert.ok(a.includes('await api.thread(req.id)') && a.includes('await api.comment(req.id, m)'));
   assert.ok(a.includes('onClick=${() => onComments(r)}>') && a.includes('onComments=${setOpenReq}') && a.includes('Comments${c.unread') && a.includes('setUnseenOnly') && a.includes('unseenOf(r) > 0'));
-  assert.ok(a.includes('<${RequestThread} key=${openReq.id} req=${openReq}'));
+  assert.ok(a.includes('<${RequestThread} key=${openReq.id} req=${all.find((x) => x.id === openReq.id) || openReq} act=${act}'));
 });
 
 test('Go there on a stub carries the game name so the other section opens on that game, not its root', () => {
