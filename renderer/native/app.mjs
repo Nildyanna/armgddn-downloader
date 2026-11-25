@@ -364,10 +364,20 @@ function RequestsView({ say, openId }) {
   const [thread, setThread] = useState(null);
   const [text, setText] = useState('');
   const [form, setForm] = useState(null);       // { category, title, notes } while the new-request form is open
-  const load = async () => { const r = await api.requests(); if (r.ok) { setList(r.data.requests || []); setError(null); } else { setError(r.error); setList([]); } };
+  const load = async () => { const r = await api.requests(); if (r && r.ok) { setList((r.data && r.data.requests) || []); setError(null); } else { setError((r && r.error) || { message: 'Could not load your requests' }); setList([]); } };
   useEffect(() => { load(); }, []);
   useEffect(() => { if (openId && list) { const hit = list.find((r) => r.id === openId || r.linkedTo === openId); if (hit) openThread(hit); } }, [openId, list]);
-  const openThread = async (req) => { setOpen(req); setThread(null); const r = await api.thread(req.linkedTo || req.id); setThread(r.ok ? (r.data.comments || []) : []); if (!r.ok) say(r.error.message); };
+  // Only the newest thread asked for may fill the page: opening one request, going Back and opening another quickly used to show the first one's
+  // messages under the second one's title when its answer came in last (Nov 25 2026 review).
+  const threadSeq = useRef(0);
+  const openThread = async (req) => {
+    const my = ++threadSeq.current;
+    setOpen(req); setThread(null);
+    const r = await api.thread(req.linkedTo || req.id);
+    if (my !== threadSeq.current) return;
+    setThread(r && r.ok ? ((r.data && r.data.comments) || []) : []);
+    if (!(r && r.ok)) say((r && r.error && r.error.message) || 'Could not load the messages');
+  };
   const send = async () => {
     const r = await api.comment(open.linkedTo || open.id, text);
     if (r.ok) { setText(''); openThread(open); } else say(r.error.message || 'Could not send');
@@ -379,7 +389,7 @@ function RequestsView({ say, openId }) {
   if (open) {
     const [label, tone] = statusInfo(open.status);
     return html`<div class="reqpane">
-      <button class="dbtn" onClick=${() => { setOpen(null); load(); }}>Back</button>
+      <button class="dbtn" onClick=${() => { threadSeq.current++; setOpen(null); load(); }}>Back</button>
       <h2>#${open.id} ${open.gameTitle} <span class=${'chip ' + tone}>${label}</span></h2>
       <div class="sub">${open.category} · ${shortDate(open.createdAt)}</div>
       ${open.decisionReason ? html`<div class="reason"><strong>Decision:</strong> ${open.decisionReason}</div>` : ''}

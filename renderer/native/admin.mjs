@@ -10,8 +10,15 @@ const api = window.nativeAPI;
 export function useAdminData(kind, params, every) {
   const [state, setState] = useState({ loading: true, data: null, error: '' });
   const key = kind + JSON.stringify(params || {});
+  // Only the newest load may fill the page: switching the Requests filter (or leaving the page) while a slower answer was still on its way used
+  // to put the old filter's rows back over the new ones (Nov 25 2026 review). An answer is used only while the page still shows what it asked for.
+  const current = useRef(key);
+  current.current = key;
+  useEffect(() => () => { current.current = null; }, []);
   const load = async () => {
+    const asked = key;
     const r = await api.adminGet(kind, params || {});
+    if (current.current !== asked) return;
     if (r && r.ok && r.data && r.data.success !== false) setState({ loading: false, data: r.data, error: '' });
     else setState({ loading: false, data: null, error: (r && r.error && r.error.message) || (r && r.data && r.data.error) || 'Could not load this page' });
   };

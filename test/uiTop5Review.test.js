@@ -72,3 +72,16 @@ test('Settings and the connection test take their listeners off again', () => {
   assert.ok(t.includes('const off = api.onConnectionTestProgress(') && /finally \{[^}]*off\(\)/.test(t), 'the progress listener goes when the test ends');
   for (const sub of ['off = api.onUpdate(', 'const off = api.onOpen(', 'off = api.onUpdateAvailable(']) assert.ok(a.includes(sub), sub);
 });
+
+test('a late answer cannot overwrite a newer page: request threads and the Admin pages', () => {
+  const a = read('renderer/native/app.mjs');
+  const r = a.slice(a.indexOf('function RequestsView('), a.indexOf('function MyListView('));
+  assert.ok(r.includes('const my = ++threadSeq.current;') && r.includes('if (my !== threadSeq.current) return;'), 'only the newest thread fills the page');
+  assert.ok(r.includes('threadSeq.current++; setOpen(null)'), 'Back drops an answer still on its way');
+  assert.ok(r.includes('(r.data && r.data.requests) || []'), 'an empty answer does not throw and leave Loading... up');
+  const m = read('renderer/native/admin.mjs');
+  const h = m.slice(m.indexOf('export function useAdminData('), m.indexOf('function useAdminAction('));
+  assert.ok(h.includes('const asked = key;') && h.includes('if (current.current !== asked) return;'), 'an answer for an older filter is dropped');
+  assert.ok(h.includes('current.current = null'), 'and so is one that arrives after the page closed');
+  assert.ok(m.includes("import { html, useState, useEffect, useMemo, useRef }"), 'useRef is imported');
+});

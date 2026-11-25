@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A page no longer sits on "Loading..." for ever when the site does not answer: after 30 seconds the app tries once more and then says the site took too long. A few such hangs used to stop every page of the app from loading until it was restarted.
 - Settings > Check for updates no longer says "You are on the latest version" when the check failed, or when a new version is out that this PC has to install by hand.
 - Opening Settings or running the connection test no longer leaves a listener behind each time, so a long session uses less memory.
+- Requests: opening one request, going Back and quickly opening another no longer shows the first request's messages under the second one.
 
 ## [6.12.0] - 2026-11-24
 
