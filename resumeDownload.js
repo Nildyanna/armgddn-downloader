@@ -122,7 +122,7 @@ function resumeDownload(opts) {
           res.on('error', (e) => { ws.destroy(); reject(new ResumeError(e && e.message ? e.message : String(e), 'network')); });
           res.on('aborted', () => { ws.end(() => reject(new ResumeError('connection dropped', 'network'))); });
           res.on('close', () => { if (!res.complete) ws.end(() => reject(new ResumeError('connection dropped', 'network'))); });
-          ws.on('error', (e) => { res.destroy(); reject(new ResumeError(`cannot write file: ${e.message}`, 'fatal')); });
+          ws.on('error', (e) => { res.destroy(); reject(Object.assign(new ResumeError(`cannot write file: ${e.message}`, 'fatal'), { code: e && e.code ? String(e.code) : '', stage: 'write' })); });
           ws.on('finish', () => resolve());
           res.pipe(ws);
         });

@@ -19,6 +19,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - An app window whose page keeps crashing is reloaded at most 3 times in 2 minutes instead of forever (Sentry ARMGDDN-COMPANION-33/6A/6B/6C).
 - The app window's cover and folder caches have size limits, so a long session no longer keeps growing in memory.
 - Linux: windows are raised with moveTop() everywhere (KDE could raise the wrong window or none).
+- A full disk now says "You're out of disk space" and stops at once, keeping what was already downloaded. It used to retry for about two minutes, report "Download stalled", and then retry again by itself onto the same full disk.
+- A download that reached 100% no longer fails when antivirus is still scanning the finished file: the app waits a few seconds and tries again, and if the file is still locked a Retry only has to save it (nothing is downloaded twice).
+- A download no longer fails on its first try when the site is briefly busy while the app asks for a fresh download link; that counts as one more attempt instead.
+- When a download fails for good, all its connections stop straight away instead of running on for minutes.
 - On PCs whose graphics can't run the app's GPU process (for example a Windows virtual machine), the app no longer crashes twice more every week: once it needed the no-GPU mode, it goes straight back to it and keeps it for 30 days.
 
 ## [6.12.0] - 2026-11-24

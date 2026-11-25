@@ -52,4 +52,28 @@ function hasProxyEnv(env) {
   return Object.keys(env || {}).some(k => PROXY_ENV_RE.test(k) && env[k]);
 }
 
-module.exports = { isCrashOutput, isConnectionDrop, isHttpOnHttps, isNotFound, isDeadProxy, withoutProxyEnv, hasProxyEnv };
+// What to tell the member when the in-app engines (segmentedDownload / resumeDownload) give up. Every failure used to read "Download stalled
+// and could not be resumed", even a full disk, and that wording also started the automatic retry, which filled the same full disk again.
+// The disk wordings contain "disk space" / "download folder", which the automatic retry skips (AUTO_RETRY_BLOCK_RE in main.js);
+// "could not be saved yet" is retried, because a retry only has to rename the finished file.
+const FULL_CODES = new Set(['ENOSPC', 'EDQUOT', 'EFBIG']);
+const NO_WRITE_CODES = new Set(['EACCES', 'EPERM', 'EROFS']);
+function engineFailureText(failure) {
+  const f = failure || {};
+  const code = String(f.code || (/\b(E[A-Z]{3,10})\b/.exec(String(f.message || '')) || [])[1] || '');
+  if (f.kind === 'expired') {
+    return { headline: 'Download link expired.', hint: 'Go back to the website and start the download again to generate a fresh link.' };
+  }
+  if (FULL_CODES.has(code) || /no space left|disk full|not enough space/i.test(String(f.message || ''))) {
+    return { headline: `You're out of disk space. (${code || 'disk full'})`, hint: 'Free up disk space or switch to a drive with more space, then click Retry. What is already downloaded is kept.' };
+  }
+  if (f.stage === 'finish' && NO_WRITE_CODES.has(code)) {
+    return { headline: `The download finished but the file could not be saved yet (${code}).`, hint: 'Antivirus is usually still scanning it. The ARMGDDN App will try again by itself; if it keeps happening, add the folder you download into to your antivirus exclusions.' };
+  }
+  if (NO_WRITE_CODES.has(code)) {
+    return { headline: `Can't write the file to your download folder. (${code})`, hint: 'Change the download folder to a writable location (e.g. inside your home folder) and retry.' };
+  }
+  return { headline: 'Download stalled and could not be resumed after several retries.', hint: 'Retry the download. If it keeps happening, change mirrors by starting the download again from the website, or lower concurrency to 1-2.' };
+}
+
+module.exports = { isCrashOutput, isConnectionDrop, isHttpOnHttps, isNotFound, isDeadProxy, withoutProxyEnv, hasProxyEnv, engineFailureText };

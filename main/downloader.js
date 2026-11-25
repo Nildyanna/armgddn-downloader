@@ -548,12 +548,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       if (!Array.isArray(download.failedFiles)) download.failedFiles = [];
       download.failedFiles.push(file.name);
       if (download.activeFiles[fileKey]) { download.activeFiles[fileKey].status = 'error'; delete download.activeFiles[fileKey]; }
-      download.error = failure.kind === 'expired'
-        ? mainState.withSupportFooter('Download link expired.', 'Go back to the website and start the download again to generate a fresh link.')
-        : mainState.withSupportFooter(
-          'Download stalled and could not be resumed after several retries.',
-          'Retry the download. If it keeps happening, change mirrors by starting the download again from the website, or lower concurrency to 1-2.'
-        );
+      // A full disk or a locked file says so (downloadErrors.engineFailureText); only real network trouble reads "stalled".
+      const why = downloadErrors.engineFailureText(failure);
+      download.error = mainState.withSupportFooter(why.headline, why.hint);
       updateProgress(downloadId);
       try { reportDownloadFailure(download, download.error); } catch (e3) { }
       if (!isDownloadAbandoned(download)) sendToMain('download-error', { id: downloadId, error: download.error });

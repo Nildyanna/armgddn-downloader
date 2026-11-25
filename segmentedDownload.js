@@ -90,6 +90,30 @@ function asSource(x) {
 }
 const activeByPath = new Map();     // outputPath -> controller of the run that owns that file right now
 
+// A problem with the PC's own disk (full, read-only, no permission) is not a network problem: retrying cannot fix it. Until 6.12 these
+// were wrapped as 'network', so every stream retried ~11 times (176 retries in two minutes) and the member was told the download "stalled"
+// (engine reports 2026-11-18..25: 22 failed runs from 4 members, 1,861 ENOSPC retries). They now end the run at once as kind 'disk'.
+const DISK_CODES = new Set(['ENOSPC', 'EDQUOT', 'EROFS', 'EACCES', 'EPERM', 'EFBIG']);
+function diskError(e, stage) {
+  const code = e && e.code ? String(e.code) : '';
+  const err = new ResumeError(`cannot ${stage === 'finish' ? 'save the finished file' : 'write file'}: ${e && e.message ? e.message : String(e)}`, 'disk');
+  err.code = code; err.stage = stage;
+  return err;
+}
+const isDiskError = (e) => !!(e && e.code && DISK_CODES.has(String(e.code)));
+
+// Windows: antivirus or the search indexer often holds a just-written file for a moment, so renaming it fails with EPERM/EBUSY/EACCES.
+// That failed the whole download at 100% (10 runs from 9 members in a week). Try again for a few seconds before giving up.
+const RENAME_BUSY = new Set(['EPERM', 'EBUSY', 'EACCES']);
+async function renameWithRetry(from, to, tries = 8, delayMs = 250) {
+  for (let i = 1; ; i++) {
+    try { fs.renameSync(from, to); return; } catch (e) {
+      if (i >= tries || !RENAME_BUSY.has(String(e && e.code))) throw diskError(e, 'finish');
+      await new Promise((r) => setTimeout(r, delayMs * i));
+    }
+  }
+}
+
 function segmentedDownload(opts) {
   const {
     outputPath, expectedSize = 0, streams = 4, getFreshUrl, onProgress, headers = {},
@@ -119,12 +143,17 @@ function segmentedDownload(opts) {
     const lenOf = (i) => Math.min(chunk, total - i * chunk);
 
     let done = resumed ? resumed.done : null;
-    if (!done) {
-      done = new Array(nChunks).fill(0);
-      try { fs.unlinkSync(statePath); } catch (e) { }
-      fs.writeFileSync(tempPath, '');
+    let fh;
+    try {
+      if (!done) {
+        done = new Array(nChunks).fill(0);
+        try { fs.unlinkSync(statePath); } catch (e) { }
+        fs.writeFileSync(tempPath, '');
+      }
+      fh = await fs.promises.open(tempPath, 'r+');
+    } catch (e) {
+      throw isDiskError(e) ? diskError(e, 'write') : e;
     }
-    const fh = await fs.promises.open(tempPath, 'r+');
 
     let dirty = false;
     const saveState = () => {
@@ -213,6 +242,7 @@ function segmentedDownload(opts) {
             if (cr && Number(cr[1]) !== start) throw new ResumeError('server answered a different range', 'fatal', code);
 
             let pending = []; let pendingBytes = 0;
+            let writeErr = null;     // a disk problem seen by any flush of this request: it wins over the network error that follows it
             // Every flush waits for the ones before it, including a disk write that is still running. Without that, a dropped connection could
             // start the retry while the last write was in flight (a slow disk, antivirus scanning), and the retry would restart from a stale
             // position and write over the same bytes.
@@ -229,13 +259,13 @@ function segmentedDownload(opts) {
                 if (wait > 0) await new Promise((r) => setTimeout(r, Math.min(wait, 10000)));
               }
               const pos = i * chunk + done[i];
-              await fh.write(buf, 0, buf.length, pos);
+              try { await fh.write(buf, 0, buf.length, pos); } catch (e) { const de = isDiskError(e) ? diskError(e, 'write') : e; if (de.kind === 'disk') writeErr = de; throw de; }
               done[i] += buf.length; dirty = true; sinceReport += buf.length; report(false);
             };
             await new Promise((resolve, reject) => {
               let want = lenOf(i) - done[i];
               let got = 0; let chain = Promise.resolve(); let finished = false;
-              const fail = (e) => { if (finished) return; finished = true; reject(e instanceof ResumeError ? e : new ResumeError(e && e.message ? e.message : String(e), 'network')); };
+              const fail = (e) => { if (finished) return; finished = true; reject(writeErr || (e instanceof ResumeError ? e : new ResumeError(e && e.message ? e.message : String(e), 'network'))); };
               res.on('data', (d) => {
                 if (finished) return;
                 if (got + d.length > want) d = d.subarray(0, want - got);
@@ -246,7 +276,7 @@ function segmentedDownload(opts) {
                 }
               });
               res.on('error', (e) => { chain.then(() => flush()).catch(() => { }).then(() => fail(e)); });
-              const dropped = () => { chain.then(() => flush()).catch(() => { }).then(() => { if (got < want) fail(new ResumeError('connection dropped', 'network')); else if (!finished) { finished = true; resolve(); } }); };
+              const dropped = () => { chain.then(() => flush()).catch(() => { }).then(() => { if (writeErr) fail(writeErr); else if (got < want) fail(new ResumeError('connection dropped', 'network')); else if (!finished) { finished = true; resolve(); } }); };
               res.on('aborted', dropped);
               res.on('close', dropped);
               res.on('end', dropped);
@@ -258,8 +288,9 @@ function segmentedDownload(opts) {
           attempt = 0; refusedRenewals.clear();
         } catch (e) {
           if (aborted) throw aborted;
+          if (failure) return;      // another stream already ended the run (stopOthers cut this request): not a retry of its own
           const err = e instanceof ResumeError ? e : new ResumeError(e && e.message ? e.message : String(e), 'network');
-          if (err.kind === 'fatal' || err.kind === 'unsupported') throw err;
+          if (err.kind === 'fatal' || err.kind === 'unsupported' || err.kind === 'disk') throw err;
           if (attempt >= maxAttempts) throw err;
           emit(`chunk ${i} retry ${attempt}: ${err.kind} ${err.message}`);
           if (err.kind === 'expired') {
@@ -269,7 +300,12 @@ function segmentedDownload(opts) {
             if (refusedRenewals.size >= 2 && src.fallback && !onFallback) {
               src = { ...src.fallback, fallback: null }; url = src.url; onFallback = true; urlVersion++; refusedRenewals.clear();
               emit('switched to the fallback source');
-            } else await refreshUrl(ver);
+            } else {
+              // Asking for a fresh link can itself fail (the site is busy, the PC is offline for a moment). That used to escape this loop as a
+              // plain error and fail the whole download on the first try (17 runs from 4 members in a week). It now counts as one more
+              // attempt, like any other failed request.
+              try { await refreshUrl(ver); } catch (eFresh) { emit(`chunk ${i} fresh link failed: ${eFresh && eFresh.message ? eFresh.message : String(eFresh)}`); }
+            }
           }
           await sleep(Math.min(15000, retryDelayMs * attempt));
         }
@@ -288,7 +324,10 @@ function segmentedDownload(opts) {
 
     const n = Math.max(1, Math.min(Number(streams) || 1, nChunks));
     try {
-      const results = await Promise.allSettled(Array.from({ length: n }, () => worker().catch((e) => { if (!failure) failure = e; throw e; })));
+      // Once one stream has failed for good, the others stop too: each stream holds one long request (planChunk), so waiting for them to
+      // finish their ranges kept a failed download "running" for minutes. Their bytes so far are flushed and kept for the next try.
+      const stopOthers = () => { for (const h of live) { try { h.res.destroy(); } catch (e) { } try { h.req.destroy(); } catch (e) { } } if (wake) { try { wake(); } catch (e) { } } };
+      const results = await Promise.allSettled(Array.from({ length: n }, () => worker().catch((e) => { if (!failure) { failure = e; stopOthers(); } throw e; })));
       const bad = results.find((r) => r.status === 'rejected');
       if (aborted) throw aborted;
       if (bad) throw bad.reason;
@@ -301,7 +340,7 @@ function segmentedDownload(opts) {
     if (aborted) throw aborted;
     if (done.some((d, i) => d < lenOf(i))) throw new ResumeError('incomplete', 'network');
     try { fs.unlinkSync(outputPath); } catch (e) { }
-    fs.renameSync(tempPath, outputPath);
+    await renameWithRetry(tempPath, outputPath, opts.renameTries, opts.renameDelayMs);
     try { fs.unlinkSync(statePath); } catch (e) { }
     if (onProgress) { try { onProgress(total, total); } catch (e) { } }
     return total;
@@ -320,4 +359,4 @@ function segmentedDownload(opts) {
   return me;
 }
 
-module.exports = { segmentedDownload, probeRanges, linkSecondsLeft, expiryMs, asSource, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };
+module.exports = { segmentedDownload, probeRanges, linkSecondsLeft, expiryMs, asSource, renameWithRetry, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };

@@ -207,7 +207,7 @@ if (SENTRY_DSN) {
 // Windows ending the download process itself (PC shutting down or signing out, the app being closed): 3221225794 is
 // 0xC0000142, 1073807364 is 0x40010004 and 3221225786 is 0xC000013A. They arrive together, for every running download at
 // the same second, so they are the system closing things and not a fault (Sentry COMPANION-1N and 1P).
-const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error|Can't create the download folder|connection dropped mid-download|interfering with the secure connection|\(code (?:3221225794|1073807364|3221225786)\))/i;
+const EXPECTED_FAILURE_RE = /(rate-limiting|429 Too Many|link expired|stalled|could not be resumed|network\/dns|ssl\/certificate|500 Internal Server Error|Can't create the download folder|out of disk space|connection dropped mid-download|interfering with the secure connection|\(code (?:3221225794|1073807364|3221225786)\))/i;
 // "certificate has expired" / "not yet valid" while our certificate is valid
 // means the PC clock is wrong or security software is intercepting HTTPS
 // (Sentry COMPANION-3/-C). Retrying can't fix either, so say what will.
@@ -965,7 +965,7 @@ app.whenReady().then(() => {
 // the network and resume it by itself, as if they'd clicked Retry. A connection that keeps dropping
 // (satellite internet) gets up to AUTO_RETRY_MAX resumes, each after a longer pause.
 // Errors a retry can't fix (disk space, quota, clock, folder) are left alone.
-const AUTO_RETRY_TRANSIENT_RE = /(stalled|link expired|network\/dns|timed out|connection dropped|gateway error|could not be resumed|download failed\.)/i;
+const AUTO_RETRY_TRANSIENT_RE = /(stalled|link expired|network\/dns|timed out|connection dropped|gateway error|could not be resumed|could not be saved yet|download failed\.)/i;
 const AUTO_RETRY_BLOCK_RE = /(disk space|quota|date\/time|download folder|security error)/i;
 const AUTO_RETRY_MAX = 5;
 app.on('window-all-closed', () => {
