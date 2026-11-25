@@ -278,7 +278,7 @@ test('the app wires in the watchlist, Newest/Older, typo suggestions, other-sect
   const app = fs.readFileSync(path.join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
   const bridge = fs.readFileSync(path.join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
   const pre = fs.readFileSync(path.join(__dirname, '..', 'preload-native.js'), 'utf8');
-  for (const piece of ['<${WatchlistModal}', 'Tell me when it is added', 'My watchlist', 'versionBadges(found)', "No exact match, closest: ", 'otherSectionMatches(index, query, remote)', 'Search all sections', 'stubNotice(remote, folder, item)', 'Go there', 'quotaTabs(r.data.remoteStatus)', "' quota'", 'cvbadge']) assert.ok(app.includes(piece), piece);
+  for (const piece of ['<${WatchlistModal}', 'Notify me', 'My watchlist', 'versionBadges(found)', "No exact match, closest: ", 'otherSectionMatches(index, query, remote)', 'Search all sections', 'stubNotice(remote, folder, item)', 'Go there', 'quotaTabs(r.data.remoteStatus)', "' quota'", 'cvbadge']) assert.ok(app.includes(piece), piece);
   for (const piece of ["'native:watchlist'", "'native:watchAdd'", "'native:watchRemove'", "'/api/watchlist'", 'comicvine.gamespot.com']) assert.ok(bridge.includes(piece), piece);
   for (const piece of ['watchlist: call', 'watchAdd: call', 'watchRemove: call']) assert.ok(pre.includes(piece), piece);
 });

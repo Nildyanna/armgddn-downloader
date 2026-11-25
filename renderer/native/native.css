@@ -827,3 +827,19 @@ html[data-theme="harbor"] .upscreen { background: var(--hb-bg); }
 .dplabel { display: block; margin: 10px 0 4px; font-size: 13px; }
 .dpbody textarea { width: 100%; box-sizing: border-box; background: var(--inset); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
 .dplog { max-height: 260px; overflow: auto; font-size: 11px; }
+/* Inbox (bell in the header) */
+.topbar .tab.bell { display: inline-flex; align-items: center; gap: 2px; }
+.bellicon { vertical-align: -3px; }
+.inboxitem .ikind { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; padding: 2px 7px; border-radius: 999px; white-space: nowrap; background: color-mix(in srgb, var(--accent2) 30%, transparent); }
+.inboxitem .ikind.watchlist { background: color-mix(in srgb, var(--accent) 30%, transparent); }
+.inboxhead { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.inboxhead h2 { margin: 0; }
+.inboxlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.inboxitem { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; padding: 10px 12px; border-radius: 10px; border: 1px solid color-mix(in srgb, var(--fg) 12%, transparent); background: color-mix(in srgb, var(--fg) 4%, transparent); color: var(--fg); cursor: pointer; font: inherit; }
+.inboxitem:hover, .inboxitem:focus-visible { border-color: color-mix(in srgb, var(--accent) 55%, transparent); }
+.inboxitem.unread { border-left: 3px solid var(--accent); background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.inboxitem .itext { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.inboxitem:not(.unread) .itext b { font-weight: 500; }
+.inboxitem .ibody { opacity: .8; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.inboxitem .iwhen { opacity: .65; font-size: 12px; white-space: nowrap; }
+.notifyok { font-weight: 600; color: var(--accent); align-self: center; }

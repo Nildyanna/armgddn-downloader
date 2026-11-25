@@ -22,6 +22,18 @@ function browsePath(remote, folder) {
   return `/api/browse/${encodeURIComponent(remote)}` + (f ? `?path=${encodeURIComponent(f)}` : '');
 }
 
+// The inbox poll and "mark read": only a number goes in the address, only ids or all in the body.
+function inboxPath(since) {
+  const n = Number(since);
+  return '/api/inbox' + (Number.isInteger(n) && n > 0 ? '?since=' + n : '');
+}
+function inboxReadBody(ids) {
+  if (ids === 'all') return { all: true };
+  const list = (Array.isArray(ids) ? ids : [ids]).map(Number).filter((n) => Number.isInteger(n) && n > 0).slice(0, 200);
+  if (!list.length) throw Object.assign(new Error('Nothing to mark'), { kind: 'http', status: 400 });
+  return { ids: list };
+}
+
 // Export list: the site builds the CSV or Excel file for a remote; the app asks where to save it.
 function exportPath(remote, format) {
   if (!SAFE_REMOTE.test(String(remote || ''))) throw Object.assign(new Error('Bad remote name'), { kind: 'http', status: 400 });
@@ -40,7 +52,7 @@ function registerSchemes(protocol) {
   protocol.registerSchemesAsPrivileged([{ scheme: 'armgddn-img', privileges: { standard: true, secure: true, supportFetchAPI: true } }]);
 }
 
-function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, clearLoginTraces, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, destFor }) {
+function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession, clearLoginTraces, fs = require('fs'), protocol, getToken, openLogin, version, log = () => { }, appDir, startDeepLink, getDownloads, destFor, notify }) {
   let deviceFp = '';
   try { deviceFp = require('../deviceId').deviceFingerprint(require('electron').app.getPath('userData')); } catch (e) { console.warn('[device-id] not available: ' + (e && e.message)); }
   const api = createApiClient({ getToken, version, deviceFp });
@@ -250,6 +262,16 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     if (!/^[A-Za-z0-9_-]{1,64}$/.test(n)) throw Object.assign(new Error('Bad watchlist id'), { kind: 'http', status: 400 });
     return api.del('/api/watchlist/' + n, undefined, { invalidate: ['/api/watchlist'] });
   }));
+  // The inbox (renderer/native/inbox.mjs): the site's copies of request updates and watchlist notices, polled every two minutes.
+  ipcMain.handle('native:inbox', wrap((since) => api.get(inboxPath(since), { ttlMs: 0, fresh: true })));
+  ipcMain.handle('native:inboxRead', wrap((ids) => api.post('/api/inbox/read', inboxReadBody(ids))));
+  // A desktop notification for new inbox items, through the same helper as finished downloads (it honours Settings > Show notifications).
+  ipcMain.handle('native:inboxNotify', wrap(async (title, body) => {
+    const t = String(title || '').slice(0, 120), b = String(body || '').slice(0, 300);
+    if (!t) throw bad('Nothing to show');
+    if (notify) notify(t, b);
+    return { shown: !!notify };
+  }));
   // The badge page: every badge as earned, locked with progress, or hidden; and which earned badge the member wears (null = automatic).
   ipcMain.handle('native:badges', wrap(() => api.get('/api/trophies/me', { ttlMs: 0, fresh: true })));
   ipcMain.handle('native:badgeChoose', wrap((trophyId) => {
@@ -400,4 +422,4 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   return win;
 }
 
-module.exports = { start, registerSchemes, wrap, browsePath, exportPath, exportFileName, LINK_HOSTS };
+module.exports = { start, registerSchemes, wrap, browsePath, exportPath, exportFileName, inboxPath, inboxReadBody, LINK_HOSTS };

@@ -776,6 +776,7 @@ app.whenReady().then(() => {
         BrowserWindow, ipcMain, shell, dialog, clipboard: require('electron').clipboard, clearSession, clearLoginTraces, protocol: require('electron').protocol, getToken: () => sessionToken, version: app.getVersion(), appDir: __dirname,
         openLogin: () => openAuthWindow(), log: logToFile,
         startDeepLink: (u) => handleDeepLink(u), getDownloads: () => Array.from(activeDownloads.values()).map(downloadToRenderer),
+        notify: (title, body) => showDownloadNotification(title, body),   // inbox notices; honours Settings > Show notifications
         // A Music or Comics download goes to the folder chosen for it in Settings (the website's links carry dest=music|comics for the same reason);
         // with no folder chosen it goes to the download folder as before.
         destFor: (remote) => {

@@ -9,6 +9,7 @@ import { AdminView } from './admin.mjs';
 import { THEME_MODES, effectiveMode, themeFor, loadChoice, withWebsiteTheme, withTheme, themesForMode } from './themeMode.mjs';
 import { OwnerDock } from './ownerDock.mjs';
 import { problemButton, previewRows } from './problemReport.mjs';
+import { INBOX_POLL_MS, mergeInbox, unreadCount, freshItems, notificationFor, inboxTarget, inboxWhen, titleInListing } from './inbox.mjs';
 const api = window.nativeAPI;
 try { api.getSettings().then((r) => { if (r && window.setLiteGraphics) window.setLiteGraphics(!!r.lightGraphics); }).catch(() => { }); } catch (e) { }   // the Lighter graphics setting, applied as the window opens
 
@@ -223,7 +224,7 @@ function PatchModal({ q }) {
 }
 
 // Harbor: a game's page as in the mockup: a tinted top with the cover and the facts, how to get it running, and other big titles of the same kind.
-function HarborTitle({ item, remote, folder, art, cover, cats, trailer, readme, onClose, onDownload, onBrowse, onTrailer, onReadme, actions, onOpenTrend }) {
+function HarborTitle({ item, remote, folder, art, cover, cats, trailer, readme, onClose, onDownload, onBrowse, onTrailer, onReadme, actions, onOpenTrend, missing, notifyBtn }) {
   const shape = shapeFor(remote);                                     // wide game art, square album art, tall comic covers
   const isGame = ['PC Games', 'PCVR Games', 'Testing'].includes(remote);
   const [windows, setWindows] = useState(null);
@@ -249,7 +250,7 @@ function HarborTitle({ item, remote, folder, art, cover, cats, trailer, readme, 
             <h1>${cleanTitle(item.name)}</h1>
             <dl class="hb-dl">${facts.map(([k, v]) => html`<${Fragment}><dt>${k}</dt><dd class=${k === 'Folder' ? 'folder' : ''}>${v}</dd></${Fragment}>`)}</dl>
             <div class="hb-actions">
-              <button class="hb-go" onClick=${() => { onClose(); onDownload(item); }}>Download${size ? ' ' + size : ''}</button>
+              ${missing ? notifyBtn : html`<button class="hb-go" onClick=${() => { onClose(); onDownload(item); }}>Download${size ? ' ' + size : ''}</button>`}
               ${actions ? html`<button class="hb-ghost" onClick=${() => actions.toggle(item)}>${actions.inList(item) ? 'In My List' : 'Add to My List'}</button>` : ''}
               ${trailer ? html`<button class="hb-text" onClick=${onTrailer}>Watch trailer</button>` : ''}
               <button class="hb-text" onClick=${() => { onClose(); onBrowse(item); }}>Browse files</button>
@@ -282,10 +283,21 @@ function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse, har
   const [showReadme, setShowReadme] = useState(false);
   const path = [folder, item.name].filter(Boolean).join('/');
   useEffect(() => { api.readme(remote, path).then((r) => setReadme(r.ok && r.data && r.data.found && r.data.contentHash ? r.data : false)); }, []);
+  // A title opened from Home (trending, Game Radar, My List) may have left the library since: its folder is checked, and when it is not there
+  // the Download button becomes "Notify me" (the watchlist, so the member hears in the inbox when it arrives).
+  const [present, setPresent] = useState(null);
+  useEffect(() => { let live = true; api.browse(remote, folder || '').then((r) => { if (live && r && r.ok && r.data) setPresent(titleInListing(r.data.files, item.name)); }); return () => { live = false; }; }, [remote, folder, item.name]);
+  const missing = present === false && item.isDir !== false;
+  const [watching, setWatching] = useState(false);
+  const notify = async () => {
+    const r = await api.watchAdd(cleanTitle(item.name));
+    if (r && r.ok) setWatching(true); else if (actions && actions.say) actions.say((r && r.error && r.error.message) || 'Could not add it to your watchlist');
+  };
+  const notifyBtn = watching ? html`<span class="notifyok" role="status">We'll tell you when it arrives.</span>` : html`<button class=${harbor ? 'hb-go' : 'primary'} title="This title is not in the library right now" onClick=${notify}>Notify me</button>`;
   const cats = Array.isArray(art.categories) ? art.categories.filter(Boolean).slice(0, 10) : [];
   if (playing && trailer) return html`<${TrailerModal} title=${cleanTitle(item.name)} src=${trailer} onClose=${() => setPlaying(false)} />`;
   if (showReadme && readme) return html`<${Modal} title=${'README - ' + cleanTitle(item.name)} onClose=${() => setShowReadme(false)} wide=${true}><pre class="readme">${readme.content}${readme.truncated ? '\n\n[README PREVIEW TRUNCATED]' : ''}</pre></${Modal}>`;
-  if (harbor) return html`<${HarborTitle} item=${item} remote=${remote} folder=${folder} art=${art} cover=${cover} cats=${cats} trailer=${trailer} readme=${readme} onClose=${onClose} onDownload=${onDownload} onBrowse=${onBrowse} onTrailer=${() => setPlaying(true)} onReadme=${() => setShowReadme(true)} actions=${actions} onOpenTrend=${onOpenTrend} />`;
+  if (harbor) return html`<${HarborTitle} item=${item} remote=${remote} folder=${folder} art=${art} cover=${cover} cats=${cats} trailer=${trailer} readme=${readme} onClose=${onClose} onDownload=${onDownload} onBrowse=${onBrowse} onTrailer=${() => setPlaying(true)} onReadme=${() => setShowReadme(true)} actions=${actions} onOpenTrend=${onOpenTrend} missing=${missing} notifyBtn=${notifyBtn} />`;
   return html`<${Modal} title=${cleanTitle(item.name)} onClose=${onClose} wide=${true}>
     <div class="dhead">
       <div class=${'dcover ' + shapeFor(remote)}>${cover ? html`<img src=${coverSrc(cover)} alt="" />` : html`<div class="nocover">${(cleanTitle(item.name)[0] || '?').toUpperCase()}</div>`}</div>
@@ -293,14 +305,33 @@ function DetailsModal({ item, remote, folder, onClose, onDownload, onBrowse, har
         <div class="dsub">${detailLines(remote, item).map((l) => html`<div>${l}</div>`)}</div>
         ${cats.length ? html`<div class="pills">${cats.map((c) => html`<span class="pill">${c}</span>`)}</div>` : ''}
         ${steamLinks(item).length ? html`<div class="links">${steamLinks(item).map(([n, u]) => html`<a href="#" onClick=${(e) => { e.preventDefault(); api.openLink(u); }}>${n}</a>`)}</div>` : ''}
+        ${missing ? html`<div class="sval">This title is not in the library right now.</div>` : ''}
         <div class="dbtns">
-          <button class="primary" onClick=${() => { onClose(); onDownload(item); }}>Download</button>
+          ${missing ? notifyBtn : html`<button class="primary" onClick=${() => { onClose(); onDownload(item); }}>Download</button>`}
           ${trailer ? html`<button class="dbtn" onClick=${() => setPlaying(true)}>Watch trailer</button>` : ''}
           <button class="dbtn" onClick=${() => { onClose(); onBrowse(item); }}>Browse files</button>
           <button class="dbtn" disabled=${!readme} onClick=${() => setShowReadme(true)}>${readme === null ? 'Checking README...' : 'Read README'}</button>
         </div>
       </div>
     </div></${Modal}>`;
+}
+
+// A drawn bell (an emoji bell shows as an empty box on PCs without a colour emoji font).
+const BELL = html`<svg class="bellicon" viewBox="0 0 24 24" width="17" height="17" aria-hidden="true"><path fill="currentColor" d="M12 22a2 2 0 0 0 2-2h-4a2 2 0 0 0 2 2zm6-6v-5c0-3.07-1.64-5.64-4.5-6.32V4a1.5 1.5 0 0 0-3 0v.68C7.63 5.36 6 7.92 6 11v5l-2 2v1h16v-1l-2-2z"/></svg>`;
+
+// The inbox: request updates and watchlist notices the site sent (also on Telegram, but many members cannot get bot messages).
+function InboxView({ items, error, onOpen, onReadAll, onRefresh }) {
+  const unread = unreadCount(items);
+  return html`<div class="reqpane inbox">
+    <div class="inboxhead"><h2>Inbox</h2><span class="sval">${unread ? unread + ' unread' : 'All read'}</span>
+      <button class="dbtn" onClick=${onRefresh}>Refresh</button>${unread ? html`<button class="dbtn" onClick=${onReadAll}>Mark all read</button>` : ''}</div>
+    ${error ? html`<div class="notice">${error}</div>` : ''}
+    ${items === null ? html`<div class="loading">Loading…</div>` : !items.length ? html`<div class="empty">Nothing here yet. Updates on your requests, and titles you asked to be told about, show up here.</div>`
+      : html`<ul class="inboxlist">${items.map((it) => html`<li key=${it.id}><button class=${'inboxitem' + (it.readAt ? '' : ' unread')} onClick=${() => onOpen(it)}>
+        <span class=${'ikind ' + it.kind}>${it.kind === 'watchlist' ? 'Watchlist' : it.kind === 'notice' ? 'Notice' : 'Request'}</span>
+        <span class="itext"><b>${it.title}</b>${it.body ? html`<span class="ibody">${it.body}</span>` : ''}</span>
+        <span class="iwhen">${inboxWhen(it.createdAt)}</span></button></li>`)}</ul>`}
+  </div>`;
 }
 
 // The notices a download goes through on the website: bandwidth reminder (once a day), then the README if there is one.
@@ -459,7 +490,7 @@ function EverywhereResults({ index, query, render, onWatch, onWatchlist }) {
 
 // "Tell me when it is added": a Telegram message when the title shows up (or a newer build appears), plus the member's watchlist.
 function WatchBar({ query, onWatch, onWatchlist }) {
-  return html`<span class="watchbar"><button class="dbtn" title="Get a Telegram message when this game is added or a newer build appears" onClick=${() => onWatch(query)}>Tell me when it is added</button><button class="dbtn" onClick=${onWatchlist}>My watchlist</button></span>`;
+  return html`<span class="watchbar"><button class="dbtn" title="Get a notice in your inbox here (and on Telegram) when this game is added or a newer build appears" onClick=${() => onWatch(query)}>Notify me</button><button class="dbtn" onClick=${onWatchlist}>My watchlist</button></span>`;
 }
 function WatchlistModal({ onClose, say, startTitle }) {
   const [items, setItems] = useState(null);
@@ -474,7 +505,7 @@ function WatchlistModal({ onClose, say, startTitle }) {
   const remove = async (id) => { const r = await api.watchRemove(id); if (r && r.ok) load(); else say((r && r.error && r.error.message) || 'Could not remove it'); };
   return html`<div class="overlay" onClick=${onClose}><div class="modal" onClick=${(e) => e.stopPropagation()}>
     <h3>My watchlist</h3>
-    <p class="sval">You get a Telegram message when a title on this list is added to the library, or when a newer build of it appears.</p>
+    <p class="sval">You get a notice in your inbox here (the bell at the top) and on Telegram when a title on this list is added to the library, or when a newer build of it appears.</p>
     <div class="srow"><input class="wide" type="text" placeholder="Game title" aria-label="Game title" value=${title} onInput=${(e) => setTitle(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') add(); }} /><button class="dbtn go" onClick=${add}>Watch</button></div>
     ${items === null ? html`<div class="loading">Loading...</div>` : !items.length ? html`<div class="empty">You are not watching anything yet.</div>` : items.map((w) => html`<div class="srow" key=${w.id}><span class="slabel">${w.title}${w.notifiedAt ? html` <span class="sval">(told you on ${shortDate(w.notifiedAt)})</span>` : ''}</span><button class="dbtn" onClick=${() => remove(w.id)}>Stop watching</button></div>`)}
     <div class="dbtns"><button class="dbtn" onClick=${onClose}>Close</button></div>
@@ -1340,12 +1371,55 @@ function App() {
     else { setView('requests'); setOpenRequest(pendingReq); }
     setPendingReq(null);
   }, [pendingReq, rolesKnown, admin]);
+  const signedIn = !!(status && status.signedIn);
+  useEffect(() => {
+    if (!signedIn || !rolesKnown) { inboxRef.current = null; setInbox(null); return; }
+    pollInbox();
+    const every = setInterval(pollInbox, INBOX_POLL_MS);
+    const onFocus = () => pollInbox();
+    window.addEventListener('focus', onFocus);
+    return () => { clearInterval(every); window.removeEventListener('focus', onFocus); };
+  }, [signedIn, rolesKnown]);
   useEffect(() => { const off = api.onOpen((m) => { if (m && m.view === 'requests') { setPendingReq(m.id); } else if (m && m.view === 'settings') { setView('settings'); if (m.check) setTimeout(() => { try { window.dispatchEvent(new Event('native-run-update-check')); } catch (e) { } }, 500); } else if (m && ['downloads', 'home', 'library', 'mylist', 'wiki', 'badges'].includes(m.view)) setView(m.view); }); return () => { if (typeof off === 'function') off(); }; }, []);
   const [downloads, setDownloads] = useState([]);
   const [toast, setToast] = useState('');
   // Each message stays its full 4 seconds: an earlier message's timer used to wipe a newer one early ("Preparing the list..." then "Saved").
   const toastTimer = useRef(null);
   const say = (m) => { setToast(m); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 4000); };
+  // Inbox: polled every two minutes while signed in and whenever the window comes back into focus. The newest id this PC has seen is kept,
+  // so only items that arrive after it pop a desktop notification (Settings > Show notifications decides in the main process).
+  const [inbox, setInbox] = useState(null);
+  const [inboxErr, setInboxErr] = useState('');
+  const inboxRef = useRef(null);
+  const inboxBusy = useRef(false);
+  const pollInbox = async () => {
+    if (inboxBusy.current) return;
+    inboxBusy.current = true;
+    try {
+      const have = inboxRef.current;
+      const since = have && have.length ? have[0].id : 0;
+      const r = await api.inbox(since);
+      if (!r || !r.ok || !r.data) { if (have === null) setInboxErr((r && r.error && r.error.message) || 'Could not load the inbox'); return; }
+      setInboxErr('');
+      const incoming = Array.isArray(r.data.items) ? r.data.items : [];
+      const lastSeen = lsGet('native.inboxSeen', null);
+      const fresh = freshItems(incoming, lastSeen);
+      const next = mergeInbox(have || [], incoming);
+      inboxRef.current = next; setInbox(next);
+      const top = next.length ? next[0].id : 0;
+      if (lastSeen == null || top > Number(lastSeen)) lsSet('native.inboxSeen', top);
+      const n = notificationFor(fresh);
+      if (n && !api.quiet) api.inboxNotify(n.title, n.body).catch(() => { });
+    } catch (e) { } finally { inboxBusy.current = false; }
+  };
+  const refreshInbox = () => { inboxRef.current = null; return pollInbox(); };   // a full reload also picks up items read elsewhere
+  const markInbox = async (ids) => {
+    const now = new Date().toISOString();
+    const next = (inboxRef.current || []).map((it) => (ids === 'all' || ids.includes(it.id)) && !it.readAt ? { ...it, readAt: now } : it);
+    inboxRef.current = next; setInbox(next);
+    const r = await api.inboxRead(ids);
+    if (!r || !r.ok) say((r && r.error && r.error.message) || 'Could not mark it read');
+  };
   const [whatsNew, setWhatsNew] = useState(null);
   const [askReports, setAskReports] = useState(false);
   useEffect(() => { api.getSettings().then((r) => { if (r && typeof r === 'object' && r.errorReportingAsked !== true) setAskReports(true); }).catch(() => { }); }, []);
@@ -1554,7 +1628,15 @@ function App() {
     const t = String(title || '').trim();
     if (t.length < 2) return;
     const r = await api.watchAdd(t);
-    say(r && r.ok && r.data ? (r.data.message || 'Added to your watchlist.') : ((r && r.error && r.error.message) || 'Could not add it to your watchlist'));
+    say(r && r.ok && r.data ? (r.data.added && !r.data.alreadyInLibrary ? "We'll tell you when it arrives." : (r.data.message || 'Added to your watchlist.')) : ((r && r.error && r.error.message) || 'Could not add it to your watchlist'));
+  };
+  const openInboxItem = (it) => {
+    if (!it.readAt) markInbox([it.id]);
+    const t = inboxTarget(it);
+    if (!t) return;
+    if (t.view === 'request-link') setPendingReq(t.id);
+    else if (t.view === 'requests') { setOpenRequest(t.id || null); setView('requests'); }
+    else if (t.view === 'library') { setView('library'); if (t.query) { setEverywhere(true); setQuery(t.query); } }
   };
   const goTo = (rem, path) => { setEverywhere(false); setView('library'); autoOk.current = false; setQuery(''); setCategory(''); setRemote(rem); setFolder(path); };
   const [patchQ, setPatchQ] = useState(null);
@@ -1636,7 +1718,7 @@ function App() {
     }, 15000);
     return () => { live = false; clearTimeout(t); };
   }, [updateInfo, updating, runningCount]);
-  const pageLabel = view === 'library' ? (everywhere ? 'Search everywhere' : (remote || 'Library')) : ({ home: 'Home', tools: 'Tools', settings: 'Settings', wiki: 'Wiki', mylist: 'My List', requests: 'Requests', badges: 'Badges', downloads: 'Downloads', admin: 'Admin' }[view] || '');
+  const pageLabel = view === 'library' ? (everywhere ? 'Search everywhere' : (remote || 'Library')) : ({ home: 'Home', tools: 'Tools', settings: 'Settings', wiki: 'Wiki', mylist: 'My List', requests: 'Requests', badges: 'Badges', downloads: 'Downloads', admin: 'Admin', inbox: 'Inbox' }[view] || '');
   const prevActive = useRef(0); const [pulse, setPulse] = useState(false);
   useEffect(() => { if (activeCount > prevActive.current) { setPulse(true); const id = setTimeout(() => setPulse(false), 1700); prevActive.current = activeCount; return () => clearTimeout(id); } prevActive.current = activeCount; }, [activeCount]);
   const autoOk = useRef(true);   // step into the library folder when a tab is opened, but not when the member clicks back to the top
@@ -1767,6 +1849,7 @@ function App() {
       <button class=${view === 'requests' ? 'tab on' : 'tab'} onClick=${() => setView('requests')}>Requests</button>
       <button class=${view === 'badges' ? 'tab on' : 'tab'} title="Your badge collection" onClick=${() => setView('badges')}>Badges</button>
       ${admin ? html`<button class=${view === 'admin' ? 'tab on' : 'tab'} onClick=${() => setView('admin')}>Admin</button>` : ''}
+      <button class=${(view === 'inbox' ? 'tab on' : 'tab') + ' bell'} title=${'Inbox' + (unreadCount(inbox) ? ': ' + unreadCount(inbox) + ' unread' : '')} aria-label=${'Inbox' + (unreadCount(inbox) ? ', ' + unreadCount(inbox) + ' unread' : '')} onClick=${() => setView('inbox')}>${BELL}${unreadCount(inbox) ? html` <span class="badge">${unreadCount(inbox)}</span>` : ''}</button>
       <button class=${(view === 'downloads' ? 'tab on' : 'tab') + (pulse ? ' pulse' : '')} onClick=${() => setView('downloads')}>Downloads${activeCount ? html` <span class="badge">${activeCount}</span>` : ''}</button>
     </header>
     <div class="subbar">
@@ -1788,7 +1871,7 @@ function App() {
     ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN App ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN App.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} openId=${adminStart.openId} />` : ''}
-    ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor'} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor'} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor'} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'inbox' ? html`<${InboxView} items=${inbox} error=${inboxErr} onOpen=${openInboxItem} onReadAll=${() => markInbox('all')} onRefresh=${refreshInbox} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor'} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? (() => { const total = items.filter((x) => !isHiddenItem(x)).length; return `${shown.length}${shown.length !== total ? ' of ' + total : ''} items`; })() : ''}</span></div>
     ${remote === '3D Printer Models' && !everywhere ? html`<div class="notice soft" role="note"><strong>Heads up:</strong> many 3D printer models don't have a cover picture yet. Missing covers in this section are expected and are not a bug; pictures are being added as we go.</div>` : ''}
@@ -1801,7 +1884,7 @@ function App() {
     ${everywhere && view === 'library' ? '' : items === null ? html`<div class="loading">Loading…</div>` : html`<main class=${viewMode === 'list' ? 'list' : "grid " + shapeFor(remote)}>${showBundles ? html`<section class="bundles">${bundlesPresent(bundles, items).map((b) => html`<div class="bundle" key=${b.id}><div class="bcover"><img loading="lazy" decoding="async" src=${coverSrc(b.cover)} alt="" /></div><div class="binfo"><strong>${b.title}</strong><span class="sval">${formatSize(b.total)} · ${b.present.length} series: ${b.present.slice(0, 3).join(', ')}${b.present.length > 3 ? ' and ' + (b.present.length - 3) + ' more' : ''}</span><span class="sval">Downloads everything copied so far. Series still being added join in later.</span></div><button class="primary" onClick=${() => downloadBundle(b)}>Download All</button></div>`)}</section>` : ''}${shown.map((it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.path || it.name} item=${it} remote=${remote} folder=${folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onStub=${(st) => { goTo(st.remote, st.folder); if (st.name) setQuery(st.name); }} batch=${batchActive ? { selected: picked.has(itemKeyOf(it)), toggle: () => togglePick(it) } : null} onOpen=${(x) => { recordVisit(x, remote, folder); setFolder(folder ? folder + '/' + x.name : x.name); setQuery(''); }} />`)}</main>`}
     </${Fragment}>`}
     </${PageGuard}>
-    ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} harbor=${themeChoice === 'harbor'} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === ctxRemote(it) && m.path === itemPath(it)) }} onOpenTrend=${openTrend} />` : ''}
+    ${details ? html`<${DetailsModal} item=${details} remote=${ctxRemote(details)} folder=${ctxFolder(details)} onClose=${() => setDetails(null)} onDownload=${startDownload} onBrowse=${browseInto} harbor=${themeChoice === 'harbor'} actions=${{ say, download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === ctxRemote(it) && m.path === itemPath(it)) }} onOpenTrend=${openTrend} />` : ''}
     ${preview ? html`<${PreviewModal} item=${preview} onClose=${() => setPreview(null)} />` : ''}
     ${patchQ ? html`<${PatchModal} q=${patchQ} />` : ''}
     ${gate ? html`<${GateModal} gate=${gate} />` : ''}
