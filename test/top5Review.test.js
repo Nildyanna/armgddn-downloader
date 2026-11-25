@@ -109,3 +109,9 @@ test('no window is raised with focus() on Linux (CLAUDE.md rule)', () => {
   }
   assert.deepEqual(bad, [], 'focus() without a Linux guard');
 });
+
+test('installed builds ignore the native screenshot/eval flags unless ARMGDDN_NATIVE_SHOT=1', () => {
+  const src = require('fs').readFileSync(require('path').join(__dirname, '..', 'native', 'bridge.js'), 'utf8');
+  assert.ok(src.includes("const shotAllowed = !require('electron').app.isPackaged || process.env.ARMGDDN_NATIVE_SHOT === '1';"));
+  assert.ok(/const shot = shotAllowed \? /.test(src), 'the flag is only read when allowed');
+});
