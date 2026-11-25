@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.17.1] - 2026-11-25
+
+### Fixed
+- Admin stats lists (Member loyalty, top volumes, top collectors and the rest): the value column fits its longest number and every row's bar lines up; at 4K scaling the numbers spilled past the card (fixed 96px column). Owner/staff page only, no What's New entry.
+
 ## [6.17.0] - 2026-11-25
 
 ### Added
