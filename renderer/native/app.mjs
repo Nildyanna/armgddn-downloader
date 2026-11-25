@@ -1264,7 +1264,17 @@ function App() {
   const navRestoring = useRef(false);
   const [canBack, setCanBack] = useState(false);
   const [openRequest, setOpenRequest] = useState(null);
-  useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setView('requests'); setOpenRequest(m.id); } else if (m && m.view === 'settings') { setView('settings'); if (m.check) setTimeout(() => { try { window.dispatchEvent(new Event('native-run-update-check')); } catch (e) { } }, 500); } else if (m && ['downloads', 'home', 'library', 'mylist', 'wiki', 'badges'].includes(m.view)) setView(m.view); }); }, []);
+  // A request link (Tulip's request notice): staff who handle requests get Admin > Requests with it open, everyone else their own Requests tab.
+  // Who is staff is only known once sign-in has loaded, so the link waits for that.
+  const [pendingReq, setPendingReq] = useState(null);
+  const [rolesKnown, setRolesKnown] = useState(false);
+  useEffect(() => {
+    if (!pendingReq || !rolesKnown) return;
+    if (admin && admin.canManage) { setAdminStart({ tab: 'requests', n: Date.now(), openId: pendingReq }); setView('admin'); }
+    else { setView('requests'); setOpenRequest(pendingReq); }
+    setPendingReq(null);
+  }, [pendingReq, rolesKnown, admin]);
+  useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setPendingReq(m.id); } else if (m && m.view === 'settings') { setView('settings'); if (m.check) setTimeout(() => { try { window.dispatchEvent(new Event('native-run-update-check')); } catch (e) { } }, 500); } else if (m && ['downloads', 'home', 'library', 'mylist', 'wiki', 'badges'].includes(m.view)) setView(m.view); }); }, []);
   const [downloads, setDownloads] = useState([]);
   const [toast, setToast] = useState('');
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
@@ -1585,6 +1595,7 @@ function App() {
     try { const pr = await api.prefs(); if (pr.ok && pr.data && pr.data.prefs) pulled = pr.data; if (pr.ok && pr.data && pr.data.isStaff) staffNow = true; } catch (e) { }
     // Current staff as Tulip lists them, or an owner or admin (Harbor used to be limited to them; it is for everyone since 6.9.0).
     setStaffOk(staffNow);
+    setRolesKnown(true);
     // The lightning reveal: a welcome for the first sign-in here (see introDecision); not for anyone already signed in when the window opens, and
     // not for anyone who has seen it on the website. Never in a screenshot run.
     try {
@@ -1707,7 +1718,7 @@ function App() {
     </div>
     ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN App ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN App.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
-    ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} />` : ''}
+    ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} openId=${adminStart.openId} />` : ''}
     ${view === 'home' ? html`<${HomeView} harbor=${themeChoice === 'harbor'} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor'} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? (() => { const total = items.filter((x) => !isHiddenItem(x)).length; return `${shown.length}${shown.length !== total ? ' of ' + total : ''} items`; })() : ''}</span></div>

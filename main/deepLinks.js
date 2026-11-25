@@ -144,6 +144,22 @@ function validateDeepLink(url) {
   }
 }
 
+function openRequestWhenReady(rid, until) {
+  const w = ctx.nativeWindow;
+  if (!w || w.isDestroyed() || w.webContents.isLoading()) {
+    if (Date.now() < until) setTimeout(() => openRequestWhenReady(rid, until), 500);
+    else logToFile('[deeplink] request ' + rid + ': the window never got ready');
+    return;
+  }
+  try {
+    if (w.isMinimized()) w.restore();
+    w.show();
+    if (process.platform === 'linux') { try { w.moveTop(); } catch (e2) { } } else { w.focus(); }
+    w.webContents.send('native:open', { view: 'requests', id: rid });
+    logToFile('[deeplink] request ' + rid + ' opened');
+  } catch (e) { }
+}
+
 function handleDeepLink(url) {
   // Validate before processing
   const validatedUrl = validateDeepLink(url);
@@ -171,10 +187,10 @@ function handleDeepLink(url) {
     }
     if (u.hostname === 'request') {
       // armgddn://request/<id>: the link in a Telegram request notice. Opens that request in the native window.
+      // The window decides where it goes: staff get Admin > Requests, members their own Requests tab. When the link started the app,
+      // the window is not there or still loading yet, so this waits for it (up to 30 s).
       const rid = Number(String(u.pathname || '').replace(/^\/+/, ''));
-      if (Number.isInteger(rid) && rid > 0 && ctx.nativeWindow && !ctx.nativeWindow.isDestroyed()) {
-        try { if (ctx.nativeWindow.isMinimized()) ctx.nativeWindow.restore(); ctx.nativeWindow.show(); ctx.nativeWindow.focus(); ctx.nativeWindow.webContents.send('native:open', { view: 'requests', id: rid }); } catch (e) { }
-      }
+      if (Number.isInteger(rid) && rid > 0) openRequestWhenReady(rid, Date.now() + 30000);
       return;
     }
     if (u.hostname === 'comics') {

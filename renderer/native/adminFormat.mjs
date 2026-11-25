@@ -160,6 +160,14 @@ export function remoteRows(s) {
 }
 
 // Requests for the Requests page, or only the handled ones (with who handled them) for the Audit page.
+// The row a request link points at: the request itself, or the one it was merged into when it is a duplicate.
+export function findRequestRow(list, id) {
+  const want = Number(id);
+  const raw = (list || []).find((r) => r && Number(r.id) === want);
+  const target = raw && raw.linkedTo ? Number(raw.linkedTo) : want;
+  return requestRows(list).find((r) => Number(r.id) === target) || null;
+}
+
 export function requestRows(list, { audit = false, processedBy = '' } = {}) {
   let rows = (list || []).filter((r) => r && !r.linkedTo);
   if (audit) rows = rows.filter((r) => r.processedBy);

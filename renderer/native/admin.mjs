@@ -2,7 +2,7 @@
 import { html, useState, useEffect, useMemo, useRef } from '../../native/vendor/ui.mjs';
 import './ownerRouting.js';
 import { runCommand, HELP } from './ownerConsole.mjs';
-import { toneOf, hueOf, columnModes, TAB_HUE, NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, requestInfoLines, requestCard, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
+import { toneOf, hueOf, columnModes, TAB_HUE, NATIVE_CONFIRMED, usageCards, formatCellFor, weekRows, labelOf, formatCell, tableColumns, adminTabs, userRows, statCards, remoteRows, requestRows, findRequestRow, requestInfoLines, requestCard, missingCards, missingRows, confirmText, REQUEST_STATUS_CHOICES, analyticsCards, dailySeries, weeklySeries, newUsersSeries, hourSeries, dowSeries, heatmapGrid, loyaltyRows, topRows, moverRows, collectionCards, collectionDaily, arraySeries, requestsSummary, uptimeRows, outageRows, dailyUptime, DOW_LABELS } from './adminFormat.mjs';
 
 const api = window.nativeAPI;
 
@@ -217,7 +217,7 @@ function RequestCard({ r, owner, onComments, act }) {
     </div>
   </div>`;
 }
-function RequestsPage({ audit, owner }) {
+function RequestsPage({ audit, owner, openId }) {
   const [status, setStatus] = useState('');
   const [by, setBy] = useState('');
   const [category, setCategory] = useState('');
@@ -225,6 +225,13 @@ function RequestsPage({ audit, owner }) {
   const [unseenOnly, setUnseenOnly] = useState(false);
   const [st, reload] = useAdminData('requests', status ? { status } : {}, 60);
   const [actionUi, act] = useAdminAction(() => reload());
+  // Opened from a request link: open that request's thread once the list is here (a merged duplicate opens the request it was merged into).
+  const opened = useRef(null);
+  useEffect(() => {
+    if (!openId || audit || !st.data || opened.current === openId) return;
+    const hit = findRequestRow(st.data.requests, openId);
+    if (hit) { opened.current = openId; setOpenReq(hit); }
+  }, [openId, st.data]);
   if (!st.data) return html`<${Status} state=${st} onRetry=${reload} />`;
   const all = requestRows(st.data.requests, { audit });
   const people = [...new Set(all.map((r) => r.handledBy).filter(Boolean))];
@@ -509,7 +516,7 @@ function ControlsPage() {
   </div>`;
 }
 
-export function AdminView({ admin, initialTab }) {
+export function AdminView({ admin, initialTab, openId }) {
   const tabs = useMemo(() => adminTabs(admin && admin.role, admin && admin.canManage), [admin]);
   const [tab, setTab] = useState(() => (initialTab && tabs.some((t) => t[0] === initialTab) ? initialTab : (tabs[0] ? tabs[0][0] : '')));
   if (!tabs.length) return html`<div class="empty">The admin pages are for owners and admins.</div>`;
@@ -519,6 +526,6 @@ export function AdminView({ admin, initialTab }) {
   return html`<main class="adminpage">
     <div class="adminhead"><h2>Admin</h2><button class="dbtn" onClick=${savePdf}>Save this page as PDF</button>${pdfMsg ? html`<span class="sval">${pdfMsg}</span>` : ''}</div>
     <nav class="atabs">${tabs.map(([id, label]) => html`<button key=${id} class=${(id === cur ? 'tab on' : 'tab') + ' h-' + (TAB_HUE[id] ?? 0)} onClick=${() => setTab(id)}>${label}</button>`)}</nav>
-    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'reliability' ? html`<${ReliabilityPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'console' ? html`<${ConsolePage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} owner=${!!(admin && admin.role === 'owner')} />` : html`<${RequestsPage} audit=${true} />`}
+    ${cur === 'overview' ? html`<${Overview} />` : cur === 'analytics' ? html`<${AnalyticsPage} />` : cur === 'collections' ? html`<${CollectionsPage} />` : cur === 'reliability' ? html`<${ReliabilityPage} />` : cur === 'system' ? html`<${SystemPage} />` : cur === 'activity' ? html`<${ActivityPage} />` : cur === 'missing' ? html`<${MissingPage} />` : cur === 'ipbans' ? html`<${IpBansPage} />` : cur === 'access' ? html`<${AccessPage} />` : cur === 'console' ? html`<${ConsolePage} />` : cur === 'controls' ? html`<${ControlsPage} />` : cur === 'queue' ? html`<${QueuePage} />` : cur === 'requests' ? html`<${RequestsPage} owner=${!!(admin && admin.role === 'owner')} openId=${openId} />` : html`<${RequestsPage} audit=${true} />`}
   </main>`;
 }
