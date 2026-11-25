@@ -403,4 +403,38 @@ function segmentedDownload(opts) {
   return me;
 }
 
-module.exports = { segmentedDownload, probeRanges, retryAfterMs, linkSecondsLeft, expiryMs, asSource, renameWithRetry, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };
+// Repair (2026-11-25): download again only some fixed-size pieces of a file that is already complete on disk (the file check found
+// them damaged), with every retry, link-renewal and speed-limit rule of segmentedDownload(). The file is renamed to "<file>.armdl" and a
+// progress record marks every other piece as done, so the normal engine fetches just the listed pieces and renames the file back.
+// opts: everything segmentedDownload() takes, plus pieceSize (bytes, at least 1 MiB) and pieces (indexes to fetch). The file's size must
+// already be expectedSize. If the run fails, the file goes back under its own name (no progress record), so it is never left hidden.
+function repairRanges(opts) {
+  const { outputPath, expectedSize, pieceSize, pieces } = opts;
+  const total = Number(expectedSize);
+  const n = total > 0 && pieceSize > 0 ? Math.ceil(total / pieceSize) : 0;
+  const want = new Set((Array.isArray(pieces) ? pieces : []).filter((i) => Number.isInteger(i) && i >= 0 && i < n));
+  const refuse = (e) => { const p = Promise.reject(e); p.catch(() => { }); return { promise: p, abort: () => { } }; };
+  if (!(pieceSize >= 1024 * 1024) || !n || !want.size) return refuse(new ResumeError('nothing to repair', 'fatal'));
+  let st = null;
+  try { st = fs.statSync(outputPath); } catch (e) { }
+  if (!st || st.size !== total) return refuse(new ResumeError('file is not the expected size', 'fatal'));
+  const tempPath = outputPath + TEMP_SUFFIX;
+  const statePath = outputPath + STATE_SUFFIX;
+  try {
+    const done = Array.from({ length: n }, (_, i) => (want.has(i) ? 0 : Math.min(pieceSize, total - i * pieceSize)));
+    fs.writeFileSync(statePath + '.tmp', JSON.stringify({ v: STATE_VERSION, total, chunk: pieceSize, done }));
+    fs.renameSync(statePath + '.tmp', statePath);
+    fs.renameSync(outputPath, tempPath);
+  } catch (e) {
+    try { fs.unlinkSync(statePath); } catch (e2) { }
+    return refuse(isDiskError(e) ? diskError(e, 'write') : e);
+  }
+  const ctl = segmentedDownload({ ...opts, expectedSize: total });
+  const putBack = () => {
+    try { if (fs.existsSync(tempPath) && !fs.existsSync(outputPath)) fs.renameSync(tempPath, outputPath); } catch (e) { }
+    try { fs.unlinkSync(statePath); } catch (e) { }
+  };
+  return { promise: ctl.promise.catch((e) => { putBack(); throw e; }), abort: ctl.abort };
+}
+
+module.exports = { segmentedDownload, repairRanges, probeRanges, retryAfterMs, linkSecondsLeft, expiryMs, asSource, renameWithRetry, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };

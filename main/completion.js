@@ -10,7 +10,8 @@ const { finishPlan, isStarfieldAutoExtractTargetValue, peakOrAverageSpeedBytes, 
 const { extractRcloneErrorDetail, isRcloneCrashOutput, formatRcloneExitCodeHint } = require('./errors');
 const { extractTarget, run7zExtract } = require('./extract');
 const { clockCertMessage } = require('./failures');
-const { hashingGated, reportHashUnavailableToServer, runHashCheck } = require('./hashing');
+const { hashingGated, reportHashUnavailableToServer, reportHashCheckToServer, runHashCheck } = require('./hashing');
+const { repairDamagedFiles } = require('./pieceRepairRun');
 const { saveHistory } = require('./history');
 const { installSpaceTip } = require('./installSpace');
 const { logToFile } = require('./log');
@@ -428,7 +429,13 @@ function completeDownload(downloadId, afterHashCheck) {
     download.statusMessage = 'Checking files...';
     download.progress = 99;
     try { updateProgress(downloadId); } catch (e) { }
-    runHashCheck(downloadId, { auto: true }).then((r) => {
+    runHashCheck(downloadId, { auto: true }).then(async (r0) => {
+      // Damaged files: download again only their damaged pieces (or the whole file), then check again (main/pieceRepairRun.js).
+      let r = r0;
+      try {
+        r = await repairDamagedFiles(downloadId, download, r0);
+        if (r !== r0 && r && r.result) { reportHashCheckToServer(download, download.token, r.result); sendToMain('hash-check-result', { id: String(downloadId), result: r.result, text: r.text }); }
+      } catch (eRepair) { logToFile(`[repair] failed: ${eRepair && eRepair.message ? eRepair.message : eRepair}`); r = r0; }
       download.__armgddnFinalizing = false;
       const res = r && r.result;
       download.didCheck = !!res;
