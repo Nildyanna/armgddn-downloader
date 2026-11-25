@@ -15,7 +15,7 @@ const SIZE = 4 * CHUNK;                    // 4 chunks, one per stream
 const DATA = crypto.randomBytes(SIZE);
 const sha = (b) => crypto.createHash('sha256').update(b).digest('hex');
 
-// plan(n, start, chunkSeen) -> { status, headers, delayMs } to refuse, or { drip: [bytes, everyMs] } / {} to serve the range.
+// plan(n, start, chunk, chunkSeen) -> { status, headers, delayMs, after } to refuse, or { drip: [bytes, everyMs] } / {} to serve the range.
 function server(plan) {
   const seen = [];
   const perChunk = new Map();
@@ -27,7 +27,8 @@ function server(plan) {
     const p = plan(seen.length, a, c, k) || {};
     seen.push({ chunk: c, status: p.status || 206, at: Date.now() });
     if (p.status) {
-      return setTimeout(() => { s.writeHead(p.status, p.headers || {}); s.end(); }, p.delayMs || 0);
+      // `after` (a promise) holds the answer until the test says so, e.g. until the client has every byte of the other chunks.
+      return Promise.resolve(p.after).then(() => setTimeout(() => { s.writeHead(p.status, p.headers || {}); s.end(); }, p.delayMs || 0));
     }
     const part = DATA.subarray(a, b + 1);
     s.writeHead(206, { 'Content-Length': part.length, 'Content-Range': `bytes ${a}-${b}/${SIZE}` });
@@ -60,11 +61,17 @@ test('one chunk failing again and again while the other connections download: th
 });
 
 test('when the other chunks are done, a chunk that still gets nothing uses up its budget as before', async () => {
-  const s = await server((n, a, c) => (c === 0 ? { status: 500 } : {}));
+  // Chunk 0's 500s are held until the client has written every byte of chunks 1-3. Without that hold the test raced: under CPU load
+  // (a full parallel test run) chunk 0 could fail while the other chunks' bytes were still arriving, each such failure correctly
+  // restarted its count, and chunk 0 was tried 6+ times against a limit of 5 (flaky, about 1 full run in 4 on 2026-11-25).
+  let othersDone; const gate = new Promise((r) => { othersDone = r; });
+  const s = await server((n, a, c) => (c === 0 ? { status: 500, after: gate } : {}));
   const out = tmp(); let err;
-  try { await segmentedDownload(opts({ url: s.base, outputPath: out, maxAttempts: 4 })).promise; } catch (e) { err = e; } finally { s.srv.close(); }
+  const onProgress = (bytes) => { if (bytes >= 3 * CHUNK) othersDone(); };     // chunk 0 never writes, so this means chunks 1-3 are on disk
+  try { await segmentedDownload(opts({ url: s.base, outputPath: out, maxAttempts: 4, onProgress })).promise; } catch (e) { err = e; } finally { s.srv.close(); }
   assert.equal(err && err.kind, 'network');
-  assert.ok(s.seen.filter((r) => r.chunk === 0).length <= 5, `chunk 0 tried ${s.seen.filter((r) => r.chunk === 0).length} times`);
+  // Its first failure follows the other chunks' bytes (count 1), the next three get nothing (2, 3, 4): exactly maxAttempts requests.
+  assert.equal(s.seen.filter((r) => r.chunk === 0).length, 4);
   assert.ok(fs.statSync(out + '.armseg').size > 0, 'the other chunks are kept for a later Retry');
 });
 

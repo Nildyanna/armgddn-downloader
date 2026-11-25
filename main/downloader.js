@@ -459,9 +459,11 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       };
       const limitBytes = appliedBwLimit ? (parseFloat(appliedBwLimit) || 0) * 1048576 : 0;   // same per-worker limit rclone would get
       const engStats = { startedAt: Date.now(), retries: {}, reasons: {} };   // why this attempt ended, sent to the site (see reportEngineToServer)
+      // Both engines log their retries and waits the same way ("chunk N retry M: kind message" or, single engine, "retry M: kind message").
+      const engineEvent = (tag) => (m) => { logToFile(`[${tag}] ${fileName}: ${m}`); const rk = /(?:^|chunk \d+ )retry \d+: ([a-z_]+) ?(.*)$/.exec(String(m)); if (rk) { engStats.retries[rk[1]] = (engStats.retries[rk[1]] || 0) + 1; const why = require('../engineReason').engineReason(rk[2]); if (Object.keys(engStats.reasons).length < 8 || engStats.reasons[why]) engStats.reasons[why] = (engStats.reasons[why] || 0) + 1; } };
       const engine = useSegmented
-        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: (m) => { logToFile(`[Segmented] ${fileName}: ${m}`); const rk = /chunk \d+ retry \d+: ([a-z_]+) ?(.*)$/.exec(String(m)); if (rk) { engStats.retries[rk[1]] = (engStats.retries[rk[1]] || 0) + 1; const why = require('../engineReason').engineReason(rk[2]); if (Object.keys(engStats.reasons).length < 8 || engStats.reasons[why]) engStats.reasons[why] = (engStats.reasons[why] || 0) + 1; } } })
-        : (o) => resumeDownload({ ...o, tlsOptions: directEndpoint.tlsOptions() });
+        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: engineEvent('Segmented') })
+        : (o) => resumeDownload({ ...o, tlsOptions: directEndpoint.tlsOptions(), onEvent: engineEvent('Single') });
       const ctl = engine({
         url: String(file.url),
         source: { url: String(file.url), headers: file.headers, expiresAt: file.expiresAt, fallback: file.fallback },

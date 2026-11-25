@@ -11,7 +11,7 @@
 //   - when every chunk is complete the temporary file is renamed to the final name
 const fs = require('fs');
 const { EventEmitter } = require('events');
-const { ResumeError } = require('./resumeDownload');
+const { ResumeError, retryAfterMs } = require('./resumeDownload');     // retryAfterMs: shared 429 wait rule
 const { openAuto } = require('./httpOpen');
 
 const TEMP_SUFFIX = '.armdl';
@@ -112,16 +112,6 @@ async function renameWithRetry(from, to, tries = 8, delayMs = 250) {
       await new Promise((r) => setTimeout(r, delayMs * i));
     }
   }
-}
-
-// How long a 429 "too many downloads at once" asks us to wait (Retry-After: seconds or an HTTP date), kept between 1 s and 60 s.
-// The gateway sends Retry-After: 5; with no header we wait 5 s.
-function retryAfterMs(v, now = Date.now()) {
-  const s = String(v == null ? '' : v).trim();
-  let ms = 5000;
-  if (/^\d+(\.\d+)?$/.test(s)) ms = Number(s) * 1000;
-  else if (s) { const t = Date.parse(s); if (Number.isFinite(t)) ms = t - now; }
-  return Math.max(1000, Math.min(60000, ms));
 }
 
 // Retry budget (2026-11-25). Until now each chunk had 12 tries, so one bad chunk ended the whole download even while the other connections
