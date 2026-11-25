@@ -1,4 +1,10 @@
 {
+  "6.15.1": {
+    "title": "Small fixes",
+    "highlights": [
+      "The 3D Flick Fix strip now shows straight away if you were already using the app, and short pages like the Inbox no longer look squeezed."
+    ]
+  },
   "6.15.0": {
     "title": "3D Flick Fix",
     "highlights": [

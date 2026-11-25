@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.15.1] - 2026-11-25
+
 ### Fixed
 - 3D Flick Fix strip: members who already used the ARMGDDN App see it straight away; only a brand-new install waits a day (6.15.0 treated every updated install as new).
 - Short pages (Inbox, Requests) no longer look squeezed in Harbor: the card keeps its size and the status bar at the bottom stays at the bottom of the window on every page.
