@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wiki FAQ: what to do when a game crashes at launch or right after the loading screen (crashfix.bat in newer repacks turns off the game's built-in Steam overlay).
 
 ### Fixed
+- A download no longer fails because one part of the file keeps timing out while the rest is still downloading: that part keeps retrying as long as the download as a whole is moving, and the download only gives up after 5 minutes with no data at all (or 12 failed tries in a row with nothing received). A refused or broken link still ends the download quickly, and when the download server says it is busy the app waits as asked instead of counting it as a failure.
 - Virtual machines (Parallels, VMware, VirtualBox, Hyper-V, QEMU…) whose graphics failed even in software mode stay in no-GPU mode for good, instead of retrying every month and crashing (Sentry ARMGDDN-COMPANION-2Q).
 - A download, Music or Comics folder at the top of a drive (for example D:\) no longer fails every file with "Security error: Invalid file path".
 - An app window whose page keeps crashing is reloaded at most 3 times in 2 minutes instead of forever (Sentry ARMGDDN-COMPANION-33/6A/6B/6C).

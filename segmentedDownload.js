@@ -114,10 +114,29 @@ async function renameWithRetry(from, to, tries = 8, delayMs = 250) {
   }
 }
 
+// How long a 429 "too many downloads at once" asks us to wait (Retry-After: seconds or an HTTP date), kept between 1 s and 60 s.
+// The gateway sends Retry-After: 5; with no header we wait 5 s.
+function retryAfterMs(v, now = Date.now()) {
+  const s = String(v == null ? '' : v).trim();
+  let ms = 5000;
+  if (/^\d+(\.\d+)?$/.test(s)) ms = Number(s) * 1000;
+  else if (s) { const t = Date.parse(s); if (Number.isFinite(t)) ms = t - now; }
+  return Math.max(1000, Math.min(60000, ms));
+}
+
+// Retry budget (2026-11-25). Until now each chunk had 12 tries, so one bad chunk ended the whole download even while the other connections
+// were still downloading (engine reports 2026-11-18..25: 95 failed runs from 28 members, 4,355 timeouts and 1,558 HTTP/2 errors). Now:
+//   - a network failure only counts against a chunk (maxAttempts) when NO connection received any bytes since that chunk's previous
+//     failure; while the download as a whole moves, the chunk keeps retrying (its delay still grows, up to 15 s, so it does not hammer)
+//   - overall stall limit: no bytes from any connection for stallLimitMs ends the run as a network failure ("Download stalled")
+//   - a refused link (401/403/410) counts every time, whatever the other connections do: after maxRefusals the run ends (a broken
+//     signature never loops); without a way to get a fresh link it ends at once. 404/416 and other 4xx end the run at once, as before
+//   - 429 (the gateway's "too many downloads at once") waits for Retry-After and does not count; the stall limit still applies
 function segmentedDownload(opts) {
   const {
     outputPath, expectedSize = 0, streams = 4, getFreshUrl, onProgress, headers = {},
-    stallMs = 60 * 1000, maxAttempts = 12, retryDelayMs = 2000, chunkSize = 0, saveEveryMs = 1000, maxBytesPerSec = 0, onEvent, tlsOptions
+    stallMs = 60 * 1000, maxAttempts = 12, retryDelayMs = 2000, chunkSize = 0, saveEveryMs = 1000, maxBytesPerSec = 0, onEvent, tlsOptions,
+    stallLimitMs = 5 * 60 * 1000, maxRefusals = 4
   } = opts;
   const ctl = new AbortController();      // cancels requests that are still waiting for their first response
   const emit = (m) => { if (onEvent) { try { onEvent(m); } catch (e) { } } };
@@ -126,9 +145,10 @@ function segmentedDownload(opts) {
   const statePath = outputPath + STATE_SUFFIX;
   let aborted = null;
   const live = new Set();          // open { req, res } pairs, destroyed on abort
-  let wake = null;
+  const sleepers = new Set();       // every stream waiting out a retry delay: abort and stopOthers wake them all (not only the last one)
+  const wake = () => { for (const w of [...sleepers]) { try { w(); } catch (e) { } } };
 
-  const sleep = (ms) => new Promise((r) => { const t = setTimeout(r, ms); wake = () => { clearTimeout(t); r(); }; });
+  const sleep = (ms) => new Promise((r) => { const w = () => { clearTimeout(t); sleepers.delete(w); r(); }; const t = setTimeout(w, ms); sleepers.add(w); });
 
   const previous = activeByPath.get(outputPath);
   const run = async () => {
@@ -212,11 +232,17 @@ function segmentedDownload(opts) {
     };
 
     let failure = null;
-    const next = (() => { let i = 0; return () => { while (i < nChunks && done[i] >= lenOf(i)) i++; return i < nChunks ? i++ : -1; }; })();
+    let bytesFlowed = 0;              // bytes received by any connection in this run
+    let lastBytesAt = Date.now();     // when any connection last received bytes (the overall stall limit)
+    const next =(() => { let i = 0; return () => { while (i < nChunks && done[i] >= lenOf(i)) i++; return i < nChunks ? i++ : -1; }; })();
     const timer = setInterval(saveState, saveEveryMs);
 
     const fetchChunk = async (i) => {
-      let attempt = 0;
+      let attempt = 0;        // failures in a row with no bytes from any connection in between (ends the run at maxAttempts)
+      let refusals = 0;       // refused links (401/403/410) since this chunk last received bytes (ends the run at maxRefusals)
+      let backoff = 0;        // failures since this chunk last received bytes: only sets the delay before the next try
+      let seenFlowed = bytesFlowed;
+      let ownBefore = done[i];
       while (done[i] < lenOf(i)) {
         if (aborted) throw aborted;
         if (failure) return;
@@ -224,7 +250,6 @@ function segmentedDownload(opts) {
         const end = i * chunk + lenOf(i) - 1;
         try { await renewBeforeExpiry(); } catch (e) { }
         const ver = urlVersion;
-        attempt++;
         try {
           const openedAt = Date.now();
           const { req, res } = await openAuto(url, { ...headers, ...src.headers, 'Accept-Encoding': 'identity', Range: `bytes=${start}-${end}` }, stallMs, { signal: ctl.signal, tls: tlsOptions });
@@ -233,7 +258,8 @@ function segmentedDownload(opts) {
           try {
             const code = res.statusCode || 0;
             if (code === 401 || code === 403 || code === 410) { res.resume(); throw new ResumeError(`HTTP ${code}`, 'expired', code); }
-            if (code >= 500 || code === 429 || code === 408) { res.resume(); throw new ResumeError(`HTTP ${code}`, 'network', code); }
+            if (code === 429) { res.resume(); const busy = new ResumeError('HTTP 429', 'busy', code); busy.waitMs = retryAfterMs(res.headers['retry-after']); throw busy; }
+            if (code >= 500 || code === 408) { res.resume(); throw new ResumeError(`HTTP ${code}`, 'network', code); }
             if (code === 200 && start > 0) { res.resume(); throw new ResumeError('server stopped honouring Range', 'fatal', code); }
             if (code !== 206 && code !== 200) { res.resume(); throw new ResumeError(`HTTP ${code}`, 'fatal', code); }
             emit(`chunk ${i} HTTP ${code} from byte ${start} (${Math.round((Date.now() - openedAt) / 100) / 10}s to first response)`);
@@ -270,6 +296,7 @@ function segmentedDownload(opts) {
                 if (finished) return;
                 if (got + d.length > want) d = d.subarray(0, want - got);
                 got += d.length; pending.push(d); pendingBytes += d.length;
+                bytesFlowed += d.length; lastBytesAt = Date.now();     // progress as it arrives, not only when a 1 MiB batch is written
                 if (pendingBytes >= WRITE_BATCH || got >= want) {
                   res.pause();
                   chain = chain.then(flush).then(() => { if (!finished) res.resume(); if (got >= want && !finished) { finished = true; resolve(); } }, fail);
@@ -285,13 +312,36 @@ function segmentedDownload(opts) {
             live.delete(handle);
             try { res.destroy(); } catch (e) { } try { req.destroy(); } catch (e) { }
           }
-          attempt = 0; refusedRenewals.clear();
+          attempt = 0; refusals = 0; backoff = 0; refusedRenewals.clear();
         } catch (e) {
           if (aborted) throw aborted;
           if (failure) return;      // another stream already ended the run (stopOthers cut this request): not a retry of its own
           const err = e instanceof ResumeError ? e : new ResumeError(e && e.message ? e.message : String(e), 'network');
           if (err.kind === 'fatal' || err.kind === 'unsupported' || err.kind === 'disk') throw err;
-          if (attempt >= maxAttempts) throw err;
+          const stalledFor = Date.now() - lastBytesAt;
+          const stallErr = () => { const s = new ResumeError(`no data from the server for ${Math.round(stalledFor / 1000)}s (last error: ${err.message})`, 'network', err.status); s.stalled = true; return s; };
+          if (err.kind === 'busy') {
+            // The gateway is at its connection cap: wait as asked, without counting a failure. Not forever: the stall limit still applies.
+            if (stalledFor >= stallLimitMs) throw stallErr();
+            emit(`chunk ${i} busy: HTTP 429, waiting ${Math.round(err.waitMs / 100) / 10}s`);
+            await sleep(err.waitMs);
+            continue;
+          }
+          // Bytes on this chunk itself: it is not stuck, so its delay and its refused-link count start again.
+          if (done[i] > ownBefore) { backoff = 0; refusals = 0; }
+          ownBefore = done[i];
+          backoff++;
+          if (err.kind === 'expired') {
+            refusals++;
+            attempt++;
+            if (refusals >= Math.min(maxRefusals, maxAttempts) || (typeof getFreshUrl !== 'function' && !(src.fallback && !onFallback))) throw err;
+          } else {
+            // Any bytes from any connection since this chunk last failed: the download is moving, so this failure is not counted.
+            attempt = bytesFlowed !== seenFlowed ? 1 : attempt + 1;
+            if (attempt >= maxAttempts) throw err;
+            if (stalledFor >= stallLimitMs) throw stallErr();
+          }
+          seenFlowed = bytesFlowed;
           emit(`chunk ${i} retry ${attempt}: ${err.kind} ${err.message}`);
           if (err.kind === 'expired') {
             // A refusal of a link we had just renewed counts once per renewal (not once per stream). Two renewals in a row refused means the
@@ -307,7 +357,7 @@ function segmentedDownload(opts) {
               try { await refreshUrl(ver); } catch (eFresh) { emit(`chunk ${i} fresh link failed: ${eFresh && eFresh.message ? eFresh.message : String(eFresh)}`); }
             }
           }
-          await sleep(Math.min(15000, retryDelayMs * attempt));
+          await sleep(Math.min(15000, retryDelayMs * backoff));
         }
       }
     };
@@ -326,7 +376,7 @@ function segmentedDownload(opts) {
     try {
       // Once one stream has failed for good, the others stop too: each stream holds one long request (planChunk), so waiting for them to
       // finish their ranges kept a failed download "running" for minutes. Their bytes so far are flushed and kept for the next try.
-      const stopOthers = () => { for (const h of live) { try { h.res.destroy(); } catch (e) { } try { h.req.destroy(); } catch (e) { } } if (wake) { try { wake(); } catch (e) { } } };
+      const stopOthers = () => { for (const h of live) { try { h.res.destroy(); } catch (e) { } try { h.req.destroy(); } catch (e) { } } wake(); };
       const results = await Promise.allSettled(Array.from({ length: n }, () => worker().catch((e) => { if (!failure) { failure = e; stopOthers(); } throw e; })));
       const bad = results.find((r) => r.status === 'rejected');
       if (aborted) throw aborted;
@@ -351,7 +401,7 @@ function segmentedDownload(opts) {
     aborted = reason instanceof Error ? reason : new ResumeError(String(reason || 'aborted'), 'aborted');
     try { ctl.abort(); } catch (e) { }
     for (const h of live) { try { h.res.destroy(); } catch (e) { } try { h.req.destroy(); } catch (e) { } }
-    if (wake) { try { wake(); } catch (e) { } }
+    wake();
   };
   const me = { promise, abort };
   activeByPath.set(outputPath, me);
@@ -359,4 +409,4 @@ function segmentedDownload(opts) {
   return me;
 }
 
-module.exports = { segmentedDownload, probeRanges, linkSecondsLeft, expiryMs, asSource, renameWithRetry, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };
+module.exports = { segmentedDownload, probeRanges, retryAfterMs, linkSecondsLeft, expiryMs, asSource, renameWithRetry, TEMP_SUFFIX, STATE_SUFFIX, DEFAULT_CHUNK };
