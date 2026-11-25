@@ -3,7 +3,7 @@
 const ctx = require('./context');
 const { logToFile } = require('./log');
 const { safeUpdateResult } = require('./updateCheck');
-const { compareVersions } = require('./util');
+const { compareVersions, raiseWindow } = require('./util');
 const { app } = require('electron');
 const fs = require('fs');
 const https = require('https');
@@ -32,14 +32,12 @@ function isAllowedUpdateHost(hostname) {
 function checkForUpdatesFromMenu() {
   try {
     if (ctx.NATIVE_PREVIEW && ctx.nativeWindow && !ctx.nativeWindow.isDestroyed()) {
-      if (ctx.nativeWindow.isMinimized()) ctx.nativeWindow.restore();
-      ctx.nativeWindow.show(); ctx.nativeWindow.focus();
+      raiseWindow(ctx.nativeWindow);
       ctx.nativeWindow.webContents.send('native:open', { view: 'settings', check: true });
       return;
     }
     if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
-      if (ctx.mainWindow.isMinimized()) ctx.mainWindow.restore();
-      ctx.mainWindow.show(); ctx.mainWindow.focus();
+      raiseWindow(ctx.mainWindow);
       ctx.mainWindow.webContents.executeJavaScript("(function(){var b=document.getElementById('check-updates-btn');if(b)b.click();})()").catch(() => { });
     }
   } catch (e) { logToFile('checkForUpdatesFromMenu failed: ' + e.message); }

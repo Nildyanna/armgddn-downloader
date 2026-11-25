@@ -6,6 +6,7 @@ const { isSafeLibraryFolder } = require('./files');
 const { runHashCheck } = require('./hashing');
 const { confirmKomgaDeepLink, addReadListToKomga } = require('./komgaActions');
 const { logToFile } = require('./log');
+const { raiseWindow } = require('./util');
 
 function flushPendingDeepLinks() {
   try {
@@ -181,7 +182,7 @@ function handleDeepLink(url) {
       // armgddn://open: the website's "Open ARMGDDN App" button. Brings the window forward (the native one when it is on); nothing is changed.
       try {
         const w = (ctx.nativeWindow && !ctx.nativeWindow.isDestroyed()) ? ctx.nativeWindow : (ctx.mainWindowAlive() ? ctx.mainWindow : null);
-        if (w) { if (w.isMinimized()) w.restore(); w.show(); w.focus(); if (process.platform === 'linux') { try { w.moveTop(); } catch (e2) { } } }
+        if (w) raiseWindow(w);
       } catch (e) { }
       return;
     }

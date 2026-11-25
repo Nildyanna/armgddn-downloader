@@ -2,7 +2,7 @@
 // Staging only: the native browser window, started with `--native`. Connects the page (renderer/native) to the site through the main
 // process. The page never sees the login token: it asks over IPC, and covers come through the private armgddn-img:// address.
 const path = require('path');
-const { createApiClient } = require('./apiClient');
+const { createApiClient, createByteCache } = require('./apiClient');
 const dns = require('dns');
 const { coverRoute, isPrivateAddress, isPublicHostName, MAX_COVER_BYTES } = require('./coverPath');
 
@@ -44,7 +44,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   let deviceFp = '';
   try { deviceFp = require('../deviceId').deviceFingerprint(require('electron').app.getPath('userData')); } catch (e) { console.warn('[device-id] not available: ' + (e && e.message)); }
   const api = createApiClient({ getToken, version, deviceFp });
-  const direct = new Map();   // small cache for covers hosted elsewhere
+  const direct = createByteCache({ maxBytes: 48 * 1024 * 1024, maxEntries: 300 });   // covers hosted elsewhere, under a byte budget
 
 
   // Covers hosted elsewhere (Wikimedia and friends) rate-limit a burst of requests, so they go through a small queue, one retry after a 429,
@@ -352,8 +352,12 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
         const bad = failedDirect.get(route.url);
         if (bad && Date.now() - bad < 5 * 60 * 1000) return new Response('', { status: 404 });
         hit = await fetchDirect(route.url);
-        if (!hit) { failedDirect.set(route.url, Date.now()); return new Response('', { status: 404 }); }
-        if (hit.buf.length < 2 * 1024 * 1024) { direct.set(route.url, hit); if (direct.size > 300) direct.delete(direct.keys().next().value); }
+        if (!hit) {
+          failedDirect.set(route.url, Date.now());
+          if (failedDirect.size > 500) { const t = Date.now(); for (const [k, at] of failedDirect) if (t - at >= 5 * 60 * 1000) failedDirect.delete(k); while (failedDirect.size > 500) failedDirect.delete(failedDirect.keys().next().value); }
+          return new Response('', { status: 404 });
+        }
+        if (hit.buf.length < 2 * 1024 * 1024) direct.set(route.url, hit);
       }
       return new Response(hit.buf, { status: 200, headers: { 'Content-Type': hit.type, 'Cache-Control': 'max-age=86400' } });
     } catch (e) {

@@ -5,13 +5,14 @@ const komga = require('../komga');
 const { getAppIcon } = require('./files');
 const { loadKomgaConfig, saveKomgaConfig, forgetKomgaKey } = require('./komgaConfig');
 const { logToFile } = require('./log');
+const { raiseWindow } = require('./util');
 const { denyNewWindows } = require('./windows');
 const { BrowserWindow, dialog, app } = require('electron');
 const path = require('path');
 
 function promptKomgaSettings() {
   return new Promise((resolve) => {
-    if (ctx.komgaPromptWin && !ctx.komgaPromptWin.isDestroyed()) { ctx.komgaPromptWin.focus(); return resolve(null); }
+    if (ctx.komgaPromptWin && !ctx.komgaPromptWin.isDestroyed()) { raiseWindow(ctx.komgaPromptWin); return resolve(null); }
     ctx.komgaPromptResolve = resolve;
     ctx.komgaPromptWin = new BrowserWindow({
       width: 460, height: 400, resizable: false, minimizable: false, maximizable: false, autoHideMenuBar: true,

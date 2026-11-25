@@ -38,12 +38,28 @@ function sanitizeRelativePath(input) {
   return normalized;
 }
 
-function resolveInside(baseDir, relPath) {
-  const full = path.resolve(baseDir, relPath);
-  const base = path.resolve(baseDir);
+// A folder at the top of a drive ("D:\" or "/") already ends with the separator, so adding another one made every path inside it look
+// outside: a download, music or comics folder set to a whole drive failed every file with "Security error: Invalid file path".
+// `p` is the path module (path.win32 in tests).
+function resolveInside(baseDir, relPath, p = path) {
+  const full = p.resolve(baseDir, relPath);
+  const base = p.resolve(baseDir);
   if (full === base) return full;
-  if (!full.startsWith(base + path.sep)) return null;
+  const prefix = base.endsWith(p.sep) ? base : base + p.sep;
+  if (!full.startsWith(prefix)) return null;
   return full;
+}
+
+// Bring a window to the front. KDE Plasma's focus-stealing prevention drops focus() and can raise the wrong window, so Linux uses moveTop()
+// only (CLAUDE.md: never focus() on Linux).
+function raiseWindow(win, platform = process.platform) {
+  try {
+    if (!win || (typeof win.isDestroyed === 'function' && win.isDestroyed())) return false;
+    if (typeof win.isMinimized === 'function' && win.isMinimized()) win.restore();
+    win.show();
+    if (platform === 'linux') { try { win.moveTop(); } catch (e) { } } else { win.focus(); }
+    return true;
+  } catch (e) { return false; }
 }
 
 function escapePowerShellSingleQuoted(value) {
@@ -182,4 +198,4 @@ function compareVersions(a, b) {
   return 0;
 }
 
-module.exports = { normalizeMirrorKey, sanitizeRelativePath, resolveInside, escapePowerShellSingleQuoted, quoteDesktopExecArg, redactUrlQueryStrings, isPathInside, normalizeFileSize, formatBytes, clampInt, parseRcloneHttpStatus, parseSpeedToBytes, formatSpeed, formatEtaSeconds, compareVersions };
+module.exports = { normalizeMirrorKey, sanitizeRelativePath, resolveInside, raiseWindow, escapePowerShellSingleQuoted, quoteDesktopExecArg, redactUrlQueryStrings, isPathInside, normalizeFileSize, formatBytes, clampInt, parseRcloneHttpStatus, parseSpeedToBytes, formatSpeed, formatEtaSeconds, compareVersions };

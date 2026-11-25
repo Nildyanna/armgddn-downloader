@@ -9,6 +9,7 @@ const { debugLog, getDebugLogPath, logToFile } = require('./log');
 const { saveSession } = require('./session');
 const { mintAppSessionTokenFromCookies, isAllowedServiceHost } = require('./siteApi');
 const { isAutostartLaunch } = require('./updateCheck');
+const { raiseWindow } = require('./util');
 const { checkForUpdatesFromMenu } = require('./updates');
 const { denyNewWindows } = require('./windows');
 const Sentry = require('@sentry/electron/main');
@@ -36,7 +37,7 @@ function setGpuFallbackTag(value) {
 function openAuthWindow() {
   return new Promise((resolve) => {
     if (ctx.authWindow) {
-      ctx.authWindow.focus();
+      raiseWindow(ctx.authWindow);
       return resolve(false);
     }
     // No saved sign-in on this PC means the member is signing in (again): start from a clean Telegram state, so an old account's cookie cannot answer for them.
@@ -300,7 +301,7 @@ function createWindow() {
         if (ctx.mainWindow.isMinimized()) ctx.mainWindow.restore();
         ctx.mainWindow.show();
         ctx.mainWindow.setAlwaysOnTop(true);
-        ctx.mainWindow.focus();
+        if (process.platform !== 'linux') ctx.mainWindow.focus();
         try { ctx.mainWindow.moveTop(); } catch (e) { }
         setTimeout(() => {
           if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
@@ -466,14 +467,12 @@ function createAppMenu() {
 function openSettingsWindow() {
   try {
     if (ctx.NATIVE_PREVIEW && ctx.nativeWindow && !ctx.nativeWindow.isDestroyed()) {
-      if (ctx.nativeWindow.isMinimized()) ctx.nativeWindow.restore();
-      ctx.nativeWindow.show(); ctx.nativeWindow.focus();
+      raiseWindow(ctx.nativeWindow);
       ctx.nativeWindow.webContents.send('native:open', { view: 'settings' });
       return;
     }
     if (ctx.mainWindow && !ctx.mainWindow.isDestroyed()) {
-      if (ctx.mainWindow.isMinimized()) ctx.mainWindow.restore();
-      ctx.mainWindow.show(); ctx.mainWindow.focus();
+      raiseWindow(ctx.mainWindow);
       ctx.mainWindow.webContents.executeJavaScript("(function(){var b=document.getElementById('settings-btn');if(b)b.click();})()").catch(() => { });
     }
   } catch (e) { logToFile('openSettingsWindow failed: ' + e.message); }

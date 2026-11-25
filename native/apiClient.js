@@ -10,7 +10,7 @@ class ApiError extends Error {
   constructor(message, kind, status, body) { super(message); this.kind = kind; this.status = status || 0; this.body = body; }
 }
 
-function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgddnbrowser.com', fetchImpl, version = '0.0.0', maxConcurrent = 6, imageCacheBytes = 64 * 1024 * 1024, sleep } = {}) {
+function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgddnbrowser.com', fetchImpl, version = '0.0.0', maxConcurrent = 6, imageCacheBytes = 64 * 1024 * 1024, maxCacheEntries = 200, sleep } = {}) {
   const doFetch = fetchImpl || ((...a) => fetch(...a));
   const wait = sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const cache = new Map();            // key -> { at, ttl, value }
@@ -67,12 +67,22 @@ function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgd
     }
   }
 
+  // Every folder, read-me and text file the member opens used to stay in memory for the whole session, long after it had expired
+  // (crash reports from Nov 23-24 showed the app at 1.0-1.4 GB). Expired answers are dropped, and at most
+  // maxCacheEntries are kept (oldest first out).
+  function trimCache() {
+    if (cache.size <= maxCacheEntries) return;
+    const t = Date.now();
+    for (const [k, v] of cache) if (t - v.at >= v.ttl) cache.delete(k);
+    while (cache.size > maxCacheEntries) cache.delete(cache.keys().next().value);
+  }
+
   function get(path, { ttlMs = 30000, signal, fresh = false, headers } = {}) {
     const key = 'GET ' + path;
     const hit = cache.get(key);
     if (!fresh && hit && Date.now() - hit.at < hit.ttl) { stats.cacheHits++; return Promise.resolve(hit.value); }
     if (inflight.has(key)) return inflight.get(key);
-    const p = send('GET', path, { signal, headers }).then((v) => { if (ttlMs > 0) cache.set(key, { at: Date.now(), ttl: ttlMs, value: v }); return v; })
+    const p = send('GET', path, { signal, headers }).then((v) => { if (ttlMs > 0) { cache.delete(key); cache.set(key, { at: Date.now(), ttl: ttlMs, value: v }); trimCache(); } return v; })
       .finally(() => inflight.delete(key));
     inflight.set(key, p);
     return p;
@@ -111,7 +121,7 @@ function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgd
   }
 
   return {
-    get, image, file, stats,
+    get, image, file, stats, cacheSize: () => cache.size,
     post: (path, body, opts) => write('POST', path, body, opts),
     put: (path, body, opts) => write('PUT', path, body, opts),
     del: (path, body, opts) => write('DELETE', path, body, opts),
@@ -119,4 +129,24 @@ function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgd
   };
 }
 
-module.exports = { createApiClient, ApiError };
+// A cache of fetched files kept under a byte budget and an entry limit, least recently used out first. Covers hosted elsewhere used a
+// 300-entry cache with no byte limit (each up to 2 MB, so up to about 600 MB in the main process).
+function createByteCache({ maxBytes, maxEntries }) {
+  const m = new Map();
+  let bytes = 0;
+  const sizeOf = (v) => (v && v.buf && v.buf.length) || 0;
+  return {
+    get(k) { const v = m.get(k); if (v) { m.delete(k); m.set(k, v); } return v; },
+    set(k, v) {
+      const n = sizeOf(v);
+      if (n > maxBytes) return;
+      if (m.has(k)) { bytes -= sizeOf(m.get(k)); m.delete(k); }
+      m.set(k, v); bytes += n;
+      while (m.size && (bytes > maxBytes || m.size > maxEntries)) { const [ok, ov] = m.entries().next().value; m.delete(ok); bytes -= sizeOf(ov); }
+    },
+    get size() { return m.size; },
+    get bytes() { return bytes; },
+  };
+}
+
+module.exports = { createApiClient, createByteCache, ApiError };
