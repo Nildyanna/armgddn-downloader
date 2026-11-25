@@ -1,4 +1,10 @@
 {
+  "6.16.0": {
+    "title": "Open setup",
+    "highlights": [
+      "Open setup: on Windows, a finished game's card has an Open setup button that starts its installer for you. Turn on Settings › Downloads › Open the setup when extraction finishes to have it open by itself. Nothing installs until you click through it."
+    ]
+  },
   "6.15.1": {
     "title": "Small fixes",
     "highlights": [
