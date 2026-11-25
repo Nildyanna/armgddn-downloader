@@ -12,7 +12,7 @@ const wrap = (fn) => async (_event, ...args) => {
   catch (e) { return { ok: false, error: { kind: e && e.kind ? e.kind : 'error', message: e && e.message ? e.message : String(e), status: e && e.status ? e.status : 0 } }; }
 };
 
-const LINK_HOSTS = new Set(['store.steampowered.com', 'steamdb.info', 'comicvine.gamespot.com', '7-zip.org', 't.me', 'telegram.me', 'github.com']);
+const LINK_HOSTS = new Set(['store.steampowered.com', 'steamdb.info', 'comicvine.gamespot.com', '7-zip.org', 't.me', 'telegram.me', 'github.com', '3dflickfix.net', 'www.3dflickfix.net']);
 const SAFE_REMOTE = /^[A-Za-z0-9 _.\-]{1,60}$/;
 const MAX_BATCH_PATHS = 500;
 function browsePath(remote, folder) {
@@ -272,6 +272,8 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     if (notify) notify(t, b);
     return { shown: !!notify };
   }));
+  // The 3D Flick Fix strip and pill (renderer/native/promo.mjs): what the site says to show. Read only; the App never reports clicks or views.
+  ipcMain.handle('native:promo', wrap(() => api.get('/api/app-promo', { ttlMs: 0, fresh: true })));
   // The badge page: every badge as earned, locked with progress, or hidden; and which earned badge the member wears (null = automatic).
   ipcMain.handle('native:badges', wrap(() => api.get('/api/trophies/me', { ttlMs: 0, fresh: true })));
   ipcMain.handle('native:badgeChoose', wrap((trophyId) => {

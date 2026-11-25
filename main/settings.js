@@ -107,6 +107,15 @@ function normalizeSettings() {
     ctx.settings.startWithOsMinimized = !!ctx.settings.startWithOsMinimized;
     ctx.settings.errorReporting = ctx.settings.errorReporting !== false;
     ctx.settings.errorReportingAsked = ctx.settings.errorReportingAsked === true;
+    // When this install first ran (Nov 2026; installs from before then get the time of the first start after the update). The 3D Flick
+    // Fix strip waits a day after it. Never moved once set.
+    if (!(typeof ctx.settings.firstRunAt === 'string' && Number.isFinite(Date.parse(ctx.settings.firstRunAt)))) ctx.settings.firstRunAt = new Date().toISOString();
+    // The 3D Flick Fix strip's choices (renderer/native/promo.mjs): an ISO time and two short edition ids, '' when unset.
+    const promoTime = (v) => (typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v.slice(0, 40) : '');
+    const promoEd = (v) => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : '');
+    ctx.settings.promoHiddenAt = promoTime(ctx.settings.promoHiddenAt);
+    ctx.settings.promoHiddenEdition = promoEd(ctx.settings.promoHiddenEdition);
+    ctx.settings.promoClickedEdition = promoEd(ctx.settings.promoClickedEdition);
 
     ctx.refreshGlobalPoolLimit();
   } catch (e) {
@@ -122,9 +131,11 @@ function loadSettings() {
       ctx.settings = { ...ctx.settings, ...JSON.parse(data) };
     }
     const hadHashDefault = !!ctx.settings.autoHashCheckDefaultedOn;
+    const hadFirstRun = typeof ctx.settings.firstRunAt === 'string' && !!ctx.settings.firstRunAt;
     normalizeSettings();
     ctx.settingsLoadedFromDisk = true;
-    if (!hadHashDefault && fs.existsSync(ctx.getConfigPath())) saveSettings();      // keep the one-time switch-on from repeating
+    // Keep the one-time switch-on from repeating, and keep the first-run time (a fresh install writes it with its first save).
+    if ((!hadHashDefault || !hadFirstRun) && fs.existsSync(ctx.getConfigPath())) saveSettings();      // keep the one-time switch-on from repeating
   } catch (e) {
     console.error('Failed to load settings:', e);
   }

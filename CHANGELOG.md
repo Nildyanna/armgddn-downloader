@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- 3D Flick Fix strip (how we pay the server bills): one slim row at the top of Home in 3D Flick Fix's own colours, with Visit 3D Flick Fix and a ✕ that hides it for 30 days, plus a small "3D Flick Fix" link at the end of the top bar. Settings > Home screen has "Show the 3D Flick Fix strip on Home". After the ✕ it comes back on its own after 30 days (not if you clicked through to the site), and once more whenever the site has something new to say; never on your first day in the ARMGDDN App. The site decides the words and link and can switch it off (GET /api/app-promo, deploy the site first; without it nothing shows). Nothing about clicks or views is sent anywhere.
+
 ## [6.14.0] - 2026-11-25
 
 ### Added

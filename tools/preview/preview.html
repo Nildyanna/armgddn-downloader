@@ -3,6 +3,7 @@
   Preview of the app's pages in an ordinary browser, with made-up data (Nov 24 2026). Not part of the app: tools/ is not in build.files.
   Run:  npm run preview            (then open the address it prints)
   Ask for a page and theme in the address:  ?scene=downloads|home|library|mylist|settings  &theme=harbor|classic|light
+  The 3D Flick Fix strip: &promo=off (site switched it off), &promoHidden=1 (hidden with the ✕ today).
   The Downloads scene has one download in every state the app has (DOWNLOAD_STATES in renderer/native/format.mjs), so a change to that page
   can be looked at, and screenshotted, before a release.
 -->
@@ -51,12 +52,19 @@
   window.__previewDownloads = downloads;
 
   const ok = (data) => ({ ok: true, data });
+  // The 3D Flick Fix strip (renderer/native/promo.mjs): &promo=off = the site switched it off; &promoHidden=1 = the member pressed ✕ today.
+  const settings = { firstRunAt: new Date(Date.now() - 40 * 864e5).toISOString(), errorReportingAsked: true };
+  if (q.get('promoHidden') === '1') Object.assign(settings, { promoHiddenAt: new Date().toISOString(), promoHiddenEdition: 'preview0001' });
+  window.__previewSettings = settings;
   const table = {
     getHelp7zVideoSrc: () => window.__previewHelpVideo || "",   // the real app returns a file link; a check can set a clip here
     status: () => ok({ signedIn: true, version: 'preview' }), remotes: () => ok({ remotes: ['PC-1', 'PCVR-1', 'Music', 'Comics'], remoteStatus: {} }),
     browse: () => ok({ files, folders: [] }), trending: () => ok({ windows: { week: trend, month: trend } }), appProgress: () => ok({}), gems: () => ok({ items: [] }),
     prefs: () => ok({ prefs: { introSeen: true } }), adminGet: () => ok({ role: 'member' }), downloads: () => ok(downloads), history: () => ok([]), requests: () => ok({ requests: [] }),
     pendingWhatsNew: () => null, checkUpdates: () => ({ hasUpdate: false }),
+    promo: () => q.get('promo') === 'off' ? ok({ success: true, enabled: false }) : ok({ success: true, enabled: true, edition: 'preview0001', url: 'https://3dflickfix.net/', button: 'Visit 3D Flick Fix',
+      text: { label: 'How we pay the bills:', name: '3D Flick Fix', line: '2,400+ 3D movies to download, stream or mount', shortLine: '2,400+ 3D movies' } }),
+    getSettings: () => ({ ...settings }), saveSettings: (p) => Object.assign(settings, p), openLink: () => ok({ opened: true }),
     // Badges scene: one of each card kind (earned secret = gold, earned, worn, locked with progress, still hidden).
     badges: () => ok({ earnedCount: 3, total: 64, permanentHave: 20, permanentTotal: 58, hiddenLeft: 5, chosen: 'bugsquash', items: [
       { id: 'bugsquash', family: 'Craft', state: 'earned', secret: true, rarity: 'Legendary', name: 'Bug Squasher', emoji: '\u{1F41B}', desc: 'Reported a bug that got fixed', holdersPct: 0.1 },

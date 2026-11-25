@@ -843,3 +843,26 @@ html[data-theme="harbor"] .upscreen { background: var(--hb-bg); }
 .inboxitem .ibody { opacity: .8; font-size: 13px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .inboxitem .iwhen { opacity: .65; font-size: 12px; white-space: nowrap; }
 .notifyok { font-weight: 600; color: var(--accent); align-self: center; }
+
+/* The 3D Flick Fix strip and pill (Nov 25 2026, promo.mjs): 3D Flick Fix's own colours, the same in every theme. One row, never two:
+   the text gives way (short line, then an ellipsis); the button and the ✕ always stay. */
+.promo-strip { container-type: inline-size; flex: none; display: flex; align-items: center; gap: 12px; height: 60px; padding: 0 10px 0 10px; box-sizing: border-box;
+  background: #1a1d29; border: 1px solid rgba(138, 180, 248, .3); border-radius: 10px; color: #e0e0e0; overflow: hidden; }
+.promo-logo { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 8px; background: #11131c; border: 1px solid rgba(138, 180, 248, .18); }
+.promo-logo img { width: 40px; height: auto; display: block; }
+.promo-text { flex: 1 1 auto; min-width: 0; margin: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; line-height: 1.3; }
+.promo-label { color: #8ab4f8; }
+.promo-name { color: #fff; font-weight: 700; }
+.promo-line { color: #e0e0e0; }
+.promo-short { display: none; }
+@container (max-width: 720px) { .promo-long { display: none; } .promo-short { display: inline; } }
+@media (max-width: 900px) { .promo-long { display: none; } .promo-short { display: inline; } }
+.promo-visit { flex: none; background: #ee5a24; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 700; white-space: nowrap; }   /* bold 14px: white on #ee5a24 (3.9:1) passes as large text */
+.promo-visit:hover { background: #ff6b35; }
+.promo-x { flex: none; width: 32px; height: 32px; display: grid; place-items: center; background: transparent; color: #c8ccd8; border: 1px solid transparent; border-radius: 8px; font-size: 14px; line-height: 1; }
+.promo-x:hover { color: #fff; background: rgba(138, 180, 248, .12); }
+.promo-strip button:focus-visible, .promo-pill:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
+.topbar .promo-pill { flex: none; margin-left: 4px; background: transparent; color: #8ab4f8; border: 1px solid rgba(138, 180, 248, .35); border-radius: 999px; padding: 3px 11px; font-size: 12px; font-weight: 600; white-space: nowrap; line-height: 1.4; }
+.topbar .promo-pill:hover { background: rgba(138, 180, 248, .12); }
+/* Light themes: the pale blue would be unreadable on a light top bar, so the pill takes a darker blue there (applyTheme sets color-scheme). */
+html[style*="color-scheme: light"] .topbar .promo-pill { color: #2f5fb8; border-color: rgba(47, 95, 184, .45); }

@@ -39,7 +39,11 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'startWithOsMinimized',
     'errorReporting',
     'errorReportingAsked',
-    'lastSeenVersion'
+    'lastSeenVersion',
+    // The 3D Flick Fix strip (renderer/native/promo.mjs): when the member hid it, which edition, which edition they clicked through.
+    'promoHiddenAt',
+    'promoHiddenEdition',
+    'promoClickedEdition'
   ]);
 
   const merged = { ...ctx.settings };
