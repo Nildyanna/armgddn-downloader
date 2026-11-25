@@ -519,7 +519,7 @@ header select + select { margin-left: 0; }
 .ownerdock { display: grid; grid-template-columns: 1fr auto 1fr; }
 .ownerdock .dbreak { justify-self: end; margin-left: 0; }
 @media (max-width: 1100px) { .ownerdock { display: flex; } .ownerdock .dbreak { margin-left: auto; } .ownerdock > span:first-child { display: none; } }
-.shell > div:has(> .ownerdock) { flex: none; }
+.shell > div:has(> .ownerdock) { flex: none; margin-top: auto; }   /* always at the bottom of the window, even under a short page (Inbox, Requests, empty lists) */
 /* The toast lifts clear of the owner status dock instead of hiding behind it. */
 .shell:has(.ownerdock) .toast, body:has(.ownerdock) .toast { bottom: 64px; }
 

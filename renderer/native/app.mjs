@@ -1461,7 +1461,7 @@ function App() {
     let live = true;
     const load = async () => {
       try { const r = await api.promo(); if (live) setPromo(cleanPromo(r)); } catch (e) { if (live) setPromo(null); }
-      try { const g = await api.getSettings(); if (live && g && typeof g === 'object') setPromoSt({ firstRunAt: g.firstRunAt, promoHiddenAt: g.promoHiddenAt, promoHiddenEdition: g.promoHiddenEdition, promoClickedEdition: g.promoClickedEdition }); } catch (e) { }
+      try { const g = await api.getSettings(); if (live && g && typeof g === 'object') setPromoSt({ firstRunAt: g.firstRunAt, firstRunFresh: g.firstRunFresh === true, promoHiddenAt: g.promoHiddenAt, promoHiddenEdition: g.promoHiddenEdition, promoClickedEdition: g.promoClickedEdition }); } catch (e) { }
     };
     load();
     const every = setInterval(load, 60 * 60 * 1000);

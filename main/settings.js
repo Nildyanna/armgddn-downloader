@@ -107,9 +107,14 @@ function normalizeSettings() {
     ctx.settings.startWithOsMinimized = !!ctx.settings.startWithOsMinimized;
     ctx.settings.errorReporting = ctx.settings.errorReporting !== false;
     ctx.settings.errorReportingAsked = ctx.settings.errorReportingAsked === true;
-    // When this install first ran (Nov 2026; installs from before then get the time of the first start after the update). The 3D Flick
-    // Fix strip waits a day after it. Never moved once set.
-    if (!(typeof ctx.settings.firstRunAt === 'string' && Number.isFinite(Date.parse(ctx.settings.firstRunAt)))) ctx.settings.firstRunAt = new Date().toISOString();
+    // When this install first ran, and whether it was a brand-new install (no settings file yet). Only a brand-new install waits a day
+    // for the 3D Flick Fix strip; an install that already had settings is an existing member (6.15.0 stamped those with the update
+    // time and made them wait too, George 2026-11-25), so a firstRunAt without firstRunFresh=true counts as an existing install.
+    if (!(typeof ctx.settings.firstRunAt === 'string' && Number.isFinite(Date.parse(ctx.settings.firstRunAt)))) {
+      ctx.settings.firstRunAt = new Date().toISOString();
+      ctx.settings.firstRunFresh = ctx.settingsFileExisted === false;
+    }
+    ctx.settings.firstRunFresh = ctx.settings.firstRunFresh === true;
     // The 3D Flick Fix strip's choices (renderer/native/promo.mjs): an ISO time and two short edition ids, '' when unset.
     const promoTime = (v) => (typeof v === 'string' && Number.isFinite(Date.parse(v)) ? v.slice(0, 40) : '');
     const promoEd = (v) => (typeof v === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(v) ? v : '');
@@ -126,7 +131,8 @@ function normalizeSettings() {
 function loadSettings() {
   try {
     const configPath = ctx.getConfigPath();
-    if (fs.existsSync(configPath)) {
+    ctx.settingsFileExisted = fs.existsSync(configPath);
+    if (ctx.settingsFileExisted) {
       const data = fs.readFileSync(configPath, 'utf8').replace(/^\uFEFF/, '');   // an editor or PowerShell may have added a byte-order mark
       ctx.settings = { ...ctx.settings, ...JSON.parse(data) };
     }

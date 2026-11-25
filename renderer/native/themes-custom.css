@@ -94,7 +94,9 @@ html[data-theme="harbor"] .acard.t-ok .avalue { color: var(--accent); }
 html[data-theme="harbor"] .acard.t-warn, html[data-theme="harbor"] .acard.t-bad { background: var(--surface); }
 html[data-theme="harbor"] .acard.t-warn .avalue { color: var(--hb-gold); } html[data-theme="harbor"] .acard.t-bad .avalue { color: var(--hb-bad); }
 html[data-theme="harbor"] .adminpage [class*="map"], html[data-theme="harbor"] .adminpage [class*="route"], html[data-theme="harbor"] .adminpage [class*="live"] { border-radius: 16px; }
-html[data-theme="harbor"] .reqpane { flex: none; height: auto; align-self: center; min-width: min(760px, 92%); }
+html[data-theme="harbor"] .reqpane { flex: 0 1 auto; min-height: 0; height: auto; align-self: center; min-width: min(760px, 92%); margin: 16px auto auto; }
+/* margin-bottom auto: a short card (an empty Inbox) leaves the free space under it, so the bottom bars stay at the bottom of the window
+   instead of riding up under the card; flex-shrink + min-height 0 lets a long list scroll inside the card. */
 /* Harbor focus: no browser ring on the open tab (it drew a white box around it); keyboard focus gets a soft green ring instead. */
 html[data-theme="harbor"] .tab:focus, html[data-theme="harbor"] button:focus, html[data-theme="harbor"] select:focus { outline: none; }
 html[data-theme="harbor"] .tab:focus-visible, html[data-theme="harbor"] button:focus-visible, html[data-theme="harbor"] select:focus-visible, html[data-theme="harbor"] input:focus-visible { outline: 2px solid color-mix(in srgb, var(--accent) 70%, transparent); outline-offset: 2px; border-radius: 8px; }

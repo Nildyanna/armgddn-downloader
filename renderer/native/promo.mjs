@@ -40,13 +40,14 @@ export function promoHidden(promo, s, now = Date.now()) {
 }
 
 // What to show: { pill, strip, hidden, hiddenAt, clicked }.
-// pill: whenever the site has a promo. strip: also not hidden, and not on the member's first day in the App (settings.firstRunAt).
+// pill: whenever the site has a promo. strip: also not hidden, and not on a brand-new install's first day (settings.firstRunAt + firstRunFresh).
 export function promoView(promo, s, now = Date.now()) {
   if (!promo) return { pill: false, strip: false, hidden: false, hiddenAt: null, clicked: false };
   const st = s || {};
   const hidden = promoHidden(promo, st, now);
   const first = timeOf(st.firstRunAt);
-  const firstDay = first == null || now - first < DAY_MS;      // unknown counts as the first day (the App records it at start)
+  // Only a brand-new install waits a day (firstRunFresh); members who already used the App see it at once.
+  const firstDay = st.firstRunFresh === true && first != null && now - first < DAY_MS;
   return { pill: true, strip: !hidden && !firstDay, hidden, hiddenAt: hidden ? st.promoHiddenAt : null, clicked: hidden && st.promoClickedEdition === promo.edition };
 }
 

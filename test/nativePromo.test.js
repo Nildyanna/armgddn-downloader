@@ -25,16 +25,18 @@ test('the site answer is checked: enabled:false, a failed call, another host or 
   assert.equal(cleanPromo({ ...SITE, text: { ...SITE.text, shortLine: '' } }).text.shortLine, SITE.text.line);
 });
 
-test('shown by default (pill and strip), but not on the member\'s first day in the App', async () => {
+test('shown by default (pill and strip); only a brand-new install waits a day', async () => {
   const { promoView } = await import('../renderer/native/promo.mjs');
   assert.deepEqual(promoView(SITE, OLD_MEMBER, NOW), { pill: true, strip: true, hidden: false, hiddenAt: null, clicked: false });
-  const fresh = promoView(SITE, { firstRunAt: iso(NOW - 3 * 60 * 60 * 1000) }, NOW);
+  const fresh = promoView(SITE, { firstRunAt: iso(NOW - 3 * 60 * 60 * 1000), firstRunFresh: true }, NOW);
   assert.equal(fresh.strip, false); assert.equal(fresh.pill, true); assert.equal(fresh.hidden, false);
-  assert.equal(promoView(SITE, { firstRunAt: iso(NOW - DAY + 1000) }, NOW).strip, false);
-  assert.equal(promoView(SITE, { firstRunAt: iso(NOW - DAY) }, NOW).strip, true);
-  assert.equal(promoView(SITE, {}, NOW).strip, false);                    // not known yet: treated as the first day
-  assert.equal(promoView(SITE, null, NOW).strip, false);
-  assert.equal(promoView(SITE, { firstRunAt: 'garbage' }, NOW).strip, false);
+  assert.equal(promoView(SITE, { firstRunAt: iso(NOW - DAY + 1000), firstRunFresh: true }, NOW).strip, false);
+  assert.equal(promoView(SITE, { firstRunAt: iso(NOW - DAY), firstRunFresh: true }, NOW).strip, true);
+  // an existing member who updated (6.15.0 stamped firstRunAt at the update, without firstRunFresh) sees it at once (George, 2026-11-25)
+  assert.equal(promoView(SITE, { firstRunAt: iso(NOW - 60 * 1000) }, NOW).strip, true);
+  assert.equal(promoView(SITE, { firstRunAt: iso(NOW - 60 * 1000), firstRunFresh: false }, NOW).strip, true);
+  assert.equal(promoView(SITE, {}, NOW).strip, true);
+  assert.equal(promoView(SITE, null, NOW).strip, true);
 });
 
 test('the ✕ hides the strip (not the pill) for 30 days, then it comes back by itself', async () => {
@@ -69,7 +71,7 @@ test('a new edition shows the strip again for everyone, including members who hi
   assert.equal(promoView(next, st, NOW + DAY).strip, true);
   assert.equal(promoView(next, st, NOW + DAY).hidden, false);
   // a new edition is still not shown on the first day
-  assert.equal(promoView(next, { ...st, firstRunAt: iso(NOW) }, NOW + 1000).strip, false);
+  assert.equal(promoView(next, { ...st, firstRunAt: iso(NOW), firstRunFresh: true }, NOW + 1000).strip, false);
 });
 
 test('ticking the Settings box shows it again at once', async () => {
@@ -151,5 +153,10 @@ test('Main: normalizeSettings records firstRunAt once and cleans the promo field
     ctx.settings.firstRunAt = '2025-01-01T00:00:00.000Z';
     normalizeSettings();
     assert.equal(ctx.settings.firstRunAt, '2025-01-01T00:00:00.000Z');
-  } finally { ctx.settings = before; }
+    // a settings file that already existed = an existing member, never "fresh"; no file yet = brand-new install
+    ctx.settingsFileExisted = true; ctx.settings = {}; normalizeSettings(); assert.equal(ctx.settings.firstRunFresh, false);
+    ctx.settingsFileExisted = false; ctx.settings = {}; normalizeSettings(); assert.equal(ctx.settings.firstRunFresh, true);
+    normalizeSettings(); assert.equal(ctx.settings.firstRunFresh, true);
+    ctx.settings = { firstRunAt: '2026-11-25T11:20:00.000Z' }; normalizeSettings(); assert.equal(ctx.settings.firstRunFresh, false);
+  } finally { ctx.settings = before; delete ctx.settingsFileExisted; }
 });
