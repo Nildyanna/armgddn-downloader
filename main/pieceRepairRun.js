@@ -105,7 +105,8 @@ async function repairDamagedFiles(downloadId, download, r) {
           streams, maxBytesPerSec: limit, tlsOptions: directEndpoint.tlsOptions(),
           onEvent: (m) => logToFile(`[repair] ${entry.name}: ${m}`)
         });
-        try { await active.promise; } finally { active = null; }
+        const watch = setInterval(() => { if (cancelled() && active) { try { active.abort('cancelled'); } catch (e) { } } }, 1000);     // Cancel/Pause stop the repair too
+        try { await active.promise; } finally { clearInterval(watch); active = null; }
       },
       onStatus: status
     });
