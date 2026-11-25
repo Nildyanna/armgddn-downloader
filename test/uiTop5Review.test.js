@@ -85,3 +85,13 @@ test('a late answer cannot overwrite a newer page: request threads and the Admin
   assert.ok(h.includes('current.current = null'), 'and so is one that arrives after the page closed');
   assert.ok(m.includes("import { html, useState, useEffect, useMemo, useRef }"), 'useRef is imported');
 });
+
+test('members never read "Companion" in the app window, and a toast is not cut short by an older one', () => {
+  const a = read('renderer/native/app.mjs');
+  // strip comments, then look at what is left: every 'Companion' there would be text on screen
+  const code = a.split('\n').map((l) => l.replace(/^\s*\/\/.*$/, '').replace(/\s\/\/ .*$/, '')).join('\n').replace(/ARMGDDN-Companion\/\$\{[^}]*\}/g, '');
+  assert.ok(!/Companion/.test(code), 'no "Companion" outside comments: ' + (code.match(/.{0,60}Companion.{0,40}/) || [''])[0]);
+  assert.ok(!/Browser app/i.test(code), 'no "Browser app" either');
+  assert.ok(a.includes('your earlier ARMGDDN App install'));
+  assert.ok(a.includes('clearTimeout(toastTimer.current); toastTimer.current = setTimeout('));
+});

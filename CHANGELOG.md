@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Settings > Check for updates no longer says "You are on the latest version" when the check failed, or when a new version is out that this PC has to install by hand.
 - Opening Settings or running the connection test no longer leaves a listener behind each time, so a long session uses less memory.
 - Requests: opening one request, going Back and quickly opening another no longer shows the first request's messages under the second one.
+- Tools > Komga and Settings > Import now say "your earlier ARMGDDN App install" instead of "the installed Companion".
+- A short message at the bottom of the window stays its full 4 seconds instead of vanishing early when it follows another one.
 
 ## [6.12.0] - 2026-11-24
 

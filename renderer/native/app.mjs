@@ -657,7 +657,7 @@ function KomgaTool({ say }) {
     setMsg('Importing...');
     const r = await api.komgaImport();
     if (!r || !r.ok) { setMsg((r && r.error) || 'Could not import the key.'); return; }
-    setUrl(r.url); setMsg('Imported the Komga address and key from the installed Companion. The key stays on this PC.'); await load();
+    setUrl(r.url); setMsg('Imported the Komga address and key from your earlier ARMGDDN App install. The key stays on this PC.'); await load();
   };
   const add = async (id, title) => {
     setBusy(id); setMsg(`Adding ${title}...`);
@@ -671,7 +671,7 @@ function KomgaTool({ say }) {
     <p class="note">Adds a suggested reading order to your own Komga server as a read list, matching the comics you already have in it. Needs your Komga address and an API key (Komga: account settings, API keys).</p>
     <label class="srow"><span class="slabel">Komga address</span><input class="wide" type="text" value=${url} placeholder=${k.defaultUrl} onInput=${(e) => setUrl(e.target.value)} /></label>
     <label class="srow"><span class="slabel">API key</span><input class="wide" type="password" value=${key} placeholder=${k.hasKey ? 'Saved on this PC (leave empty to keep it)' : 'Paste your API key'} onInput=${(e) => setKey(e.target.value)} /></label>
-    ${k.canImport ? html`<div class="srow"><span class="slabel">The installed Companion already has a Komga server and key saved.</span><button class="dbtn go" onClick=${importKey}>Import them</button></div>` : ''}
+    ${k.canImport ? html`<div class="srow"><span class="slabel">Your earlier ARMGDDN App install already has a Komga server and key saved.</span><button class="dbtn go" onClick=${importKey}>Import them</button></div>` : ''}
     <div class="srow"><button class="dbtn" onClick=${save}>Save</button>${k.hasKey ? html`<button class="dbtn" onClick=${forget}>Forget the key</button>` : ''}<span class="slabel">${k.hasKey ? 'A key is saved.' : 'No key saved yet.'}</span></div>
     <div class="lists">${(lists.length ? lists : (k.lists || [])).map((l) => html`<div class="srow"><span class="slabel">${l.title}${l.books ? html` <span class="sval">${Number(l.books).toLocaleString()} comics</span>` : ''}</span><button class="dbtn" disabled=${!k.hasKey || !!busy} onClick=${() => add(l.id, l.title)}>${busy === l.id ? 'Adding...' : 'Add to my Komga'}</button></div>`)}</div>
     ${msg ? html`<p class="note">${msg}</p>` : ''}
@@ -827,7 +827,7 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
     <label class="srow"><input type="checkbox" checked=${localStorage.getItem('native.lightningOff') !== '1'} onChange=${(e) => { try { localStorage.setItem('native.lightningOff', e.target.checked ? '0' : '1'); } catch (er) { } }} /> <span class="slabel">Play the login animation on a first sign-in</span></label>
     </section>
     <section class="sgroup"><h3>Import</h3>
-    <div class="srow"><span class="slabel">Import the settings of an earlier ARMGDDN App install (folders, speed, toggles)</span><button class="dbtn" onClick=${async () => { const r = await api.importSettings(); if (r && r.same) say('This already is the installed Companion\'s settings'); else if (r && r.imported) { say('Imported ' + r.imported + ' settings'); const g = await api.getSettings(); if (g) setS(g); } else say('No installed Companion settings were found'); }}>Import</button></div>
+    <div class="srow"><span class="slabel">Import the settings of an earlier ARMGDDN App install (folders, speed, toggles)</span><button class="dbtn" onClick=${async () => { const r = await api.importSettings(); if (r && r.same) say('These already are the settings of your earlier ARMGDDN App install'); else if (r && r.imported) { say('Imported ' + r.imported + ' settings'); const g = await api.getSettings(); if (g) setS(g); } else say('No settings from an earlier ARMGDDN App install were found'); }}>Import</button></div>
     <div class="srow"><span class="slabel">Import my website preferences (My List, theme, hidden sections, recent searches)</span><button class="dbtn" onClick=${() => setPrefsOpen(true)}>Import</button></div>
     ${prefsOpen ? html`<${PrefsImport} onClose=${() => setPrefsOpen(false)} onApply=${onPrefs} say=${say} />` : ''}
     </section>
@@ -1293,7 +1293,9 @@ function App() {
   useEffect(() => { const off = api.onOpen((m) => { if (m && m.view === 'requests') { setPendingReq(m.id); } else if (m && m.view === 'settings') { setView('settings'); if (m.check) setTimeout(() => { try { window.dispatchEvent(new Event('native-run-update-check')); } catch (e) { } }, 500); } else if (m && ['downloads', 'home', 'library', 'mylist', 'wiki', 'badges'].includes(m.view)) setView(m.view); }); return () => { if (typeof off === 'function') off(); }; }, []);
   const [downloads, setDownloads] = useState([]);
   const [toast, setToast] = useState('');
-  const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
+  // Each message stays its full 4 seconds: an earlier message's timer used to wipe a newer one early ("Preparing the list..." then "Saved").
+  const toastTimer = useRef(null);
+  const say = (m) => { setToast(m); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 4000); };
   const [whatsNew, setWhatsNew] = useState(null);
   const [askReports, setAskReports] = useState(false);
   useEffect(() => { api.getSettings().then((r) => { if (r && typeof r === 'object' && r.errorReportingAsked !== true) setAskReports(true); }).catch(() => { }); }, []);
