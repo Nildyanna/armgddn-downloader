@@ -332,6 +332,10 @@ const GPU_HARD_MARKER = (() => {
 const gpuHardBefore = (() => {
   try { return !!GPU_HARD_MARKER && fs.existsSync(GPU_HARD_MARKER + '.past'); } catch (e) { return false; }
 })();
+// A virtual machine that needed this step keeps it for good (main/vmDetect.js; Sentry ARMGDDN-COMPANION-2Q, Nov 25 2026).
+const gpuHardVm = (() => {
+  try { return !!GPU_HARD_MARKER && fs.existsSync(GPU_HARD_MARKER + '.vm'); } catch (e) { return false; }
+})();
 const softwareDrawingOn = (() => {
   try { return !!GPU_FALLBACK_MARKER && fs.existsSync(GPU_FALLBACK_MARKER); } catch (e) { return false; }
 })();
@@ -339,13 +343,13 @@ let noGpuProcess = false;
 try {
   if (GPU_HARD_MARKER && fs.existsSync(GPU_HARD_MARKER)) {
     let fresh = true;
-    try { fresh = Date.now() - fs.statSync(GPU_HARD_MARKER).mtimeMs < (gpuHardBefore ? 30 : 7) * 24 * 3600 * 1000; } catch (e2) { }
+    try { fresh = gpuHardVm || Date.now() - fs.statSync(GPU_HARD_MARKER).mtimeMs < (gpuHardBefore ? 30 : 7) * 24 * 3600 * 1000; } catch (e2) { }
     if (fresh) {
       try { app.disableHardwareAcceleration(); } catch (e2) { }
       app.commandLine.appendSwitch('disable-gpu');
       app.commandLine.appendSwitch('disable-software-rasterizer');
       noGpuProcess = true;
-      console.log('[gpu] no GPU process (it failed even with software drawing)');
+      console.log('[gpu] no GPU process (it failed even with software drawing)' + (gpuHardVm ? ', kept for good on this virtual machine' : ''));
     } else {
       try { fs.renameSync(GPU_HARD_MARKER, GPU_HARD_MARKER + '.past'); } catch (e2) { }
     }

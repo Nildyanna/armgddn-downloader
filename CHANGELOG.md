@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Wiki FAQ: what to do when a game crashes at launch or right after the loading screen (crashfix.bat in newer repacks turns off the game's built-in Steam overlay).
 
 ### Fixed
+- Virtual machines (Parallels, VMware, VirtualBox, Hyper-V, QEMU…) whose graphics failed even in software mode stay in no-GPU mode for good, instead of retrying every month and crashing (Sentry ARMGDDN-COMPANION-2Q).
 - A download, Music or Comics folder at the top of a drive (for example D:\) no longer fails every file with "Security error: Invalid file path".
 - An app window whose page keeps crashing is reloaded at most 3 times in 2 minutes instead of forever (Sentry ARMGDDN-COMPANION-33/6A/6B/6C).
 - The app window's cover and folder caches have size limits, so a long session no longer keeps growing in memory.

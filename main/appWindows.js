@@ -23,6 +23,14 @@ function armNoGpuProcess(why) {
     if (!ctx.GPU_HARD_MARKER || ctx.noGpuProcess || fs.existsSync(ctx.GPU_HARD_MARKER)) return false;
     fs.writeFileSync(ctx.GPU_HARD_MARKER, `${new Date().toISOString()} ${why}\n`);
     console.warn('[gpu] GPU process failed with software drawing on (' + why + '); no GPU process from next launch');
+    // On a virtual machine this step is kept for good ('.vm' note; main.js never lets the marker expire then).
+    require('./vmDetect').detect().then((r) => {
+      if (!r || !r.vm) return;
+      try {
+        fs.writeFileSync(ctx.GPU_HARD_MARKER + '.vm', `${new Date().toISOString()} ${r.maker} / ${r.model}\n`);
+        console.warn('[gpu] virtual machine (' + r.maker + ' / ' + r.model + '): the no-GPU mode stays on');
+      } catch (e2) { }
+    }).catch(() => { });
     return true;
   } catch (e) { return false; }
 }
