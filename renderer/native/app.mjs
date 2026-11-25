@@ -8,6 +8,7 @@ import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, r
 import { AdminView } from './admin.mjs';
 import { THEME_MODES, effectiveMode, themeFor, loadChoice, withWebsiteTheme, withTheme, themesForMode } from './themeMode.mjs';
 import { OwnerDock } from './ownerDock.mjs';
+import { problemButton, previewRows } from './problemReport.mjs';
 const api = window.nativeAPI;
 try { api.getSettings().then((r) => { if (r && window.setLiteGraphics) window.setLiteGraphics(!!r.lightGraphics); }).catch(() => { }); } catch (e) { }   // the Lighter graphics setting, applied as the window opens
 
@@ -1178,7 +1179,7 @@ function StepBar({ d }) {
 
 // Harbor: the Downloads page of the mockup: a heading with speed, what is left and when it is done, the active downloads as art cards whose picture fills in
 // (colour, left to right) as they progress, then Waiting and Finished lists. The art is read from the library listing as needed, not saved.
-function HarborDownloads({ list, speedText, onClear, mib, onFlip }) {
+function HarborDownloads({ list, speedText, onClear, mib, onFlip, problem }) {
   const covers = useListingCovers(list.map((d) => { const w = downloadPlace(d); return w ? { key: d.id, ...w, collection: true } : null; }).filter(Boolean));
   const art = useMemo(() => Object.fromEntries(Object.entries(covers).map(([k, u]) => [k, coverSrc(u)])), [covers]);
   const st = (d) => String(d.status || '').toLowerCase();
@@ -1206,19 +1207,67 @@ function HarborDownloads({ list, speedText, onClear, mib, onFlip }) {
       </article>`; })}</div>` : ''}
     <div class="hb-dcols">
       <section><h3>Waiting</h3>${waiting.length ? waiting.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, true)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${bytesOf(d)}${bytesOf(d) ? ' · ' : ''}starts when a slot frees up</span></span><${DownloadButtons} d=${d} /></div>`) : html`<div class="hb-dnone">Nothing is waiting.</div>`}</section>
-      <section><div class="hb-dsechead"><h3>Finished</h3>${done.length ? html`<button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button>` : ''}</div>${done.length ? done.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, false)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${[bytesOf(d), st(d) === 'completed' ? finishedText(d) : st(d)].filter(Boolean).join(' · ')}</span></span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing finished yet.</div>`}</section>
+      <section><div class="hb-dsechead"><h3>Finished</h3>${done.length ? html`<button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button>` : ''}</div>${done.length ? done.map((d) => html`<div class="hb-drow" key=${d.id}>${thumb(d, false)}<span class="hb-dinfo"><b>${cleanTitle(d.name || '')}</b><span>${[bytesOf(d), st(d) === 'completed' ? finishedText(d) : st(d)].filter(Boolean).join(' · ')}</span>${d.error && problem ? html`<span class="derr">${d.error}</span>` : ''}${problem ? problem(d) : ''}</span>${actions(d)}</div>`) : html`<div class="hb-dnone">Nothing finished yet.</div>`}</section>
     </div>
   </div>`;
 }
 
+// "Send this problem to staff" on a failed download: the button on the card, and (drawn by DownloadsView, outside the cards, so no card clips it)
+// the dialog that shows exactly what will be sent, with an optional "What happened?" box.
+function ProblemButton({ d, sentId, busy, msg, onOpen }) {
+  const btn = problemButton(d, sentId, busy);
+  if (!btn.show) return '';
+  return html`<div class="dproblem">${btn.sent ? html`<span class="dsent" role="status">${btn.label}</span>` : html`<button class="dbtn" disabled=${btn.disabled} onClick=${() => onOpen(d)}>${btn.label}</button>`}${msg ? html`<div class="derr">${msg}</div>` : ''}</div>`;
+}
+function ProblemDialog({ d, r, busy, msg, onSend, onClose }) {
+  const [note, setNote] = useState('');
+  const p = r.payload;
+  return html`<${Modal} title="Send this problem to staff" wide=${true} onClose=${() => { if (!busy) onClose(); }}><div class="dpbody">
+    <p class="dpnote">This is everything that will be sent. Your user name in folder paths, the secret parts of links, sign-in tokens and cookies are removed.</p>
+    <dl class="dpgrid">${previewRows(p).map(([k, v]) => html`<${Fragment} key=${k}><dt>${k}</dt><dd>${v}</dd></${Fragment}>`)}</dl>
+    <details><summary>The app's log for this download (${p.log.length} line${p.log.length === 1 ? '' : 's'})</summary><pre class="readme dplog">${p.log.join('\n') || '(no log lines for this download)'}</pre></details>
+    <label class="dplabel" for=${'problem-note-' + d.id}>What happened? (optional)</label>
+    <textarea id=${'problem-note-' + d.id} aria-label="What happened? (optional)" rows="4" maxlength="1000" placeholder="For example: it stopped at 80% twice" value=${note} onInput=${(e) => setNote(e.target.value)}></textarea>
+    ${msg || (!r.canSend && r.error) ? html`<div class="derr">${msg || r.error}</div>` : ''}
+    <div class="dbtns"><button class="dbtn primary" disabled=${busy || !r.canSend} onClick=${() => onSend(note)}>${busy ? 'Sending...' : 'Send to staff'}</button><button class="dbtn" disabled=${busy} onClick=${onClose}>Cancel</button></div>
+  </div></${Modal}>`;
+}
+
 function DownloadsView({ list, onClear, harbor }) {
+  // Report numbers of problems already sent, by download id (kept by the main process, so they survive a restart).
+  const [sent, setSent] = useState({});
+  const [pBusy, setPBusy] = useState('');          // the download whose report is being made or sent
+  const [pMsg, setPMsg] = useState({});            // id -> what went wrong, shown on the card
+  const [pOpen, setPOpen] = useState(null);        // { d, r }: the dialog
+  useEffect(() => { try { api.problemSent().then((m) => setSent(m && typeof m === 'object' ? m : {})).catch(() => { }); } catch (e) { } }, []);
+  const markSent = (id, n) => setSent((s) => ({ ...s, [id]: n }));
+  const sayP = (id, m) => setPMsg((s) => ({ ...s, [id]: m }));
+  const openProblem = async (d) => {
+    setPBusy(d.id); sayP(d.id, '');
+    try {
+      const r = await api.problemPreview(d.id);
+      if (r && r.reportId) markSent(d.id, r.reportId);
+      else if (!r || !r.ok || !r.payload) sayP(d.id, (r && r.error) || 'The report could not be made.');
+      else setPOpen({ d, r });
+    } catch (e) { sayP(d.id, 'The report could not be made.'); } finally { setPBusy(''); }
+  };
+  const sendProblem = async (note) => {
+    const d = pOpen && pOpen.d; if (!d) return;
+    setPBusy(d.id); sayP(d.id, '');
+    try {
+      const r = await api.problemSend(d.id, note);
+      if (r && r.reportId) { markSent(d.id, r.reportId); setPOpen(null); } else sayP(d.id, (r && r.error) || 'Could not send the report.');
+    } catch (e) { sayP(d.id, 'Could not send the report.'); } finally { setPBusy(''); }
+  };
+  const problem = (d) => html`<${ProblemButton} d=${d} sentId=${sent[d.id]} busy=${pBusy === d.id} msg=${pOpen ? '' : pMsg[d.id]} onOpen=${openProblem} />`;
+  const dialog = pOpen ? html`<${ProblemDialog} key=${pOpen.d.id} d=${pOpen.d} r=${pOpen.r} busy=${pBusy === pOpen.d.id} msg=${pMsg[pOpen.d.id]} onSend=${sendProblem} onClose=${() => setPOpen(null)} />` : '';
   // Speed in bits per second as the Companion has always shown it; MiB/s is an option, remembered, switched from any download.
   const [mib, setMib] = useState(() => { try { return localStorage.getItem('native.speedUnit') === 'mib'; } catch (e) { return false; } });
   const flip = () => { const n = !mib; setMib(n); try { localStorage.setItem('native.speedUnit', n ? 'mib' : 'bits'); } catch (e) { } };
   const speedText = (d) => (mib && Number(d.totalSpeedBytes) > 0 ? formatMiBps(d.totalSpeedBytes) : (d.totalSpeed || formatSpeed(d.speed)));
   const heard = html`<div class="sr-only" role="status" aria-live="polite">${downloadAnnouncement(list)}</div>`;
   if (!list.length) return html`<div class="empty">No downloads yet. Press Download on any game, album or comic collection.</div>`;
-  if (harbor) return html`${heard}<${HarborDownloads} list=${list} speedText=${speedText} onClear=${onClear} mib=${mib} onFlip=${flip} />`;
+  if (harbor) return html`${heard}<${HarborDownloads} list=${list} speedText=${speedText} onClear=${onClear} mib=${mib} onFlip=${flip} problem=${problem} />${dialog}`;
   return html`${heard}<div class="dlist"><div class="dtools"><button class="dbtn" title="Remove finished downloads from this list" onClick=${onClear}>Clear history</button></div>${list.slice().reverse().map((d) => html`<div class="drow" key=${d.id}>
     <div class="dname">${cleanTitle(d.name || '')}<span class="dstat">${d.status || ''}</span></div>
     <div class="bar" role="progressbar" aria-label=${cleanTitle(d.name || '') + ' progress'} aria-valuemin="0" aria-valuemax="100" aria-valuenow=${Math.round(Math.max(0, Math.min(100, Number(d.progress) || 0)))}><div class="fill" style=${'width:' + Math.max(0, Math.min(100, Number(d.progress) || 0)) + '%'}></div></div>
@@ -1227,7 +1276,8 @@ function DownloadsView({ list, onClear, harbor }) {
     <${ActiveFiles} d=${d} mib=${mib} />
     ${d.error ? html`<div class="derr">${d.error}</div>` : ''}
     <${DownloadButtons} d=${d} mib=${mib} onFlip=${flip} />
-  </div>`)}</div>`;
+    ${problem(d)}
+  </div>`)}</div>${dialog}`;
 }
 
 // A page that throws while it draws must not take the whole window with it: it says so and offers Back.

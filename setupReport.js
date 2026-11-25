@@ -13,12 +13,17 @@ const MAX_CODE = 3200;
 
 function sanitize(text) {
   return String(text == null ? '' : text)
-    .replace(/([A-Za-z]:\\Users\\)[^\\\s"']+/gi, '$1<user>')
-    .replace(/(\/home\/|\/Users\/)[^/\s"']+/g, '$1<user>')
+    // Headers and signed-link parts first, so the name stays readable ("sig=<removed>") and nothing after them survives.
+    .replace(/\b(set-cookie|cookie|authorization)(\s*[:=]\s*)[^\r\n]*/gi, '$1$2<removed>')
+    .replace(/\bbearer\s+(?!<)[^\s"',;]+/gi, 'Bearer <removed>')
+    .replace(/\b([\w-]*(?:sig|signature|token|auth|key|secret|password|session|cookie|jwt|credential)[\w-]*)=(?!<)[^&\s"',;]+/gi, '$1=<removed>')
+    // User folders: Windows with either slash (and the doubled backslashes of JSON text), Linux and macOS home folders.
+    .replace(/([A-Za-z]:(?:\\{1,2}|\/)(?:Users|Documents and Settings)(?:\\{1,2}|\/))(?!<user>)[^\\/\s"']+/gi, '$1<user>')
+    .replace(/(\/home\/|\/Users\/)(?!<user>)[^/\s"']+/g, '$1<user>')
     .replace(/(https?:\/\/[^\s?"']+)\?[^\s"']*/gi, '$1?<removed>')
     .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, '<email>')
     .replace(/\b\d{1,3}(?:\.\d{1,3}){3}\b/g, '<ip>')
-    .replace(/\b(?:bearer|token|key|secret|password|pass|auth)[=:\s]+[^\s"',;]{4,}/gi, '$1=<removed>'.replace('$1', 'secret'))
+    .replace(/\b(?:bearer|token|key|secret|password|pass|auth)[=:\s]+(?!<)[^\s"',;]{4,}/gi, '$1=<removed>'.replace('$1', 'secret'))
     .replace(/[A-Za-z0-9_\-]{28,}/g, '<redacted>');
 }
 

@@ -40,6 +40,7 @@ async function maybeShowHashGateNotice() {
 
 // Tells the site why a download attempt ended and which retries it needed: counts and kinds only, no file names (site: services/engine-reports.js).
 function reportEngineToServer(download, info) {
+  try { if (download && info) download.lastEngineReport = { ...info }; } catch (e) { }   // shown and sent by "Send this problem to staff"
   if (ctx.SMOKE_TEST) return;      // the built app's own test never reports to the real site or Sentry
   try {
     const token = (download && download.token) || null;

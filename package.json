@@ -36,6 +36,7 @@
       "deviceId.js",
       "setupCheck.js",
       "setupReport.js",
+      "downloadProblemReport.js",
       "updateRunner.js",
       "preload.js",
       "preload-update.js",

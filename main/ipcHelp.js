@@ -15,6 +15,8 @@ const { formatBytes } = require('./util');
 const { ipcMain, app, dialog } = require('electron');
 const fs = require('fs');
 const os = require('os');
+const path = require('path');
+const problemReport = require('../downloadProblemReport');
 const { pathToFileURL } = require('url');
 
 function register() {
@@ -162,6 +164,69 @@ ipcMain.handle('send-support-log', async () => {
   } catch (e) {
     logToFile(`[support-log] failed: ${e.message}`);
     return { ok: false, error: 'Could not send the log. Check your connection and try again.' };
+  }
+});
+
+// "Send this problem to staff" (a failed download's card): preview shows exactly what would be sent; send posts it to the site, which tells staff.
+// One report per download and at most 5 a day, remembered in problem-reports.json (the site checks the same limits).
+const problemStatePath = () => path.join(app.getPath('userData'), 'problem-reports.json');
+const readProblemState = () => { try { return problemReport.normalizeState(JSON.parse(fs.readFileSync(problemStatePath(), 'utf8'))); } catch (e) { return problemReport.normalizeState(null); } };
+const writeProblemState = (s) => { try { fs.writeFileSync(problemStatePath(), JSON.stringify(s)); } catch (e) { logToFile(`[problem-report] could not save the sent list: ${e.message}`); } };
+const readLogTail = (maxBytes) => {
+  try {
+    const logPath = getDebugLogPath();
+    const size = fs.statSync(logPath).size;
+    const len = Math.min(size, maxBytes);
+    const buf = Buffer.alloc(len);
+    const fd = fs.openSync(logPath, 'r');
+    try { fs.readSync(fd, buf, 0, len, size - len); } finally { fs.closeSync(fd); }
+    return buf.toString('utf8');
+  } catch (e) { return ''; }
+};
+const problemPayload = (downloadId, note) => {
+  const d = ctx.activeDownloads && ctx.activeDownloads.get(downloadId);
+  if (!d) return null;
+  return problemReport.buildPayload({ download: d, appVersion: app.getVersion(), os: `${process.platform} ${os.release()} ${process.arch}`, logText: readLogTail(2 * 1024 * 1024), note });
+};
+let problemSending = false;
+
+ipcMain.handle('download-problem-sent', async () => problemReport.sentMap(readProblemState()));
+
+ipcMain.handle('preview-download-problem', async (event, downloadId) => {
+  const check = problemReport.canSend(readProblemState(), downloadId);
+  const payload = problemPayload(String(downloadId || ''), '');
+  if (!payload) return { ok: false, error: 'This download could not be found. Retry it once, and send the problem if it fails again.' };
+  return { ok: true, payload, canSend: check.ok, reason: check.reason || '', reportId: check.reportId || 0, error: check.ok ? '' : check.error };
+});
+
+ipcMain.handle('send-download-problem', async (event, downloadId, note) => {
+  if (problemSending) return { ok: false, error: 'A report is already being sent.' };
+  problemSending = true;
+  try {
+    const id = String(downloadId || '');
+    const check = problemReport.canSend(readProblemState(), id);
+    if (!check.ok) return { ok: false, error: check.error, reportId: check.reportId || 0 };
+    const token = ctx.sessionToken || loadSession();
+    if (!token) return { ok: false, error: 'Sign in to the app first, then try again.' };
+    const payload = problemPayload(id, typeof note === 'string' ? note : '');
+    if (!payload) return { ok: false, error: 'This download could not be found.' };
+    const res = await postJsonWithBearer('https://www.armgddnbrowser.com/api/support/download-report', payload, token);
+    const reportId = res.json && Number(res.json.id);
+    if (res.statusCode === 409 && reportId) { writeProblemState(problemReport.recordSent(readProblemState(), id, reportId)); return { ok: true, reportId }; }
+    if (res.statusCode === 429) return { ok: false, error: (res.json && res.json.error) || 'You have sent several problems today. Try again tomorrow.' };
+    if (res.statusCode === 401) return { ok: false, error: 'Sign in to the app again, then try again.' };
+    if (res.statusCode !== 200 || !reportId) {
+      logToFile(`[problem-report] failed: HTTP ${res.statusCode}`);
+      return { ok: false, error: `The site could not take the report right now (error ${res.statusCode || 'no answer'}). Try again in a minute.` };
+    }
+    writeProblemState(problemReport.recordSent(readProblemState(), id, reportId));
+    logToFile(`[problem-report] sent report #${reportId} for download ${id} (${payload.log.length} log lines)`);
+    return { ok: true, reportId };
+  } catch (e) {
+    logToFile(`[problem-report] failed: ${e.message}`);
+    return { ok: false, error: 'Could not send the report. Check your connection and try again.' };
+  } finally {
+    problemSending = false;
   }
 });
 

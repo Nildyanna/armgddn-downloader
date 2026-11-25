@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('nativeAPI', {
   openExternal: call('open-external'),
   getScheduleBanner: call('get-schedule-banner'), onScheduleBanner: listen('schedule-banner'),
   checkGameUpdates: call('check-game-updates'), clearHistory: call('clear-history'),
+  problemSent: call('download-problem-sent'), problemPreview: call('preview-download-problem'), problemSend: call('send-download-problem'),
   getWhatsNew: call('get-whats-new'), pendingWhatsNew: call('native-pending-whats-new'), getHelp7zVideoSrc: call('get-help-7z-video-src'),
   checkUpdates: call('check-updates'), installUpdate: (options) => ipcRenderer.invoke('install-update', null, options),
   onUpdateAvailable: listen('native:updateAvailable'),

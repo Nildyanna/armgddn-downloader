@@ -816,3 +816,14 @@ html[data-theme="harbor"] .upscreen { background: var(--hb-bg); }
 .askbody { max-width: 520px; display: flex; flex-direction: column; gap: 10px; line-height: 1.5; }
 .askbody p { margin: 0; }
 .askbtns { display: flex; gap: 10px; margin-top: 6px; }
+
+/* "Send this problem to staff" on a failed download (Nov 25 2026). */
+.dproblem { margin-top: 6px; }
+.dproblem .dsent { font-size: 12px; color: var(--dim); }
+.dpnote { margin: 0 0 10px; color: var(--dim); font-size: 13px; line-height: 1.45; }
+.dpgrid { display: grid; grid-template-columns: max-content 1fr; gap: 4px 12px; margin: 0 0 10px; font-size: 13px; }
+.dpgrid dt { color: var(--dim); }
+.dpgrid dd { margin: 0; overflow-wrap: anywhere; }
+.dplabel { display: block; margin: 10px 0 4px; font-size: 13px; }
+.dpbody textarea { width: 100%; box-sizing: border-box; background: var(--inset); color: inherit; border: 1px solid var(--line); border-radius: 6px; padding: 6px; font: inherit; }
+.dplog { max-height: 260px; overflow: auto; font-size: 11px; }

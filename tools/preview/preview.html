@@ -65,6 +65,11 @@
       { id: 'hauler', family: 'Craft', state: 'locked', name: 'Heavy Hauler', emoji: '\u{1F69A}', desc: 'Download 1 TB', have: 412, need: 1000, unit: 'GB' },
       { id: 'h1', family: 'Craft', state: 'hidden', hint: 'Keep exploring to find out.' }] }),
     badgeChoose: () => ok({}),
+    // "Send this problem to staff" on the failed download (the real calls answer plain objects, not { ok, data }).
+    problemSent: () => ({}),
+    problemPreview: (id) => ({ ok: true, canSend: true, payload: { title: titles[7] || 'A game', error: 'The server stopped answering. Press Retry to continue where it stopped.', app: '6.13.0', os: 'win32 10.0.26100 x64', files: { total: 10, done: 6 },
+      engine: { engine: 'segmented', outcome: 'failed', endedBy: 'stall', failKind: 'stall', streams: 8 }, note: '', log: ['[2026-11-25T18:01:02Z] [segmented] part.7z.007: retry 1: stall https://gateway.example/f?<removed>', '[2026-11-25T18:01:40Z] [Resume] gave up on part.7z.007: stalled (kept 1203 bytes) dir=C:\\Users\\<user>\\Games'] } }),
+    problemSend: () => ({ ok: true, reportId: 12 }),
   };
   window.nativeAPI = new Proxy({}, { get: (_, n) => {
     if (n === 'quiet') return true;
