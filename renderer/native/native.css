@@ -497,11 +497,13 @@ header select + select { margin-left: 0; }
 .abar { fill: var(--accent, #6cf); opacity: .85; } .abar:hover { opacity: 1; }
 .aheat { fill: var(--accent, #6cf); }
 .atick { fill: var(--dim); font-size: 10px; }
-.arank { display: flex; flex-direction: column; gap: 5px; }
-.arankrow { display: grid; grid-template-columns: 24px minmax(120px, 1.2fr) minmax(80px, 2fr) 96px; gap: 8px; align-items: center; font-size: 13px; }
+/* One grid for the whole list (rows are display: contents), so the value column fits the longest number ("2,340 members" overflowed
+   the card at a fixed 96px, Nov 25 2026) and every row's bar starts and ends in the same place; the bar gives way, not the text. */
+.arank { display: grid; grid-template-columns: 24px minmax(5.5em, 1.2fr) minmax(24px, 2fr) max-content; gap: 5px 8px; align-items: center; font-size: 13px; }
+.arankrow { display: contents; }
 .arankn { color: var(--dim); text-align: right; } .aranklabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .arankbar { height: 8px; border-radius: 4px; background: var(--inset); overflow: hidden; } .arankbar i { display: block; height: 100%; background: var(--accent, #6cf); }
-.arankval { text-align: right; color: var(--dim); }
+.arankval { text-align: right; color: var(--dim); white-space: nowrap; }
 
 /* Owner status dock */
 .ownerdock { position: relative; flex: none; z-index: 15; display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; padding: 5px 12px; background: var(--panel, #0d1320); border-top: 1px solid var(--line); box-shadow: 0 -4px 16px rgba(0,0,0,.35); }
