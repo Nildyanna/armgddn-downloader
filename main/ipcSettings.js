@@ -24,6 +24,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'maxDownloadSpeedMBps',
     'speedLimitHours',
     'autoExtract7z',
+    'openSetupAfterExtract',
     'autoHashCheck',
     'hashGateNoticeSeen',
     'comicsFolder',

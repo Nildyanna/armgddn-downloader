@@ -175,14 +175,19 @@ function runSmokeTest() {
         fs.mkdirSync(srcDir, { recursive: true });
         fs.mkdirSync(outDir, { recursive: true });
         fs.writeFileSync(path.join(srcDir, 'a.txt'), 'hello 7z smoke', 'utf8');
-        const archive = path.join(dir, 'test.7z');
+        fs.writeFileSync(path.join(srcDir, 'AGRepackInstaller.exe'), 'not a real program', 'utf8');   // only looked for, never run
+        const archive = path.join(dir, 'Smoke Game v1234567 -ARMGDDN.7z');
+        try { fs.unlinkSync(archive); } catch (e) { }
         const made = await new Promise((resolve) => {
-          execFile(sevenZipRun, ['a', '-pARMGDDNGames', '-y', archive, 'a.txt'], { cwd: srcDir, timeout: 60000 }, (err, stdout, stderr) => resolve({ err, stderr }));
+          execFile(sevenZipRun, ['a', '-pARMGDDNGames', '-y', archive, 'a.txt', 'AGRepackInstaller.exe'], { cwd: srcDir, timeout: 60000 }, (err, stdout, stderr) => resolve({ err, stderr }));
         });
         if (made.err) {
           failures.push(`bundled 7z could not create an archive: ${(made.stderr || made.err.message).toString().slice(0, 200)}`);
         } else {
-          await run7zExtract(archive, outDir);
+          const ex = await run7zExtract(archive, outDir);
+          // "Open the setup when extraction finishes": the listing the extraction kept finds the installer (the rule is asked as if on Windows).
+          const pick = require('../setupPick').findSetup({ platform: 'win32', sets: [{ rel: path.basename(archive), entries: ex && ex.entries }] });
+          if (!(pick.status === 'one' && pick.rel === 'AGRepackInstaller.exe')) failures.push(`setup was not found after extraction: ${JSON.stringify(pick)}`);
           let text = '';
           try { text = fs.readFileSync(path.join(outDir, 'a.txt'), 'utf8'); } catch (e) { }
           if (text !== 'hello 7z smoke') failures.push(`7z extraction produced ${JSON.stringify(text)}`);

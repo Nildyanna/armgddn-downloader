@@ -3,6 +3,7 @@
   Preview of the app's pages in an ordinary browser, with made-up data (Nov 24 2026). Not part of the app: tools/ is not in build.files.
   Run:  npm run preview            (then open the address it prints)
   Ask for a page and theme in the address:  ?scene=downloads|home|library|mylist|settings  &theme=harbor|classic|light
+  &platform=linux|darwin: as the app looks there (no Open setup, no "Open the setup" setting); the default is win32.
   The 3D Flick Fix strip: &promo=off (site switched it off), &promoHidden=1 (hidden with the ✕ today).
   The Downloads scene has one download in every state the app has (DOWNLOAD_STATES in renderer/native/format.mjs), so a change to that page
   can be looked at, and screenshotted, before a release.
@@ -44,7 +45,7 @@
     mk(2, 'in_progress', 99, { statusMessage: 'Checking files...', totalSpeedBytes: 0, eta: '', downloadedSize: files[2].size, completedFiles: 10 }),
     mk(3, 'extracting', 99, { extractPercent: 45, totalSpeedBytes: 0, eta: '', downloadedSize: files[3].size, completedFiles: 10 }),
     mk(4, 'queued', 0, { totalSpeedBytes: 0, totalSpeed: '', eta: '', downloadedSize: 0, completedFiles: 0 }),
-    mk(5, 'completed', 100, { eta: '', totalSpeed: '', totalSpeedBytes: 0, downloadedSize: files[5].size, completedFiles: 10 }),
+    mk(5, 'completed', 100, { eta: '', totalSpeed: '', totalSpeedBytes: 0, downloadedSize: files[5].size, completedFiles: 10, setupFound: true, setupOpened: true }),   // Open setup + "Setup opened" (Windows; &platform=linux hides them)
     mk(6, 'completed', 100, { eta: '', totalSpeed: '', totalSpeedBytes: 0, downloadedSize: files[6].size, completedFiles: 10, statusMessage: '1 file did not match. Automatic extraction was skipped.' }),
     mk(7, 'failed', 63, { eta: '', totalSpeed: '', totalSpeedBytes: 0, error: 'The server stopped answering. Press Retry to continue where it stopped.' }),
     mk(8, 'cancelled', 12, { eta: '', totalSpeed: '', totalSpeedBytes: 0 }),
@@ -81,6 +82,7 @@
   };
   window.nativeAPI = new Proxy({}, { get: (_, n) => {
     if (n === 'quiet') return true;
+    if (n === 'platform') return q.get('platform') || 'win32';   // the app's process.platform: Open setup and its setting are Windows only
     if (n === 'then') return undefined;
     if (n === 'onOpen') return (cb) => setTimeout(() => cb({ view: scene }), 50);    // opens the page asked for in the address
     if (typeof n === 'string' && n.startsWith('on')) return () => { };

@@ -12,6 +12,7 @@ const { extractTarget, run7zExtract } = require('./extract');
 const { clockCertMessage } = require('./failures');
 const { hashingGated, reportHashUnavailableToServer, reportHashCheckToServer, runHashCheck } = require('./hashing');
 const { repairDamagedFiles } = require('./pieceRepairRun');
+const { noteSetupFound, maybeAutoOpenSetup } = require('./setupLaunch');
 const { saveHistory } = require('./history');
 const { installSpaceTip } = require('./installSpace');
 const { logToFile } = require('./log');
@@ -378,9 +379,14 @@ function finalizeCompletedDownload(downloadId) {
     didCheck: !!download.didCheck,
     checkOk: download.checkOk !== false,
     didExtract: !!download.didExtract,
-    planUnpack: !!(download.finishedPlan && download.finishedPlan.unpack)
+    planUnpack: !!(download.finishedPlan && download.finishedPlan.unpack),
+    // The game's installer, when its extraction found exactly one (setupPick.js): the card's Open setup button, and the automatic open.
+    setupRel: download.setupRel || '',
+    setupBase: download.setupBase || '',
+    setupOpened: false
   });
   saveHistory();
+  maybeAutoOpenSetup(download, ctx.downloadHistory[0]);
 
   if (mainWindowAlive()) {
     logToFile(`[completeDownload] Sending download-completed event to renderer`);
@@ -485,6 +491,7 @@ function completeDownload(downloadId, afterHashCheck) {
         try {
           let archiveIndex = 0;
           let lastTick = 0;
+          const unpacked = [];   // [{ rel, entries }]: what each archive unpacked, to find the game's setup afterwards
           for (const a of archives) {
             const archiveBase = (() => {
               try {
@@ -506,7 +513,7 @@ function completeDownload(downloadId, afterHashCheck) {
             try { fs.mkdirSync(extractDir, { recursive: true }); } catch (e) { }
             logToFile(`[extract] ${archiveBase} -> ${extractDir}`);
             const idx = archiveIndex;
-            await run7zExtract(a, extractDir, (pct) => {
+            const exResult = await run7zExtract(a, extractDir, (pct) => {
               const overall = Math.min(100, Math.floor(((idx + pct / 100) / archives.length) * 100));
               download.extractPercent = overall;
               const now = Date.now();
@@ -519,8 +526,10 @@ function completeDownload(downloadId, afterHashCheck) {
               } catch (e) { }
               if (now - (download.__lastExtractReport || 0) >= 2000) { download.__lastExtractReport = now; try { reportProgressToServer(download, download.token); } catch (e) { } }
             });
+            unpacked.push({ rel: path.relative(downloadDir, a), entries: (exResult && exResult.entries) || [] });
             archiveIndex++;
           }
+          noteSetupFound(download, unpacked, extractTarget(downloadDir));
           if (extractTarget(downloadDir) !== downloadDir) download.extractedTo = extractTarget(downloadDir);
           download.extractPercent = 100;
           download.didExtract = archives.length > 0;

@@ -5,12 +5,13 @@ const call = (name) => (...args) => ipcRenderer.invoke(name, ...args);
 // banner, the connection test) added one more listener on every visit, each one holding the closed page's state (Nov 25 2026 review).
 const listen = (channel) => (cb) => { const h = (_e, msg) => cb(msg); ipcRenderer.on(channel, h); return () => ipcRenderer.removeListener(channel, h); };
 contextBridge.exposeInMainWorld('nativeAPI', {
+  platform: (() => { try { return String(process.platform || ''); } catch (e) { return ''; } })(),   // Open setup and its setting are Windows only
   quiet: (() => { try { return process.argv.some((a) => a.startsWith('--native-shot') || a === '--native-quiet'); } catch (e) { return false; } })(),   // screenshot runs stay silent
   status: call('native:status'), login: call('native:login'), remotes: call('native:remotes'),
   browse: call('native:browse'), stats: call('native:stats'),
   onOpen: listen('native:open'),
   download: call('native:download'), downloadBatch: call('native:downloadBatch'), downloads: call('native:downloads'),
-  pause: call('pause-download'), resume: call('resume-download'), cancel: call('cancel-download'), retry: call('retry-download'), openFolder: call('open-folder'), history: call('get-history'),
+  pause: call('pause-download'), resume: call('resume-download'), cancel: call('cancel-download'), retry: call('retry-download'), openFolder: call('open-folder'), openSetup: call('open-setup'), history: call('get-history'),
   exportList: call('native:exportList'), copy: call('native:copy'), runSetupCheck: call('run-setup-check'), buildSetupReport: call('build-setup-report'), sendSupportLog: call('send-support-log'), runConnectionTest: call('run-connection-test'),
   onConnectionTestProgress: listen('connection-test-progress'), prefs: call('native:prefs'), logout: call('native:logout'), appProgress: call('native:appProgress'), trending: call('native:trending'), gems: call('native:gems'), getSettings: call('get-settings'), importSettings: call('native-import-settings'), saveSettings: call('save-settings'), browseFolder: call('browse-folder'), readme: call('native:readme'), textFile: call('native:textFile'), openLink: call('native:openLink'),
   comicsState: call('comics-get-state'), comicsPickFolder: call('comics-pick-folder'), comicsScan: call('comics-scan'), comicsCancelScan: call('comics-cancel-scan'), comicsInfo: call('comics-info'), comicsCompare: call('comics-compare'), comicsDownloadMissing: call('comics-download-missing'),

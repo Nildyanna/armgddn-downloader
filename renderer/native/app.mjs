@@ -1,6 +1,6 @@
 import './toTop.mjs';
 import { html, render, useState, useEffect, useMemo, Fragment, useRef, Component } from '../../native/vendor/ui.mjs';
-import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard, downloadAnnouncement , finishedText, updateCheckResult } from './format.mjs';
+import { isHiddenItem, formatSize, releaseYear, cleanTitle, filterAndSort, autoEnter, shapeFor, crumbsFor, visibleItems, collectionCoverPath, coverFills, formatSpeed, elapsedShown, popularityLabel, trendingSets, batchEligible, batchPaths, PREFS_SNIPPET, parsePrefs, normalizePrefs, mergeMyList, homeItem, picksFrom, isActiveDownload, canDownload, downloadActions, letterOf, lettersPresent, statusInfo, shortDate, detailLines, steamLinks, dayKey, trailerSource, isPatchFolder, patchOldRepackLabel, mayHavePatchQuestion, isStarfieldTarget, MY_LIST_KEY, myListHas, myListToggle, categoryCounts, filterByCategory, wikiHtmlForApp, wikiSectionFor, searchEverywhere, compareLines, startedLine, introDecision, versionBadges, bundlesPresent, searchFuzzy, otherSectionMatches, stubNotice, quotaTabs, comicTitle, comicParts, fileSuffix, etaShown, isRunningDownload, formatMiBps, activeFileRows, splitDownloads, bytesLeft, downloadPlace, rankTrending, buildNumber, speedInUnit, bytesDone, finishingStage, finishingText, downloadSteps, nearestCard, downloadAnnouncement , finishedText, updateCheckResult, setupNote } from './format.mjs';
 
 import { mountLoginLightning } from './loginLightning.mjs';
 import { RADAR_CARDS, RADAR_HISTORY_MAX, isRadarRemote, radarGroup, radarPath, radarKey, radarTitle, radarPicks } from './radar.mjs';
@@ -858,6 +858,7 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle, promo }) {
     <${SpeedLimitRow} s=${s} save=${save} />
     ${settingRow('autoHashCheck')}
     ${settingRow('autoExtract7z')}
+    ${api.platform === 'win32' ? html`<label class="srow"><input type="checkbox" checked=${!!s.openSetupAfterExtract} onChange=${(e) => save({ openSetupAfterExtract: e.target.checked })} /> <span class="slabel">Open the setup when extraction finishes <span class="sval">When a game finishes extracting, the App opens its installer so you can click through it. Nothing installs on its own.</span></span></label>` : ''}
     <${Help7zRow} />
     <${ScheduleRow} s=${s} save=${save} />
     </section>
@@ -1197,7 +1198,14 @@ function UpdateScreen() {
 
 // Shared by the classic Downloads page and Harbor's: a download's buttons (with the Mbps / MiB/s switch while it runs) and the files it is fetching at once.
 function DownloadButtons({ d, mib, onFlip }) {
-  return html`<div class="dbtns">${isActiveDownload(d) && onFlip && !finishingStage(d) ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${onFlip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d).map((k) => html`<button class="dbtn" onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder' }[k]}</button>`)}</div>`;
+  return html`<div class="dbtns">${setupNote(d, api.platform) ? html`<span class="dsetup" role="status">${setupNote(d, api.platform)}</span>` : ''}${isActiveDownload(d) && onFlip && !finishingStage(d) ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${onFlip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d, api.platform).map((k) => html`<button class="dbtn" title=${k === 'openSetup' ? 'Opens the game\'s installer so you can click through it' : undefined} onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : k === 'openSetup' ? openSetupFor(d) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder', openSetup: 'Open setup' }[k]}</button>`)}</div>`;
+}
+// Open setup: the main process finds the file again from its own history (the page only passes the id) and opens it.
+async function openSetupFor(d) {
+  try {
+    const r = await api.openSetup(d.id);
+    if (r && r.ok === false && r.error) window.dispatchEvent(new CustomEvent('native-say', { detail: r.error }));
+  } catch (e) { }
 }
 function ActiveFiles({ d, mib, folded }) {
   const af = activeFileRows(d.activeFiles);
@@ -1418,6 +1426,8 @@ function App() {
   // Each message stays its full 4 seconds: an earlier message's timer used to wipe a newer one early ("Preparing the list..." then "Saved").
   const toastTimer = useRef(null);
   const say = (m) => { setToast(m); clearTimeout(toastTimer.current); toastTimer.current = setTimeout(() => setToast(''), 4000); };
+  // Messages from parts of the page that have no say() of their own (Open setup on a download card).
+  useEffect(() => { const h = (e) => { if (e && typeof e.detail === 'string' && e.detail) say(e.detail); }; window.addEventListener('native-say', h); return () => window.removeEventListener('native-say', h); }, []);
   // Inbox: polled every two minutes while signed in and whenever the window comes back into focus. The newest id this PC has seen is kept,
   // so only items that arrive after it pop a desktop notification (Settings > Show notifications decides in the main process).
   const [inbox, setInbox] = useState(null);
@@ -1752,7 +1762,7 @@ function App() {
       // remotePath (+ the section, actualRemote, for 3D, Apps and the like): finished rows find their cover art by where the title sits in the library
       // (downloadPlace); without them the art vanished once a download left the live list (Nov 24 2026).
       const done = (Array.isArray(h) ? h : []).filter((d) => d && !ids.has(d.id)).slice(0, 30)
-        .map((d) => ({ id: d.id, name: d.name, status: d.status || 'completed', progress: 100, totalSize: d.totalSize, downloadedSize: d.totalSize, remotePath: d.remotePath || '', resumeRemote: d.actualRemote || '', resumePath: d.actualRemote ? (d.remotePath || '') : '', didCheck: d.didCheck, checkOk: d.checkOk, didExtract: d.didExtract, planUnpack: d.planUnpack }));
+        .map((d) => ({ id: d.id, name: d.name, status: d.status || 'completed', progress: 100, totalSize: d.totalSize, downloadedSize: d.totalSize, remotePath: d.remotePath || '', resumeRemote: d.actualRemote || '', resumePath: d.actualRemote ? (d.remotePath || '') : '', didCheck: d.didCheck, checkOk: d.checkOk, didExtract: d.didExtract, planUnpack: d.planUnpack, setupFound: !!d.setupRel, setupOpened: d.setupOpened === true }));
       setDownloads([...done.reverse(), ...active]);   // oldest first; the list is shown newest first
     };
     tick(); const t = setInterval(tick, 1500);

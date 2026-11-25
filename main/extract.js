@@ -2,6 +2,7 @@
 // Unpacking finished downloads with 7-Zip (moved out of main.js, Nov 24 2026; docs/MAIN_SPLIT.md). Shared state is reached through ctx (main/context.js).
 const ctx = require('./context');
 const { describe7zFailure } = require('../sevenZipErrors');
+const { parseSltListing } = require('../setupPick');
 const { logToFile } = require('./log');
 const { ensureRunnable7z, probe7z, describe7zTool, snip7z } = require('./sevenZip');
 const { sanitizeRelativePath, resolveInside } = require('./util');
@@ -82,6 +83,7 @@ function run7zExtract(archivePath, outputDir, onProgress) {
       return t.includes('enter password') || t.includes('wrong password') || t.includes('password is incorrect') || t.includes('encrypted');
     };
 
+    let listedEntries = [];
     const runList = () => {
       const listArgs = ['l', '-slt', `-p${password}`, archivePath];
       return spawnSync(exe, listArgs, { encoding: 'utf8', timeout: 30000 });
@@ -115,6 +117,8 @@ function run7zExtract(archivePath, outputDir, onProgress) {
       }
 
       const stdout = String(listResult.stdout || '');
+      // What this archive unpacks (its entries), kept so the finished card can find the game's setup (setupPick.js).
+      try { listedEntries = parseSltListing(stdout); } catch (eL) { listedEntries = []; }
       const lines = stdout.split(/\r?\n/);
       for (const line of lines) {
         if (!line.startsWith('Path = ')) continue;
@@ -215,7 +219,7 @@ function run7zExtract(archivePath, outputDir, onProgress) {
           try {
             logToFile(`[7z] Extract ok: ${archivePath}`);
           } catch (e) { }
-          resolve({ out, err });
+          resolve({ out, err, entries: listedEntries });
           return;
         }
         const combined = (out + '\n' + err).trim();

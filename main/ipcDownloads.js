@@ -26,6 +26,7 @@ const { saveSession } = require('./session');
 const { isAllowedServiceHost } = require('./siteApi');
 const { sanitizeRelativePath, resolveInside, normalizeFileSize } = require('./util');
 const crypto = require('crypto');
+const { openSetup } = require('./setupLaunch');
 const { ipcMain, dialog, app, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
@@ -727,6 +728,16 @@ ipcMain.handle('open-folder', async (event, arg) => {
     if (dir && fs.existsSync(dir)) { await shell.openPath(dir); return; }
   } catch (e) { }
   shell.openPath(ctx.settings.downloadPath);
+});
+
+// Open setup: the installer the finished download's extraction found (setupPick.js). The window passes only the download id; the file is taken
+// from the app's own history and checked again right before it is opened (main/setupLaunch.js). Windows only.
+ipcMain.handle('open-setup', async (event, arg) => {
+  const id = typeof arg === 'string' ? arg : '';
+  if (!id || process.platform !== 'win32') return { ok: false, error: 'Open setup is only on Windows.' };
+  const entry = Array.isArray(ctx.downloadHistory) ? ctx.downloadHistory.find((x) => x && x.id === id) : null;
+  if (!entry) return { ok: false, error: 'This download is not in the list any more.' };
+  return openSetup(entry);
 });
 }
 

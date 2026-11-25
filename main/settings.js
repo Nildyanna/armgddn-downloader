@@ -89,6 +89,7 @@ function normalizeSettings() {
     ctx.settings.speedLimitHours = scheduleLib.normalizeLimitHours(ctx.settings.speedLimitHours);
 
     ctx.settings.autoExtract7z = !!ctx.settings.autoExtract7z;
+    ctx.settings.openSetupAfterExtract = ctx.settings.openSetupAfterExtract === true;   // off unless the member turns it on (Windows only)
     // 5.15.0 turned "Check files after download" on for everyone, once. After that the member's own choice is kept, including off.
     if (!ctx.settings.autoHashCheckDefaultedOn) { ctx.settings.autoHashCheck = true; ctx.settings.autoHashCheckDefaultedOn = true; }
     ctx.settings.autoHashCheck = !!ctx.settings.autoHashCheck;

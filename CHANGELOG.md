@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Open the setup when extraction finishes (Windows): a finished game whose main archive unpacked to exactly one installer (AGRepackInstaller.exe or Setup.exe, at the top or one folder down) gets an Open setup button on its Downloads card, next to Open folder. Settings > Downloads has "Open the setup when extraction finishes" (off by default): with it on, the ARMGDDN App opens that installer once, by itself, after a clean extraction whose file check passed, and the card says "Setup opened". The installer opens with the member's normal rights and no switches, in its own folder, so nothing installs on its own. Add-on archives (DLC, fixes, mods, language packs, extras, update patches), .bat/.msi files, redistributables and uninstallers are never opened; with no installer or more than one, only Open folder shows. Not on Linux or macOS.
+
 ## [6.15.1] - 2026-11-25
 
 ### Fixed

@@ -151,15 +151,25 @@ export function canDownload(remote, folder, item) {
   return true;
 }
 
-// Buttons for a download row, by status: running -> pause + cancel; paused -> resume + cancel; failed -> retry + cancel; done -> open folder.
-export function downloadActions(d) {
+// Buttons for a download row, by status: running -> pause + cancel; paused -> resume + cancel; failed -> retry + cancel; done -> open folder,
+// with Open setup first when the extraction found the game's one installer (Windows only; platform is the app's process.platform).
+export function downloadActions(d, platform) {
   const st = String((d && d.status) || '').toLowerCase();
-  if (['completed'].includes(st)) return ['openFolder'];
+  if (['completed'].includes(st)) return setupShown(d, platform) ? ['openSetup', 'openFolder'] : ['openFolder'];
   if (['cancelled'].includes(st)) return [];
   if (st === 'paused') return ['resume', 'cancel'];
   if (['error', 'failed'].includes(st)) return ['retry', 'cancel'];
   if (finishingStage(d)) return ['cancel'];   // nothing left to pause once every file is downloaded
   return ['pause', 'cancel'];
+}
+
+// "Open setup" on a finished card: Windows, a finished download whose extraction found exactly one installer (setupPick.js in the main process).
+export function setupShown(d, platform) {
+  return platform === 'win32' && !!d && String(d.status || '').toLowerCase() === 'completed' && d.setupFound === true;
+}
+// The short note on the card after the app opened the setup by itself.
+export function setupNote(d, platform) {
+  return setupShown(d, platform) && d.setupOpened === true ? 'Setup opened' : '';
 }
 
 // A-Z jump: the letter a title sorts under (digits and symbols share "#").
