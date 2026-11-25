@@ -10,7 +10,12 @@ class ApiError extends Error {
   constructor(message, kind, status, body) { super(message); this.kind = kind; this.status = status || 0; this.body = body; }
 }
 
-function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgddnbrowser.com', fetchImpl, version = '0.0.0', maxConcurrent = 6, imageCacheBytes = 64 * 1024 * 1024, maxCacheEntries = 200, sleep } = {}) {
+// A request the site never answers used to wait for ever: the page sat on "Loading..." and the request kept one of the maxConcurrent slots, so
+// after a few such hangs every later call queued behind them and the whole window stopped loading anything (Nov 25 2026 review). Each try now
+// gives up when no answer has started after requestTimeoutMs; a GET then gets its one retry like a dropped connection.
+const REQUEST_TIMEOUT_MS = 30000;
+
+function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgddnbrowser.com', fetchImpl, version = '0.0.0', maxConcurrent = 6, imageCacheBytes = 64 * 1024 * 1024, maxCacheEntries = 200, sleep, requestTimeoutMs = REQUEST_TIMEOUT_MS } = {}) {
   const doFetch = fetchImpl || ((...a) => fetch(...a));
   const wait = sleep || ((ms) => new Promise((r) => setTimeout(r, ms)));
   const cache = new Map();            // key -> { at, ttl, value }
@@ -26,7 +31,7 @@ function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgd
     if (running < maxConcurrent) go(); else queue.push(go);
   });
 
-  async function send(method, path, { body, signal, raw, headers: extra } = {}) {
+  async function send(method, path, { body, signal, raw, headers: extra, timeoutMs } = {}) {
     const token = getToken();
     if (!token) throw new ApiError('Not signed in', 'auth', 401);
     const headers = { Authorization: `Bearer ${token}`, 'User-Agent': `ARMGDDN-Companion/${version}`, Accept: raw ? '*/*' : 'application/json' };
@@ -37,14 +42,28 @@ function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgd
     for (;;) {
       const release = await slot();
       let res;
+      const ctl = new AbortController();
+      const onAbort = () => ctl.abort();
+      if (signal) { if (signal.aborted) ctl.abort(); else signal.addEventListener('abort', onAbort, { once: true }); }
+      let timer = null, timedOut = false;
       try {
         stats.requests++;
-        res = await doFetch(baseUrl + path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal });
+        const call = doFetch(baseUrl + path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined, signal: ctl.signal });
+        const late = new Promise((_, reject) => { timer = setTimeout(() => { timedOut = true; try { ctl.abort(); } catch (e2) { } reject(new Error('timeout')); }, timeoutMs || requestTimeoutMs); });
+        if (call && typeof call.catch === 'function') call.catch(() => { });   // the losing side of the race must not surface as an unhandled rejection
+        res = await Promise.race([call, late]);
       } catch (e) {
         release();
+        if (timedOut) {
+          if (method === 'GET' && attempt < 1) { attempt++; stats.retries++; continue; }
+          throw new ApiError('The site took too long to answer. Try again in a minute.', 'timeout', 0);
+        }
         if (e && e.name === 'AbortError') throw new ApiError('Cancelled', 'aborted', 0);
         if (method === 'GET' && attempt < 1) { attempt++; stats.retries++; await wait(500); continue; }
         throw new ApiError(e && e.message ? e.message : 'Network error', 'network', 0);
+      } finally {
+        clearTimeout(timer);
+        if (signal) signal.removeEventListener('abort', onAbort);
       }
       release();
       if (res.status === 429 && attempt < 2) {
@@ -88,8 +107,8 @@ function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgd
     return p;
   }
 
-  async function write(method, path, body, { invalidate = [] } = {}) {
-    const out = await send(method, path, { body });
+  async function write(method, path, body, { invalidate = [], timeoutMs } = {}) {
+    const out = await send(method, path, { body, timeoutMs });
     for (const prefix of invalidate) for (const k of [...cache.keys()]) if (k.startsWith('GET ' + prefix)) cache.delete(k);
     return out;
   }
@@ -115,8 +134,8 @@ function createApiClient({ getToken, deviceFp = '', baseUrl = 'https://www.armgd
   }
 
   // A file the site builds on request (an export list): fetched whole, never cached.
-  async function file(path, { signal } = {}) {
-    const res = await send('GET', path, { signal, raw: true });
+  async function file(path, { signal, timeoutMs } = {}) {
+    const res = await send('GET', path, { signal, raw: true, timeoutMs });
     return { buf: Buffer.from(await res.arrayBuffer()), type: (res.headers && res.headers.get && res.headers.get('content-type')) || 'application/octet-stream', disposition: (res.headers && res.headers.get && res.headers.get('content-disposition')) || '' };
   }
 
@@ -149,4 +168,4 @@ function createByteCache({ maxBytes, maxEntries }) {
   };
 }
 
-module.exports = { createApiClient, createByteCache, ApiError };
+module.exports = { createApiClient, createByteCache, ApiError, REQUEST_TIMEOUT_MS };

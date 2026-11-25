@@ -57,3 +57,27 @@ test('no token means an auth error without calling the site', async () => {
   const calls = []; const c = createApiClient({ getToken: () => null, fetchImpl: async () => { calls.push(1); } });
   await assert.rejects(c.get('/api/x'), (e) => e.kind === 'auth'); assert.equal(calls.length, 0);
 });
+
+// Nov 25 2026 review: a request the site never answered waited for ever and kept its slot, so a few hangs froze every page on "Loading...".
+test('a request the site never answers gives up, retries a GET once, and frees its slot', async () => {
+  let n = 0;
+  const hang = () => new Promise(() => { });
+  const a = mk(() => (++n <= 2 ? hang() : reply(200, { ok: 1 })), { requestTimeoutMs: 20, maxConcurrent: 1 });
+  await assert.rejects(a.c.get('/api/slow'), (e) => e instanceof ApiError && e.kind === 'timeout' && /too long/.test(e.message));
+  assert.equal(a.calls.length, 2, 'one retry for a GET');
+  assert.deepEqual(await a.c.get('/api/next'), { ok: 1 }, 'the only slot was given back');
+  const b = mk(() => hang(), { requestTimeoutMs: 20 });
+  await assert.rejects(b.c.post('/api/w', {}), (e) => e.kind === 'timeout');
+  assert.equal(b.calls.length, 1, 'a POST is never sent twice');
+});
+test('the time limit aborts the real fetch, and a caller cancel still reads as cancelled', async () => {
+  let seen = null;
+  const a = mk((u, o) => { seen = o.signal; return new Promise(() => { }); }, { requestTimeoutMs: 20 });
+  await assert.rejects(a.c.post('/api/w', {}));
+  assert.ok(seen && seen.aborted, 'the hung request is aborted, not left open');
+  const ac = new AbortController();
+  const b = mk((u, o) => new Promise((_, reject) => { const no = () => { const e = new Error('aborted'); e.name = 'AbortError'; reject(e); }; if (o.signal.aborted) no(); else o.signal.addEventListener('abort', no); }), { requestTimeoutMs: 5000 });
+  const g = b.c.get('/api/x', { signal: ac.signal });
+  ac.abort();
+  await assert.rejects(g, (e) => e.kind === 'aborted');
+});

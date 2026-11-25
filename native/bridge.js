@@ -171,8 +171,8 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
         if (failed.length === MIRRORS.length) throw bad('Could not reset any mirror');
         return { success: true, failed };
       }
-      case 'restartServer': return api.post('/api/admin/restart-server', {});
-      case 'autofixArt': { const r = await api.post('/api/admin/missing-art/autofix', {}, { invalidate: ['/api/admin/missing-covers'] }); return { ...r, message: 'Auto-fix done. Covers fixed: ' + (Number(r && r.coverFixedCount) || 0) + '.' }; }
+      case 'restartServer': return api.post('/api/admin/restart-server', {}, { timeoutMs: 2 * 60 * 1000 });
+      case 'autofixArt': { const r = await api.post('/api/admin/missing-art/autofix', {}, { invalidate: ['/api/admin/missing-covers'], timeoutMs: 10 * 60 * 1000 }); return { ...r, message: 'Auto-fix done. Covers fixed: ' + (Number(r && r.coverFixedCount) || 0) + '.' }; }
       case 'resetApiStats': return api.post('/api/admin/reset-api-stats', {});
       case 'resetDownloadCache': return api.post('/api/admin/reset-download-cache', {});
       case 'banIp': {
@@ -322,7 +322,7 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
   }));
   ipcMain.handle('native:exportList', wrap(async (remote, format) => {
     const { path: p, fmt } = exportPath(remote, format);
-    const f = await api.file(p);
+    const f = await api.file(p, { timeoutMs: 3 * 60 * 1000 });   // the site builds the whole list before it answers
     const name = exportFileName(f.disposition, remote, fmt);
     const pick = await dialog.showSaveDialog(win, { title: 'Save the list', defaultPath: name, filters: [{ name: fmt === 'xlsx' ? 'Excel' : 'CSV', extensions: [fmt] }] });
     if (pick.canceled || !pick.filePath) return { saved: false };

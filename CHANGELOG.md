@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A download no longer fails on its first try when the site is briefly busy while the app asks for a fresh download link; that counts as one more attempt instead.
 - When a download fails for good, all its connections stop straight away instead of running on for minutes.
 - On PCs whose graphics can't run the app's GPU process (for example a Windows virtual machine), the app no longer crashes twice more every week: once it needed the no-GPU mode, it goes straight back to it and keeps it for 30 days.
+- A page no longer sits on "Loading..." for ever when the site does not answer: after 30 seconds the app tries once more and then says the site took too long. A few such hangs used to stop every page of the app from loading until it was restarted.
 
 ## [6.12.0] - 2026-11-24
 
