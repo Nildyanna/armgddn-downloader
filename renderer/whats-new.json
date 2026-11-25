@@ -1,4 +1,10 @@
 {
+  "6.15.0": {
+    "title": "3D Flick Fix",
+    "highlights": [
+      "3D Flick Fix: a slim strip at the top of Home shows the 3D movie service that pays our server bills. Tap ✕ to hide it for 30 days, or switch it off in Settings › Home screen."
+    ]
+  },
   "6.14.0": {
     "title": "Your inbox, and more control over downloads",
     "highlights": [
