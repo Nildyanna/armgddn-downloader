@@ -85,7 +85,8 @@ function normalizeSettings() {
     }
 
     const speed = Number(ctx.settings.maxDownloadSpeedMBps);
-    ctx.settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.round(speed) : 0;
+    ctx.settings.maxDownloadSpeedMBps = Number.isFinite(speed) && speed > 0 ? Math.min(10000, Math.round(speed)) : 0;
+    ctx.settings.speedLimitHours = scheduleLib.normalizeLimitHours(ctx.settings.speedLimitHours);
 
     ctx.settings.autoExtract7z = !!ctx.settings.autoExtract7z;
     // 5.15.0 turned "Check files after download" on for everyone, once. After that the member's own choice is kept, including off.

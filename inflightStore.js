@@ -29,6 +29,8 @@ function clean(e) {
     progress: Math.max(0, Math.min(99, Math.round(Number(e.progress) || 0))),
     fileCount: Math.max(0, Math.round(Number(e.fileCount) || 0)),
     startTime: typeof e.startTime === 'string' ? e.startTime : new Date().toISOString(),
+    // a folder chosen in the free-space box for this one download (absolute, else dropped): Resume after a restart goes there again
+    baseDir: typeof e.baseDir === 'string' && e.baseDir.length <= 500 && (path.win32.isAbsolute(e.baseDir) || path.posix.isAbsolute(e.baseDir)) ? e.baseDir : '',
     savedAt: Number(e.savedAt) || Date.now()
   };
 }

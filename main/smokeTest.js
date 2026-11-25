@@ -248,6 +248,28 @@ function runSmokeTest() {
     } catch (e) {
       failures.push(`engine test failed: ${e && e.message}`);
     }
+    // The free-space box and the speed limit, as wired in the real app (2026-11-25): a pretend drive with 1 GB free must stop a 5 GB
+    // download (the box answered by the test: Cancel, then Start anyway), and a saved limit must reach the shared bucket.
+    try {
+      const { checkBeforeStart } = require('./startSpace');
+      const dir = path.join(app.getPath('userData'), 'smoke-space');
+      const fsx = { ...fs, statfsSync: () => ({ bavail: 1024 * 1024 * 1024 / 4096, bsize: 4096 }) };
+      const files = [{ name: 'big.bin', size: 5 * 1024 * 1024 * 1024 }];
+      const asked = [];
+      const no = await checkBeforeStart({ id: 'smoke', baseDir: dir, folderFor: (d) => path.join(d, 'Game'), files, unpack: false, fsx, ask: async (r) => { asked.push(r.short && r.short.required); return 'cancel'; } });
+      const yes = await checkBeforeStart({ id: 'smoke', baseDir: dir, folderFor: (d) => path.join(d, 'Game'), files, unpack: false, fsx, ask: async () => 'anyway' });
+      if (no.start || asked.length !== 1) failures.push(`space: a 5 GB download on a drive with 1 GB free was not stopped (start=${no.start}, asked=${asked.length})`);
+      if (!yes.start || !yes.forced) failures.push('space: "Start anyway" did not start the download');
+      const before = ctx.settings.maxDownloadSpeedMBps;
+      ctx.settings.maxDownloadSpeedMBps = 7;
+      const mbps = require('./speedLimit').applySpeedLimit('smoke');
+      const rate = require('../speedLimiter').shared.rate;
+      ctx.settings.maxDownloadSpeedMBps = before;
+      require('./speedLimit').applySpeedLimit('smoke');
+      if (mbps !== 7 || rate !== 7 * 1024 * 1024) failures.push(`speed limit: 7 MB/s did not reach the shared bucket (got ${mbps}, ${rate})`);
+    } catch (e) {
+      failures.push(`space/speed check failed: ${e && e.message}`);
+    }
     // Let the UI settle so late renderer errors are caught too.
     await new Promise((r) => setTimeout(r, 3000));
     finish();

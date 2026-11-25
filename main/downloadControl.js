@@ -121,7 +121,7 @@ async function resumeDownloadFiles(downloadId) {
     throw new Error('Download not found');
   }
 
-  const downloadDir = download.rootDir || path.join(ctx.settings.downloadPath, download.name || 'Download');
+  const downloadDir = download.rootDir || download.downloadDir || path.join(download.baseDir || ctx.settings.downloadPath, download.name || 'Download');
   if (!fs.existsSync(downloadDir)) {
     fs.mkdirSync(downloadDir, { recursive: true });
   }

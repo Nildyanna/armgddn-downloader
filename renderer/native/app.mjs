@@ -535,7 +535,6 @@ function NumField({ value, min, max, onCommit, style, step, label }) {
 const SETTING_ROWS = [
   ['number', 'maxConcurrentDownloads', 'Downloads at the same time', 1, 6],
   ['select', 'connectionsPerFile', 'Connections per file', [[0, 'Automatic'], [1, '1'], [2, '2'], [4, '4'], [8, '8'], [16, '16']]],
-  ['number', 'maxDownloadSpeedMBps', 'Speed limit in MB/s (0 = no limit)', 0, 10000],
   ['check', 'autoHashCheck', 'Check files after downloading'],
   ['check', 'autoExtract7z', 'Extract .7z files automatically'],
   ['check', 'showNotifications', 'Show notifications'],
@@ -744,6 +743,23 @@ function UpdateRow({ say }) {
   return html`<div class="srow"><span class="slabel">ARMGDDN App updates <span class="sval">${state.text || 'It checks once an hour by itself.'}</span></span>${found ? html`<button class="dbtn go" disabled=${state.busy} onClick=${install}>Update to v${found.latestVersion}</button>` : html`<button class="dbtn" disabled=${state.busy} onClick=${check}>Check for updates</button>`}</div>`;
 }
 
+// Download speed limit (2026-11-25): one total for all downloads together, applied at once to running downloads. Optionally only between
+// two times of day (the PC's clock). A value set earlier in the classic window that is not one of the choices stays as its own entry.
+const SPEED_CHOICES = [[0, 'Unlimited'], [50, '50 MB/s'], [20, '20 MB/s'], [10, '10 MB/s'], [5, '5 MB/s']];
+function SpeedLimitRow({ s, save }) {
+  const v = Number(s.maxDownloadSpeedMBps) > 0 ? Math.round(Number(s.maxDownloadSpeedMBps)) : 0;
+  const choices = SPEED_CHOICES.some(([n]) => n === v) ? SPEED_CHOICES : SPEED_CHOICES.concat([[v, v + ' MB/s']]);
+  const h = s.speedLimitHours || {};
+  const putHours = (patch) => save({ speedLimitHours: { enabled: !!h.enabled, start: h.start || '08:00', end: h.end || '23:00', ...patch } });
+  const note = !v ? 'Downloads use your full connection.'
+    : h.enabled ? `All downloads together stay under ${v} MB/s between ${h.start || '08:00'} and ${h.end || '23:00'}; outside those hours they are not limited.`
+    : `All downloads together stay under ${v} MB/s. A change applies to running downloads at once.`;
+  return html`<div class="speedlimit">
+    <label class="srow"><span class="slabel">Download speed limit <span class="sval">${note}</span></span><select aria-label="Download speed limit" value=${v} onChange=${(e) => save({ maxDownloadSpeedMBps: Number(e.target.value) })}>${choices.map(([n, t]) => html`<option value=${n}>${t}</option>`)}</select></label>
+    ${v ? html`<div class="srow schedfields"><span class="slabel"><label class="chk"><input type="checkbox" checked=${!!h.enabled} onChange=${(e) => putHours({ enabled: e.target.checked })} /> Only between</label> <input type="time" aria-label="Limit starts at" disabled=${!h.enabled} value=${h.start || '08:00'} onChange=${(e) => putHours({ start: e.target.value || '08:00' })} /> and <input type="time" aria-label="Limit ends at" disabled=${!h.enabled} value=${h.end || '23:00'} onChange=${(e) => putHours({ end: e.target.value || '23:00' })} /></span></div>` : ''}
+  </div>`;
+}
+
 // The download schedule, as in the classic Settings: pause or slow downloads between two times on chosen days.
 const DAY_LABELS = [[1, 'Mon'], [2, 'Tue'], [3, 'Wed'], [4, 'Thu'], [5, 'Fri'], [6, 'Sat'], [0, 'Sun']];
 function ScheduleRow({ s, save }) {
@@ -838,7 +854,7 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
     <section class="sgroup"><h3>Downloads</h3>
     ${settingRow('maxConcurrentDownloads')}
     ${settingRow('connectionsPerFile')}
-    ${settingRow('maxDownloadSpeedMBps')}
+    <${SpeedLimitRow} s=${s} save=${save} />
     ${settingRow('autoHashCheck')}
     ${settingRow('autoExtract7z')}
     <${Help7zRow} />

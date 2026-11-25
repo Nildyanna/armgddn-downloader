@@ -22,6 +22,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'connectionsPerFile',
     'schedule',
     'maxDownloadSpeedMBps',
+    'speedLimitHours',
     'autoExtract7z',
     'autoHashCheck',
     'hashGateNoticeSeen',
@@ -51,6 +52,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
   normalizeSettings();
   applyStartupRegistration();
   saveSettings();
+  try { require('./speedLimit').applySpeedLimit('settings'); } catch (e) { }   // a new limit applies to running downloads at once
   setTimeout(() => { maybeShowHashGateNotice().catch(() => { }); }, 300);
   return ctx.settings;
 });

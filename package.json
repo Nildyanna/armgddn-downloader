@@ -58,6 +58,8 @@
       "engineReason.js",
       "connectionTest.js",
       "schedule.js",
+      "spaceCheck.js",
+      "speedLimiter.js",
       "notify.js",
       "proxy.js",
       "hashCheck.js",

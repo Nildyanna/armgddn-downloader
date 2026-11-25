@@ -13,9 +13,20 @@ function persistInflight(download) {
     inflightStore.upsert(ctx.inflightFile(), {
       id: download.id, name: download.name, resume: download.resume, totalSize: download.totalSize,
       grantId: download.directGrant ? (download.directGrant.finished ? '' : download.directGrant.grantId) : (download.grantId || ''),
-      progress: Math.min(99, Math.round(Number(download.progress) || 0)), fileCount: download.fileCount, startTime: download.startTime
+      progress: Math.min(99, Math.round(Number(download.progress) || 0)), fileCount: download.fileCount, startTime: download.startTime, baseDir: download.baseDir || ''
     });
   } catch (e) { }
+}
+
+// A restored download that was going to a folder chosen in the free-space box: its Resume starts it again through the deep link, which
+// does not carry a folder, so the folder waits here for startDownload (takeBaseDir) for a few minutes.
+const pendingBaseDirs = new Map();     // download name -> { dir, until }
+function rememberBaseDir(name, dir) { if (name && dir) pendingBaseDirs.set(String(name), { dir: String(dir), until: Date.now() + 10 * 60 * 1000 }); }
+function takeBaseDir(name) {
+  const e = pendingBaseDirs.get(String(name || ''));
+  if (!e) return '';
+  pendingBaseDirs.delete(String(name || ''));
+  return e.until > Date.now() ? e.dir : '';
 }
 
 function dropInflight(id) { try { inflightStore.drop(ctx.inflightFile(), id); } catch (e) { } }
@@ -28,7 +39,7 @@ function loadOrphanedDownloads() {
         id: e.id, name: e.name, itemKey: '', manifestUrl: '', remotePath: '', actualRemote: '', status: 'paused', paused: true, restored: true,
         progress: e.progress, speed: '', eta: '', totalSize: e.totalSize, downloadedSize: Math.round(e.totalSize * e.progress / 100), files: [],
         fileCount: e.fileCount, completedFiles: 0, activeFiles: {}, activeProcesses: [], pendingTaskCount: 0, cancelWaiters: [], totalSpeed: 0,
-        peakSpeedBytes: 0, startTime: e.startTime, endTime: null, token: null, cancelled: false, failedFiles: [], resume: e.resume, grantId: e.grantId || '',
+        peakSpeedBytes: 0, startTime: e.startTime, endTime: null, token: null, cancelled: false, failedFiles: [], resume: e.resume, grantId: e.grantId || '', baseDir: e.baseDir || '',
         statusMessage: 'Paused when the app closed. Press Resume to continue; files already downloaded are kept.'
       });
       logToFile(`[restore] ${e.name} is back in the list as paused`);
@@ -84,6 +95,7 @@ async function resumeRestoredDownload(downloadId) {
     const q = { downloadToken: t.json.downloadToken, token };
     if (d.resume.dest) q.dest = d.resume.dest;
     endOrphanedGrant(d);
+    if (d.baseDir) rememberBaseDir(d.name, d.baseDir);
     ctx.activeDownloads.delete(downloadId);
     dropInflight(downloadId);
     try { ctx.sendToMain('download-cancelled', { id: downloadId, cleanupWarning: false }); } catch (e) { }
@@ -96,4 +108,4 @@ async function resumeRestoredDownload(downloadId) {
   }
 }
 
-module.exports = { persistInflight, dropInflight, loadOrphanedDownloads, endOrphanedGrant, resumeRestoredDownload };
+module.exports = { persistInflight, dropInflight, loadOrphanedDownloads, endOrphanedGrant, resumeRestoredDownload, rememberBaseDir, takeBaseDir };

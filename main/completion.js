@@ -194,7 +194,7 @@ async function cleanupCancelledDownloadFiles(download) {
     return process.platform === 'win32' ? normalized.toLowerCase() : normalized;
   };
   const downloadDir = download && download.downloadDir ? path.resolve(download.downloadDir) : '';
-  const downloadRoot = download && download.rootDir ? path.resolve(download.rootDir) : (ctx.settings && ctx.settings.downloadPath ? path.resolve(ctx.settings.downloadPath) : '');
+  const downloadRoot = download && download.rootDir ? path.resolve(download.rootDir) : download && download.baseDir ? path.resolve(download.baseDir) : (ctx.settings && ctx.settings.downloadPath ? path.resolve(ctx.settings.downloadPath) : '');
   if (!downloadDir || !downloadRoot || !isPathInside(downloadRoot, downloadDir)) {
     logToFile('[Cancel] Skipped file cleanup: download directory is outside the configured download folder.');
     return false;
@@ -448,7 +448,7 @@ function completeDownload(downloadId, afterHashCheck) {
     !download.forceDisableAutoExtract && !download.toComics &&
     !isStarfieldAutoExtractTargetValue(download.remotePath) &&
     !isStarfieldAutoExtractTargetValue(download.name);
-  const downloadDir = download.rootDir || path.join(ctx.settings.downloadPath, download.name || 'Download');
+  const downloadDir = download.rootDir || download.downloadDir || path.join(download.baseDir || ctx.settings.downloadPath, download.name || 'Download');
 
   if (shouldExtract) {
     const archives = find7zArchivesInDir(downloadDir);

@@ -5,7 +5,8 @@ const directEndpoint = require('../directEndpoint');
 const downloadErrors = require('../downloadErrors');
 const driveDirectClient = require('../driveDirectClient');
 const { resumeDownload, ResumeProc } = require('../resumeDownload');
-const scheduleLib = require('../schedule');
+const { shared: speedBucket } = require('../speedLimiter');
+const { applySpeedLimit } = require('./speedLimit');
 const { probeRanges, segmentedDownload } = require('../segmentedDownload');
 const { showDownloadNotification, formatDownloadFailedMessage } = require('./completion');
 const { sendToMain } = require('./dialogs');
@@ -360,7 +361,9 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
       args.push('--multi-thread-cutoff', String(multiThreadCutoff));
     }
 
-    const maxMb = scheduleLib.effectiveLimitMBps(mainState.settings && mainState.settings.maxDownloadSpeedMBps, mainState.settings && mainState.settings.schedule);
+    // The member's limit is one total for all downloads (../speedLimiter.js). The app's own engines share it through one bucket; a file on the
+    // rclone path gets its share of it as --bwlimit when it starts, and its bytes are booked against the bucket too (charge below).
+    const maxMb = applySpeedLimit('file start');
     let appliedBwLimit = '';
     if (Number.isFinite(maxMb) && maxMb > 0) {
       const workersSetting = Number(mainState.settings && mainState.settings.maxConcurrentDownloads);
@@ -457,13 +460,12 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         if (hit.headers || hit.expiresAt || hit.fallback) return { url: u, headers: hit.headers, expiresAt: hit.expiresAt, fallback: hit.fallback };
         return u;
       };
-      const limitBytes = appliedBwLimit ? (parseFloat(appliedBwLimit) || 0) * 1048576 : 0;   // same per-worker limit rclone would get
       const engStats = { startedAt: Date.now(), retries: {}, reasons: {} };   // why this attempt ended, sent to the site (see reportEngineToServer)
       // Both engines log their retries and waits the same way ("chunk N retry M: kind message" or, single engine, "retry M: kind message").
       const engineEvent = (tag) => (m) => { logToFile(`[${tag}] ${fileName}: ${m}`); const rk = /(?:^|chunk \d+ )retry \d+: ([a-z_]+) ?(.*)$/.exec(String(m)); if (rk) { engStats.retries[rk[1]] = (engStats.retries[rk[1]] || 0) + 1; const why = require('../engineReason').engineReason(rk[2]); if (Object.keys(engStats.reasons).length < 8 || engStats.reasons[why]) engStats.reasons[why] = (engStats.reasons[why] || 0) + 1; } };
       const engine = useSegmented
-        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, maxBytesPerSec: limitBytes, tlsOptions: directEndpoint.tlsOptions(), onEvent: engineEvent('Segmented') })
-        : (o) => resumeDownload({ ...o, tlsOptions: directEndpoint.tlsOptions(), onEvent: engineEvent('Single') });
+        ? (o) => segmentedDownload({ ...o, streams: multiThreadStreams, limiter: speedBucket, tlsOptions: directEndpoint.tlsOptions(), onEvent: engineEvent('Segmented') })
+        : (o) => resumeDownload({ ...o, limiter: speedBucket, tlsOptions: directEndpoint.tlsOptions(), onEvent: engineEvent('Single') });
       const ctl = engine({
         url: String(file.url),
         source: { url: String(file.url), headers: file.headers, expiresAt: file.expiresAt, fallback: file.fallback },
@@ -699,6 +701,7 @@ async function downloadFile(downloadId, file, downloadDir, preAcquiredRelease) {
         const bytes = parseSpeedToBytes(latest[1], latest[2]);
         if (Number.isFinite(bytes) && bytes > lastTransferredBytes) {
           if (lastTransferredBytes >= 0) lastNonZeroProgressAt = now;
+          try { speedBucket.charge(bytes - Math.max(0, lastTransferredBytes)); } catch (e) { }   // rclone's bytes count against the shared limit
           lastTransferredBytes = bytes;
         }
         return;

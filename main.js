@@ -583,6 +583,7 @@ let settings = {
   connectionsPerFile: 0,
   schedule: scheduleLib.normalize(null),
   maxDownloadSpeedMBps: 0,
+  speedLimitHours: scheduleLib.normalizeLimitHours(null),   // the speed limit only between two times (off = all day)
   autoExtract7z: false,
   autoHashCheck: true,
   installUpdatesOnQuit: true,      // install a waiting update when the app is quit (nothing downloading); see before-quit

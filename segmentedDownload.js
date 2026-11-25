@@ -13,6 +13,7 @@ const fs = require('fs');
 const { EventEmitter } = require('events');
 const { ResumeError, retryAfterMs } = require('./resumeDownload');     // retryAfterMs: shared 429 wait rule
 const { openAuto } = require('./httpOpen');
+const { TokenBucket } = require('./speedLimiter');
 
 const TEMP_SUFFIX = '.armdl';
 const STATE_SUFFIX = '.armseg';
@@ -130,7 +131,9 @@ function segmentedDownload(opts) {
   } = opts;
   const ctl = new AbortController();      // cancels requests that are still waiting for their first response
   const emit = (m) => { if (onEvent) { try { onEvent(m); } catch (e) { } } };
-  let limiterSlot = 0;     // shared by every stream: the moment the byte budget is next free (the user's speed limit)
+  // The speed limit: the app passes the one bucket every download shares (speedLimiter.js), so the limit is a total, not per file or
+  // per connection, and a change applies at once. maxBytesPerSec alone (tests, tools) gives this run a bucket of its own.
+  const limiter = opts.limiter || (maxBytesPerSec > 0 ? new TokenBucket({ rate: maxBytesPerSec }) : null);
   const tempPath = outputPath + TEMP_SUFFIX;
   const statePath = outputPath + STATE_SUFFIX;
   let aborted = null;
@@ -268,28 +271,29 @@ function segmentedDownload(opts) {
               if (!pendingBytes) return;
               const buf = pending.length === 1 ? pending[0] : Buffer.concat(pending, pendingBytes);
               pending = []; pendingBytes = 0;
-              if (maxBytesPerSec > 0) {
-                const now = Date.now();
-                limiterSlot = Math.max(limiterSlot, now) + (buf.length / maxBytesPerSec) * 1000;
-                const wait = limiterSlot - now - 500;     // allow a half-second burst
-                if (wait > 0) await new Promise((r) => setTimeout(r, Math.min(wait, 10000)));
-              }
               const pos = i * chunk + done[i];
               try { await fh.write(buf, 0, buf.length, pos); } catch (e) { const de = isDiskError(e) ? diskError(e, 'write') : e; if (de.kind === 'disk') writeErr = de; throw de; }
               done[i] += buf.length; dirty = true; sinceReport += buf.length; report(false);
             };
             await new Promise((resolve, reject) => {
               let want = lenOf(i) - done[i];
-              let got = 0; let chain = Promise.resolve(); let finished = false;
+              let got = 0; let chain = Promise.resolve(); let finished = false; let seq = 0;
               const fail = (e) => { if (finished) return; finished = true; reject(writeErr || (e instanceof ResumeError ? e : new ResumeError(e && e.message ? e.message : String(e), 'network'))); };
               res.on('data', (d) => {
                 if (finished) return;
                 if (got + d.length > want) d = d.subarray(0, want - got);
                 got += d.length; pending.push(d); pendingBytes += d.length;
                 bytesFlowed += d.length; lastBytesAt = Date.now();     // progress as it arrives, not only when a 1 MiB batch is written
-                if (pendingBytes >= WRITE_BATCH || got >= want) {
+                const needFlush = pendingBytes >= WRITE_BATCH || got >= want;
+                // Under a speed limit every network read waits for its bytes from the shared bucket, with the response paused meanwhile, so
+                // the connection itself slows down. Without a limit this is skipped entirely.
+                const n = d.length;
+                const limited = !!(limiter && limiter.limited);
+                if (needFlush || limited) {
                   res.pause();
-                  chain = chain.then(flush).then(() => { if (!finished) res.resume(); if (got >= want && !finished) { finished = true; resolve(); } }, fail);
+                  const my = ++seq; const last = got >= want;
+                  chain = chain.then(() => (limited ? limiter.take(n, ctl.signal) : null)).then(() => (needFlush ? flush() : null))
+                    .then(() => { if (!finished && my === seq) res.resume(); if (last && !finished) { finished = true; resolve(); } }, fail);
                 }
               });
               res.on('error', (e) => { chain.then(() => flush()).catch(() => { }).then(() => fail(e)); });

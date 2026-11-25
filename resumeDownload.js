@@ -10,6 +10,7 @@ const fs = require('fs');
 const http = require('http');
 const https = require('https');
 const { EventEmitter } = require('events');
+const { Transform } = require('stream');
 
 const MARKER_SUFFIX = '.armpart';
 const MAX_REDIRECTS = 5;
@@ -71,8 +72,9 @@ function retryAfterMs(v, now = Date.now()) {
 function resumeDownload(opts) {
   const {
     outputPath, expectedSize = 0, getFreshUrl, onProgress, onEvent, headers = {}, stallMs = 60 * 1000, maxAttempts = 12, retryDelayMs = 2000, tlsOptions,
-    stallLimitMs = 5 * 60 * 1000, maxRefusals = 4
+    stallLimitMs = 5 * 60 * 1000, maxRefusals = 4, limiter = null
   } = opts;
+  const limitAbort = new AbortController();     // ends a wait for the speed limit when the download is stopped
   const markerPath = outputPath + MARKER_SUFFIX;
   let aborted = null;
   let currentReq = null;
@@ -149,6 +151,13 @@ function resumeDownload(opts) {
 
         await new Promise((resolve, reject) => {
           const ws = fs.createWriteStream(outputPath, { flags });
+          // The shared speed limit (speedLimiter.js): each network read waits for its bytes before it goes on to the file; pipe()'s own
+          // back-pressure then slows the connection. Checked per read, so a limit switched on or off mid-file applies at once.
+          const throttle = limiter ? new Transform({
+            transform(chunk, enc, cb) { if (!limiter.limited) return cb(null, chunk); limiter.take(chunk.length, limitAbort.signal).then(() => cb(null, chunk)); }
+          }) : null;
+          const sink = throttle || ws;
+          const endAll = (cb) => { if (throttle) { ws.once('finish', cb); ws.once('error', cb); throttle.end(); } else ws.end(cb); };
           let sinceReport = 0;
           res.on('data', (chunk) => {
             offset += chunk.length;
@@ -161,7 +170,7 @@ function resumeDownload(opts) {
           // write still in flight; the next pass then read the file size before that write landed and appended the same bytes twice
           // (found 2026-11-25 by the repeated-drop test under load: the file came out corrupted).
           let failed = false;
-          const dropped = (msg) => { if (failed) return; failed = true; res.unpipe(ws); ws.end(() => reject(new ResumeError(msg, 'network'))); };
+          const dropped = (msg) => { if (failed) return; failed = true; res.unpipe(sink); endAll(() => reject(new ResumeError(msg, 'network'))); };
           res.on('error', (e) => dropped(e && e.message ? e.message : String(e)));
           res.on('aborted', () => dropped('connection dropped'));
           res.on('close', () => { if (!res.complete) dropped('connection dropped'); });
@@ -169,7 +178,8 @@ function resumeDownload(opts) {
           // Only a response that ended normally is a clean pass. ('finish' also fires after dropped() ends the stream, before its reject:
           // that used to count every dropped connection as a clean pass, so drops reset the budget and retried without any delay.)
           ws.on('finish', () => { if (!failed) resolve(); });
-          res.pipe(ws);
+          if (throttle) throttle.pipe(ws);
+          res.pipe(sink);
         });
         // A response that ends normally with no bytes while the file is still short would otherwise loop at once, forever: count it.
         if (received === seenReceived && total > 0 && offset < total) throw new ResumeError('server sent no data', 'network');
@@ -230,6 +240,7 @@ function resumeDownload(opts) {
     try { if (currentRes) currentRes.destroy(); } catch (e) { }
     try { if (currentReq) currentReq.destroy(); } catch (e) { }
     try { if (wakeSleep) wakeSleep(); } catch (e) { }
+    try { limitAbort.abort(); } catch (e) { }
   };
   return { promise, abort };
 }

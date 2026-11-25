@@ -4,6 +4,8 @@ const ctx = require('./context');
 const scheduleLib = require('../schedule');
 const { scheduleActiveStates } = require('./downloadState');
 const { logToFile } = require('./log');
+const { applySpeedLimit } = require('./speedLimit');
+const { ResumeProc } = require('../resumeDownload');
 
 function pushScheduleState() {
   try {
@@ -40,11 +42,13 @@ function scheduleTick() {
         }
       }
     }
-    // a limit window began or ended: restart running downloads so they pick it up
-    const lim = (w && w.action === 'limit') ? w.limitMBps : 0;      // only a limit window beginning or ending restarts running downloads
+    // The limit that applies now (the Settings limit inside its hours, the quiet-hours limit) goes to the shared bucket, which the app's
+    // own engines follow at once. Only a download with a file on the rclone path (its --bwlimit is fixed when it starts) is restarted.
+    const lim = applySpeedLimit('schedule');
     if (ctx.lastScheduleLimit !== null && lim !== ctx.lastScheduleLimit && !(w && w.action === 'pause')) {
       for (const [id, d] of ctx.activeDownloads) {
         if (d.paused || !scheduleActiveStates().includes(d.status)) continue;
+        if (!(d.activeProcesses || []).some((p) => p && !(p instanceof ResumeProc))) continue;
         logToFile(`[schedule] speed limit now ${lim || 'none'}: restarting ${id} to apply it`);
         d.pausedBySchedule = true;               // the next tick resumes it
         ctx.pauseDownloadById(id);

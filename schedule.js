@@ -53,6 +53,33 @@ function effectiveLimitMBps(userLimit, raw, date = new Date()) {
   return own > 0 ? Math.min(own, w.limitMBps) : w.limitMBps;
 }
 
+// The member's own limit can be set to apply only between two times, every day (Settings > Download speed limit, "only between").
+// limitHours = { enabled, start: 'HH:MM', end: 'HH:MM' }; an end earlier than the start runs past midnight. Off (or start = end) = all day.
+const LIMIT_HOURS_DEFAULTS = { enabled: false, start: '08:00', end: '23:00' };
+function normalizeLimitHours(raw) {
+  const r = raw && typeof raw === 'object' ? raw : {};
+  return {
+    enabled: r.enabled === true,
+    start: parseHM(r.start) != null ? String(r.start).trim() : LIMIT_HOURS_DEFAULTS.start,
+    end: parseHM(r.end) != null ? String(r.end).trim() : LIMIT_HOURS_DEFAULTS.end,
+  };
+}
+function ownLimitApplies(limitHours, date = new Date()) {
+  const h = normalizeLimitHours(limitHours);
+  if (!h.enabled) return true;
+  const a = parseHM(h.start), b = parseHM(h.end);
+  if (a === b) return true;
+  const now = date.getHours() * 60 + date.getMinutes();
+  return a < b ? (now >= a && now < b) : (now >= a || now < b);
+}
+
+// Everything together, as the download engines use it: the member's limit (inside its hours) and the quiet-hours limit, lower wins.
+function currentLimitMBps(settings, date = new Date()) {
+  const s = settings && typeof settings === 'object' ? settings : {};
+  const own = ownLimitApplies(s.speedLimitHours, date) ? s.maxDownloadSpeedMBps : 0;
+  return effectiveLimitMBps(own, s.schedule, date);
+}
+
 // "7:00 AM" in the PC's local format.
 function formatTime(date) {
   let h = date.getHours(); const m = date.getMinutes();
@@ -60,4 +87,4 @@ function formatTime(date) {
   return `${h}:${String(m).padStart(2, '0')} ${ap}`;
 }
 
-module.exports = { DEFAULTS, normalize, activeWindow, effectiveLimitMBps, formatTime, parseHM };
+module.exports = { DEFAULTS, normalize, activeWindow, effectiveLimitMBps, formatTime, parseHM, LIMIT_HOURS_DEFAULTS, normalizeLimitHours, ownLimitApplies, currentLimitMBps };

@@ -11,19 +11,20 @@ const { retryFailedDownload, scheduleAutoRetry, pauseDownloadById, resumeDownloa
 const { downloadToRenderer, isStarfieldAutoExtractTargetManifest, getDownloadItemKey, reportDirectGrantEnd, stopDownloadProcesses, waitForDownloadTasksToFinish } = require('./downloadState');
 const { notInChannelMessage, isPinnedDownloadStatusMessage } = require('./errors');
 const { reportDownloadFailure, isDownloadAbandoned } = require('./failures');
-const { getFreeDiskSpace, commonOpenDir, isFileCompleteOnDisk } = require('./files');
+const { commonOpenDir, isFileCompleteOnDisk } = require('./files');
 const { maybeShowHashGateNotice, runHashCheck, hashingGated } = require('./hashing');
 const { saveHistory } = require('./history');
 const { preStartInstallSpaceWarning } = require('./installSpace');
+const { checkBeforeStart, checkBeforeResume, unpackDirFor } = require('./startSpace');
 const { logToFile, debugLog } = require('./log');
 const { fetchManifestInternal } = require('./manifest');
 const { isValidDownloadId, isValidToken, attemptResolveDownloadToken, transformProxyUrlToDirectIfPossible } = require('./net');
 const { updateProgress, reportFileProgressToServer, reportProgressToServer } = require('./progress');
-const { persistInflight, endOrphanedGrant, dropInflight, resumeRestoredDownload } = require('./restore');
+const { persistInflight, endOrphanedGrant, dropInflight, resumeRestoredDownload, takeBaseDir } = require('./restore');
 const { refreshDownloadConcurrency, enqueueAdaptiveTask, schedulerPump } = require('./scheduler');
 const { saveSession } = require('./session');
 const { isAllowedServiceHost } = require('./siteApi');
-const { sanitizeRelativePath, formatBytes, resolveInside, normalizeFileSize } = require('./util');
+const { sanitizeRelativePath, resolveInside, normalizeFileSize } = require('./util');
 const crypto = require('crypto');
 const { ipcMain, dialog, app, shell } = require('electron');
 const fs = require('fs');
@@ -281,53 +282,26 @@ async function startDownload(event, manifest, token, manifestUrl, dest) {
     name = 'Download';
   }
 
-  // DISK SPACE CHECK
+  // DISK SPACE CHECK (2026-11-25, ../spaceCheck.js has the rule): this download's remaining bytes, its unpack room and what the other
+  // unfinished downloads still need, per drive, against the free space. Short: a box with Choose another folder / Start anyway (and
+  // Download without unpacking when only the unpack room is missing). Nothing else waits on this box: other downloads keep going.
+  let baseDir = toComics ? destFolder : ctx.settings.downloadPath;
+  if (!toComics) { const again = takeBaseDir(name); if (again && path.isAbsolute(again) && fs.existsSync(again)) baseDir = again; }   // a restored download's own folder
   try {
-    const targetPath = path.resolve(toComics ? destFolder : ctx.settings.downloadPath);
-    const freeBytes = getFreeDiskSpace(targetPath);
+    const autoUnpack = !!(ctx.settings && ctx.settings.autoExtract7z) && !forceDisableAutoExtract && !toComics;
+    const decision = await checkBeforeStart({
+      id: downloadId, baseDir, files, unpack: autoUnpack, canChooseFolder: !toComics,
+      folderFor: (dir) => (toComics ? path.resolve(dir) : (resolveInside(dir, name) || path.resolve(dir)))
+    });
+    if (!decision.start) return null;
+    if (decision.skipUnpack) forceDisableAutoExtract = true;
+    if (decision.baseDir && decision.baseDir !== baseDir && path.isAbsolute(decision.baseDir)) baseDir = decision.baseDir;
+  } catch (e) {
+    logToFile(`[DiskCheck] Warning: skipped the free-space check: ${e && e.message}`);
+  }
 
-    if (freeBytes !== -1 && totalSize > 0) {
-      const SAFETY_BUFFER = 500 * 1024 * 1024; // 500 MB
-      const requiredForDownload = totalSize + SAFETY_BUFFER;
-
-      // Check 1: Enough space for download?
-      if (freeBytes < requiredForDownload) {
-        const msg = `Not enough disk space to download this game.\n\nRequired: ${formatBytes(requiredForDownload)}\nAvailable: ${formatBytes(freeBytes)}\n\nPlease free up some space and try again.`;
-        throw new Error(msg);
-      }
-
-      // Check 2: If auto-extract is on, do we have enough for download + extract?
-      // Heuristic: Extraction needs roughly same size again (total * 2).
-      const autoExtractOn = !!(ctx.settings && ctx.settings.autoExtract7z);
-      const extractElsewhere = autoExtractOn && ctx.settings.extractFolder && path.isAbsolute(ctx.settings.extractFolder) && fs.existsSync(ctx.settings.extractFolder) && !toComics;
-      let extractFree = freeBytes;
-      if (extractElsewhere) { try { const ef = getFreeDiskSpace(path.resolve(ctx.settings.extractFolder)); if (ef !== -1) extractFree = ef; } catch (e) { } }
-      if (autoExtractOn) {
-        // Extracting to another drive: the unpacked game needs room there; the download drive only needs the archives.
-        const requiredForExtract = extractElsewhere ? (totalSize + SAFETY_BUFFER) : (totalSize * 2) + SAFETY_BUFFER;
-        if ((extractElsewhere ? extractFree : freeBytes) < requiredForExtract) {
-          // We have enough to download (passed Check 1) but not enough to extract.
-          // Ask user what to do.
-          const { response } = await withDialogFocus(() => dialog.showMessageBox(getDialogParentWindow(), {
-            type: 'question',
-            buttons: ['Download Only (Disable Auto-Extract)', 'Cancel'],
-            defaultId: 0,
-            cancelId: 1,
-            title: 'Insufficient Disk Space for Extraction',
-            message: 'Not enough disk space for automatic extraction.',
-            detail: `You have enough space to download the files, but not enough to extract them automatically.\n\nSpace Available: ${formatBytes(extractElsewhere ? extractFree : freeBytes)}\nRequired for ${extractElsewhere ? 'Extraction' : 'Download + Extraction'}: ~${formatBytes(requiredForExtract)}\n\nDo you want to proceed with the download only? You will need to extract the files manually later or free up space.`
-          }));
-
-          if (response === 1) {
-            // User cancelled
-            return null; // Return null to indicate cancellation without error to renderer (or handle appropriately)
-          } else {
-            // User chose Download Only
-            forceDisableAutoExtract = true;
-          }
-        }
-      }
-    }
+  try {
+    const targetPath = path.resolve(baseDir);
 
     // Check 3 (Windows): setup unpacks its temp files to the drive holding the
     // Windows temp folder. Warn now, before hours of downloading, instead of
@@ -346,10 +320,6 @@ async function startDownload(event, manifest, token, manifestUrl, dest) {
       if (response === 1) return null;
     }
   } catch (e) {
-    // Pass through explicit errors (like "Not enough space"), ignore others
-    if (e.message && e.message.startsWith('Not enough disk space')) {
-      throw e;
-    }
     logToFile(`[DiskCheck] Warning: skipped check due to error: ${e.message}`);
   }
 
@@ -440,7 +410,9 @@ async function startDownload(event, manifest, token, manifestUrl, dest) {
   } catch (e) { }
 
   // Create download directory
-  const downloadDir = toComics ? path.resolve(destFolder) : resolveInside(ctx.settings.downloadPath, name);
+  const downloadDir = toComics ? path.resolve(destFolder) : resolveInside(baseDir, name);
+  // "Choose another folder" in the space box: this one download goes there (the Settings folder stays as it is).
+  if (!toComics && path.resolve(baseDir) !== path.resolve(ctx.settings.downloadPath)) download.baseDir = path.resolve(baseDir);
   if (!downloadDir) {
     throw new Error('Security error: Invalid download folder path');
   }
@@ -449,6 +421,13 @@ async function startDownload(event, manifest, token, manifestUrl, dest) {
   download.openDir = commonOpenDir(downloadDir, toComics ? files : null);   // what "Open folder" shows: the album or series folder, not the whole library
   if (toComics) download.forceDisableAutoExtract = true;
   download.downloadDir = downloadDir; // Stored for the periodic mid-download disk-space check in updateProgress()
+  // What its unpacking will still need, so a download started after this one counts it (main/startSpace.js otherDownloads).
+  try {
+    const willUnpack = !!(ctx.settings && ctx.settings.autoExtract7z) && !download.forceDisableAutoExtract && !toComics;
+    download.spaceUnpackBytes = willUnpack ? require('../spaceCheck').archiveBytes(files) : 0;
+    download.spaceUnpackDir = willUnpack ? unpackDirFor(downloadDir) : '';
+  } catch (e) { }
+  if (download.baseDir) persistInflight(download);
   try {
     if (!fs.existsSync(downloadDir)) {
       fs.mkdirSync(downloadDir, { recursive: true });
@@ -716,6 +695,8 @@ ipcMain.handle('resume-download', async (event, downloadId) => {
     return false;
   }
   if (download.restored) return resumeRestoredDownload(downloadId);
+  // Room for the rest of it (and its unpacking)? The box offers Resume anyway or Cancel; the files stay where they are.
+  if (!(await checkBeforeResume(download))) return false;
 
   try {
     await resumeDownloadFiles(downloadId);
