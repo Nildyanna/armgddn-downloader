@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.17.0] - 2026-11-25
+
+### Added
+- Check files on finished downloads (DMP): a Check files button on every finished download that kept its checksums compares the files with the server again at any time, with progress, Stop check and the result on the card. Disabled, with a pointer to the setting, while Auto extract is on and Check files after downloading is off.
+
+### Changed
+- Open folder on Windows opens the folder with its default verb (Start-Process), so a replacement file manager is used instead of always File Explorer; falls back to the old way if that fails.
+
 ## [6.16.0] - 2026-11-25
 
 ### Added

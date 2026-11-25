@@ -1,4 +1,11 @@
 {
+  "6.17.0": {
+    "title": "Check files any time",
+    "highlights": [
+      "Check files: every finished download has a Check files button, so you can re-check its files against the server any time, for example after something changed or broke them.",
+      "Open folder now uses your default file manager on Windows."
+    ]
+  },
   "6.16.0": {
     "title": "Open setup",
     "highlights": [
