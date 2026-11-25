@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.14.0] - 2026-11-25
+
 ### Added
 - "Send this problem to staff" on a failed download in Downloads: it first shows everything that will be sent (title, error, app version, system, the download engine's summary and the app's log lines for that download, with user names in folder paths, the secret parts of links, sign-in tokens and cookies removed) and lets you add what happened; staff get a message, and the card then says "Sent to staff (report #N)". One report per download, at most 5 a day. Needs the site's /api/support/download-report (deploy the site first).
 - Inbox: a bell at the top of the window shows updates on your requests and titles you asked to be told about, with a count of unread ones. It checks every two minutes and when the window comes back into focus, shows a desktop notification for new ones (Settings > Show notifications), and clicking one opens that request or finds the title in the library. Works even when Telegram messages cannot reach you. Needs the site's inbox (GET /api/inbox), deployed first.

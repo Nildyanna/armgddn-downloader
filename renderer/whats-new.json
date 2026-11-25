@@ -1,4 +1,15 @@
 {
+  "6.14.0": {
+    "title": "Your inbox, and more control over downloads",
+    "highlights": [
+      "Inbox: a bell at the top shows updates on your requests and games you're waiting for, even if Telegram can't reach you. New ones also pop up as a notification.",
+      "Notify me: a game that isn't in the library has a Notify me button. We'll tell you when it arrives.",
+      "Before a download starts, the app checks your drive has room, for example \"This needs 48 GB, your D: drive has 31 GB free\", and lets you pick another folder.",
+      "Speed limit in Settings (Unlimited, 50, 20, 10 or 5 MB/s), optionally only during the hours you choose.",
+      "A damaged file is repaired by downloading only the damaged parts, not the whole file.",
+      "A failed download has a \"Send this problem to staff\" button. It shows exactly what will be sent first."
+    ]
+  },
   "6.13.0": {
     "title": "Steadier downloads",
     "highlights": [
