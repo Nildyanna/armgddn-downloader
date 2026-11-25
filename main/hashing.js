@@ -122,6 +122,12 @@ function reportHashCheckToServer(download, token, result) {
 }
 
 // Runs the check for one download (live or finished). Progress goes to the window as 'hash-check-progress'; the result is kept and reported to the site.
+// Progress and results go to the classic window and to the native one (its Check files button on finished downloads, 6.17.0).
+function sendHash(channel, payload) {
+  ctx.sendToMain(channel, payload);
+  try { const w = ctx.nativeWindow; if (w && !w.isDestroyed() && w.webContents && !w.webContents.isDestroyed()) w.webContents.send(channel, payload); } catch (e) { }
+}
+
 async function runHashCheck(downloadId, opts) {
   const o = opts || {};
   const id = String(downloadId);
@@ -138,7 +144,7 @@ async function runHashCheck(downloadId, opts) {
   let lastSent = 0;
   let lastSite = 0;
   try {
-    ctx.sendToMain('hash-check-progress', { id, done: 0, total: doc.files.length, name: '', percent: 0 });
+    sendHash('hash-check-progress', { id, done: 0, total: doc.files.length, name: '', percent: 0 });
     reportHashProgressToServer(siteDownload, siteToken, { percent: 0, done: 0, total: doc.files.length });
     const result = await hashCheck.verifyManifest(doc, {
       resolvePath: (rel) => { const safe = sanitizeRelativePath(String(rel)); return safe ? resolveInside(downloadDir, safe) : null; },
@@ -146,7 +152,7 @@ async function runHashCheck(downloadId, opts) {
       onProgress: (pr) => {
         const now = Date.now();
         if (live) { live.hashPercent = pr.percent; live.statusMessage = `Checking files ${pr.percent}% (${pr.done}/${pr.total})...`; }
-        if (!pr.partial || now - lastSent >= 250) { lastSent = now; ctx.sendToMain('hash-check-progress', { id, done: pr.done, total: pr.total, name: pr.name, percent: pr.percent }); }
+        if (!pr.partial || now - lastSent >= 250) { lastSent = now; sendHash('hash-check-progress', { id, done: pr.done, total: pr.total, name: pr.name, percent: pr.percent }); }
         if (now - lastSite >= 2000) { lastSite = now; reportHashProgressToServer(siteDownload, siteToken, { percent: pr.percent, done: pr.done, total: pr.total }); }
       }
     });
@@ -158,7 +164,7 @@ async function runHashCheck(downloadId, opts) {
     }
     if (live) { live.hashPercent = null; }
     const text = hashCheck.describeResult(result);
-    ctx.sendToMain('hash-check-result', { id, result, text });
+    sendHash('hash-check-result', { id, result, text });
     logToFile(`[hashCheck] ${doc.name}: ok=${result.ok} bad=${result.bad.length} missing=${result.missing.length} notChecked=${result.notChecked}${result.cancelled ? ' (stopped)' : ''}`);
     return { result, text };
   } catch (e) {

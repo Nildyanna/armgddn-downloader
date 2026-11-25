@@ -12,6 +12,7 @@ const { downloadToRenderer, isStarfieldAutoExtractTargetManifest, getDownloadIte
 const { notInChannelMessage, isPinnedDownloadStatusMessage } = require('./errors');
 const { reportDownloadFailure, isDownloadAbandoned } = require('./failures');
 const { commonOpenDir, isFileCompleteOnDisk } = require('./files');
+const { openFolderDefault } = require('./openFolder');
 const { maybeShowHashGateNotice, runHashCheck, hashingGated } = require('./hashing');
 const { saveHistory } = require('./history');
 const { preStartInstallSpaceWarning } = require('./installSpace');
@@ -725,9 +726,9 @@ ipcMain.handle('open-folder', async (event, arg) => {
     const id = typeof arg === 'string' ? arg : '';
     const src = id ? (ctx.activeDownloads.get(id) || (Array.isArray(ctx.downloadHistory) ? ctx.downloadHistory.find((x) => x && x.id === id) : null)) : null;
     const dir = src ? String(src.extractedTo || src.openDir || src.folder || '') : '';
-    if (dir && fs.existsSync(dir)) { await shell.openPath(dir); return; }
+    if (dir && fs.existsSync(dir)) { await openFolderDefault(dir); return; }
   } catch (e) { }
-  shell.openPath(ctx.settings.downloadPath);
+  await openFolderDefault(ctx.settings.downloadPath);
 });
 
 // Open setup: the installer the finished download's extraction found (setupPick.js). The window passes only the download id; the file is taken

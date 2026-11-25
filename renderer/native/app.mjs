@@ -1198,7 +1198,33 @@ function UpdateScreen() {
 
 // Shared by the classic Downloads page and Harbor's: a download's buttons (with the Mbps / MiB/s switch while it runs) and the files it is fetching at once.
 function DownloadButtons({ d, mib, onFlip }) {
-  return html`<div class="dbtns">${setupNote(d, api.platform) ? html`<span class="dsetup" role="status">${setupNote(d, api.platform)}</span>` : ''}${isActiveDownload(d) && onFlip && !finishingStage(d) ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${onFlip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d, api.platform).map((k) => html`<button class="dbtn" title=${k === 'openSetup' ? 'Opens the game\'s installer so you can click through it' : undefined} onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : k === 'openSetup' ? openSetupFor(d) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder', openSetup: 'Open setup' }[k]}</button>`)}</div>`;
+  return html`<div class="dbtns">${setupNote(d, api.platform) ? html`<span class="dsetup" role="status">${setupNote(d, api.platform)}</span>` : ''}${isActiveDownload(d) && onFlip && !finishingStage(d) ? html`<button class="dbtn" title="Show the speed in MiB/s instead of bits per second (for every download)" onClick=${onFlip}>${mib ? 'Show Mbps' : 'Show MiB/s'}</button>` : ''}${downloadActions(d, api.platform).map((k) => html`<button class="dbtn" title=${k === 'openSetup' ? 'Opens the game\'s installer so you can click through it' : undefined} onClick=${() => (k === 'openFolder' ? api.openFolder(d.id) : k === 'openSetup' ? openSetupFor(d) : api[k](d.id))}>${{ pause: 'Pause', resume: 'Resume', cancel: 'Cancel', retry: 'Retry', openFolder: 'Open folder', openSetup: 'Open setup' }[k]}</button>`)}${String((d && d.status) || '').toLowerCase() === 'completed' ? html`<${CheckFilesButton} d=${d} />` : ''}</div>`;
+}
+// Check files on a finished download (DMP, Nov 25 2026): compares the downloaded files with the server's checksums again at any time,
+// for files damaged or changed after the download. Only shown when the App kept the checksums for that download.
+function CheckFilesButton({ d }) {
+  const [info, setInfo] = useState(null);
+  const [run, setRun] = useState(null);   // { pct } while a check runs
+  const [msg, setMsg] = useState('');
+  useEffect(() => {
+    let live = true;
+    try { api.checkFilesInfo(d.id).then((i) => { if (!live) return; setInfo(i || null); if (i && i.running) setRun({ pct: 0 }); if (i && i.lastCheckText) setMsg(i.lastCheckText); }).catch(() => { }); } catch (e) { }
+    return () => { live = false; };
+  }, [d.id]);
+  useEffect(() => {
+    const offs = [];
+    try { offs.push(api.onCheckFilesProgress((p) => { if (p && String(p.id) === String(d.id)) setRun({ pct: Math.max(0, Math.min(100, Math.round(Number(p.percent) || 0))) }); })); } catch (e) { }
+    try { offs.push(api.onCheckFilesResult((r) => { if (r && String(r.id) === String(d.id)) { setRun(null); if (r.text) setMsg(String(r.text)); } })); } catch (e) { }
+    return () => offs.forEach((f) => { try { if (typeof f === 'function') f(); } catch (e) { } });
+  }, [d.id]);
+  if (!info || info.files == null) return '';
+  const start = async () => {
+    setRun({ pct: 0 }); setMsg('');
+    try { const r = await api.checkFiles(d.id); setMsg(r && r.error ? String(r.error) : String((r && r.text) || '')); } catch (e) { setMsg('The file check could not run.'); }
+    setRun(null);
+  };
+  if (run) return html`<span class="dsetup" role="status">Checking files ${run.pct}%</span><button class="dbtn" onClick=${() => { try { api.stopCheckFiles(d.id); } catch (e) { } }}>Stop check</button>`;
+  return html`${msg ? html`<span class="dsetup" role="status">${msg}</span>` : ''}<button class="dbtn" disabled=${!!info.gated} title=${info.gated ? 'Turn on Settings › Downloads › Check files after downloading to use this' : 'Compares the downloaded files with the originals on the server'} onClick=${start}>Check files</button>`;
 }
 // Open setup: the main process finds the file again from its own history (the page only passes the id) and opens it.
 async function openSetupFor(d) {
