@@ -1,4 +1,17 @@
 {
+  "6.13.0": {
+    "title": "Steadier downloads",
+    "highlights": [
+      "A download keeps going when one part of the file is slow: it only gives up after 5 minutes with no data at all.",
+      "Downloads that drop their connection pick up where they stopped, without damaging the file.",
+      "A full disk now says \"You're out of disk space\" straight away, instead of retrying for minutes.",
+      "Downloads no longer fail at 100% while your antivirus checks the finished file.",
+      "Download folders at the top of a drive (like D:\\) work again.",
+      "Pages no longer get stuck on \"Loading…\", and \"Check for updates\" tells you when the check itself failed.",
+      "The app uses less memory in long sessions, and recovers better if its window crashes.",
+      "Wiki: what to do when a game crashes at launch (crashfix.bat)."
+    ]
+  },
   "6.4.6": {
     "title": "Harbor test theme: calm motion and the credit line",
     "highlights": [

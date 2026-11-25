@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.13.0] - 2026-11-25
+
 ### Added
 - Request links from Telegram open in the app: staff who handle requests land on Admin > Requests with that request open (a merged duplicate opens the request it was merged into); everyone else gets their own Requests tab. Works when the link starts the app too. Needs the site's REQUEST_APP_LINKS=1, switched on with this release.
 
