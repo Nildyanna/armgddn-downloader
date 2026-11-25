@@ -27,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - On PCs whose graphics can't run the app's GPU process (for example a Windows virtual machine), the app no longer crashes twice more every week: once it needed the no-GPU mode, it goes straight back to it and keeps it for 30 days.
 - A page no longer sits on "Loading..." for ever when the site does not answer: after 30 seconds the app tries once more and then says the site took too long. A few such hangs used to stop every page of the app from loading until it was restarted.
 - Settings > Check for updates no longer says "You are on the latest version" when the check failed, or when a new version is out that this PC has to install by hand.
+- Opening Settings or running the connection test no longer leaves a listener behind each time, so a long session uses less memory.
 
 ## [6.12.0] - 2026-11-24
 

@@ -517,8 +517,10 @@ function SupportTools({ say, onApplyConnections }) {
   const report = () => run('report', async () => { const r = await api.buildSetupReport(); if (!r || !r.ok || !r.code) { setNote('Could not build the report.'); return; } await copy(r.code, 'Report for Tulip.'); });
   const sendLog = () => run('log', async () => { setNote('Sending the log...'); const r = await api.sendSupportLog(); if (!r || !r.ok) { setNote((r && r.error) || 'Could not send the log.'); return; } await copy(r.code, 'Log code ' + r.code + '.'); });
   const test = () => run('test', async () => {
-    api.onConnectionTestProgress((p) => setNote('Testing ' + p.streams + ' connection' + (p.streams === 1 ? '' : 's') + ' (step ' + p.phase + ' of ' + p.of + ')...'));
-    const r = await api.runConnectionTest();
+    // One progress listener per test, removed when it ends (each test used to add another one that was never taken off).
+    const off = api.onConnectionTestProgress((p) => setNote('Testing ' + p.streams + ' connection' + (p.streams === 1 ? '' : 's') + ' (step ' + p.phase + ' of ' + p.of + ')...'));
+    let r;
+    try { r = await api.runConnectionTest(); } finally { try { if (typeof off === 'function') off(); } catch (e) { } }
     if (!r || !r.ok) { setNote((r && r.error) || 'The test could not run.'); return; }
     const lines = r.results.map((x) => x.streams + ' connection' + (x.streams === 1 ? '' : 's') + ': ' + x.mbps + ' MB/s' + (x.stalls ? ', ' + x.stalls + ' pause' + (x.stalls === 1 ? '' : 's') : ''));
     const rec = r.recommendation || {};
@@ -706,7 +708,11 @@ function ScheduleRow({ s, save }) {
   const sch = s.schedule || {};
   const days = Array.isArray(sch.days) ? sch.days : [0, 1, 2, 3, 4, 5, 6];
   const [banner, setBanner] = useState('');
-  useEffect(() => { try { api.onScheduleBanner((t) => setBanner(t || '')); api.getScheduleBanner().then((t) => setBanner(t || '')).catch(() => { }); } catch (e) { } }, []);
+  useEffect(() => {
+    let live = true, off = null;
+    try { off = api.onScheduleBanner((t) => { if (live) setBanner(t || ''); }); api.getScheduleBanner().then((t) => { if (live) setBanner(t || ''); }).catch(() => { }); } catch (e) { }
+    return () => { live = false; try { if (typeof off === 'function') off(); } catch (e) { } };   // one listener per visit to Settings, removed on the way out
+  }, []);
   const put = (patch) => save({ schedule: { enabled: !!sch.enabled, start: sch.start || '23:00', end: sch.end || '07:00', action: sch.action === 'limit' ? 'limit' : 'pause', limitMBps: sch.limitMBps || 5, days, ...patch } });
   const toggleDay = (d) => put({ days: days.includes(d) ? days.filter((x) => x !== d) : days.concat(d).sort() });
   return html`<div class="sched">
@@ -1093,8 +1099,9 @@ function UpdateScreen() {
   useEffect(() => {
     const onEv = (e) => { const k = e.detail && e.detail.kind; if (k === 'start') setSt({ pct: null, text: 'Getting the update ready...' }); else if (k === 'stop') setSt(null); };
     window.addEventListener('app-update', onEv);
+    let off = null;
     try {
-      if (api.onUpdate) api.onUpdate((m) => setSt((prev) => {
+      if (api.onUpdate) off = api.onUpdate((m) => setSt((prev) => {
         const s = { ...(prev || { pct: null }), version: (m && m.version) || (prev && prev.version) || '' };
         const p = m && m.payload;
         if (m && m.channel === 'update-progress' && p) { s.pct = typeof p.percent === 'number' ? p.percent : null; s.text = [p.status, p.speed].filter(Boolean).join(' · '); }
@@ -1102,7 +1109,7 @@ function UpdateScreen() {
         return s;
       }));
     } catch (e) { }
-    return () => window.removeEventListener('app-update', onEv);
+    return () => { window.removeEventListener('app-update', onEv); try { if (typeof off === 'function') off(); } catch (e) { } };
   }, []);
   if (!st) return '';
   return html`<div class="upscreen" role="dialog" aria-live="polite" aria-label="Updating ARMGDDN App"><div class="upbox">
@@ -1273,7 +1280,7 @@ function App() {
     else { setView('requests'); setOpenRequest(pendingReq); }
     setPendingReq(null);
   }, [pendingReq, rolesKnown, admin]);
-  useEffect(() => { api.onOpen((m) => { if (m && m.view === 'requests') { setPendingReq(m.id); } else if (m && m.view === 'settings') { setView('settings'); if (m.check) setTimeout(() => { try { window.dispatchEvent(new Event('native-run-update-check')); } catch (e) { } }, 500); } else if (m && ['downloads', 'home', 'library', 'mylist', 'wiki', 'badges'].includes(m.view)) setView(m.view); }); }, []);
+  useEffect(() => { const off = api.onOpen((m) => { if (m && m.view === 'requests') { setPendingReq(m.id); } else if (m && m.view === 'settings') { setView('settings'); if (m.check) setTimeout(() => { try { window.dispatchEvent(new Event('native-run-update-check')); } catch (e) { } }, 500); } else if (m && ['downloads', 'home', 'library', 'mylist', 'wiki', 'badges'].includes(m.view)) setView(m.view); }); return () => { if (typeof off === 'function') off(); }; }, []);
   const [downloads, setDownloads] = useState([]);
   const [toast, setToast] = useState('');
   const say = (m) => { setToast(m); setTimeout(() => setToast(''), 4000); };
@@ -1286,11 +1293,12 @@ function App() {
   const [updating, setUpdating] = useState(false);
   useEffect(() => {
     let alive = true;
-    try { api.onUpdateAvailable((info) => { if (alive && info && info.hasUpdate) setUpdateInfo(info); }); } catch (e) { }
+    let off = null;
+    try { off = api.onUpdateAvailable((info) => { if (alive && info && info.hasUpdate) setUpdateInfo(info); }); } catch (e) { }
     const onFound = (e) => { if (alive && e && e.detail && e.detail.hasUpdate) setUpdateInfo(e.detail); };
     window.addEventListener('native-update-found', onFound);
     api.checkUpdates().then((r) => { if (alive && r && r.hasUpdate) setUpdateInfo(r); }).catch(() => { });
-    return () => { alive = false; window.removeEventListener('native-update-found', onFound); };
+    return () => { alive = false; window.removeEventListener('native-update-found', onFound); try { if (typeof off === 'function') off(); } catch (e) { } };
   }, []);
   const installUpdate = async () => {
     setUpdating(true);

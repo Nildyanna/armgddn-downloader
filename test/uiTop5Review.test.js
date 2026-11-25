@@ -23,3 +23,52 @@ test('Check for updates never says "latest version" after a failed check or for 
   const i = a.indexOf('function UpdateRow(');
   assert.ok(a.slice(i, i + 2000).includes('updateCheckResult(r)'), 'the Settings row uses it');
 });
+
+// Loads preload-native.js against a stand-in for electron and returns what it exposes plus the fake ipcRenderer.
+function loadPreload() {
+  const listeners = new Map();
+  const ipcRenderer = {
+    invoke: async () => null,
+    on: (ch, h) => { if (!listeners.has(ch)) listeners.set(ch, new Set()); listeners.get(ch).add(h); },
+    removeListener: (ch, h) => { if (listeners.has(ch)) listeners.get(ch).delete(h); },
+    emit: (ch, v) => { for (const h of listeners.get(ch) || []) h({}, v); },
+    count: (ch) => (listeners.get(ch) ? listeners.get(ch).size : 0),
+  };
+  let exposed = null;
+  const contextBridge = { exposeInMainWorld: (_k, v) => { exposed = v; } };
+  const Module = require('module');
+  const orig = Module._load;
+  Module._load = function (req, ...rest) { return req === 'electron' ? { contextBridge, ipcRenderer } : orig.call(this, req, ...rest); };
+  const file = require.resolve('../preload-native.js');
+  try { delete require.cache[file]; require(file); } finally { Module._load = orig; delete require.cache[file]; }
+  return { api: exposed, ipc: ipcRenderer };
+}
+
+test('every listener the app window can add hands back a way to remove it', () => {
+  const { api, ipc } = loadPreload();
+  const channels = { onOpen: 'native:open', onConnectionTestProgress: 'connection-test-progress', onScheduleBanner: 'schedule-banner', onUpdateAvailable: 'native:updateAvailable', onUpdate: 'native:update' };
+  for (const [fn, ch] of Object.entries(channels)) {
+    const got = [];
+    const off = api[fn]((m) => got.push(m));
+    assert.equal(typeof off, 'function', fn + ' returns an unsubscribe');
+    ipc.emit(ch, { n: 1 });
+    assert.deepEqual(got, [{ n: 1 }], fn + ' passes the message through');
+    off();
+    assert.equal(ipc.count(ch), 0, fn + ' listener removed');
+    ipc.emit(ch, { n: 2 });
+    assert.equal(got.length, 1);
+  }
+  // every on* in the preload goes through the same helper
+  const pre = read('preload-native.js');
+  assert.ok(pre.includes('ipcRenderer.on(channel, h)'), 'the helper is there');
+  assert.ok(!/ipcRenderer\.on\(/.test(pre.replace('ipcRenderer.on(channel, h)', '')), 'no bare ipcRenderer.on left');
+});
+
+test('Settings and the connection test take their listeners off again', () => {
+  const a = read('renderer/native/app.mjs');
+  const s = a.slice(a.indexOf('function ScheduleRow('), a.indexOf('function GameUpdatesRow('));
+  assert.ok(s.includes('off = api.onScheduleBanner(') && s.includes("typeof off === 'function') off()"), 'the schedule banner listener goes when Settings closes');
+  const t = a.slice(a.indexOf('function SupportTools('), a.indexOf('function PrefsImport('));
+  assert.ok(t.includes('const off = api.onConnectionTestProgress(') && /finally \{[^}]*off\(\)/.test(t), 'the progress listener goes when the test ends');
+  for (const sub of ['off = api.onUpdate(', 'const off = api.onOpen(', 'off = api.onUpdateAvailable(']) assert.ok(a.includes(sub), sub);
+});
