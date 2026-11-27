@@ -394,6 +394,8 @@ function start({ BrowserWindow, ipcMain, shell, dialog, clipboard, clearSession,
     width: 1280, height: 860, minWidth: 900, minHeight: 600, backgroundColor: '#0b1220', title: 'ARMGDDN App',
     webPreferences: { preload: path.join(appDir, 'preload-native.js'), contextIsolation: true, nodeIntegration: false, sandbox: true, autoplayPolicy: 'no-user-gesture-required', additionalArguments: process.argv.some((x) => x.startsWith('--native-shot') || x === '--native-quiet') ? ['--native-quiet'] : [] }
   });
+  // A window that opens sticking out past its screen (DMP's wide screen, right after updates) is put back to fill it (windowFit.js).
+  try { require('./windowFit').watchFit(win, require('electron').screen, log); } catch (e) { log('[Window] fit watch not started: ' + e.message); }
   win.maximize();   // opens maximized
   // Electron 44+ passes one event object ({ level: 'info' | 'warning' | 'error' | 'debug', message, lineNumber, sourceId }); older versions pass separate arguments with a number level.
   win.webContents.on('console-message', (e, ...legacy) => {
