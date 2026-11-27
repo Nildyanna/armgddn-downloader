@@ -25,12 +25,12 @@ test('the site answer is checked: enabled:false, a failed call, another host or 
   assert.equal(cleanPromo({ ...SITE, text: { ...SITE.text, shortLine: '' } }).text.shortLine, SITE.text.line);
 });
 
-test('shown by default (pill and strip); only a brand-new install waits a day', async () => {
+test('shown at once (pill and strip), brand-new installs included (George, 2026-11-27)', async () => {
   const { promoView } = await import('../renderer/native/promo.mjs');
   assert.deepEqual(promoView(SITE, OLD_MEMBER, NOW), { pill: true, strip: true, hidden: false, hiddenAt: null, clicked: false });
   const fresh = promoView(SITE, { firstRunAt: iso(NOW - 3 * 60 * 60 * 1000), firstRunFresh: true }, NOW);
-  assert.equal(fresh.strip, false); assert.equal(fresh.pill, true); assert.equal(fresh.hidden, false);
-  assert.equal(promoView(SITE, { firstRunAt: iso(NOW - DAY + 1000), firstRunFresh: true }, NOW).strip, false);
+  assert.equal(fresh.strip, true); assert.equal(fresh.pill, true); assert.equal(fresh.hidden, false);
+  assert.equal(promoView(SITE, { firstRunAt: iso(NOW - 60 * 1000), firstRunFresh: true }, NOW).strip, true);
   assert.equal(promoView(SITE, { firstRunAt: iso(NOW - DAY), firstRunFresh: true }, NOW).strip, true);
   // an existing member who updated (6.15.0 stamped firstRunAt at the update, without firstRunFresh) sees it at once (George, 2026-11-25)
   assert.equal(promoView(SITE, { firstRunAt: iso(NOW - 60 * 1000) }, NOW).strip, true);

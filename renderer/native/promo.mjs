@@ -5,7 +5,6 @@
 // Members cannot hide it (George and DMP, 2026-11-27: "Let's not let them dismiss"; it is the App's only ad and pays the bills).
 // The ✕ and the Settings checkbox are gone, and hides saved by older versions (promoHiddenAt / promoHiddenEdition) are ignored.
 
-const DAY_MS = 24 * 60 * 60 * 1000;
 // The only place the strip and pill may send the member (the main process allows the same hosts, native/bridge.js LINK_HOSTS).
 export const PROMO_HOSTS = new Set(['3dflickfix.net', 'www.3dflickfix.net']);
 
@@ -27,19 +26,16 @@ export function cleanPromo(r) {
   return { edition, url: url.toString(), button, text: { label: str(t.label, 40), name, line, shortLine: str(t.shortLine, 40) || line } };
 }
 
-const timeOf = (iso) => { const n = Date.parse(iso || ''); return Number.isFinite(n) ? n : null; };
 
 // What to show: { pill, strip, hidden, hiddenAt, clicked }.
-// pill: whenever the site has a promo. strip: too, except on a brand-new install's first day (settings.firstRunAt + firstRunFresh).
+// pill and strip: whenever the site has a promo, from the first minute (no first-day wait since 2026-11-27).
 // hidden / hiddenAt / clicked stay in the answer (always false / null) so older callers keep working.
 export function promoView(promo, s, now = Date.now()) {
   if (!promo) return { pill: false, strip: false, hidden: false, hiddenAt: null, clicked: false };
   const st = s || {};
   const hidden = false;
-  const first = timeOf(st.firstRunAt);
-  // Only a brand-new install waits a day (firstRunFresh); members who already used the App see it at once.
-  const firstDay = st.firstRunFresh === true && first != null && now - first < DAY_MS;
-  return { pill: true, strip: !firstDay, hidden, hiddenAt: null, clicked: false };
+  // Shown at once, brand-new installs included (George, 2026-11-27: "no more wait, it shows instantly").
+  return { pill: true, strip: true, hidden, hiddenAt: null, clicked: false };
 }
 
 // The setting saved when the member clicks through (kept for the record; it no longer hides anything).

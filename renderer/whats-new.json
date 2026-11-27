@@ -1,4 +1,46 @@
 {
+  "6.20.0": {
+    "title": "Guides in your language",
+    "highlights": [
+      "The Wiki's Komga and Linux guides are now in French, Spanish, Portuguese and German too.",
+      "Fixed: after an update the window could open pushed to one side with part of it off the screen.",
+      "The 3D Flick Fix strip on Home can no longer be hidden. It's how we pay the server bills."
+    ],
+    "i18n": {
+      "fr": {
+        "title": "Les guides dans votre langue",
+        "highlights": [
+          "Les guides Komga et Linux du Wiki sont maintenant aussi en français, espagnol, portugais et allemand.",
+          "Corrigé : après une mise à jour, la fenêtre pouvait s’ouvrir décalée sur le côté, en partie hors de l’écran.",
+          "Le bandeau 3D Flick Fix sur l’Accueil ne peut plus être masqué. C’est ainsi que nous payons les serveurs."
+        ]
+      },
+      "es": {
+        "title": "Las guías en tu idioma",
+        "highlights": [
+          "Las guías de Komga y Linux de la Wiki ahora también están en francés, español, portugués y alemán.",
+          "Corregido: después de una actualización, la ventana podía abrirse desplazada a un lado, con parte fuera de la pantalla.",
+          "La franja de 3D Flick Fix en Inicio ya no se puede ocultar. Así pagamos las facturas del servidor."
+        ]
+      },
+      "pt-BR": {
+        "title": "Os guias no seu idioma",
+        "highlights": [
+          "Os guias de Komga e Linux da Wiki agora também estão em francês, espanhol, português e alemão.",
+          "Corrigido: depois de uma atualização, a janela podia abrir deslocada para um lado, com parte fora da tela.",
+          "A faixa do 3D Flick Fix no Início não pode mais ser ocultada. É assim que pagamos as contas do servidor."
+        ]
+      },
+      "de": {
+        "title": "Die Anleitungen in deiner Sprache",
+        "highlights": [
+          "Die Komga- und Linux-Anleitungen im Wiki gibt es jetzt auch auf Französisch, Spanisch, Portugiesisch und Deutsch.",
+          "Behoben: Nach einem Update konnte das Fenster zur Seite verschoben und teilweise außerhalb des Bildschirms aufgehen.",
+          "Die 3D-Flick-Fix-Leiste auf der Startseite lässt sich nicht mehr ausblenden. So bezahlen wir die Serverrechnungen."
+        ]
+      }
+    }
+  },
   "6.19.0": {
     "title": "The app in your language",
     "highlights": [

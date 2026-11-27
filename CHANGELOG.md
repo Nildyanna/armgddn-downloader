@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.20.0] - 2026-11-27
+
+### Added
+- Wiki sections 12 (Komga) and 13 (Linux) in French, Spanish, Portuguese and German; all 14 sections are now translated.
+
+### Changed
+- 3D Flick Fix strip (George and DMP): members can no longer hide it (no X, no Settings > Home screen checkbox, older saved hides ignored), and a brand-new install shows it at once (no first-day wait).
+- Wiki: the Komga guide's cross-reference says 12.4 (was 14.4) and the Linux guide's say 13.x (were 15.x).
+
+### Fixed
+- Window (DMP, very wide screen): after an update it could open maximized but pushed to one side, its right part off the screen. A window past its screen's edge is now put back when shown, 1.5 s and 5 s later and on any screen change; `[Window]` log lines record the sizes.
+
 ## [6.19.0] - 2026-11-27
 
 ### Added
