@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- PC Apps notice: a Copy PW button copies the apps archive password (the website's notice already had one); a line says no password is needed with Auto-extract on. Game READMEs never offer it: games have no password.
+
 ## [6.17.1] - 2026-11-25
 
 ### Fixed
