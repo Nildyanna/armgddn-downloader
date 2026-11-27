@@ -10,6 +10,7 @@ import { THEME_MODES, effectiveMode, themeFor, loadChoice, withWebsiteTheme, wit
 import { OwnerDock } from './ownerDock.mjs';
 import { problemButton, previewRows } from './problemReport.mjs';
 import { cleanPromo, promoView, hidePatch, showPatch, clickPatch, promoHelp } from './promo.mjs';
+import { initLanguage, LANGUAGES, t as tr, localWiki, localWhatsNew } from './i18n.mjs';
 import { INBOX_POLL_MS, mergeInbox, unreadCount, freshItems, notificationFor, inboxTarget, inboxWhen, titleInListing } from './inbox.mjs';
 const api = window.nativeAPI;
 try { api.getSettings().then((r) => { if (r && window.setLiteGraphics) window.setLiteGraphics(!!r.lightGraphics); }).catch(() => { }); } catch (e) { }   // the Lighter graphics setting, applied as the window opens
@@ -269,8 +270,8 @@ function HarborTitle({ item, remote, folder, art, cover, cats, trailer, readme, 
         <li><b>3</b><h4>Install and play</h4><p>${vr ? 'Most VR games need a headset running SteamVR, though some games and launch methods get around it. Install the game from the extracted folder. Then start your headset with the launch method of your choice (not Steam Link), open the desktop view, and launch the game from its desktop or Start menu icon there.' : 'Install the game from the extracted folder, then start it from the desktop or Start menu icon the installer creates.'}</p></li>
       </ol>
     </section>` : ''}
-    ${isGame && also.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Also big in ${kind}</h3><span>Most downloaded, last 30 days</span></div>
-      <div class="hb-also">${also.map((e) => html`<button key=${e.path} onClick=${() => { onClose(); onOpenTrend(e); }}><img src=${coverSrc(e.coverUrl)} alt="" /><b>${cleanTitle(e.title)}</b><span>${e.count.toLocaleString('en-US')} downloads${e.sizeBytes ? ' · ' + formatSize(e.sizeBytes) : ''}</span></button>`)}</div></section>` : ''}
+    ${isGame && also.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>${tr('Also big in {kind}', { kind })}</h3><span>Most downloaded, last 30 days</span></div>
+      <div class="hb-also">${also.map((e) => html`<button key=${e.path} onClick=${() => { onClose(); onOpenTrend(e); }}><img src=${coverSrc(e.coverUrl)} alt="" /><b>${cleanTitle(e.title)}</b><span>${tr('{n} downloads', { n: e.count.toLocaleString() })}${e.sizeBytes ? ' · ' + formatSize(e.sizeBytes) : ''}</span></button>`)}</div></section>` : ''}
   </div></div>`;
 }
 
@@ -371,10 +372,10 @@ function BadgesView({ say }) {
   const groups = [...FAMILY_ORDER, ...new Set(items.map((i) => i.family).filter((f) => !FAMILY_ORDER.includes(f)))];
   const pct = data.permanentTotal ? Math.round((data.permanentHave / data.permanentTotal) * 100) : 0;
   return html`<div class="reqpane badgepage">
-    <h2>Badges <span class="chip">${data.earnedCount || 0} of ${data.total || 0}</span></h2>
+    <h2>Badges <span class="chip">${tr('{have} of {total}', { have: data.earnedCount || 0, total: data.total || 0 })}</span></h2>
     <div class="sub">Just for fun: badges give no rewards. Earn them by using ARMGDDN, and pick the one that shows next to your name.</div>
-    <div class="bprog" title=${data.permanentHave + ' of ' + data.permanentTotal + ' permanent badges'}><div class="bprogbar"><i style=${'width:' + pct + '%'}></i></div><span>${pct}% of the way to Badge Collector Supreme</span></div>
-    ${data.hiddenLeft ? html`<div class="sub">${data.hiddenLeft} secret badge${data.hiddenLeft === 1 ? '' : 's'} left to discover.</div>` : ''}
+    <div class="bprog" title=${data.permanentHave + ' of ' + data.permanentTotal + ' permanent badges'}><div class="bprogbar"><i style=${'width:' + pct + '%'}></i></div><span>${tr('{pct}% of the way to Badge Collector Supreme', { pct })}</span></div>
+    ${data.hiddenLeft ? html`<div class="sub">${tr(data.hiddenLeft === 1 ? '{n} secret badge left to discover.' : '{n} secret badges left to discover.', { n: data.hiddenLeft })}</div>` : ''}
     ${error ? html`<div class="notice">${error}</div>` : ''}
     <div class="bfilter">${['all', 'earned', 'locked', 'hidden'].map((f) => html`<button class=${filter === f ? 'tab on' : 'tab'} onClick=${() => setFilter(f)}>${f[0].toUpperCase() + f.slice(1)}</button>`)}
       ${data.chosen ? html`<button class="dbtn" title="Go back to showing your rarest badge" onClick=${() => choose(null)}>Use my rarest badge</button>` : html`<span class="sub">Wearing your rarest badge</span>`}</div>
@@ -455,14 +456,14 @@ function RequestsView({ say, openId }) {
 function MyListView({ list, render, listMode }) {
   if (!list.length) return html`<div class="empty">Your list is empty. Press the heart on a game, album or comic to save it here.</div>`;
   // The heading only shows in the Harbor theme (themes-custom.css); other themes keep the page as it was.
-  return html`<main class=${listMode ? 'list' : 'grid wide'}><div class="hb-listhead"><b>My List</b><span>${list.length} saved</span></div>${list.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
+  return html`<main class=${listMode ? 'list' : 'grid wide'}><div class="hb-listhead"><b>My List</b><span>${tr('{n} saved', { n: list.length })}</span></div>${list.slice().reverse().map((e) => render({ ...e, isDir: true, _remote: e.remote, _folder: String(e.path || e.name).split('/').slice(0, -1).join('/') }))}</main>`;
 }
 
 function WikiView() {
   const [wiki, setWiki] = useState(null);
   const [id, setId] = useState('');
   const body = useRef(null);
-  useEffect(() => { import('./wiki.json', { with: { type: 'json' } }).then((m) => { setWiki(m.default); }).catch(() => setWiki({ sections: [] })); }, []);
+  useEffect(() => { import('./wiki.json', { with: { type: 'json' } }).then((m) => localWiki(m.default)).then(setWiki).catch(() => setWiki({ sections: [] })); }, []);
   const sections = wiki ? wiki.sections : [];
   const cur = wikiSectionFor(sections, id);
   useEffect(() => { if (body.current) body.current.scrollTop = 0; }, [cur && cur.id]);
@@ -492,7 +493,7 @@ function EverywhereResults({ index, query, render, onWatch, onWatchlist }) {
   if (!query.trim()) return html`<div class="empty">Type to search every section (PC, PCVR, Testing, Apps, 3D, Comics, Music).</div>`;
   const watch = html`<${WatchBar} query=${query} onWatch=${onWatch} onWatchlist=${onWatchlist} />`;
   if (!found.length) return html`<div><div class="empty">Nothing matches that.</div>${watch}</div>`;
-  return html`<main class="grid wide"><div class="count" style="grid-column:1/-1">${exact.length ? '' : 'No exact match, closest: '}${found.length} found${watch}</div>${found.map((it) => render(it, badges.get(it)))}</main>`;
+  return html`<main class="grid wide"><div class="count" style="grid-column:1/-1">${exact.length ? '' : 'No exact match, closest: '}${tr('{n} found', { n: found.length })}${watch}</div>${found.map((it) => render(it, badges.get(it)))}</main>`;
 }
 
 // "Tell me when it is added": a Telegram message when the title shows up (or a newer build appears), plus the member's watchlist.
@@ -514,7 +515,7 @@ function WatchlistModal({ onClose, say, startTitle }) {
     <h3>My watchlist</h3>
     <p class="sval">You get a notice in your inbox here (the bell at the top) and on Telegram when a title on this list is added to the library, or when a newer build of it appears.</p>
     <div class="srow"><input class="wide" type="text" placeholder="Game title" aria-label="Game title" value=${title} onInput=${(e) => setTitle(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') add(); }} /><button class="dbtn go" onClick=${add}>Watch</button></div>
-    ${items === null ? html`<div class="loading">Loading...</div>` : !items.length ? html`<div class="empty">You are not watching anything yet.</div>` : items.map((w) => html`<div class="srow" key=${w.id}><span class="slabel">${w.title}${w.notifiedAt ? html` <span class="sval">(told you on ${shortDate(w.notifiedAt)})</span>` : ''}</span><button class="dbtn" onClick=${() => remove(w.id)}>Stop watching</button></div>`)}
+    ${items === null ? html`<div class="loading">Loading...</div>` : !items.length ? html`<div class="empty">You are not watching anything yet.</div>` : items.map((w) => html`<div class="srow" key=${w.id}><span class="slabel">${w.title}${w.notifiedAt ? html` <span class="sval">${tr('(told you on {date})', { date: shortDate(w.notifiedAt) })}</span>` : ''}</span><button class="dbtn" onClick=${() => remove(w.id)}>Stop watching</button></div>`)}
     <div class="dbtns"><button class="dbtn" onClick=${onClose}>Close</button></div>
   </div></div>`;
 }
@@ -635,7 +636,7 @@ function ScanTool({ kind, say }) {
     const r = await call('comicsScan', 'musicScan')();
     setBusy(''); await refresh();
     if (!r || !r.ok) { setNote((r && r.error) || 'The scan failed.'); return; }
-    setNote(`Scanned ${Number(r.count).toLocaleString()} ${music ? 'music' : 'comic'} files${r.fast ? ` (${Number(r.fast).toLocaleString()} matched the library by name and size without being opened)` : ''}${r.damaged ? `; ${Number(r.damaged).toLocaleString()} look damaged or cut short` : ''}.`);
+    setNote(tr(music ? 'Scanned {n} music files' : 'Scanned {n} comic files', { n: Number(r.count).toLocaleString() }) + (r.fast ? ' ' + tr('({n} matched the library by name and size without being opened)', { n: Number(r.fast).toLocaleString() }) : '') + (r.damaged ? '; ' + tr('{n} look damaged or cut short', { n: Number(r.damaged).toLocaleString() }) : '') + '.');
   };
   const compare = async () => {
     setBusy('compare'); setLines([{ tone: 'info', text: 'Comparing...' }]); setCanDownload(false);
@@ -651,20 +652,20 @@ function ScanTool({ kind, say }) {
     if (!r || !r.ok) { setNote((r && r.error) || 'Could not start the downloads.'); return; }
     setNote(startedLine(kind, r)); say('Started the missing ' + label);
   };
-  const prog = running && st.progress ? `Scanning... ${Number(st.progress.scanned || 0).toLocaleString()} files` : '';
+  const prog = running && st.progress ? tr('Scanning... {n} files', { n: Number(st.progress.scanned || 0).toLocaleString() }) : '';
   const t = info && info.totals;
   return html`<section class="toolcard">
-    <h3>${music ? 'Music' : 'Comics'}: only what I'm missing</h3>
+    <h3>${tr(music ? "Music: only what I'm missing" : "Comics: only what I'm missing")}</h3>
     <p class="note">${music ? 'Scan your music folder and download only the albums and tracks you do not have.' : 'Scan your comics folder and download only the comics you do not have, for the whole library or one reading order.'} The contents of your folder never leave this PC; only the library's list comes down.</p>
-    ${info && info.error ? html`<p class="note warn">${info.error} Sign in again if this keeps happening.</p>` : t ? html`<p class="note">${music ? `The library has ${Number(t.albums || 0).toLocaleString()} albums by ${Number(t.artists || 0).toLocaleString()} artists (${Number(t.tracks || 0).toLocaleString()} tracks, ${formatSize(t.bytes)}).` : `The library has ${Number(t.books || 0).toLocaleString()} comics${Number(t.bytes) > 0 ? ' (' + formatSize(t.bytes) + ')' : ''}.`}</p>` : ''}
-    <div class="srow"><span class="slabel">${music ? 'Music' : 'Comics'} folder</span><span class="sval">${st.folder || 'No folder chosen'}</span><button class="dbtn" disabled=${running} onClick=${chooseFolder}>${st.folder ? 'Change' : 'Choose'}</button></div>
+    ${info && info.error ? html`<p class="note warn">${info.error} Sign in again if this keeps happening.</p>` : t ? html`<p class="note">${music ? tr('The library has {albums} albums by {artists} artists ({tracks} tracks, {size}).', { albums: Number(t.albums || 0).toLocaleString(), artists: Number(t.artists || 0).toLocaleString(), tracks: Number(t.tracks || 0).toLocaleString(), size: formatSize(t.bytes) }) : tr('The library has {n} comics', { n: Number(t.books || 0).toLocaleString() }) + (Number(t.bytes) > 0 ? ' (' + formatSize(t.bytes) + ')' : '') + '.'}</p>` : ''}
+    <div class="srow"><span class="slabel">${tr(music ? 'Music folder' : 'Comics folder')}</span><span class="sval">${st.folder || 'No folder chosen'}</span><button class="dbtn" disabled=${running} onClick=${chooseFolder}>${st.folder ? 'Change' : 'Choose'}</button></div>
     <div class="srow">
       <button class="dbtn" disabled=${!st.folder || running || !!busy} onClick=${scan}>Scan</button>
       ${running ? html`<button class="dbtn" onClick=${() => call('comicsCancelScan', 'musicCancelScan')()}>Stop</button>` : ''}
-      <span class="slabel">${prog || (st.scanned ? `Scanned ${Number(st.scanned).toLocaleString()} ${music ? 'music' : 'comic'} files.` : 'Not scanned yet.')}</span>
+      <span class="slabel">${prog || (st.scanned ? tr(music ? 'Scanned {n} music files' : 'Scanned {n} comic files', { n: Number(st.scanned).toLocaleString() }) + '.' : 'Not scanned yet.')}</span>
     </div>
     ${!music ? html`<label class="srow"><span class="slabel">Compare with</span><select value=${pick} onChange=${(e) => setPick(e.target.value)}>
-      <option value="all">${`Everything in the library${t ? ` (${Number(t.books || 0).toLocaleString()} comics)` : ''}`}</option>
+      <option value="all">${tr('Everything in the library') + (t ? ' (' + tr('{n} comics', { n: Number(t.books || 0).toLocaleString() }) + ')' : '')}</option>
       ${((info && info.lists) || []).map((l) => html`<option value=${l.id}>${l.name} (${Number(l.books || 0).toLocaleString()})</option>`)}</select></label>` : ''}
     <div class="srow"><button class="dbtn" disabled=${!st.scanned || running || !!busy} onClick=${compare}>Compare</button>
       ${canDownload ? html`<button class="dbtn go" disabled=${!!busy} onClick=${download}>Download what I'm missing</button>` : ''}
@@ -698,7 +699,7 @@ function KomgaTool({ say }) {
     setUrl(r.url); setMsg('Imported the Komga address and key from your earlier ARMGDDN App install. The key stays on this PC.'); await load();
   };
   const add = async (id, title) => {
-    setBusy(id); setMsg(`Adding ${title}...`);
+    setBusy(id); setMsg(tr('Adding {title}...', { title }));
     const r = await api.komgaAdd(id);
     setBusy('');
     if (r && r.ok) { setMsg(`${r.replaced ? 'Updated' : 'Added'} "${r.name}" ${r.replaced ? 'in' : 'to'} your Komga: ${Number(r.count).toLocaleString()} of ${Number(r.total).toLocaleString()} comics, in reading order (${Number(r.byFile).toLocaleString()} matched by file${r.byCv ? `, ${Number(r.byCv).toLocaleString()} by Comic Vine id (another edition of the same issue)` : ''}).${r.missing ? ` ${Number(r.missing).toLocaleString()} are not in your Komga library, so they were left out.` : ''}`); say('Added to your Komga: ' + r.name); return; }
@@ -711,7 +712,7 @@ function KomgaTool({ say }) {
     <label class="srow"><span class="slabel">API key</span><input class="wide" type="password" value=${key} placeholder=${k.hasKey ? 'Saved on this PC (leave empty to keep it)' : 'Paste your API key'} onInput=${(e) => setKey(e.target.value)} /></label>
     ${k.canImport ? html`<div class="srow"><span class="slabel">Your earlier ARMGDDN App install already has a Komga server and key saved.</span><button class="dbtn go" onClick=${importKey}>Import them</button></div>` : ''}
     <div class="srow"><button class="dbtn" onClick=${save}>Save</button>${k.hasKey ? html`<button class="dbtn" onClick=${forget}>Forget the key</button>` : ''}<span class="slabel">${k.hasKey ? 'A key is saved.' : 'No key saved yet.'}</span></div>
-    <div class="lists">${(lists.length ? lists : (k.lists || [])).map((l) => html`<div class="srow"><span class="slabel">${l.title}${l.books ? html` <span class="sval">${Number(l.books).toLocaleString()} comics</span>` : ''}</span><button class="dbtn" disabled=${!k.hasKey || !!busy} onClick=${() => add(l.id, l.title)}>${busy === l.id ? 'Adding...' : 'Add to my Komga'}</button></div>`)}</div>
+    <div class="lists">${(lists.length ? lists : (k.lists || [])).map((l) => html`<div class="srow"><span class="slabel">${l.title}${l.books ? html` <span class="sval">${tr('{n} comics', { n: Number(l.books).toLocaleString() })}</span>` : ''}</span><button class="dbtn" disabled=${!k.hasKey || !!busy} onClick=${() => add(l.id, l.title)}>${busy === l.id ? 'Adding...' : 'Add to my Komga'}</button></div>`)}</div>
     ${msg ? html`<p class="note">${msg}</p>` : ''}
   </section>`;
 }
@@ -747,7 +748,7 @@ function UpdateRow({ say }) {
     } catch (e) { setState({ busy: false, text: 'Could not check for updates.' }); }
   };
   useEffect(() => { const run = () => check(); window.addEventListener('native-run-update-check', run); return () => window.removeEventListener('native-run-update-check', run); }, []);
-  return html`<div class="srow"><span class="slabel">ARMGDDN App updates <span class="sval">${state.text || 'It checks once an hour by itself.'}</span></span>${found ? html`<button class="dbtn go" disabled=${state.busy} onClick=${install}>Update to v${found.latestVersion}</button>` : html`<button class="dbtn" disabled=${state.busy} onClick=${check}>Check for updates</button>`}</div>`;
+  return html`<div class="srow"><span class="slabel">ARMGDDN App updates <span class="sval">${state.text || 'It checks once an hour by itself.'}</span></span>${found ? html`<button class="dbtn go" disabled=${state.busy} onClick=${install}>${tr('Update to v{v}', { v: found.latestVersion })}</button>` : html`<button class="dbtn" disabled=${state.busy} onClick=${check}>Check for updates</button>`}</div>`;
 }
 
 // Download speed limit (2026-11-25): one total for all downloads together, applied at once to running downloads. Optionally only between
@@ -759,8 +760,8 @@ function SpeedLimitRow({ s, save }) {
   const h = s.speedLimitHours || {};
   const putHours = (patch) => save({ speedLimitHours: { enabled: !!h.enabled, start: h.start || '08:00', end: h.end || '23:00', ...patch } });
   const note = !v ? 'Downloads use your full connection.'
-    : h.enabled ? `All downloads together stay under ${v} MB/s between ${h.start || '08:00'} and ${h.end || '23:00'}; outside those hours they are not limited.`
-    : `All downloads together stay under ${v} MB/s. A change applies to running downloads at once.`;
+    : h.enabled ? tr('All downloads together stay under {v} MB/s between {start} and {end}; outside those hours they are not limited.', { v, start: h.start || '08:00', end: h.end || '23:00' })
+    : tr('All downloads together stay under {v} MB/s. A change applies to running downloads at once.', { v });
   return html`<div class="speedlimit">
     <label class="srow"><span class="slabel">Download speed limit <span class="sval">${note}</span></span><select aria-label="Download speed limit" value=${v} onChange=${(e) => save({ maxDownloadSpeedMBps: Number(e.target.value) })}>${choices.map(([n, t]) => html`<option value=${n}>${t}</option>`)}</select></label>
     ${v ? html`<div class="srow schedfields"><span class="slabel"><label class="chk"><input type="checkbox" checked=${!!h.enabled} onChange=${(e) => putHours({ enabled: e.target.checked })} /> Only between</label> <input type="time" aria-label="Limit starts at" disabled=${!h.enabled} value=${h.start || '08:00'} onChange=${(e) => putHours({ start: e.target.value || '08:00' })} /> and <input type="time" aria-label="Limit ends at" disabled=${!h.enabled} value=${h.end || '23:00'} onChange=${(e) => putHours({ end: e.target.value || '23:00' })} /></span></div>` : ''}
@@ -799,12 +800,12 @@ function GameUpdatesRow({ onOpenGame }) {
       const res = await api.checkGameUpdates();
       if (!res || !res.ok) return setSt({ busy: false, text: (res && res.error) || 'Could not check for updates.', list: [] });
       if (!res.checked) return setSt({ busy: false, text: 'There are no finished downloads in your history to check.', list: [] });
-      if (!res.updates.length) return setSt({ busy: false, text: `Checked ${res.checked} game${res.checked === 1 ? '' : 's'}: all are on the newest version in the library.`, list: [] });
+      if (!res.updates.length) return setSt({ busy: false, text: tr(res.checked === 1 ? 'Checked {n} game: it is on the newest version in the library.' : 'Checked {n} games: all are on the newest version in the library.', { n: res.checked }), list: [] });
       setSt({ busy: false, text: `${res.updates.length} game${res.updates.length === 1 ? ' has' : 's have'} a newer version in the library. Click one to open it in the library.`, list: res.updates });
     } catch (e) { setSt({ busy: false, text: 'Could not check for updates.', list: [] }); }
   };
   return html`<div><div class="srow"><span class="slabel">Game updates <span class="sval">${st.text || 'See which of your downloaded games have a newer version.'}</span></span><button class="dbtn" disabled=${st.busy} onClick=${run}>Check my games</button></div>
-    ${st.list.length ? html`<ul class="gu">${st.list.map((u, i) => html`<li key=${i}><a class="glink" href="#" title="Open it in the library" onClick=${(e) => { e.preventDefault(); if (onOpenGame) onOpenGame(u.remote || 'PC Games', u.latestFolder); }}>${u.latestFolder}</a> <span class="sval">(you have ${u.current}, newest is ${u.latest})</span></li>`)}</ul>` : ''}</div>`;
+    ${st.list.length ? html`<ul class="gu">${st.list.map((u, i) => html`<li key=${i}><a class="glink" href="#" title="Open it in the library" onClick=${(e) => { e.preventDefault(); if (onOpenGame) onOpenGame(u.remote || 'PC Games', u.latestFolder); }}>${u.latestFolder}</a> <span class="sval">${tr('(you have {current}, newest is {latest})', { current: u.current, latest: u.latest })}</span></li>`)}</ul>` : ''}</div>`;
 }
 
 // "New to .7z files?": the short help video, played from the app's own files. It starts playing as soon as Watch the video is clicked,
@@ -818,10 +819,11 @@ function Help7zRow() {
 }
 
 // What's New: the changes in the running version, shown once after an update and on request.
-function WhatsNewBox({ entry, onClose }) {
-  if (!entry) return '';
+function WhatsNewBox({ entry: raw, onClose }) {
+  if (!raw) return '';
+  const entry = localWhatsNew(raw);
   const items = Array.isArray(entry.highlights) ? entry.highlights : [];
-  return html`<div class="notice soft whatsnew"><strong>${entry.title ? "What's New: " + entry.title : "What's New"}</strong><ul>${items.map((h, i) => html`<li key=${i}>${String(h)}</li>`)}</ul><button class="dbtn" onClick=${onClose}>Got it</button></div>`;
+  return html`<div class="notice soft whatsnew"><strong>${entry.title ? tr("What's New:") + ' ' + entry.title : tr("What's New")}</strong><ul>${items.map((h, i) => html`<li key=${i}>${String(h)}</li>`)}</ul><button class="dbtn" onClick=${onClose}>Got it</button></div>`;
 }
 function WhatsNewButton() {
   const [entry, setEntry] = useState(undefined);
@@ -846,6 +848,9 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle, promo }) {
       : html`<label class="srow"><span class="slabel">${label}</span><${NumField} min=${min} max=${max} value=${Number(s[key]) || 0} onCommit=${(n) => save({ [key]: n })} /></label>`; };
   return html`<main class="settings">
     <h2>Settings</h2>
+    <section class="sgroup"><h3>Language</h3>
+    <label class="srow"><span class="slabel">Language of the app</span><select value=${s.language || 'auto'} onChange=${async (e) => { await save({ language: e.target.value }); location.reload(); }}>${LANGUAGES.map(([v, name]) => html`<option value=${v}>${name}</option>`)}</select></label>
+    </section>
     <section class="sgroup"><h3>Updates</h3>
     <${UpdateRow} say=${say} />
     <${WhatsNewButton} />
@@ -872,7 +877,7 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle, promo }) {
     <${GameUpdatesRow} onOpenGame=${onOpenGame} />
     </section>
     ${promo ? html`<section class="sgroup"><h3>Home screen</h3>
-    <label class="srow promo-setting"><input type="checkbox" checked=${!promo.view.hidden} onChange=${(e) => promo.set(e.target.checked)} /> <span class="slabel">Show the ${promo.name} strip on Home <span class="sval">${promoHelp(promo.view)}</span></span></label>
+    <label class="srow promo-setting"><input type="checkbox" checked=${!promo.view.hidden} onChange=${(e) => promo.set(e.target.checked)} /> <span class="slabel">${tr('Show the {name} strip on Home', { name: promo.name })} <span class="sval">${promoHelp(promo.view)}</span></span></label>
     </section>` : ''}
     <section class="sgroup"><h3>The app and its window</h3>
     ${ownerToggle ? html`<label class="srow"><input type="checkbox" checked=${!ownerToggle.off} onChange=${(e) => ownerToggle.set(!e.target.checked)} /> <span class="slabel">Owner view: show the Admin tab and the status dock (turn off to see the app as a regular member)</span></label>` : ''}
@@ -973,7 +978,7 @@ function TrendingStrip({ windows, onOpen }) {
     <div class="ticker-track" ref=${track} key=${idx + '-' + cycle}>${cur.items.map((e) => html`<div class="tpill" key=${e.norm + e.platform} tabIndex="0" role="button" onKeyDown=${kbdClick(() => onOpen(e))} onClick=${() => onOpen(e)}>
       <div class="tcover">${e.coverUrl ? html`<img src=${coverSrc(e.coverUrl)} alt="" />` : html`<div class="nocover small">Non-Steam Game</div>`}</div>
       <div class="ttext"><div class="ttitle">${cleanTitle(e.title)}</div>
-        <div class="tmeta"><span>\u{1F525} ${Number(e.count).toLocaleString('en-US')} downloads</span>${e.sizeBytes ? html`<span>${formatSize(e.sizeBytes)}</span>` : ''}${e.lastDownloadTs ? html`<span>${shortDate(e.lastDownloadTs)}</span>` : ''}</div></div>
+        <div class="tmeta"><span>\u{1F525} ${tr('{n} downloads', { n: Number(e.count).toLocaleString() })}</span>${e.sizeBytes ? html`<span>${formatSize(e.sizeBytes)}</span>` : ''}${e.lastDownloadTs ? html`<span>${shortDate(e.lastDownloadTs)}</span>` : ''}</div></div>
     </div>`)}</div>
     ${cur.goat ? html`<div class="fireworks" ref=${fwBox}></div>` : ''}
   </div></${Fragment}>`;
@@ -1082,7 +1087,7 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
       <div class="hb-heroin">
         ${coverOf(top) ? html`<img class="hb-heroart" src=${coverSrc(coverOf(top))} alt=${cleanTitle(top.title)} tabIndex="0" role="button" onKeyDown=${kbdClick(() => onOpen(top))} onClick=${() => onOpen(top)} />` : ''}
         <div class="hb-herotext">
-          <span class="hb-kick">No. 1 in the last ${days} days · ${top.count.toLocaleString('en-US')} downloads</span>
+          <span class="hb-kick">${tr('No. 1 in the last {days} days', { days })} · ${tr('{n} downloads', { n: top.count.toLocaleString() })}</span>
           <h2>${cleanTitle(top.title)}</h2>
           <div class="hb-facts">
             ${top.sizeBytes ? html`<div><span>Size</span><b>${formatSize(top.sizeBytes)}</b></div>` : ''}
@@ -1096,11 +1101,11 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
         </div>
       </div>
     </section>` : ''}
-    ${rows.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Most downloaded</h3><span>Last ${days} days, all members</span></div>
+    ${rows.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Most downloaded</h3><span>${tr('Last {days} days, all members', { days })}</span></div>
       <div class="hb-chart3">${rows.map((e, i) => html`<button class="hb-crow" key=${e.path} onClick=${() => onOpen(e)}>
         <span class="hb-rank">${i + 1}</span>
         ${coverOf(e) ? html`<img src=${coverSrc(coverOf(e))} alt="" />` : html`<span class="hb-noimg">${(cleanTitle(e.title)[0] || '?').toUpperCase()}</span>`}
-        <span class="hb-cinfo"><b>${cleanTitle(e.title)}</b><span>${e.count.toLocaleString('en-US')} downloads${e.sizeBytes ? ' · ' + formatSize(e.sizeBytes) : ''}</span><i>${(Number(e.pcvr) || 0) > (Number(e.pc) || 0) ? 'VR' : 'PC'}</i></span>
+        <span class="hb-cinfo"><b>${cleanTitle(e.title)}</b><span>${tr('{n} downloads', { n: e.count.toLocaleString() })}${e.sizeBytes ? ' · ' + formatSize(e.sizeBytes) : ''}</span><i>${(Number(e.pcvr) || 0) > (Number(e.pc) || 0) ? 'VR' : 'PC'}</i></span>
       </button>`)}</div></section>` : ''}
     ${fresh && fresh.length ? html`<section class="hb-sec"><div class="hb-sechead"><h3>Fresh builds</h3><span>Newest updates first</span></div>
       <div class="hb-fresh">${fresh.map((f) => html`<button class="hb-fcard" key=${f._remote + f.name} onClick=${() => onOpen({ remote: f._remote, path: (f._folder ? f._folder + '/' : '') + f.name })}>
@@ -1229,7 +1234,7 @@ function CheckFilesButton({ d }) {
     try { const r = await api.checkFiles(d.id); setMsg(r && r.error ? String(r.error) : String((r && r.text) || '')); } catch (e) { setMsg('The file check could not run.'); }
     setRun(null);
   };
-  if (run) return html`<span class="dsetup" role="status">Checking files ${run.pct}%</span><button class="dbtn" onClick=${() => { try { api.stopCheckFiles(d.id); } catch (e) { } }}>Stop check</button>`;
+  if (run) return html`<span class="dsetup" role="status">${tr('Checking files {pct}%', { pct: run.pct })}</span><button class="dbtn" onClick=${() => { try { api.stopCheckFiles(d.id); } catch (e) { } }}>Stop check</button>`;
   return html`${msg ? html`<span class="dsetup" role="status">${msg}</span>` : ''}<button class="dbtn" disabled=${!!info.gated} title=${info.gated ? 'Turn on Settings › Downloads › Check files after downloading to use this' : 'Compares the downloaded files with the originals on the server'} onClick=${start}>Check files</button>`;
 }
 // Open setup: the main process finds the file again from its own history (the page only passes the id) and opens it.
@@ -1243,7 +1248,7 @@ function ActiveFiles({ d, mib, folded }) {
   const af = activeFileRows(d.activeFiles);
   if (!af.total) return '';
   const head = html`${af.total} file${af.total === 1 ? '' : 's'} at once`;
-  const rows = html`${af.rows.map((r) => html`<div class="dfile"><span class="dfname" title=${r.name}>${r.name}${r.source ? html` <span class=${'dfsrc ' + r.source.toLowerCase()} title=${r.source === 'Drive' ? 'Downloaded straight from Google Drive' : 'Downloaded through the ARMGDDN download gateway'}>${r.source}</span>` : ''}</span><span class="dfpct">${r.pct}%</span><div class="bar small"><div class="fill" style=${'width:' + r.pct + '%'}></div></div><span class="dfspeed">${mib && r.bytes > 0 ? formatMiBps(r.bytes) : r.speed}</span></div>`)}${af.more ? html`<div class="dfmore">and ${af.more} more</div>` : ''}`;
+  const rows = html`${af.rows.map((r) => html`<div class="dfile"><span class="dfname" title=${r.name}>${r.name}${r.source ? html` <span class=${'dfsrc ' + r.source.toLowerCase()} title=${r.source === 'Drive' ? 'Downloaded straight from Google Drive' : 'Downloaded through the ARMGDDN download gateway'}>${r.source}</span>` : ''}</span><span class="dfpct">${r.pct}%</span><div class="bar small"><div class="fill" style=${'width:' + r.pct + '%'}></div></div><span class="dfspeed">${mib && r.bytes > 0 ? formatMiBps(r.bytes) : r.speed}</span></div>`)}${af.more ? html`<div class="dfmore">${tr('and {n} more', { n: af.more })}</div>` : ''}`;
   // Harbor's cards fold the list away (click to open); the classic page always shows it.
   return folded
     ? html`<details class="dfiles folded" title="The files being downloaded right now"><summary class="dfhead">${head}</summary>${rows}</details>`
@@ -1298,7 +1303,7 @@ function HarborDownloads({ list, speedText, onClear, mib, onFlip, problem }) {
       <div class="hb-dstats">
         <div><span>Speed</span><b>${speed > 0 ? speedInUnit(speed, mib) : '—'}</b></div>
         <div><span>Left</span><b>${left > 0 ? formatSize(left) : '—'}</b></div>
-        <div><span>All done in</span><b>${mins ? 'about ' + mins + ' min' : '—'}</b></div>
+        <div><span>All done in</span><b>${mins ? tr('about {n} min', { n: mins }) : '—'}</b></div>
       </div></div>
     ${active.length ? html`<div class="hb-dlgrid">${active.map((d) => { const pct = Math.max(0, Math.min(100, Number(d.progress) || 0)); const img = art[d.id]; const paused = st(d) === 'paused';
       return html`<article class=${'hb-dcard' + (paused ? ' paused' : '')} key=${d.id}>
@@ -1928,7 +1933,7 @@ function App() {
     <div class="banner">
       <div class="header-stars"><div class="header-star header-star-1"></div><div class="header-star header-star-2"></div><div class="header-star header-star-3"></div></div>
       <div class="banner-actions">
-        <button class="dbtn" title="Turn the moving effects on or off" onClick=${toggleAnim}>\u2728 Animations ${animOn ? 'on' : 'off'}</button>
+        <button class="dbtn" title="Turn the moving effects on or off" onClick=${toggleAnim}>\u2728 ${tr(animOn ? 'Animations on' : 'Animations off')}</button>
       <select class="themesel modesel" title="Dark, Light, or System (follows this computer's setting)" value=${themeSel.mode} onChange=${(e) => chooseMode(e.target.value)}>${THEME_MODES.map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
       <select class="themesel" title=${shownMode === 'light' ? 'Theme (light themes)' : 'Theme (dark themes)'} value=${themeChoice} onChange=${(e) => chooseTheme(e.target.value)}>${themesForMode(THEMES, shownMode).map(([k, l, i]) => html`<option value=${k}>${i} ${l}</option>`)}</select>
         ${status && status.signedIn ? html`<button class="dbtn" title="Sign out of this PC" onClick=${logout}>Logout</button>` : ''}
@@ -1962,12 +1967,12 @@ function App() {
       <select aria-label="Sort by" value=${sort} onChange=${(e) => setSort(e.target.value)}><option value="name">Name</option><option value="popularity">Popularity</option><option value="newest">Added</option><option value="released">Released</option><option value="size">Size</option></select>
       <button class="tab" title="Reverse the order" onClick=${() => setReverse(!reverse)}>${reverse ? '\u2191' : '\u2193'}</button>
       ${batchOk ? html`<label class="everywhere" title="Pick several items and download them together"><input type="checkbox" checked=${batchOn} onChange=${(e) => setBatch(e.target.checked)} /> Batch</label>` : ''}
-      ${batchActive ? html`<label class="everywhere"><input type="checkbox" checked=${allPicked} onChange=${(e) => setPicked(e.target.checked ? new Set(shown.map(itemKeyOf)) : new Set())} /> Select all</label><button class="primary" disabled=${!picked.size} onClick=${startBatch}>Download ${picked.size || ''} selected</button>` : ''}
+      ${batchActive ? html`<label class="everywhere"><input type="checkbox" checked=${allPicked} onChange=${(e) => setPicked(e.target.checked ? new Set(shown.map(itemKeyOf)) : new Set())} /> Select all</label><button class="primary" disabled=${!picked.size} onClick=${startBatch}>${tr('Download {n} selected', { n: picked.size || '' })}</button>` : ''}
       ${!everywhere && remote ? html`<select value="" title="Save this section's titles and sizes as a file" onChange=${async (e) => { const fmt = e.target.value; e.target.value = ''; if (!fmt) return; say('Preparing the list...'); const r = await api.exportList(remote, fmt); say(r.ok ? (r.data.saved ? 'Saved ' + r.data.name : 'Cancelled') : (r.error.message || 'Could not export this list')); }}><option value="">Export list</option><option value="csv">CSV (.csv)</option><option value="xlsx">Excel (.xlsx)</option></select>` : ''}
       </${Fragment}>` : ''}
       ${(view === 'library' || view === 'mylist') ? html`<span class="viewsel" title="How the titles are shown"><button class=${viewMode === 'grid' ? 'tab on' : 'tab'} onClick=${() => setViewMode('grid')}>Grid</button><button class=${viewMode === 'list' ? 'tab on' : 'tab'} onClick=${() => setViewMode('list')}>List</button></span>` : ''}
     </div>
-    ${updateInfo ? html`<div class="notice soft updatebar"><span>ARMGDDN App ${updateInfo.latestVersion ? 'v' + updateInfo.latestVersion : 'update'} is available (you have v${updateInfo.version || ''}).</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN App.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
+    ${updateInfo ? html`<div class="notice soft updatebar"><span>${updateInfo.latestVersion ? tr('ARMGDDN App v{v} is available (you have v{current}).', { v: updateInfo.latestVersion, current: updateInfo.version || '' }) : tr('An ARMGDDN App update is available (you have v{current}).', { current: updateInfo.version || '' })}</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN App.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} openId=${adminStart.openId} />` : ''}
     ${view === 'home' ? html`<${HomeView} promo=${promoNow.strip ? promo : null} onPromoVisit=${visitPromo} onPromoHide=${hidePromo} harbor=${themeChoice === 'harbor'} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} promo=${promoSetting} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'inbox' ? html`<${InboxView} items=${inbox} error=${inboxErr} onOpen=${openInboxItem} onReadAll=${() => markInbox('all')} onRefresh=${refreshInbox} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor'} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
@@ -1976,7 +1981,7 @@ function App() {
     ${remote === '3D Printer Models' && !everywhere ? html`<div class="notice soft" role="note"><strong>Heads up:</strong> many 3D printer models don't have a cover picture yet. Missing covers in this section are expected and are not a bug; pictures are being added as we go.</div>` : ''}
     ${error ? html`<div class="notice">${error.message}${error.kind === 'auth' ? html` <button class="primary" onClick=${signIn}>Sign in again</button>` : ''}</div>` : ''}
     ${view === 'library' && !everywhere && (remote === 'Music' || remote === 'Comics') && !noticeOff ? html`<div class="notice soft">Some albums and comic collections may be missing tracks or issues that haven't been sourced yet. If you'd like to contribute, please contact Old Man of the Hills. Some releases are left out on purpose (remixes, live versions, compilations and the like), so these lists are not a complete or official catalogue. <button class="dbtn" onClick=${() => setNoticeOff(true)}>Got it</button></div>` : ''}
-    ${view === 'library' && !everywhere && query.trim().length >= 3 && items !== null ? html`<div class="notice soft searchhint"><${WatchBar} query=${query} onWatch=${watchTitle} onWatchlist=${() => setWatchOpen(true)} />${(() => { const more = index ? otherSectionMatches(index, query, remote) : []; return more.length ? html` <span>Also matches in ${more.map((m) => m.remote + ' (' + m.count + ')').join(', ')}.</span> <button class="dbtn" onClick=${() => setEverywhere(true)}>Search all sections</button>` : ''; })()}</div>` : ''}
+    ${view === 'library' && !everywhere && query.trim().length >= 3 && items !== null ? html`<div class="notice soft searchhint"><${WatchBar} query=${query} onWatch=${watchTitle} onWatchlist=${() => setWatchOpen(true)} />${(() => { const more = index ? otherSectionMatches(index, query, remote) : []; return more.length ? html` <span>${tr('Also matches in {list}.', { list: more.map((m) => m.remote + ' (' + m.count + ')').join(', ') })}</span> <button class="dbtn" onClick=${() => setEverywhere(true)}>Search all sections</button>` : ''; })()}</div>` : ''}
     ${items !== null && sort === 'name' ? html`<${AlphaBar} letters=${lettersPresent(shown)} />` : ''}
     ${view === 'library' && remote === 'Comics' && !everywhere && !folder && !query ? html`<section class="komgabox"><div><strong>Komga</strong> - free comic server and reader. It runs on your PC and reads the comics you download here, with covers, series and reading progress.</div><div class="dbtns"><button class="dbtn go" onClick=${() => api.openExternal('https://komga.org/docs/installation/desktop')}>Download Komga</button><button class="dbtn" onClick=${() => setView('wiki')}>Setup guide</button><button class="dbtn" onClick=${() => setView('tools')}>Add reading orders</button></div></section>` : ''}
     ${everywhere && view === 'library' ? html`<${EverywhereResults} index=${index} query=${query} onWatch=${watchTitle} onWatchlist=${() => setWatchOpen(true)} render=${(it, badge) => html`<${Card} badge=${badge} listMode=${viewMode === 'list'} key=${it._remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${inMyList(it)} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : ''}
@@ -1995,4 +2000,5 @@ function App() {
     <${UpdateScreen} />
   </div>`;
 }
+await initLanguage(() => api.getSettings(), navigator.language);   // the chosen language is loaded before the first screen
 render(html`<${App} />`, document.getElementById('app'));

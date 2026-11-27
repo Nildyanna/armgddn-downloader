@@ -1,0 +1,614 @@
+0	- serveur et liseuse de BD gratuits. Il tourne sur votre PC et lit les BD que vous téléchargez ici, avec couvertures, séries et progression de lecture.
+1	— il revient tout seul après 30 jours ou quand il y a du nouveau.
+2	— il revient quand il y a du nouveau.
+3	, tout est fini
+4	, maintenant :
+5	, ouvrez l’onglet
+6	, recherches récentes
+7	, mis à jour
+8	, votre thème
+9	 : échec
+10	({n} correspondaient à la bibliothèque par nom et taille, sans être ouverts)
+11	(et le copie si possible). Collez le code dans la case ici.
+12	(aucun texte d’erreur)
+13	(aucune ligne de journal pour ce téléchargement)
+14	(s’ouvre dans votre navigateur)
+15	(ignoré)
+16	(étape
+17	(prévenu le {date})
+18	(vous avez {current}, la plus récente est {latest})
+24	{have} sur {total}
+25	{n} BD
+26	{n} téléchargements
+27	{n} trouvés
+28	{n} semblent endommagés ou incomplets
+29	{n} enregistrés
+30	{n} badge secret reste à découvrir.
+31	{n} badges secrets restent à découvrir.
+32	{pct} % du chemin vers Badge Collector Supreme
+34	% des membres l’ont
+35	← Retour
+36	🔥 Téléchargements tendance
+42	Une clé est enregistrée.
+43	Un rapport indique ce qui n’a pas marché, la version de l’app et votre système (Windows, Mac ou Linux). Il ne contient jamais votre nom, votre compte Telegram, votre adresse IP ni vos fichiers. Quand un téléchargement échoue, le rapport nomme le titre concerné pour retrouver la cause.
+44	Un badge secret
+45	Un badge secret que vous avez découvert
+46	Une courte vidéo sur l’ouverture des archives en plusieurs parties après un téléchargement.
+48	Ajouter des ordres de lecture
+49	Ajouter des ordres de lecture à mon Komga
+50	Ajouter à mon Komga
+51	Ajouter à Ma liste
+52	Ajouté
+53	Ajouté à Ma liste
+54	Ajouté à votre Komga :
+55	Ajouté à votre liste de suivi.
+56	Ajouté/mis à jour : {date}
+57	Ajout de {title}...
+58	Ajout...
+59	Ajoute un ordre de lecture suggéré à votre propre serveur Komga sous forme de liste de lecture, avec les BD que vous y avez déjà. Il faut l’adresse de votre Komga et une clé API (Komga : paramètres du compte, clés API).
+60	Admin
+61	Toutes les catégories
+62	Terminé en
+63	Tous les téléchargements ensemble restent sous {v} Mo/s entre {start} et {end} ; en dehors de ces heures, ils ne sont pas limités.
+64	Tous les téléchargements ensemble restent sous {v} Mo/s. Un changement s’applique tout de suite aux téléchargements en cours.
+65	Tout lu
+66	Aussi populaire dans {kind}
+67	Aussi présent dans {list}.
+68	Une mise à jour de l’ARMGDDN App est disponible (vous avez la v{current}).
+69	et {n} de plus
+70	Clé API
+71	Version de l’app
+72	Approuvée
+76	Mises à jour de l’ARMGDDN App
+77	ARMGDDN App v{v} est disponible (vous avez la v{current}).
+82	Artiste et album, ou série de BD
+83	en même temps
+84	Automatique
+85	Retour
+86	Haut de page
+87	Retour à votre badge le plus rare.
+88	Badge choisi. Il apparaîtra bientôt à côté de votre nom.
+89	Badges
+90	Lot
+92	Parce qu’il est déjà dans vos titres enregistrés
+93	Parce qu’il est en tendance dans {remote}
+94	Parce que des membres le téléchargent dans {remote}
+95	Parce que c’était le dernier dossier de jeu visité
+96	Parce que vous y êtes revenu récemment
+97	Parce que vous l’avez enregistré dans Ma liste
+98	Le mieux pour vous :
+99	Préférences du site importées :
+100	Parcourir
+101	Parcourir les fichiers
+102	Build
+103	Annuler
+104	Annulé
+105	Catégorie
+106	Catégorie que Steam juge susceptible de vous plaire
+107	Changer
+108	Vérifier
+109	Vérifier les fichiers
+110	Vérifier les fichiers après le téléchargement
+111	Rechercher des mises à jour
+112	la vérification a trouvé des fichiers endommagés
+113	Vérifier mes jeux
+114	Vérifier ma configuration : espace disque, emplacement du dossier, antivirus et redistribuables
+115	{n} jeu vérifié : il est à la version la plus récente de la bibliothèque.
+116	{n} jeux vérifiés : tous sont à la version la plus récente de la bibliothèque.
+117	vérification des fichiers
+118	Vérification des fichiers {pct} %
+119	Vérification du README...
+120	Vérification...
+121	Choisir
+122	Classique
+123	Effacer l’historique
+124	Fermer
+125	Le bouton Fermer garde l’app dans la zone de notification (désactivé : fermer quitte l’app)
+126	Fermeture pour installer. L’ARMGDDN App se rouvre toute seule dans environ une minute, ici même.
+127	BD
+128	Dossier des BD
+130	Communauté
+131	Comparer
+132	Comparer avec
+133	Compare les fichiers téléchargés avec les originaux sur le serveur
+134	Comparaison...
+135	Terminé
+136	Connexions par fichier
+137	Cohérence
+138	Console
+139	Continuer
+140	Continuer à parcourir
+141	Copié. Collez-le dans le chat ARMGDDN Games Welcome & Support et demandez de l’aide à Tulip. Il ne contient ni noms, ni chemins, ni mots de passe.
+142	Copier MDP
+143	Copier le rapport
+144	Copier le rapport pour Tulip : votre vérification et les problèmes récents en un seul code
+145	Copier l’extrait
+146	Impossible de l’ajouter
+147	Impossible de l’ajouter à votre liste de suivi
+148	Impossible d’ajouter la liste.
+149	Impossible de créer le rapport.
+150	Impossible de changer votre badge
+151	Impossible de rechercher des mises à jour.
+152	Vérification impossible :
+153	Impossible d’effacer l’historique
+154	Copie impossible
+155	Copie automatique impossible. Votre code :
+156	Impossible de copier le mot de passe.
+157	Impossible d’exporter cette liste
+158	Impossible d’importer la clé.
+159	Impossible de charger la boîte de réception
+160	Impossible de charger la liste de la bibliothèque.
+161	Impossible de charger les messages
+162	Impossible de charger la liste de suivi
+163	Impossible de charger vos badges
+164	Impossible de charger vos demandes
+165	Impossible de le marquer comme lu
+166	Impossible d’ouvrir le lien
+167	Impossible de le retirer
+168	Enregistrement impossible
+169	Enregistrement impossible.
+170	Envoi impossible
+171	Impossible d’envoyer le journal.
+172	Impossible d’envoyer le rapport.
+173	Impossible d’envoyer la demande
+174	Impossible de lancer le téléchargement groupé
+175	Impossible de lancer le téléchargement
+176	Impossible de lancer les téléchargements.
+177	Artisanat
+180	Sombre
+181	Sombre, clair ou système (suit le réglage de cet ordinateur)
+184	Décision :
+185	Détails
+186	Détails sur ComicVine
+188	Ne téléchargez rien.
+189	Avez-vous déjà l’ancien repack installé :
+190	Ne supprimez rien avant d’être sûr que le jeu fonctionne.
+191	Ne pas envoyer
+192	Ne plus afficher aujourd’hui
+193	Télécharger
+194	Télécharger {n} sélectionnés
+195	Tout télécharger
+196	Téléchargement annulé
+197	Les nombres de téléchargements portent sur les 7 ou 30 derniers jours, pas sur tout l’historique.
+198	Téléchargement terminé, vérification de chaque fichier…
+199	Moteur de téléchargement
+200	Dossier de téléchargement
+201	Télécharger Komga
+202	Téléchargez seulement le patch.
+203	Horaires de téléchargement
+204	Limite de vitesse de téléchargement
+205	Téléchargement lancé :
+206	Étapes du téléchargement
+207	Téléchargez le repack complet. Vous n’avez pas besoin du patch.
+208	Téléchargez le jeu entier, pas un fichier à la fois.
+209	Télécharger ce qui me manque
+210	Téléchargé directement depuis Google Drive
+211	Téléchargé via la passerelle de téléchargement ARMGDDN
+212	En cours de téléchargement
+213	Retélécharger le même jeu encore et encore ne réglera rien, et chaque copie en trop en prive quelqu’un d’autre.
+214	Téléchargements
+215	Téléchargements simultanés
+216	Télécharge tout ce qui a été copié jusqu’ici. Les séries encore en cours d’ajout suivront plus tard.
+217	téléchargements en 30 jours
+218	Les téléchargements utilisent toute votre connexion.
+219	Téléchargements, 30 jours
+220	Drive
+221	Écoulé
+222	Heure de fin
+223	terminé par
+224	Erreur
+225	Les rapports d’erreur sont désactivés
+226	Temps restant
+227	Chaque partie est vérifiée, et le jeu est extrait une fois terminé
+228	Toute la bibliothèque
+229	Partout
+230	Excel (.xlsx)
+231	Explorateur
+232	Exporter la liste
+233	Extraire
+234	Extraire automatiquement les fichiers .7z
+235	Dossier d’extraction
+236	Fichiers
+237	Terminez ou mettez en pause vos téléchargements d’abord : la mise à jour redémarre l’ARMGDDN App.
+238	Terminé
+239	Dossier
+240	Dossier choisi. Appuyez sur Analyser.
+241	Dossiers
+242	Par exemple : il s’est arrêté à 80 % deux fois
+243	Oublier la clé
+244	Clé enregistrée oubliée.
+245	Suivant →
+246	Nouvelles builds
+247	ven.
+248	De
+249	depuis le site.
+250	Radar à jeux
+251	Les demandes de jeux sont fermées pour le moment.
+252	Titre du jeu
+253	Mises à jour de jeux
+254	Passerelle
+255	Go
+256	Gbit/s
+257	Genre
+258	Recevez un avis dans votre boîte ici (et sur Telegram) quand ce jeu est ajouté ou qu’une build plus récente apparaît
+259	Le faire fonctionner
+260	Préparation du rapport...
+261	Préparation de la mise à jour...
+262	Retour (Alt+Gauche)
+263	Revenir à l’affichage de votre badge le plus rare
+264	Suivant (Alt+Droite)
+265	Y aller
+266	Compris
+267	Grille
+269	Harbor (par défaut)
+270	Attention :
+271	Aide et rapports
+272	Aider à corriger les plantages ?
+273	Aide en cas de problème
+274	MASQUÉ
+275	Masqué pendant 30 jours. Vous pouvez le réafficher dans les Paramètres.
+276	Pépites cachées
+277	Masqué le
+278	Masquer
+279	Masquer 30 jours
+280	Masquer la vidéo
+281	Historique effacé
+282	Accueil
+283	Écran d’accueil
+284	Populaire ce mois-ci
+285	Populaire cette semaine
+286	Affichage des titres
+287	Je l’ai lu, continuer
+288	Si un jeu vous pose problème, demandez d’abord de l’aide sur Telegram avant de le retélécharger.
+289	Importer
+290	Importer mes préférences du site
+291	Importer mes préférences du site (Ma liste, thème, sections masquées, recherches récentes)
+292	Importer les réglages d’une installation précédente de l’ARMGDDN App (dossiers, vitesse, options)
+293	Les importer
+294	Importé
+295	L’adresse et la clé Komga de votre installation précédente de l’ARMGDDN App ont été importées. La clé reste sur ce PC.
+296	Importation...
+297	Dans Ma liste
+298	Dans la section Jeux PC
+299	Dans la section Jeux PCVR
+300	dans votre navigateur et connectez-vous.
+301	Boîte de réception
+302	Installer une mise à jour en attente quand je ferme l’app (jamais pendant un téléchargement)
+303	Installer et jouer
+304	Installez le jeu depuis le dossier extrait, puis lancez-le depuis l’icône du bureau ou du menu Démarrer créée par l’installateur.
+305	Problème n°
+306	Elle vérifie toute seule une fois par heure.
+307	Cela a été noté dans le journal.
+308	Il affiche un long code commençant par
+309	C’est ainsi que nous payons les serveurs.
+310	Juste pour le plaisir : les badges ne donnent aucune récompense. Gagnez-les en utilisant ARMGDDN et choisissez celui qui s’affiche à côté de votre nom.
+311	Ko
+312	kbit/s
+313	Continuez à explorer pour le découvrir.
+315	Adresse Komga
+316	Langue
+317	Langue de l’app
+318	{days} derniers jours, tous les membres
+319	30 DERNIERS JOURS
+320	7 DERNIERS JOURS
+321	Plus tard
+322	Restant
+323	Bibliothèque
+324	Clair
+325	Clair (par défaut)
+326	Graphismes allégés (désactive le flou et les animations ; utile si l’app fait trop travailler votre carte graphique)
+327	La limite se termine à
+328	Limiter la vitesse à
+329	La limite commence à
+330	Liste
+331	Chargement de chaque section pour la recherche...
+332	Chargement des paramètres...
+333	Chargement de vos badges…
+334	Chargement...
+335	Chargement…
+336	Code du journal
+337	Animation de connexion (éclairs et tonnerre, fort)
+338	Déconnexion
+340	beaucoup de modèles d’impression 3D n’ont pas encore d’image de couverture. Les couvertures manquantes dans cette section sont normales et ne sont pas un bug ; les images sont ajoutées au fur et à mesure.
+341	Tout marquer comme lu
+343	Mo
+344	Mo/s
+345	Mbit/s
+346	Mio/s
+347	Le bouton Réduire cache la fenêtre dans la zone de notification
+348	Manquants par série
+349	lun.
+350	Autres choix enregistrés
+351	Les plus téléchargés
+352	Les plus téléchargés, 30 derniers jours
+353	La plupart des jeux VR demandent un casque avec SteamVR, même si certains jeux et méthodes de lancement s’en passent. Installez le jeu depuis le dossier extrait. Puis lancez votre casque avec la méthode de votre choix (pas Steam Link), ouvrez la vue bureau et lancez le jeu depuis son icône du bureau ou du menu Démarrer.
+354	Musique
+355	Dossier de musique
+356	Ma liste
+357	Élément de Ma liste
+358	Mes demandes
+359	Ma liste de suivi
+360	Nom
+363	nouvel élément de Ma liste
+364	Nouvelle demande
+365	Nouveau avec les fichiers .7z ?
+366	Plus récent
+367	Mises à jour les plus récentes d’abord
+369	pas de réponse
+370	Aucun téléchargement pour l’instant. Appuyez sur Télécharger sur un jeu, un album ou une collection de BD.
+371	Pas de correspondance exacte, la plus proche :
+372	Aucun dossier choisi
+373	Pas de pépites aujourd’hui.
+374	Sans genre
+375	Aucune clé enregistrée.
+376	Aucun message pour l’instant.
+377	Plus de nouvelles cartes pour l’instant. Utilisez « Réafficher les cartes écartées » pour recommencer.
+378	Aucun réglage d’une installation précédente de l’ARMGDDN App n’a été trouvé
+379	Aucune bande-annonce n’est disponible pour ce jeu pour l’instant.
+380	Non
+381	N° 1 des {days} derniers jours
+382	Jeu non-Steam
+383	non extrait
+384	Pas intéressé
+385	Pas encore analysé.
+386	Non défini
+387	Notes (facultatif)
+388	Rien de terminé pour l’instant.
+389	Rien ici pour l’instant. Les nouvelles de vos demandes et des titres que vous suivez apparaissent ici.
+390	Rien n’est en tendance pour l’instant.
+391	Rien en attente.
+392	Aucun résultat.
+393	Rien de sélectionné
+394	Rien à signaler.
+395	Avis
+396	Me prévenir
+397	OK
+398	Plus ancien
+399	Activé
+400	Seulement entre
+401	Seulement ce qui me manque, Komga
+404	Ouvrir
+405	Ouvrir le dossier
+406	L’ouvrir dans la bibliothèque
+407	Ouvrir l’installation
+408	Ouvrir l’installation à la fin de l’extraction
+409	S’ouvre dans votre navigateur
+410	Ouvre l’installateur du jeu pour que vous le suiviez
+412	Mot de passe copié.
+413	Collez le code ARMGDDN-PREFS ici
+414	Collez votre clé API
+415	Pause
+416	Mettre en pause les téléchargements
+417	Mettre en pause ou ralentir les téléchargements à certaines heures.
+419	Jeux PC
+427	Jeux PCVR
+434	En attente
+435	par fichier.
+436	badges permanents
+437	Choisissez plusieurs éléments et téléchargez-les ensemble
+438	Plateforme
+439	Jouer l’animation de connexion à la première connexion
+440	À lire - la bande passante compte
+441	Popularité
+442	Préparation de la liste...
+443	Appuyez sur
+445	Lire
+446	Lire le README
+447	LISEZ CECI AVANT DE TÉLÉCHARGER DES APPLICATIONS PC
+448	LISEZ CECI AVANT DE TÉLÉCHARGER LE JEU
+449	Lire ce fichier
+451	Prêt
+452	Prêt à parcourir
+453	Récent
+454	Visités récemment
+455	Actualiser
+456	Refusée
+457	En lien avec vos téléchargements récents
+458	Sorti
+459	Retirer les téléchargements terminés de cette liste
+460	Retirer de Ma liste
+461	Retiré de Ma liste
+462	Rejouer
+463	Rapport pour Tulip.
+464	Demander
+465	Demande envoyée
+466	Demandes
+467	Réinitialiser
+468	Reprendre
+469	Reprendre la dernière visite
+470	Réessayer
+471	Inverser l’ordre
+473	Comme le dossier de téléchargement
+474	sam.
+475	Enregistrer
+476	Enregistrer les titres et tailles de cette section dans un fichier
+477	Enregistré
+478	Enregistré dans Ma liste
+479	Enregistrée sur ce PC (laissez vide pour la garder)
+480	Enregistrée. La clé reste uniquement sur ce PC.
+481	Analyser
+482	Analysez d’abord.
+483	Analysez votre dossier de BD et téléchargez seulement celles que vous n’avez pas, pour toute la bibliothèque ou un ordre de lecture.
+484	Analysez votre dossier de musique et téléchargez seulement les albums et pistes que vous n’avez pas.
+485	{n} fichiers de BD analysés
+486	{n} fichiers de musique analysés
+487	Analyse...
+488	Analyse... {n} fichiers
+489	Rechercher dans toutes les sections
+490	Rechercher dans chaque section
+491	Rechercher dans chaque section, pas seulement cette liste
+492	Rechercher partout
+493	Rechercher dans cette liste
+495	Voyez lesquels de vos jeux téléchargés ont une version plus récente.
+496	Sélectionnez 50 éléments ou moins à la fois
+497	Tout sélectionner
+498	Envoyer
+499	Envoyer les rapports d’erreur
+500	Envoyer le journal
+501	Envoyer le journal au staff : le journal nettoyé va sur le site et vous recevez un code court
+502	Envoyer les rapports
+503	Envoyer la demande
+504	Envoyer ce problème au staff
+505	Envoyer au staff
+506	Envoi du journal...
+507	Envoi...
+508	Envoyé au staff (rapport n°{n})
+509	Paramètres
+510	Guide d’installation
+511	Installation ouverte
+512	Afficher
+513	Réafficher les cartes écartées
+514	Afficher en Mbit/s
+515	Afficher en Mio/s
+516	Afficher les notifications
+517	Afficher le bandeau {name} sur l’Accueil
+518	Afficher la vitesse en Mio/s au lieu de bits par seconde (pour chaque téléchargement)
+519	Voir les nouveautés
+520	Se reconnecter
+521	Reconnectez-vous si cela continue.
+522	Reconnectez-vous pour télécharger.
+523	Connectez-vous pour parcourir la bibliothèque.
+524	Se connecter avec Telegram
+525	Se déconnecter de ce PC
+526	Taille
+527	Extrait copié
+528	Certains albums et collections de BD peuvent manquer de pistes ou de numéros pas encore trouvés. Pour contribuer, contactez Old Man of the Hills. Certaines sorties sont exclues exprès (remix, live, compilations, etc.), donc ces listes ne sont pas un catalogue complet ni officiel.
+529	Un problème est survenu
+530	Trier par
+531	Vitesse
+532	Limite de vitesse en Mo/s
+535	Staff
+537	Démarrer réduit
+538	Heure de début
+539	Démarrer avec l’ordinateur
+540	Lancé
+541	{n} téléchargement lancé ({files} {unit}, {size}). Il est dans l’onglet Téléchargements et arrive dans {folder}. Analysez de nouveau ensuite.
+542	{n} téléchargements lancés ({files} {unit}, {size}). Ils sont dans l’onglet Téléchargements et arrivent dans {folder}. Analysez de nouveau ensuite.
+543	Lancement des éléments manquants
+544	Lancement des téléchargements...
+545	démarre quand une place se libère
+548	Arrêter
+549	Arrêter la vérification
+550	Ne plus suivre
+551	dim.
+554	Système
+556	, collez l’extrait ci-dessous et appuyez sur Entrée. (Si le navigateur demande de taper « allow pasting » d’abord, faites-le.)
+557	To
+558	Tbit/s
+559	Tester
+560	Tester ma connexion : trouve le meilleur nombre de connexions par fichier pour vous
+561	Testing
+562	Test...
+563	Merci, les rapports d’erreur sont activés
+564	Ça n’a pas marché. Réessayez dans une minute.
+565	Ce n’est pas un code de l’extrait du site.
+566	L’app et sa fenêtre
+567	L’app récupère chaque partie, les vérifie une à une et reprend là où elle s’est arrêtée si votre connexion coupe.
+568	Les changements de cette version.
+569	La vérification n’a pas pu se faire. Réessayez, ou demandez dans le chat.
+570	Le code n’a pas pu être lu.
+571	Le code n’a pas pu être lu. Copiez-le de nouveau depuis le site.
+572	Le code est vide ou trop long.
+573	La comparaison a échoué.
+574	Le contenu de votre dossier ne quitte jamais ce PC ; seule la liste de la bibliothèque est téléchargée.
+575	La vérification des fichiers n’a pas pu se faire.
+576	Les fichiers en cours de téléchargement
+577	La bibliothèque compte {albums} albums de {artists} artistes ({tracks} pistes, {size}).
+578	La bibliothèque compte {n} BD
+579	Le rapport n’a pas pu être créé.
+580	L’analyse a échoué.
+581	L’extrait
+582	Le test n’a pas pu mesurer votre vitesse. Réessayez dans quelques minutes.
+583	Le test n’a pas pu se faire.
+584	La bande-annonce n’a pas pu être lue.
+585	La mise à jour n’a pas pu démarrer
+586	la version que ce patch met à jour (
+587	Le Wiki n’est pas disponible.
+588	Thème (thèmes sombres)
+589	Thème (thèmes clairs)
+590	Aucun téléchargement terminé à vérifier dans votre historique.
+591	Rien à afficher pour cette version.
+592	Ce sont déjà les réglages de votre installation précédente de l’ARMGDDN App
+593	Ce fichier n’a pas pu être lu.
+594	Ce jeu a un patch de mise à jour
+595	Voici tout ce qui sera envoyé. Votre nom d’utilisateur dans les chemins, les parties secrètes des liens, les jetons de connexion et les cookies sont retirés.
+596	cette liste
+597	Cette page a rencontré un problème.
+598	Cette section a épuisé son quota de téléchargement. Réessayez plus tard (il se réinitialise généralement sous 24 heures).
+599	Ce titre n’est pas dans la bibliothèque en ce moment
+600	Ce titre n’est pas dans la bibliothèque en ce moment.
+601	Ce format de bande-annonce n’est pas pris en charge ici.
+602	jeu.
+603	Titre
+604	Outils
+606	Bande-annonce
+607	Bande-annonce -
+608	Tendances
+609	Réessayer
+610	mar.
+611	Activez l’extraction automatique dans les Paramètres, ou extrayez avec 7-Zip.
+612	Activez Paramètres › Téléchargements › Vérifier les fichiers après le téléchargement pour utiliser ceci
+613	Activer ou désactiver les effets animés
+614	Tapez pour rechercher dans chaque section (PC, PCVR, Testing, Apps, 3D, BD, Musique).
+615	Inconnu
+616	Illimité
+617	Décompresser
+618	Décompression
+619	Sans titre
+620	Mettre à jour automatiquement
+621	Mettre à jour maintenant
+622	patch de mise à jour
+623	Mettre à jour vers la v{v}
+624	Mis à jour
+625	Mises à jour
+626	Mise à jour de l’ARMGDDN App
+627	Mise à jour vers la v
+628	Mise à jour...
+629	Mise à jour... L’ARMGDDN App redémarrera toute seule.
+630	Utiliser mon badge le plus rare
+632	En attente
+633	Suivre
+634	Regarder la vidéo
+635	Voir la bande-annonce
+636	Liste de suivi
+637	Nous payons la bande passante
+638	Nous vous préviendrons quand il arrivera.
+639	Porter celui-ci
+640	Porté
+641	Vous portez votre badge le plus rare
+642	mer.
+643	Que s’est-il passé ? (facultatif)
+644	Que faire à ces heures
+645	Que demander
+646	Nouveautés
+647	Nouveautés :
+648	Quand un jeu a fini d’être extrait, l’app ouvre son installateur pour que vous le suiviez. Rien ne s’installe tout seul.
+649	Quand elle est prête, l’app se ferme environ une minute pour installer, puis se rouvre ici même.
+650	Quand l’app plante ou rencontre une erreur, elle peut envoyer un court rapport à ARMGDDN pour corriger le problème.
+651	Où les jeux sont décompressés quand l’extraction automatique des .7z est activée. Vide : à côté du téléchargement.
+652	Quel ensemble est affiché
+653	Pourquoi c’est ici
+655	Wiki
+656	Avec l’extraction automatique, l’app le décompresse pour vous. Sinon, faites un clic droit sur la première partie et choisissez Extraire ici. Prévoyez de la place pour le téléchargement plus le jeu extrait.
+657	Écrire un message…
+658	Oui, je l’ai
+659	Vous
+660	Vous avez déjà les {n} BD de {list}.
+661	Vous avez déjà les {n} pistes de la bibliothèque.
+662	Vous ne suivez encore rien.
+663	Vous avez la dernière version (v{v}).
+664	Vous avez la dernière version.
+665	Vous pouvez changer cela à tout moment dans les Paramètres, sous Envoyer les rapports d’erreur.
+666	Vous recevez un avis dans votre boîte ici (la cloche en haut) et sur Telegram quand un titre de cette liste est ajouté à la bibliothèque, ou quand une build plus récente apparaît.
+667	Vous avez {have} pistes sur {total}. {missing} manquent ({size}).
+668	Vous en avez {have} sur {total}. {missing} manquent ({size}).
+669	Vous avez {n} nouveaux messages dans votre boîte.
+670	Vous n’avez fait aucune demande.
+671	Vous devez télécharger depuis le serveur PC
+672	Vous devez télécharger depuis le serveur PCVR
+673	Votre collection de badges
+674	Votre connexion a bien supporté chaque réglage. Laissez Connexions par fichier sur Automatique.
+675	Votre installation précédente de l’ARMGDDN App a déjà un serveur Komga et une clé enregistrés.
+676	Vos jeux
+677	Votre liste est vide. Appuyez sur le cœur d’un jeu, d’un album ou d’une BD pour l’enregistrer ici.
+678	Votre connexion a expiré. Reconnectez-vous pour continuer.

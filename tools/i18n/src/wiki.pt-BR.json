@@ -1,0 +1,62 @@
+{
+ "wiki1": {
+  "stampedFrom": "2f188768",
+  "title": "1. O que é o ARMGDDN App",
+  "html": "<p>O ARMGDDN App é um único app para encontrar e baixar tudo o que existe na biblioteca do ARMGDDN: jogos de PC, jogos PCVR, Testing, modelos de impressão 3D, aplicativos de PC piratas, quadrinhos e música. Você navega, escolhe e clica em Baixar. O app baixa em segundo plano e continua enquanto você faz outra coisa. Não há um site separado para abrir nem um segundo app: navegar e baixar acontecem na mesma janela.</p>"
+ },
+ "wiki2": {
+  "stampedFrom": "52eb56c8",
+  "title": "2. Primeiros passos",
+  "html": "<h3>2.1 Instalar</h3>\n<p>Baixe o ARMGDDN App para Windows, Linux ou macOS 13 ou mais novo em armgddnbrowser.com. Abra uma vez para ele terminar de se configurar.</p>\n<h3>2.2 Entrar</h3>\n<p>Entre com o Telegram quando o app pedir e aprove o login lá. Você continua conectado naquele computador.</p>\n<h3>2.3 Primeira olhada</h3>\n<p>A janela abre no Início. Todo o resto está a um clique na barra de cima. Quem joga no Linux e no Steam Deck: veja a seção 13.</p>"
+ },
+ "wiki3": {
+  "stampedFrom": "878d59a1",
+  "title": "3. Como se localizar",
+  "html": "<h3>3.1 A barra de cima</h3>\n<p>Início, Jogos de PC, Jogos PCVR, Testing, modelos de impressão 3D, aplicativos de PC piratas, Quadrinhos e Música ficam à esquerda. Ferramentas, Configurações, Wiki, Minha lista, Pedidos e Downloads ficam à direita. A página em que você está fica destacada.</p>\n<h3>3.2 A segunda barra</h3>\n<p>Cada página tem aqui seus próprios controles: um botão Voltar, o nome da página e depois busca, categoria, ordenação e assim por diante, quando houver.</p>\n<h3>3.3 Voltar</h3>\n<p>Toda tela tem um botão Voltar. Alt+Esquerda e o botão voltar do mouse também funcionam.</p>\n<h3>3.4 Grade ou lista</h3>\n<p>A chave Grade / Lista à direita da segunda barra mostra os títulos como cartões com imagem ou como lista simples. O app lembra a sua escolha.</p>\n<h3>3.5 A barra A-Z</h3>\n<p>Em listas longas, a faixa de letras na lateral mostra só os títulos que começam com aquela letra. Clique de novo na letra para ver a lista inteira.</p>"
+ },
+ "wiki4": {
+  "stampedFrom": "d66ce0cf",
+  "title": "4. Início",
+  "html": "<ul>\n<li><strong>Em alta.</strong> A faixa do que está sendo mais baixado agora (7 e 30 dias). Clique em um título para abrir.</li>\n<li><strong>Radar de jogos.</strong> Sugestões escolhidas a partir do que você abriu, salvou e baixou. Atualize para ver outras, dispense as que não quiser e redefina para que voltem.</li>\n<li><strong>Retomar.</strong> Leva você de volta à pasta em que estava da última vez.</li>\n</ul>"
+ },
+ "wiki5": {
+  "stampedFrom": "74ae5e1c",
+  "title": "5. Navegar e buscar",
+  "html": "<ul>\n<li><strong>Abra uma seção</strong> pela barra de cima. Se uma seção tiver só uma pasta dentro, o app abre para você. Uma seção que esgotou a cota de downloads fica apagada e não abre; a cota normalmente renova em até 24 horas.</li>\n<li><strong>Pastas que apontam para outro lugar.</strong> Uma pasta de jogo quase vazia é só um aviso apontando para o outro servidor. Ela diz \"Você precisa baixar do servidor PCVR\" (ou servidor PC) com um botão Ir para lá que leva à seção certa.</li>\n<li><strong>A busca</strong> filtra a página em que você está. Pontuação e espaços são ignorados, então \"spider man\" encontra \"Spider-Man\".</li>\n<li><strong>Buscar em todo lugar.</strong> Marque Buscar em todo lugar para buscar em todas as seções de uma vez.</li>\n<li><strong>Digitou o nome errado?</strong> Se nada bater exatamente, o app mostra os títulos mais próximos (\"Nenhuma correspondência exata, a mais próxima:\"). Ele perdoa um erro em cada palavra de cinco letras ou mais.</li>\n<li><strong>Também em outra seção.</strong> Quando você busca dentro de uma seção e o mesmo título está em outra (uma build mais nova no Testing, por exemplo), uma linha abaixo da busca avisa, com um botão Buscar em todas as seções.</li>\n<li><strong>Mais novo e Mais antigo.</strong> Quando o mesmo jogo está em mais de um lugar com builds diferentes, os resultados são marcados como Mais novo ou Mais antigo para você não precisar comparar números de versão.</li>\n<li><strong>Me avise quando for adicionado.</strong> Abaixo de qualquer busca, este botão coloca o título na sua lista de acompanhamento. Você recebe uma mensagem no Telegram quando ele é adicionado à biblioteca ou quando surge uma build mais nova. Minha lista de acompanhamento mostra o que você acompanha, e lá você pode parar de acompanhar qualquer título. É a mesma lista que o site usa.</li>\n<li><strong>Categoria / gênero.</strong> Onde a seção tiver, o menu reduz a lista (por exemplo, gêneros de música). Escolha Sem gênero para ver os títulos ainda sem marcação.</li>\n<li><strong>Ordene</strong> por Nome, Popularidade, Adicionado ou Lançado, e clique no botão de inverter para virar a ordem.</li>\n<li><strong>Exportar lista.</strong> Salva os títulos e tamanhos da seção em um arquivo que você pode abrir no Excel.</li>\n</ul>"
+ },
+ "wiki6": {
+  "stampedFrom": "504d1210",
+  "title": "6. A página de um jogo",
+  "html": "<p>Clique em um título para ver os detalhes: a capa, Ver trailer, Ler o README, Navegar pelos arquivos, Adicionar à Minha lista e Baixar.</p>\n<ul>\n<li><strong>Imagens.</strong> Os títulos mostram a capa. Quando um título ainda não tem, mostra a imagem da categoria até a imagem real ser adicionada.</li>\n<li><strong>README.</strong> Alguns jogos mostram o README antes de baixar.</li>\n<li><strong>Navegar pelos arquivos.</strong> Veja dentro da pasta de um jogo e baixe arquivos avulsos.</li>\n</ul>"
+ },
+ "wiki7": {
+  "stampedFrom": "82367607",
+  "title": "7. Baixando",
+  "html": "<h3>7.1 Começar</h3>\n<p>Clique em Baixar em um jogo, álbum, coleção de quadrinhos ou modelo 3D. O download começa na hora.</p>\n<h3>7.2 Vários de uma vez</h3>\n<p>Marque Escolher vários itens, marque os títulos que quiser e baixe todos juntos.</p>\n<h3>7.3 Patches de atualização</h3>\n<p>Se um jogo tiver um patch de atualização, o app pergunta se você já tem o repack antigo. Sim baixa só o patch, Não baixa só o repack completo, Cancelar para.</p>\n<h3>7.4 A página Downloads</h3>\n<p>Mostra cada download com o progresso, a velocidade e o tempo restante. Cada um tem Pausar, Retomar, Cancelar ou Tentar de novo, e Abrir pasta quando termina. Limpar histórico tira da lista os concluídos.</p>\n<h3>7.5 Atualizar um jogo que você já tem</h3>\n<p>Em Configurações, Seus jogos, Verificar meus jogos lista quais dos seus jogos baixados têm uma versão mais nova. Clique em um para abrir na biblioteca.</p>"
+ },
+ "wiki8": {
+  "stampedFrom": "c20aec55",
+  "title": "8. Música e quadrinhos",
+  "html": "<ul>\n<li><strong>A música</strong> é organizada por artista e álbum. O menu de gêneros reduz a lista.</li>\n<li><strong>Os quadrinhos</strong> são organizados por série e edição. Quando os dados de um quadrinho foram conferidos, ele aparece com o título certo, o número da edição e a data de lançamento, e as séries ficam em ordem de lançamento. Uma etiqueta ComicVine ao lado abre aquela edição no ComicVine.</li>\n<li><strong>Coleções de editoras.</strong> No alto da página de Quadrinhos, logo abaixo da caixa do Komga, a coleção de cada editora (Marvel, DC e outras conforme forem adicionadas) tem um botão Baixar tudo que baixa cada série copiada até agora.</li>\n<li><strong>Só o que está faltando.</strong> Já tem parte da coleção? Em Ferramentas, escaneie sua pasta de quadrinhos ou de música; o app mostra o que você não tem.</li>\n<li><strong>Komga.</strong> A página de Quadrinhos tem uma caixa do Komga com links para instalar (seção 12).</li>\n<li><strong>Pastas.</strong> Para onde vão os quadrinhos e a música é definido em Configurações, Pastas.</li>\n</ul>"
+ },
+ "wiki9": {
+  "stampedFrom": "7ea706dc",
+  "title": "9. Minha lista e Pedidos",
+  "html": "<ul>\n<li><strong>Minha lista</strong> guarda o que você salvou para depois. Clique no coração de qualquer cartão.</li>\n<li><strong>Pedidos.</strong> Peça um jogo que não está na biblioteca e leia as respostas. Quando os pedidos estão fechados, a página avisa.</li>\n</ul>"
+ },
+ "wiki10": {
+  "stampedFrom": "2f2ccc10",
+  "title": "10. Configurações",
+  "html": "<p>As Configurações ficam em grupos, um cartão cada.</p>\n<ul>\n<li><strong>Atualizações:</strong> Procurar atualizações (vira Atualizar para a vX quando há uma), Novidades, Atualizar automaticamente, Instalar uma atualização pendente quando eu fechar o app.</li>\n<li><strong>Pastas:</strong> pastas de downloads, quadrinhos e música.</li>\n<li><strong>Downloads:</strong> quantos ao mesmo tempo, conexões por arquivo (deixe em Automático), limite de velocidade, verificar arquivos depois de baixar, extrair arquivos .7z automaticamente, o vídeo sobre abrir arquivos .7z e o horário de downloads (pausar ou desacelerar em horários definidos).</li>\n<li><strong>Seus jogos:</strong> Verificar meus jogos.</li>\n<li><strong>O app e sua janela:</strong> notificações, o botão Minimizar que esconde a janela na bandeja, o botão Fechar que mantém o app na bandeja (desligado: fechar sai do app), iniciar com o computador, iniciar minimizado e a animação de login.</li>\n<li><strong>Importar:</strong> trazer as configurações de uma instalação anterior do ARMGDDN App, ou suas preferências do site (Minha lista, tema, seções ocultas, buscas recentes).</li>\n<li><strong>Ajuda e relatórios:</strong> enviar relatórios de erro, e Ajuda com problemas (seção 11).</li>\n<li><strong>Idioma:</strong> o idioma do app. \"Igual ao Windows\" segue o idioma do seu computador.</li>\n</ul>"
+ },
+ "wiki11": {
+  "stampedFrom": "37eaa943",
+  "title": "11. Atualizações, problemas e ajuda",
+  "html": "<h3>11.1 Atualizações</h3>\n<p>O app verifica uma vez por hora. Quando há uma versão nova, aparece uma barra abaixo do cabeçalho com Atualizar agora. Você também pode usar File &gt; Check for updates. Com Atualizar automaticamente ligado, o app instala sozinho uma versão nova quando nada está baixando. Com \"Instalar uma atualização pendente quando eu fechar o app\" ligado (o padrão), fechar o app instala a atualização pendente, mas nunca durante um download. Se houver downloads em andamento, termine ou pause antes, porque atualizar reinicia o app.</p>\n<h3>11.2 Novidades</h3>\n<p>Configurações, Atualizações, Ver novidades.</p>\n<h3>11.3 Ajuda com problemas</h3>\n<p>Configurações, Ajuda e relatórios: rode uma verificação, teste a velocidade da sua conexão, copie um relatório ou envie seu log para o chat. Help &gt; Open the log folder abre os arquivos de log.</p>\n<h3>11.4 Sair</h3>\n<p>File &gt; Exit fecha o app por completo. Fechar a janela pode deixá-lo rodando na bandeja, dependendo da sua configuração.</p>"
+ },
+ "wiki14": {
+  "stampedFrom": "ffe0b515",
+  "title": "14. Perguntas frequentes",
+  "html": "<ul>\n<li><strong>Ainda preciso do Companion?</strong> Não. O ARMGDDN App faz as duas coisas.</li>\n<li><strong>Existe uma janela antiga para voltar?</strong> Não. Desde a versão 6.0.0 esta é a única janela, e ela faz tudo o que o site e o antigo Companion faziam.</li>\n<li><strong>Onde estão meus downloads?</strong> Configurações, Pastas. Abrir pasta na página Downloads leva você até lá.</li>\n<li><strong>Um jogo fecha ao iniciar ou logo depois da tela de carregamento.</strong> Os repacks mais novos incluem <strong>crashfix.bat</strong> na pasta de download do jogo, ao lado dos arquivos .7z. Rode depois de instalar o jogo: ele desliga o overlay da Steam embutido no jogo, uma causa comum desses travamentos. Rode de novo para ligar o overlay outra vez. Se ele não conseguir fazer a mudança, clique com o botão direito e escolha Executar como administrador. Repacks antigos não têm; nesse caso, renomeie <code>configs.overlay.ini</code> para <code>configs.overlay.bak</code> na pasta <code>steam_settings</code> do jogo instalado.</li>\n<li><strong>Uma página travou ou mostra um erro.</strong> Clique em Tentar de novo ou Voltar. Fica registrado no log, e Ajuda com problemas pode enviá-lo.</li>\n<li><strong>Onde fica o painel de administração?</strong> No site, para a staff.</li>\n</ul>"
+ }
+}

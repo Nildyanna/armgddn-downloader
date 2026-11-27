@@ -1,5 +1,6 @@
 // "Send this problem to staff" on a failed download's card: when the button shows and what it says. Pure, so test/problemReport.test.js can check it.
 // sentId: the report number the site gave for this download (0 if none); busy: a preview or send is in progress for it.
+import { t as tr } from './i18n.mjs';
 export function isFailedDownload(d) {
   const st = String((d && d.status) || '').toLowerCase();
   return st === 'error' || st === 'failed';
@@ -8,7 +9,7 @@ export function isFailedDownload(d) {
 export function problemButton(d, sentId, busy) {
   if (!isFailedDownload(d)) return { show: false };
   const n = Number(sentId) || 0;
-  if (n > 0) return { show: true, sent: true, disabled: true, label: `Sent to staff (report #${n})` };
+  if (n > 0) return { show: true, sent: true, disabled: true, label: tr('Sent to staff (report #{n})', { n }) };
   return { show: true, sent: false, disabled: !!busy, label: busy ? 'Getting the report ready...' : 'Send this problem to staff' };
 }
 

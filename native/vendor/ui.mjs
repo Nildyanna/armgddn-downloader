@@ -2,5 +2,7 @@
 import { h, render, Fragment, Component } from './preact.mjs';
 import { useState, useEffect, useMemo, useRef, useCallback } from './hooks.mjs';
 import htm from './htm.mjs';
-export const html = htm.bind(h);
+import { wrapH } from '../../renderer/native/i18n.mjs';
+// Text and labels go through the app's language (renderer/native/i18n.mjs); English when none is loaded.
+export const html = htm.bind(wrapH(h));
 export { h, render, Fragment, Component, useState, useEffect, useMemo, useRef, useCallback };

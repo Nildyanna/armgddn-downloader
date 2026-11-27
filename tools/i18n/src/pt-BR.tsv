@@ -1,0 +1,614 @@
+0	- servidor e leitor de quadrinhos gratuito. Ele roda no seu PC e lê os quadrinhos que você baixa aqui, com capas, séries e progresso de leitura.
+1	— ele volta sozinho depois de 30 dias ou quando houver algo novo.
+2	— ele volta quando houver algo novo.
+3	, tudo pronto
+4	, agora:
+5	, abra a aba
+6	, buscas recentes
+7	, atualizado
+8	, seu tema
+9	: falhou
+10	({n} bateram com a biblioteca por nome e tamanho sem serem abertos)
+11	(e copia se puder). Cole o código na caixa aqui.
+12	(sem texto de erro)
+13	(nenhuma linha de log para este download)
+14	(abre no seu navegador)
+15	(pulado)
+16	(etapa
+17	(avisamos em {date})
+18	(você tem {current}, a mais nova é {latest})
+24	{have} de {total}
+25	{n} quadrinhos
+26	{n} downloads
+27	{n} encontrados
+28	{n} parecem danificados ou incompletos
+29	{n} salvos
+30	Falta {n} emblema secreto para descobrir.
+31	Faltam {n} emblemas secretos para descobrir.
+32	{pct}% do caminho até Badge Collector Supreme
+34	% dos membros têm este
+35	← Voltar
+36	🔥 Downloads em alta
+42	Há uma chave salva.
+43	Um relatório diz o que deu errado, a versão do app e o seu sistema (Windows, Mac ou Linux). Ele nunca inclui seu nome, sua conta do Telegram, seu endereço IP nem seus arquivos. Quando um download falha, o relatório cita o título que falhou, para que a falha possa ser rastreada.
+44	Um emblema secreto
+45	Um emblema secreto que você descobriu
+46	Um vídeo curto sobre como abrir arquivos de várias partes depois de um download.
+48	Adicionar ordens de leitura
+49	Adicionar ordens de leitura ao meu Komga
+50	Adicionar ao meu Komga
+51	Adicionar à Minha lista
+52	Adicionado
+53	Adicionado à Minha lista
+54	Adicionado ao seu Komga:
+55	Adicionado à sua lista de acompanhamento.
+56	Adicionado/atualizado: {date}
+57	Adicionando {title}...
+58	Adicionando...
+59	Adiciona uma ordem de leitura sugerida ao seu próprio servidor Komga como lista de leitura, com os quadrinhos que você já tem nele. Precisa do endereço do seu Komga e de uma chave de API (Komga: configurações da conta, chaves de API).
+60	Admin
+61	Todas as categorias
+62	Tudo pronto em
+63	Todos os downloads juntos ficam abaixo de {v} MB/s entre {start} e {end}; fora desse horário não têm limite.
+64	Todos os downloads juntos ficam abaixo de {v} MB/s. Uma mudança vale na hora para os downloads em andamento.
+65	Tudo lido
+66	Também popular em {kind}
+67	Também aparece em {list}.
+68	Há uma atualização do ARMGDDN App (você tem a v{current}).
+69	e mais {n}
+70	Chave de API
+71	Versão do app
+72	Aprovado
+76	Atualizações do ARMGDDN App
+77	ARMGDDN App v{v} está disponível (você tem a v{current}).
+82	Artista e álbum, ou série de quadrinhos
+83	ao mesmo tempo
+84	Automático
+85	Voltar
+86	Voltar ao topo
+87	Voltar ao seu emblema mais raro.
+88	Emblema escolhido. Ele aparece ao lado do seu nome em breve.
+89	Emblemas
+90	Lote
+92	Porque já está nos seus títulos salvos
+93	Porque está em alta em {remote}
+94	Porque o pessoal está baixando em {remote}
+95	Porque foi a última pasta de jogo que você visitou
+96	Porque você voltou a ele recentemente
+97	Porque você salvou na Minha lista
+98	Melhor para você:
+99	Suas preferências do site foram trazidas:
+100	Navegar
+101	Navegar pelos arquivos
+102	Build
+103	Cancelar
+104	Cancelado
+105	Categoria
+106	Categoria marcada pela Steam como algo de que você pode gostar
+107	Alterar
+108	Verificar
+109	Verificar arquivos
+110	Verificar arquivos depois de baixar
+111	Procurar atualizações
+112	a verificação encontrou arquivos danificados
+113	Verificar meus jogos
+114	Verificar minha configuração: espaço em disco, local da pasta, antivírus e redistribuíveis
+115	{n} jogo verificado: está na versão mais nova da biblioteca.
+116	{n} jogos verificados: todos estão na versão mais nova da biblioteca.
+117	verificando arquivos
+118	Verificando arquivos {pct}%
+119	Verificando o README...
+120	Verificando...
+121	Escolher
+122	Clássico
+123	Limpar histórico
+124	Fechar
+125	O botão Fechar mantém o app na bandeja do sistema (desligado: fechar sai do app)
+126	Fechando para instalar. O ARMGDDN App abre de novo sozinho em cerca de um minuto, aqui mesmo.
+127	Quadrinhos
+128	Pasta de quadrinhos
+130	Comunidade
+131	Comparar
+132	Comparar com
+133	Compara os arquivos baixados com os originais no servidor
+134	Comparando...
+135	Concluído
+136	Conexões por arquivo
+137	Constância
+138	Console
+139	Continuar
+140	Continuar navegando
+141	Copiado. Cole no chat ARMGDDN Games Welcome & Support e peça ajuda à Tulip. Ele não contém nomes, caminhos nem senhas.
+142	Copiar senha
+143	Copiar relatório
+144	Copiar relatório para a Tulip: sua verificação e os problemas recentes em um único código
+145	Copiar trecho
+146	Não foi possível adicionar
+147	Não foi possível adicionar à sua lista de acompanhamento
+148	Não foi possível adicionar a lista.
+149	Não foi possível montar o relatório.
+150	Não foi possível trocar seu emblema
+151	Não foi possível procurar atualizações.
+152	Não foi possível verificar:
+153	Não foi possível limpar o histórico
+154	Não foi possível copiar
+155	Não foi possível copiar automaticamente. Seu código:
+156	Não foi possível copiar a senha.
+157	Não foi possível exportar esta lista
+158	Não foi possível importar a chave.
+159	Não foi possível carregar a caixa de entrada
+160	Não foi possível carregar a lista da biblioteca.
+161	Não foi possível carregar as mensagens
+162	Não foi possível carregar a lista de acompanhamento
+163	Não foi possível carregar seus emblemas
+164	Não foi possível carregar seus pedidos
+165	Não foi possível marcar como lido
+166	Não foi possível abrir o link
+167	Não foi possível remover
+168	Não foi possível salvar
+169	Não foi possível salvar.
+170	Não foi possível enviar
+171	Não foi possível enviar o log.
+172	Não foi possível enviar o relatório.
+173	Não foi possível enviar o pedido
+174	Não foi possível iniciar o download em lote
+175	Não foi possível iniciar o download
+176	Não foi possível iniciar os downloads.
+177	Ofício
+180	Escuro
+181	Escuro, claro ou sistema (segue a configuração deste computador)
+184	Decisão:
+185	Detalhes
+186	Detalhes no ComicVine
+188	Não baixe nada.
+189	Você já tem o repack antigo instalado:
+190	Não apague nada até ter certeza de que o jogo funciona.
+191	Não enviar
+192	Não mostrar de novo hoje
+193	Baixar
+194	Baixar {n} selecionados
+195	Baixar tudo
+196	Download cancelado
+197	Os números de downloads são dos últimos 7 ou 30 dias, não totais de todos os tempos.
+198	Download concluído, verificando cada arquivo…
+199	Mecanismo de download
+200	Pasta de downloads
+201	Baixar o Komga
+202	Baixe só o patch.
+203	Horário de downloads
+204	Limite de velocidade de download
+205	Download iniciado:
+206	Etapas do download
+207	Baixe o repack completo. Você não precisa do patch.
+208	Baixe o jogo inteiro, não um arquivo de cada vez.
+209	Baixar o que está faltando
+210	Baixado direto do Google Drive
+211	Baixado pelo gateway de downloads do ARMGDDN
+212	Baixando agora
+213	Baixar o mesmo jogo de novo e de novo não resolve nada, e cada cópia a mais é uma que outra pessoa não consegue pegar.
+214	Downloads
+215	Downloads ao mesmo tempo
+216	Baixa tudo o que foi copiado até agora. As séries que ainda estão sendo adicionadas entram depois.
+217	downloads em 30 dias
+218	Os downloads usam toda a sua conexão.
+219	Downloads, 30 dias
+220	Drive
+221	Decorrido
+222	Horário de fim
+223	encerrado por
+224	Erro
+225	Os relatórios de erro estão desligados
+226	Tempo restante
+227	Cada parte é verificada, e o jogo é extraído quando termina
+228	Toda a biblioteca
+229	Em todo lugar
+230	Excel (.xlsx)
+231	Explorador
+232	Exportar lista
+233	Extrair
+234	Extrair arquivos .7z automaticamente
+235	Pasta de extração
+236	Arquivos
+237	Termine ou pause seus downloads primeiro: atualizar reinicia o ARMGDDN App.
+238	Concluído
+239	Pasta
+240	Pasta escolhida. Clique em Escanear.
+241	Pastas
+242	Por exemplo: parou em 80% duas vezes
+243	Esquecer a chave
+244	A chave salva foi esquecida.
+245	Avançar →
+246	Builds novas
+247	sex.
+248	De
+249	do site.
+250	Radar de jogos
+251	Os pedidos de jogos estão fechados por enquanto.
+252	Título do jogo
+253	Atualizações de jogos
+254	Gateway
+255	GB
+256	Gbps
+257	Gênero
+258	Receba um aviso na sua caixa aqui (e no Telegram) quando este jogo for adicionado ou surgir uma build mais nova
+259	Fazendo funcionar
+260	Preparando o relatório...
+261	Preparando a atualização...
+262	Voltar (Alt+Esquerda)
+263	Voltar a mostrar seu emblema mais raro
+264	Avançar (Alt+Direita)
+265	Ir para lá
+266	Entendi
+267	Grade
+269	Harbor (padrão)
+270	Atenção:
+271	Ajuda e relatórios
+272	Ajudar a corrigir travamentos?
+273	Ajuda com problemas
+274	OCULTO
+275	Oculto por 30 dias. Você pode trazer de volta nas Configurações.
+276	Joias escondidas
+277	Oculto em
+278	Ocultar
+279	Ocultar por 30 dias
+280	Ocultar o vídeo
+281	Histórico limpo
+282	Início
+283	Tela inicial
+284	Em alta este mês
+285	Em alta esta semana
+286	Como os títulos aparecem
+287	Já li, continuar
+288	Se um jogo der problema, peça ajuda primeiro no Telegram antes de baixar de novo.
+289	Importar
+290	Importar minhas preferências do site
+291	Importar minhas preferências do site (Minha lista, tema, seções ocultas, buscas recentes)
+292	Importar as configurações de uma instalação anterior do ARMGDDN App (pastas, velocidade, opções)
+293	Importar
+294	Importado
+295	O endereço e a chave do Komga da sua instalação anterior do ARMGDDN App foram importados. A chave fica neste PC.
+296	Importando...
+297	Na Minha lista
+298	Na seção Jogos de PC
+299	Na seção Jogos PCVR
+300	no seu navegador e entre.
+301	Caixa de entrada
+302	Instalar uma atualização pendente quando eu fechar o app (nunca durante um download)
+303	Instalar e jogar
+304	Instale o jogo a partir da pasta extraída e depois abra pelo ícone da área de trabalho ou do menu Iniciar criado pelo instalador.
+305	Edição #
+306	Ele verifica sozinho uma vez por hora.
+307	Isso foi registrado no log.
+308	Ele mostra um código longo que começa com
+309	É assim que pagamos as contas do servidor.
+310	Só por diversão: emblemas não dão recompensas. Ganhe usando o ARMGDDN e escolha o que aparece ao lado do seu nome.
+311	KB
+312	Kbps
+313	Continue explorando para descobrir.
+315	Endereço do Komga
+316	Idioma
+317	Idioma do app
+318	Últimos {days} dias, todos os membros
+319	ÚLTIMOS 30 DIAS
+320	ÚLTIMOS 7 DIAS
+321	Depois
+322	Restante
+323	Biblioteca
+324	Claro
+325	Claro (padrão)
+326	Gráficos leves (desliga o desfoque e as animações; use se o app fizer sua placa de vídeo trabalhar demais)
+327	O limite termina às
+328	Limitar a velocidade a
+329	O limite começa às
+330	Lista
+331	Carregando cada seção para poder buscar...
+332	Carregando configurações...
+333	Carregando seus emblemas…
+334	Carregando...
+335	Carregando…
+336	Código do log
+337	Animação de login (raios e trovões, alto)
+338	Sair
+340	muitos modelos de impressão 3D ainda não têm imagem de capa. Capas faltando nesta seção são esperadas e não são um bug; as imagens estão sendo adicionadas aos poucos.
+341	Marcar tudo como lido
+343	MB
+344	MB/s
+345	Mbps
+346	MiB/s
+347	O botão Minimizar esconde a janela na bandeja do sistema
+348	Faltando por série
+349	seg.
+350	Mais escolhas salvas
+351	Mais baixados
+352	Mais baixados, últimos 30 dias
+353	A maioria dos jogos VR precisa de um headset com SteamVR, embora alguns jogos e métodos de inicialização dispensem isso. Instale o jogo a partir da pasta extraída. Depois ligue o headset com o método que preferir (não Steam Link), abra a visão da área de trabalho e inicie o jogo pelo ícone da área de trabalho ou do menu Iniciar.
+354	Música
+355	Pasta de música
+356	Minha lista
+357	Item da Minha lista
+358	Meus pedidos
+359	Minha lista de acompanhamento
+360	Nome
+363	novo item da Minha lista
+364	Novo pedido
+365	Novo com arquivos .7z?
+366	Mais novo
+367	Atualizações mais novas primeiro
+369	sem resposta
+370	Nenhum download ainda. Clique em Baixar em qualquer jogo, álbum ou coleção de quadrinhos.
+371	Nenhuma correspondência exata, a mais próxima:
+372	Nenhuma pasta escolhida
+373	Nenhuma joia hoje.
+374	Sem gênero
+375	Nenhuma chave salva ainda.
+376	Nenhuma mensagem ainda.
+377	Não há cartões novos por enquanto. Use “Mostrar de novo os cartões dispensados” para recomeçar.
+378	Nenhuma configuração de uma instalação anterior do ARMGDDN App foi encontrada
+379	Ainda não há trailer disponível para este jogo.
+380	Não, não tenho
+381	Nº 1 dos últimos {days} dias
+382	Jogo fora da Steam
+383	não extraído
+384	Não tenho interesse
+385	Ainda não escaneado.
+386	Não definido
+387	Observações (opcional)
+388	Nada concluído ainda.
+389	Nada aqui ainda. Novidades dos seus pedidos e dos títulos que você pediu para ser avisado aparecem aqui.
+390	Nada em alta ainda.
+391	Nada aguardando.
+392	Nada corresponde a isso.
+393	Nada selecionado
+394	Nada a relatar.
+395	Aviso
+396	Me avise
+397	OK
+398	Mais antigo
+399	Ligado
+400	Somente entre
+401	Só o que está faltando, Komga
+404	Abrir
+405	Abrir pasta
+406	Abrir na biblioteca
+407	Abrir instalador
+408	Abrir o instalador quando a extração terminar
+409	Abre no seu navegador
+410	Abre o instalador do jogo para você seguir os passos
+412	Senha copiada.
+413	Cole o código ARMGDDN-PREFS aqui
+414	Cole sua chave de API
+415	Pausar
+416	Pausar downloads
+417	Pause ou desacelere os downloads em horários definidos.
+419	Jogos de PC
+427	Jogos PCVR
+434	Pendente
+435	por arquivo.
+436	emblemas permanentes
+437	Escolha vários itens e baixe todos juntos
+438	Plataforma
+439	Tocar a animação de login no primeiro acesso
+440	Leia - a banda importa
+441	Popularidade
+442	Preparando a lista...
+443	Clique em
+445	Ler
+446	Ler o README
+447	LEIA ISTO ANTES DE BAIXAR APLICATIVOS DE PC
+448	LEIA ISTO ANTES DE BAIXAR O JOGO
+449	Ler este arquivo
+451	Pronto
+452	Pronto para navegar
+453	Recente
+454	Visitados recentemente
+455	Atualizar
+456	Recusado
+457	Relacionado aos seus downloads recentes
+458	Lançado
+459	Remover downloads concluídos desta lista
+460	Remover da Minha lista
+461	Removido da Minha lista
+462	Repetir
+463	Relatório para a Tulip.
+464	Pedir
+465	Pedido enviado
+466	Pedidos
+467	Redefinir
+468	Retomar
+469	Retomar a última visita
+470	Tentar de novo
+471	Inverter a ordem
+473	Igual à pasta de downloads
+474	sáb.
+475	Salvar
+476	Salvar os títulos e tamanhos desta seção em um arquivo
+477	Salvo
+478	Salvo na Minha lista
+479	Salva neste PC (deixe vazio para manter)
+480	Salva. A chave fica só neste PC.
+481	Escanear
+482	Escaneie primeiro.
+483	Escaneie sua pasta de quadrinhos e baixe só os que você não tem, de toda a biblioteca ou de uma ordem de leitura.
+484	Escaneie sua pasta de música e baixe só os álbuns e faixas que você não tem.
+485	{n} arquivos de quadrinhos escaneados
+486	{n} arquivos de música escaneados
+487	Escaneando...
+488	Escaneando... {n} arquivos
+489	Buscar em todas as seções
+490	Buscar em cada seção
+491	Buscar em cada seção, não só nesta lista
+492	Buscar em todo lugar
+493	Buscar nesta lista
+495	Veja quais dos seus jogos baixados têm uma versão mais nova.
+496	Selecione 50 itens ou menos de cada vez
+497	Selecionar tudo
+498	Enviar
+499	Enviar relatórios de erro
+500	Enviar log
+501	Enviar log para a staff: o log limpo vai para o site e você recebe um código curto
+502	Enviar relatórios
+503	Enviar pedido
+504	Enviar este problema para a staff
+505	Enviar para a staff
+506	Enviando o log...
+507	Enviando...
+508	Enviado para a staff (relatório nº {n})
+509	Configurações
+510	Guia de instalação
+511	Instalador aberto
+512	Mostrar
+513	Mostrar de novo os cartões dispensados
+514	Mostrar Mbps
+515	Mostrar MiB/s
+516	Mostrar notificações
+517	Mostrar a faixa {name} no Início
+518	Mostrar a velocidade em MiB/s em vez de bits por segundo (em cada download)
+519	Ver novidades
+520	Entrar de novo
+521	Entre de novo se isso continuar acontecendo.
+522	Entre de novo para baixar.
+523	Entre para navegar pela biblioteca.
+524	Entrar com o Telegram
+525	Sair deste PC
+526	Tamanho
+527	Trecho copiado
+528	Alguns álbuns e coleções de quadrinhos podem estar sem faixas ou edições que ainda não foram encontradas. Se quiser contribuir, fale com Old Man of the Hills. Alguns lançamentos ficam de fora de propósito (remixes, versões ao vivo, coletâneas e afins), então estas listas não são um catálogo completo nem oficial.
+529	Algo deu errado
+530	Ordenar por
+531	Velocidade
+532	Limite de velocidade em MB/s
+535	Staff
+537	Iniciar minimizado
+538	Horário de início
+539	Iniciar com o computador
+540	Iniciado
+541	{n} download iniciado ({files} {unit}, {size}). Ele está na aba Downloads e chega em {folder}. Escaneie de novo depois.
+542	{n} downloads iniciados ({files} {unit}, {size}). Eles estão na aba Downloads e chegam em {folder}. Escaneie de novo depois.
+543	Os que faltavam foram iniciados
+544	Iniciando os downloads...
+545	começa quando uma vaga liberar
+548	Parar
+549	Parar verificação
+550	Parar de acompanhar
+551	dom.
+554	Sistema
+556	, cole o trecho abaixo e aperte Enter. (Se o navegador pedir para digitar "allow pasting" primeiro, faça isso.)
+557	TB
+558	Tbps
+559	Testar
+560	Testar minha conexão: encontra as melhores Conexões por arquivo para você
+561	Testing
+562	Testando...
+563	Obrigado, os relatórios de erro estão ligados
+564	Não funcionou. Tente de novo em um minuto.
+565	Isso não é um código do trecho do site.
+566	O app e sua janela
+567	O app baixa cada parte, verifica uma por uma e continua de onde parou se sua conexão cair.
+568	As mudanças desta versão.
+569	A verificação não pôde rodar. Tente de novo ou pergunte no chat.
+570	Não foi possível ler o código.
+571	Não foi possível ler o código. Copie de novo do site.
+572	O código está vazio ou longo demais.
+573	A comparação falhou.
+574	O conteúdo da sua pasta nunca sai deste PC; só a lista da biblioteca é baixada.
+575	A verificação de arquivos não pôde rodar.
+576	Os arquivos sendo baixados agora
+577	A biblioteca tem {albums} álbuns de {artists} artistas ({tracks} faixas, {size}).
+578	A biblioteca tem {n} quadrinhos
+579	Não foi possível gerar o relatório.
+580	O escaneamento falhou.
+581	O trecho
+582	O teste não conseguiu medir sua velocidade. Tente de novo em alguns minutos.
+583	O teste não pôde rodar.
+584	Não foi possível reproduzir o trailer.
+585	Não foi possível iniciar a atualização
+586	a versão que este patch atualiza (
+587	A Wiki não está disponível.
+588	Tema (temas escuros)
+589	Tema (temas claros)
+590	Não há downloads concluídos no seu histórico para verificar.
+591	Não há nada para mostrar nesta versão.
+592	Estas já são as configurações da sua instalação anterior do ARMGDDN App
+593	Não foi possível ler este arquivo.
+594	Este jogo tem um patch de atualização
+595	Isto é tudo o que será enviado. Seu nome de usuário nos caminhos, as partes secretas dos links, os tokens de login e os cookies são removidos.
+596	esta lista
+597	Esta página teve um problema.
+598	Esta seção esgotou sua cota de downloads. Tente mais tarde (normalmente renova em até 24 horas).
+599	Este título não está na biblioteca no momento
+600	Este título não está na biblioteca no momento.
+601	Este formato de trailer não é compatível aqui.
+602	qui.
+603	Título
+604	Ferramentas
+606	Trailer
+607	Trailer -
+608	Em alta
+609	Tentar de novo
+610	ter.
+611	Ligue a Extração automática nas Configurações, ou extraia com o 7-Zip.
+612	Ligue Configurações › Downloads › Verificar arquivos depois de baixar para usar isto
+613	Ligar ou desligar os efeitos de movimento
+614	Digite para buscar em cada seção (PC, PCVR, Testing, Apps, 3D, Quadrinhos, Música).
+615	Desconhecido
+616	Sem limite
+617	Descompactar
+618	Descompactando
+619	Sem título
+620	Atualizar automaticamente
+621	Atualizar agora
+622	patch de atualização
+623	Atualizar para a v{v}
+624	Atualizado
+625	Atualizações
+626	Atualizando o ARMGDDN App
+627	Atualizando para a v
+628	Atualizando...
+629	Atualizando... O ARMGDDN App vai reiniciar sozinho.
+630	Usar meu emblema mais raro
+632	Aguardando
+633	Acompanhar
+634	Ver o vídeo
+635	Ver trailer
+636	Lista de acompanhamento
+637	Nós pagamos pela banda
+638	Avisaremos quando chegar.
+639	Usar este
+640	Usando
+641	Usando seu emblema mais raro
+642	qua.
+643	O que aconteceu? (opcional)
+644	O que fazer nesses horários
+645	O que pedir
+646	Novidades
+647	Novidades:
+648	Quando um jogo termina de ser extraído, o app abre o instalador para você seguir os passos. Nada é instalado sozinho.
+649	Quando estiver pronta, o app fecha por cerca de um minuto para instalar e depois abre de novo aqui mesmo.
+650	Quando o app trava ou encontra um erro, ele pode enviar um relatório curto ao ARMGDDN para que seja corrigido.
+651	Onde os jogos são descompactados quando Extrair arquivos .7z automaticamente está ligado. Vazio: ao lado do download.
+652	Qual conjunto está aparecendo
+653	Por que isto está aqui
+655	Wiki
+656	Com a Extração automática ligada, o app descompacta para você. Senão, clique com o botão direito na primeira parte e escolha Extrair aqui. Deixe espaço para o download mais o jogo extraído.
+657	Escreva uma mensagem…
+658	Sim, tenho
+659	Você
+660	Você já tem todos os {n} quadrinhos de {list}.
+661	Você já tem todas as {n} faixas da biblioteca.
+662	Você ainda não acompanha nada.
+663	Você está na versão mais recente (v{v}).
+664	Você está na versão mais recente.
+665	Você pode mudar isso a qualquer momento nas Configurações, em Enviar relatórios de erro.
+666	Você recebe um aviso na sua caixa aqui (o sino no alto) e no Telegram quando um título desta lista é adicionado à biblioteca, ou quando surge uma build mais nova.
+667	Você tem {have} de {total} faixas. Faltam {missing} ({size}).
+668	Você tem {have} de {total}. Faltam {missing} ({size}).
+669	Você tem {n} mensagens novas na sua caixa.
+670	Você ainda não fez nenhum pedido.
+671	Você precisa baixar do servidor PC
+672	Você precisa baixar do servidor PCVR
+673	Sua coleção de emblemas
+674	Sua conexão aguentou bem todas as configurações. Deixe Conexões por arquivo em Automático.
+675	Sua instalação anterior do ARMGDDN App já tem um servidor Komga e uma chave salvos.
+676	Seus jogos
+677	Sua lista está vazia. Clique no coração de um jogo, álbum ou quadrinho para salvar aqui.
+678	Seu login expirou. Entre de novo para continuar.

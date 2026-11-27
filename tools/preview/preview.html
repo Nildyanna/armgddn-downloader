@@ -3,6 +3,7 @@
   Preview of the app's pages in an ordinary browser, with made-up data (Nov 24 2026). Not part of the app: tools/ is not in build.files.
   Run:  npm run preview            (then open the address it prints)
   Ask for a page and theme in the address:  ?scene=downloads|home|library|mylist|settings  &theme=harbor|classic|light
+  &lang=fr|es|pt-BR|de: the pages in that language (default English).
   &platform=linux|darwin: as the app looks there (no Open setup, no "Open the setup" setting); the default is win32.
   The 3D Flick Fix strip: &promo=off (site switched it off), &promoHidden=1 (hidden with the ✕ today).
   The Downloads scene has one download in every state the app has (DOWNLOAD_STATES in renderer/native/format.mjs), so a change to that page
@@ -54,7 +55,7 @@
 
   const ok = (data) => ({ ok: true, data });
   // The 3D Flick Fix strip (renderer/native/promo.mjs): &promo=off = the site switched it off; &promoHidden=1 = the member pressed ✕ today.
-  const settings = { firstRunAt: new Date(Date.now() - 40 * 864e5).toISOString(), errorReportingAsked: true };
+  const settings = { firstRunAt: new Date(Date.now() - 40 * 864e5).toISOString(), errorReportingAsked: true, language: q.get('lang') || 'en' };   // &lang=fr|es|pt-BR|de: the app in that language
   if (q.get('promoHidden') === '1') Object.assign(settings, { promoHiddenAt: new Date().toISOString(), promoHiddenEdition: 'preview0001' });
   window.__previewSettings = settings;
   const table = {

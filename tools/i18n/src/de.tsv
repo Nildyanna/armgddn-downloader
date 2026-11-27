@@ -1,0 +1,614 @@
+0	– kostenloser Comic-Server und -Reader. Er läuft auf deinem PC und liest die Comics, die du hier herunterlädst, mit Covern, Serien und Lesefortschritt.
+1	– er kommt nach 30 Tagen von selbst zurück oder wenn es etwas Neues gibt.
+2	– er kommt zurück, wenn es etwas Neues gibt.
+3	, alles fertig
+4	, jetzt:
+5	, öffne den Tab
+6	, letzte Suchen
+7	, aktualisiert
+8	, dein Design
+9	: fehlgeschlagen
+10	({n} passten nach Name und Größe zur Bibliothek, ohne geöffnet zu werden)
+11	(und kopiert ihn, wenn möglich). Füge den Code hier ins Feld ein.
+12	(kein Fehlertext)
+13	(keine Protokollzeilen für diesen Download)
+14	(öffnet sich im Browser)
+15	(übersprungen)
+16	(Schritt
+17	(Bescheid gegeben am {date})
+18	(du hast {current}, die neueste ist {latest})
+24	{have} von {total}
+25	{n} Comics
+26	{n} Downloads
+27	{n} gefunden
+28	{n} sehen beschädigt oder unvollständig aus
+29	{n} gespeichert
+30	{n} geheimes Abzeichen ist noch zu entdecken.
+31	{n} geheime Abzeichen sind noch zu entdecken.
+32	{pct} % des Wegs zu Badge Collector Supreme
+34	% der Mitglieder haben es
+35	← Zurück
+36	🔥 Angesagte Downloads
+42	Ein Schlüssel ist gespeichert.
+43	Ein Bericht sagt, was schiefging, die App-Version und dein System (Windows, Mac oder Linux). Er enthält nie deinen Namen, dein Telegram-Konto, deine IP-Adresse oder deine Dateien. Wenn ein Download fehlschlägt, nennt der Bericht den betroffenen Titel, damit sich der Fehler finden lässt.
+44	Ein geheimes Abzeichen
+45	Ein geheimes Abzeichen, das du entdeckt hast
+46	Ein kurzes Video zum Öffnen mehrteiliger Archive nach einem Download.
+48	Leselisten hinzufügen
+49	Leselisten zu meinem Komga hinzufügen
+50	Zu meinem Komga hinzufügen
+51	Zu Meiner Liste hinzufügen
+52	Hinzugefügt
+53	Zu Meiner Liste hinzugefügt
+54	Zu deinem Komga hinzugefügt:
+55	Zu deiner Beobachtungsliste hinzugefügt.
+56	Hinzugefügt/aktualisiert: {date}
+57	{title} wird hinzugefügt...
+58	Wird hinzugefügt...
+59	Fügt eine vorgeschlagene Lesereihenfolge als Leseliste zu deinem eigenen Komga-Server hinzu, passend zu den Comics, die du dort schon hast. Braucht deine Komga-Adresse und einen API-Schlüssel (Komga: Kontoeinstellungen, API-Schlüssel).
+60	Admin
+61	Alle Kategorien
+62	Alles fertig in
+63	Alle Downloads zusammen bleiben zwischen {start} und {end} unter {v} MB/s; außerhalb dieser Zeiten sind sie nicht begrenzt.
+64	Alle Downloads zusammen bleiben unter {v} MB/s. Eine Änderung gilt sofort für laufende Downloads.
+65	Alles gelesen
+66	Auch beliebt in {kind}
+67	Auch zu finden in {list}.
+68	Ein Update für die ARMGDDN App ist verfügbar (du hast v{current}).
+69	und {n} weitere
+70	API-Schlüssel
+71	App-Version
+72	Angenommen
+76	Updates der ARMGDDN App
+77	ARMGDDN App v{v} ist verfügbar (du hast v{current}).
+82	Künstler und Album oder Comicserie
+83	gleichzeitig
+84	Automatisch
+85	Zurück
+86	Nach oben
+87	Zurück zu deinem seltensten Abzeichen.
+88	Abzeichen gewählt. Es erscheint bald neben deinem Namen.
+89	Abzeichen
+90	Stapel
+92	Weil es schon in deinen gespeicherten Titeln ist
+93	Weil es in {remote} angesagt ist
+94	Weil es gerade viele in {remote} herunterladen
+95	Weil das dein zuletzt besuchter Spielordner war
+96	Weil du kürzlich wieder hier warst
+97	Weil du es in Meiner Liste gespeichert hast
+98	Am besten für dich:
+99	Deine Website-Einstellungen wurden übernommen:
+100	Durchsuchen
+101	Dateien durchsuchen
+102	Build
+103	Abbrechen
+104	Abgebrochen
+105	Kategorie
+106	Kategorie, die Steam als etwas markiert, das dir gefallen könnte
+107	Ändern
+108	Prüfen
+109	Dateien prüfen
+110	Dateien nach dem Download prüfen
+111	Nach Updates suchen
+112	die Prüfung hat beschädigte Dateien gefunden
+113	Meine Spiele prüfen
+114	Mein Setup prüfen: Speicherplatz, Ordnerort, Virenschutz und Redistributables
+115	{n} Spiel geprüft: Es ist auf der neuesten Version der Bibliothek.
+116	{n} Spiele geprüft: Alle sind auf der neuesten Version der Bibliothek.
+117	Dateien werden geprüft
+118	Dateien werden geprüft {pct} %
+119	README wird geprüft...
+120	Wird geprüft...
+121	Auswählen
+122	Klassisch
+123	Verlauf löschen
+124	Schließen
+125	Schließen-Knopf lässt die App im Infobereich laufen (aus: Schließen beendet die App)
+126	Wird zum Installieren geschlossen. Die ARMGDDN App öffnet sich in etwa einer Minute von selbst wieder, genau hier.
+127	Comics
+128	Comic-Ordner
+130	Community
+131	Vergleichen
+132	Vergleichen mit
+133	Vergleicht die heruntergeladenen Dateien mit den Originalen auf dem Server
+134	Wird verglichen...
+135	Abgeschlossen
+136	Verbindungen pro Datei
+137	Beständigkeit
+138	Konsole
+139	Weiter
+140	Weiter stöbern
+141	Kopiert. Füge es im Chat ARMGDDN Games Welcome & Support ein und bitte Tulip um Hilfe. Es enthält keine Namen, Pfade oder Passwörter.
+142	PW kopieren
+143	Bericht kopieren
+144	Bericht für Tulip kopieren: deine Setup-Prüfung und letzte Probleme als ein Code
+145	Snippet kopieren
+146	Konnte nicht hinzugefügt werden
+147	Konnte nicht zu deiner Beobachtungsliste hinzugefügt werden
+148	Die Liste konnte nicht hinzugefügt werden.
+149	Der Bericht konnte nicht erstellt werden.
+150	Dein Abzeichen konnte nicht geändert werden
+151	Es konnte nicht nach Updates gesucht werden.
+152	Prüfung nicht möglich:
+153	Der Verlauf konnte nicht gelöscht werden
+154	Kopieren nicht möglich
+155	Automatisches Kopieren nicht möglich. Dein Code:
+156	Das Passwort konnte nicht kopiert werden.
+157	Diese Liste konnte nicht exportiert werden
+158	Der Schlüssel konnte nicht importiert werden.
+159	Der Posteingang konnte nicht geladen werden
+160	Die Bibliotheksliste konnte nicht geladen werden.
+161	Die Nachrichten konnten nicht geladen werden
+162	Die Beobachtungsliste konnte nicht geladen werden
+163	Deine Abzeichen konnten nicht geladen werden
+164	Deine Anfragen konnten nicht geladen werden
+165	Konnte nicht als gelesen markiert werden
+166	Der Link konnte nicht geöffnet werden
+167	Konnte nicht entfernt werden
+168	Speichern nicht möglich
+169	Speichern nicht möglich.
+170	Senden nicht möglich
+171	Das Protokoll konnte nicht gesendet werden.
+172	Der Bericht konnte nicht gesendet werden.
+173	Die Anfrage konnte nicht gesendet werden
+174	Der Stapel-Download konnte nicht gestartet werden
+175	Der Download konnte nicht gestartet werden
+176	Die Downloads konnten nicht gestartet werden.
+177	Handwerk
+180	Dunkel
+181	Dunkel, Hell oder System (folgt der Einstellung dieses Computers)
+184	Entscheidung:
+185	Details
+186	Details auf ComicVine
+188	Lade nichts herunter.
+189	Hast du das alte Repack schon installiert:
+190	Lösch nichts, bevor du sicher bist, dass das Spiel läuft.
+191	Nicht senden
+192	Heute nicht mehr anzeigen
+193	Herunterladen
+194	{n} ausgewählte herunterladen
+195	Alle herunterladen
+196	Download abgebrochen
+197	Downloadzahlen beziehen sich auf die letzten 7 oder 30 Tage, nicht auf alle Zeiten.
+198	Download fertig, jede Datei wird geprüft…
+199	Download-Engine
+200	Download-Ordner
+201	Komga herunterladen
+202	Lade nur den Patch herunter.
+203	Download-Zeitplan
+204	Download-Geschwindigkeitslimit
+205	Download gestartet:
+206	Download-Schritte
+207	Lade das komplette Repack herunter. Den Patch brauchst du nicht.
+208	Lade das ganze Spiel herunter, nicht eine Datei nach der anderen.
+209	Herunterladen, was mir fehlt
+210	Direkt von Google Drive heruntergeladen
+211	Über das ARMGDDN-Download-Gateway heruntergeladen
+212	Wird gerade heruntergeladen
+213	Dasselbe Spiel immer wieder herunterzuladen behebt nichts, und jede zusätzliche Kopie fehlt dann jemand anderem.
+214	Downloads
+215	Gleichzeitige Downloads
+216	Lädt alles herunter, was bisher kopiert wurde. Serien, die noch hinzugefügt werden, kommen später dazu.
+217	Downloads in 30 Tagen
+218	Downloads nutzen deine volle Verbindung.
+219	Downloads, 30 Tage
+220	Drive
+221	Vergangen
+222	Endzeit
+223	beendet durch
+224	Fehler
+225	Fehlerberichte sind aus
+226	Restzeit
+227	Jeder Teil wird geprüft, und das Spiel wird am Ende entpackt
+228	Die ganze Bibliothek
+229	Überall
+230	Excel (.xlsx)
+231	Entdecker
+232	Liste exportieren
+233	Entpacken
+234	.7z-Dateien automatisch entpacken
+235	Entpack-Ordner
+236	Dateien
+237	Beende oder pausiere zuerst deine Downloads: Das Update startet die ARMGDDN App neu.
+238	Fertig
+239	Ordner
+240	Ordner gewählt. Klicke auf Scannen.
+241	Ordner
+242	Zum Beispiel: Es blieb zweimal bei 80 % stehen
+243	Schlüssel vergessen
+244	Gespeicherten Schlüssel vergessen.
+245	Vor →
+246	Neue Builds
+247	Fr.
+248	Von
+249	von der Website.
+250	Spiele-Radar
+251	Spieleanfragen sind gerade geschlossen.
+252	Spieltitel
+253	Spiele-Updates
+254	Gateway
+255	GB
+256	Gbit/s
+257	Genre
+258	Erhalte hier im Posteingang (und auf Telegram) eine Nachricht, wenn dieses Spiel hinzukommt oder ein neuerer Build erscheint
+259	Zum Laufen bringen
+260	Bericht wird vorbereitet...
+261	Update wird vorbereitet...
+262	Zurück (Alt+Links)
+263	Wieder dein seltenstes Abzeichen zeigen
+264	Vor (Alt+Rechts)
+265	Hingehen
+266	Verstanden
+267	Raster
+269	Harbor (Standard)
+270	Achtung:
+271	Hilfe und Berichte
+272	Beim Beheben von Abstürzen helfen?
+273	Hilfe bei Problemen
+274	AUSGEBLENDET
+275	30 Tage ausgeblendet. Du kannst es in den Einstellungen zurückholen.
+276	Verborgene Perlen
+277	Ausgeblendet am
+278	Ausblenden
+279	30 Tage ausblenden
+280	Video ausblenden
+281	Verlauf gelöscht
+282	Start
+283	Startbildschirm
+284	Angesagt diesen Monat
+285	Angesagt diese Woche
+286	Wie die Titel angezeigt werden
+287	Gelesen, weiter
+288	Wenn ein Spiel Probleme macht, frag zuerst im Telegram um Hilfe, bevor du es neu herunterlädst.
+289	Importieren
+290	Meine Website-Einstellungen importieren
+291	Meine Website-Einstellungen importieren (Meine Liste, Design, ausgeblendete Bereiche, letzte Suchen)
+292	Die Einstellungen einer früheren ARMGDDN-App-Installation importieren (Ordner, Geschwindigkeit, Schalter)
+293	Importieren
+294	Importiert
+295	Komga-Adresse und -Schlüssel aus deiner früheren ARMGDDN-App-Installation wurden importiert. Der Schlüssel bleibt auf diesem PC.
+296	Wird importiert...
+297	In Meiner Liste
+298	Im Bereich PC-Spiele
+299	Im Bereich PCVR-Spiele
+300	in deinem Browser und melde dich an.
+301	Posteingang
+302	Ein wartendes Update installieren, wenn ich die App schließe (nie während eines Downloads)
+303	Installieren und spielen
+304	Installiere das Spiel aus dem entpackten Ordner und starte es dann über das Desktop- oder Startmenü-Symbol, das der Installer anlegt.
+305	Ausgabe #
+306	Sie prüft das einmal pro Stunde von selbst.
+307	Es wurde im Protokoll vermerkt.
+308	Es zeigt einen langen Code, der so beginnt:
+309	So bezahlen wir die Serverrechnungen.
+310	Nur zum Spaß: Abzeichen bringen keine Belohnungen. Verdiene sie, indem du ARMGDDN nutzt, und wähle das, das neben deinem Namen erscheint.
+311	KB
+312	kbit/s
+313	Stöber weiter, um es herauszufinden.
+315	Komga-Adresse
+316	Sprache
+317	Sprache der App
+318	Letzte {days} Tage, alle Mitglieder
+319	LETZTE 30 TAGE
+320	LETZTE 7 TAGE
+321	Später
+322	Übrig
+323	Bibliothek
+324	Hell
+325	Hell (Standard)
+326	Leichtere Grafik (schaltet Unschärfe und Animationen ab; nutze das, wenn die App deine Grafikkarte stark belastet)
+327	Limit endet um
+328	Geschwindigkeit begrenzen auf
+329	Limit beginnt um
+330	Liste
+331	Jeder Bereich wird geladen, damit er durchsucht werden kann...
+332	Einstellungen werden geladen...
+333	Deine Abzeichen werden geladen…
+334	Wird geladen...
+335	Wird geladen…
+336	Protokollcode
+337	Anmeldeanimation (Blitz und Donner, laut)
+338	Abmelden
+340	viele 3D-Druckmodelle haben noch kein Coverbild. Fehlende Cover in diesem Bereich sind normal und kein Fehler; die Bilder werden nach und nach ergänzt.
+341	Alle als gelesen markieren
+343	MB
+344	MB/s
+345	Mbit/s
+346	MiB/s
+347	Minimieren-Knopf versteckt das Fenster im Infobereich
+348	Fehlend nach Serie
+349	Mo.
+350	Weitere gespeicherte Tipps
+351	Am meisten heruntergeladen
+352	Am meisten heruntergeladen, letzte 30 Tage
+353	Die meisten VR-Spiele brauchen ein Headset mit SteamVR, auch wenn manche Spiele und Startmethoden ohne auskommen. Installiere das Spiel aus dem entpackten Ordner. Starte dann dein Headset mit der Methode deiner Wahl (nicht Steam Link), öffne die Desktopansicht und starte das Spiel dort über sein Desktop- oder Startmenü-Symbol.
+354	Musik
+355	Musikordner
+356	Meine Liste
+357	Eintrag in Meiner Liste
+358	Meine Anfragen
+359	Meine Beobachtungsliste
+360	Name
+363	neuer Eintrag in Meiner Liste
+364	Neue Anfrage
+365	Neu bei .7z-Dateien?
+366	Neueste
+367	Neueste Updates zuerst
+369	keine Antwort
+370	Noch keine Downloads. Klicke bei einem Spiel, Album oder einer Comicsammlung auf Herunterladen.
+371	Kein exakter Treffer, am nächsten:
+372	Kein Ordner gewählt
+373	Heute keine Perlen.
+374	Kein Genre
+375	Noch kein Schlüssel gespeichert.
+376	Noch keine Nachrichten.
+377	Noch keine neuen Karten übrig. Mit „Verworfene Karten wieder anzeigen“ setzt du den Stapel zurück.
+378	Keine Einstellungen einer früheren ARMGDDN-App-Installation gefunden
+379	Für dieses Spiel gibt es noch keinen Trailer.
+380	Nein, habe ich nicht
+381	Nr. 1 der letzten {days} Tage
+382	Nicht-Steam-Spiel
+383	nicht entpackt
+384	Kein Interesse
+385	Noch nicht gescannt.
+386	Nicht festgelegt
+387	Notizen (optional)
+388	Noch nichts fertig.
+389	Noch nichts hier. Neuigkeiten zu deinen Anfragen und zu Titeln, über die du informiert werden wolltest, erscheinen hier.
+390	Noch nichts angesagt.
+391	Nichts wartet.
+392	Nichts passt dazu.
+393	Nichts ausgewählt
+394	Nichts zu melden.
+395	Hinweis
+396	Benachrichtige mich
+397	OK
+398	Älter
+399	An
+400	Nur zwischen
+401	Nur was mir fehlt, Komga
+404	Öffnen
+405	Ordner öffnen
+406	In der Bibliothek öffnen
+407	Setup öffnen
+408	Setup öffnen, wenn das Entpacken fertig ist
+409	Öffnet sich im Browser
+410	Öffnet den Installer des Spiels, damit du ihn durchklicken kannst
+412	Passwort kopiert.
+413	Füge den ARMGDDN-PREFS-Code hier ein
+414	Füge deinen API-Schlüssel ein
+415	Pausieren
+416	Downloads pausieren
+417	Downloads zu festen Zeiten pausieren oder verlangsamen.
+419	PC-Spiele
+427	PCVR-Spiele
+434	Ausstehend
+435	pro Datei.
+436	dauerhafte Abzeichen
+437	Mehrere Einträge wählen und zusammen herunterladen
+438	Plattform
+439	Anmeldeanimation bei der ersten Anmeldung abspielen
+440	Bitte lesen – Bandbreite zählt
+441	Beliebtheit
+442	Liste wird vorbereitet...
+443	Drücke
+445	Lesen
+446	README lesen
+447	LIES DAS, BEVOR DU PC-APPS HERUNTERLÄDST
+448	LIES DAS, BEVOR DU DAS SPIEL HERUNTERLÄDST
+449	Diese Datei lesen
+451	Bereit
+452	Bereit zum Stöbern
+453	Zuletzt
+454	Kürzlich besucht
+455	Aktualisieren
+456	Abgelehnt
+457	Passend zu deinen letzten Downloads
+458	Erschienen
+459	Fertige Downloads aus dieser Liste entfernen
+460	Aus Meiner Liste entfernen
+461	Aus Meiner Liste entfernt
+462	Wiederholen
+463	Bericht für Tulip.
+464	Anfragen
+465	Anfrage gesendet
+466	Anfragen
+467	Zurücksetzen
+468	Fortsetzen
+469	Letzten Besuch fortsetzen
+470	Erneut versuchen
+471	Reihenfolge umkehren
+473	Wie der Download-Ordner
+474	Sa.
+475	Speichern
+476	Titel und Größen dieses Bereichs als Datei speichern
+477	Gespeichert
+478	In Meiner Liste gespeichert
+479	Auf diesem PC gespeichert (leer lassen, um ihn zu behalten)
+480	Gespeichert. Der Schlüssel bleibt nur auf diesem PC.
+481	Scannen
+482	Erst scannen.
+483	Scanne deinen Comic-Ordner und lade nur die Comics herunter, die dir fehlen, für die ganze Bibliothek oder eine Lesereihenfolge.
+484	Scanne deinen Musikordner und lade nur die Alben und Titel herunter, die dir fehlen.
+485	{n} Comic-Dateien gescannt
+486	{n} Musikdateien gescannt
+487	Wird gescannt...
+488	Wird gescannt... {n} Dateien
+489	Alle Bereiche durchsuchen
+490	Jeden Bereich durchsuchen
+491	Jeden Bereich durchsuchen, nicht nur diese Liste
+492	Überall suchen
+493	Diese Liste durchsuchen
+495	Sieh nach, welche deiner heruntergeladenen Spiele eine neuere Version haben.
+496	Wähle höchstens 50 Einträge auf einmal
+497	Alle auswählen
+498	Senden
+499	Fehlerberichte senden
+500	Protokoll senden
+501	Protokoll ans Staff senden: Das bereinigte Protokoll geht an die Website und du bekommst einen kurzen Code
+502	Berichte senden
+503	Anfrage senden
+504	Dieses Problem ans Staff senden
+505	Ans Staff senden
+506	Protokoll wird gesendet...
+507	Wird gesendet...
+508	Ans Staff gesendet (Bericht Nr. {n})
+509	Einstellungen
+510	Setup-Anleitung
+511	Setup geöffnet
+512	Anzeigen
+513	Verworfene Karten wieder anzeigen
+514	Mbit/s anzeigen
+515	MiB/s anzeigen
+516	Benachrichtigungen anzeigen
+517	Die Leiste {name} auf der Startseite zeigen
+518	Geschwindigkeit in MiB/s statt Bit pro Sekunde anzeigen (bei jedem Download)
+519	Neuigkeiten anzeigen
+520	Erneut anmelden
+521	Melde dich erneut an, wenn das weiter passiert.
+522	Melde dich erneut an, um herunterzuladen.
+523	Melde dich an, um die Bibliothek zu durchsuchen.
+524	Mit Telegram anmelden
+525	Auf diesem PC abmelden
+526	Größe
+527	Snippet kopiert
+528	Manchen Alben und Comicsammlungen fehlen vielleicht Titel oder Ausgaben, die noch nicht beschafft wurden. Wenn du etwas beitragen willst, melde dich bei Old Man of the Hills. Manche Veröffentlichungen fehlen absichtlich (Remixe, Live-Versionen, Compilations und Ähnliches), daher sind diese Listen kein vollständiger oder offizieller Katalog.
+529	Etwas ist schiefgelaufen
+530	Sortieren nach
+531	Geschwindigkeit
+532	Geschwindigkeitslimit in MB/s
+535	Staff
+537	Minimiert starten
+538	Startzeit
+539	Mit dem Computer starten
+540	Gestartet
+541	{n} Download gestartet ({files} {unit}, {size}). Er ist im Tab Downloads und landet in {folder}. Scanne danach erneut.
+542	{n} Downloads gestartet ({files} {unit}, {size}). Sie sind im Tab Downloads und landen in {folder}. Scanne danach erneut.
+543	Fehlende gestartet
+544	Downloads werden gestartet...
+545	startet, sobald ein Platz frei wird
+548	Stopp
+549	Prüfung stoppen
+550	Nicht mehr beobachten
+551	So.
+554	System
+556	, füge das Snippet unten ein und drücke Enter. (Wenn der Browser verlangt, zuerst „allow pasting“ einzugeben, tu das.)
+557	TB
+558	Tbit/s
+559	Testen
+560	Meine Verbindung testen: findet die besten Verbindungen pro Datei für dich
+561	Testing
+562	Wird getestet...
+563	Danke, Fehlerberichte sind an
+564	Das hat nicht geklappt. Versuch es in einer Minute erneut.
+565	Das ist kein Code aus dem Website-Snippet.
+566	Die App und ihr Fenster
+567	Die App lädt jeden Teil, prüft jeden einzeln und macht dort weiter, wo sie aufgehört hat, wenn deine Verbindung abbricht.
+568	Die Änderungen in dieser Version.
+569	Die Prüfung konnte nicht laufen. Versuch es erneut oder frag im Chat.
+570	Der Code konnte nicht gelesen werden.
+571	Der Code konnte nicht gelesen werden. Kopiere ihn erneut von der Website.
+572	Der Code ist leer oder zu lang.
+573	Der Vergleich ist fehlgeschlagen.
+574	Der Inhalt deines Ordners verlässt nie diesen PC; nur die Liste der Bibliothek wird geladen.
+575	Die Dateiprüfung konnte nicht laufen.
+576	Die Dateien, die gerade heruntergeladen werden
+577	Die Bibliothek hat {albums} Alben von {artists} Künstlern ({tracks} Titel, {size}).
+578	Die Bibliothek hat {n} Comics
+579	Der Bericht konnte nicht erstellt werden.
+580	Der Scan ist fehlgeschlagen.
+581	Das Snippet
+582	Der Test konnte deine Geschwindigkeit nicht messen. Versuch es in ein paar Minuten erneut.
+583	Der Test konnte nicht laufen.
+584	Der Trailer konnte nicht abgespielt werden.
+585	Das Update konnte nicht gestartet werden
+586	die Version, die dieser Patch aktualisiert (
+587	Das Wiki ist nicht verfügbar.
+588	Design (dunkle Designs)
+589	Design (helle Designs)
+590	In deinem Verlauf gibt es keine fertigen Downloads zum Prüfen.
+591	Für diese Version gibt es nichts anzuzeigen.
+592	Das sind bereits die Einstellungen deiner früheren ARMGDDN-App-Installation
+593	Diese Datei konnte nicht gelesen werden.
+594	Für dieses Spiel gibt es einen Update-Patch
+595	Das ist alles, was gesendet wird. Dein Benutzername in Ordnerpfaden, die geheimen Teile von Links, Anmeldetoken und Cookies werden entfernt.
+596	diese Liste
+597	Auf dieser Seite ist ein Problem aufgetreten.
+598	Dieser Bereich hat sein Download-Kontingent aufgebraucht. Versuch es später erneut (es wird meist innerhalb von 24 Stunden zurückgesetzt).
+599	Dieser Titel ist gerade nicht in der Bibliothek
+600	Dieser Titel ist gerade nicht in der Bibliothek.
+601	Dieses Trailer-Format wird hier nicht unterstützt.
+602	Do.
+603	Titel
+604	Werkzeuge
+606	Trailer
+607	Trailer –
+608	Angesagt
+609	Erneut versuchen
+610	Di.
+611	Schalte Automatisch entpacken in den Einstellungen ein oder entpacke mit 7-Zip.
+612	Schalte Einstellungen › Downloads › Dateien nach dem Download prüfen ein, um das zu nutzen
+613	Bewegungseffekte ein- oder ausschalten
+614	Tippen, um jeden Bereich zu durchsuchen (PC, PCVR, Testing, Apps, 3D, Comics, Musik).
+615	Unbekannt
+616	Unbegrenzt
+617	Entpacken
+618	Wird entpackt
+619	Ohne Titel
+620	Automatisch aktualisieren
+621	Jetzt aktualisieren
+622	Update-Patch
+623	Auf v{v} aktualisieren
+624	Aktualisiert
+625	Updates
+626	ARMGDDN App wird aktualisiert
+627	Aktualisierung auf v
+628	Wird aktualisiert...
+629	Wird aktualisiert... Die ARMGDDN App startet von selbst neu.
+630	Mein seltenstes Abzeichen verwenden
+632	Wartet
+633	Beobachten
+634	Video ansehen
+635	Trailer ansehen
+636	Beobachtungsliste
+637	Wir bezahlen die Bandbreite
+638	Wir sagen dir Bescheid, wenn es da ist.
+639	Dieses tragen
+640	Getragen
+641	Du trägst dein seltenstes Abzeichen
+642	Mi.
+643	Was ist passiert? (optional)
+644	Was zu diesen Zeiten passieren soll
+645	Was anfragen
+646	Neuigkeiten
+647	Neuigkeiten:
+648	Wenn ein Spiel fertig entpackt ist, öffnet die App seinen Installer, damit du ihn durchklicken kannst. Nichts installiert sich von selbst.
+649	Wenn es bereit ist, schließt sich die App etwa eine Minute zum Installieren und öffnet sich dann genau hier wieder.
+650	Wenn die App abstürzt oder auf einen Fehler stößt, kann sie einen kurzen Bericht an ARMGDDN senden, damit es behoben wird.
+651	Wohin Spiele entpackt werden, wenn .7z-Dateien automatisch entpacken an ist. Leer: neben dem Download.
+652	Welcher Satz angezeigt wird
+653	Warum das hier ist
+655	Wiki
+656	Mit Automatisch entpacken entpackt die App es für dich. Sonst klicke mit rechts auf den ersten Teil und wähle Hier entpacken. Lass Platz für den Download plus das entpackte Spiel.
+657	Schreib eine Nachricht…
+658	Ja, habe ich
+659	Du
+660	Du hast schon alle {n} Comics in {list}.
+661	Du hast schon alle {n} Titel der Bibliothek.
+662	Du beobachtest noch nichts.
+663	Du hast die neueste Version (v{v}).
+664	Du hast die neueste Version.
+665	Du kannst das jederzeit in den Einstellungen unter Fehlerberichte senden ändern.
+666	Du bekommst hier im Posteingang (die Glocke oben) und auf Telegram eine Nachricht, wenn ein Titel dieser Liste in die Bibliothek kommt oder ein neuerer Build erscheint.
+667	Du hast {have} von {total} Titeln. {missing} fehlen ({size}).
+668	Du hast {have} von {total}. {missing} fehlen ({size}).
+669	Du hast {n} neue Nachrichten im Posteingang.
+670	Du hast noch keine Anfragen gestellt.
+671	Du musst vom PC-Server herunterladen
+672	Du musst vom PCVR-Server herunterladen
+673	Deine Abzeichensammlung
+674	Deine Verbindung hat jede Einstellung gut verkraftet. Lass Verbindungen pro Datei auf Automatisch.
+675	Deine frühere ARMGDDN-App-Installation hat schon einen Komga-Server und Schlüssel gespeichert.
+676	Deine Spiele
+677	Deine Liste ist leer. Klicke bei einem Spiel, Album oder Comic auf das Herz, um es hier zu speichern.
+678	Deine Anmeldung ist abgelaufen. Melde dich erneut an, um weiterzumachen.

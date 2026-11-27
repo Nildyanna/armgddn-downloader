@@ -1,5 +1,6 @@
 // Game Radar, ported from the website: picks for you, from what you opened lately, saved, downloaded and what is trending.
 // Pure functions only (the screen is in app.mjs), so the rules can be tested.
+import { t as tr } from './i18n.mjs';
 export const RADAR_CARDS = 3;
 export const RADAR_HISTORY_MAX = 12;
 const LIMITS = { history: 25, myList: 25, related: 25, trending: 100 };
@@ -133,7 +134,7 @@ function fromTrending(windows) {
       if (seen.has(key)) continue;
       seen.add(key);
       items.push(entry({ remote, browseRemote: e.remote || remote, path, name: e.title, title: e.title, downloadCount: Number(e.total || (e.pc || 0) + (e.pcvr || 0)) || 0, coverArt: e.coverUrl ? { cover: { url: e.coverUrl } } : null,
-        reason: win === 'week' ? 'Hot this week' : 'Hot this month', why: win === 'week' ? `Because people are downloading it in ${remote}` : `Because it is trending in ${remote}`, badges: ['trending'], priority: 0.8, source: 'trending', windowKey: win }));
+        reason: win === 'week' ? 'Hot this week' : 'Hot this month', why: win === 'week' ? tr('Because people are downloading it in {remote}', { remote }) : tr('Because it is trending in {remote}', { remote }), badges: ['trending'], priority: 0.8, source: 'trending', windowKey: win }));
     }
   }
   items.sort((a, b) => (b.downloadCount - a.downloadCount) || String(a.title).localeCompare(String(b.title)));

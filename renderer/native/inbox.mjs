@@ -1,6 +1,7 @@
 // The in-app inbox (Nov 2026): copies of the request updates and watchlist notices the site sends on Telegram, so members no bot can reach
 // still see them. The site keeps them 90 days (GET /api/inbox?since=<id>); these are the pure parts, tested in test/nativeInbox.test.js.
 
+import { t as tr } from './i18n.mjs';
 export const INBOX_POLL_MS = 2 * 60 * 1000;
 export const INBOX_MAX = 200;
 
@@ -27,7 +28,7 @@ export function freshItems(incoming, lastSeen) {
 export function notificationFor(fresh) {
   if (!fresh || !fresh.length) return null;
   if (fresh.length === 1) return { title: 'ARMGDDN App', body: String(fresh[0].title || '').slice(0, 200) };
-  return { title: 'ARMGDDN App', body: `You have ${fresh.length} new messages in your inbox.` };
+  return { title: 'ARMGDDN App', body: tr('You have {n} new messages in your inbox.', { n: fresh.length }) };
 }
 
 // Where clicking an item goes. A request update opens that request under Requests; a requester link (staff) goes through the request-link

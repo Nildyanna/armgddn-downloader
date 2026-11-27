@@ -188,7 +188,7 @@ test('comparison lines read like the classic window, for comics and music', asyn
   const m = compareLines('music', { summary: { total: 1000, have: 900, missing: 100, bytesMissing: 5e8, albums: { complete: 40, partial: 3, none: 7 }, damaged: 2 } });
   assert.match(m[0].text, /You have 900 of 1,000 tracks\. 100 are missing/); assert.match(m[1].text, /40 complete, 3 partly there, 7 not in your folder/); assert.match(m[2].text, /2 of your files look empty/);
   assert.deepEqual(compareLines('music', null), []);
-  assert.match(startedLine('music', { started: 1, files: 10, bytes: 2e9, folder: 'D:\\Music' }), /Started 1 download \(10 tracks, 1\.9 GB\)\. .* arrive in D:\\Music/);
+  assert.match(startedLine('music', { started: 1, files: 10, bytes: 2e9, folder: 'D:\\Music' }), /Started 1 download \(10 tracks, 1\.9 GB\)\. .* arrives? in D:\\Music/);
   assert.match(startedLine('comics', { started: 3, files: 5, bytes: 0, folder: 'x' }), /Started 3 downloads \(5 comics, 0 B\)/);
 });
 
@@ -369,7 +369,7 @@ test('each active file says whether it comes from Google Drive or the gateway', 
 
 test('the Comics panel shows the size of the library next to the count', () => {
   const app = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'app.mjs'), 'utf8');
-  assert.ok(app.includes("comics${Number(t.bytes) > 0 ? ' (' + formatSize(t.bytes) + ')' : ''}."));
+  assert.ok(app.includes("tr('The library has {n} comics', { n: Number(t.books || 0).toLocaleString() }) + (Number(t.bytes) > 0 ? ' (' + formatSize(t.bytes) + ')' : '') + '.'"));
 });
 
 test('Settings has an Extract folder row and the file list explains small files', () => {

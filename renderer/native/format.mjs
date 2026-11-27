@@ -1,4 +1,5 @@
 // Small pure helpers for the grid (kept apart so they can be tested without a window).
+import { t as tr } from './i18n.mjs';
 export function formatSize(bytes) {
   const n = Number(bytes);
   if (!Number.isFinite(n) || n <= 0) return '';
@@ -202,7 +203,7 @@ export function detailLines(remote, item) {
   return [
     remote ? `Remote: ${remote}` : '',
     size ? `Size: ${size}` : '',
-    item.modTime ? `Added/Updated: ${date(item.modTime)}` : '',
+    item.modTime ? tr('Added/Updated: {date}', { date: date(item.modTime) }) : '',
     (item.releaseDate || art.releaseDate) ? `Release: ${date(item.releaseDate || art.releaseDate)}` : '',
     dl > 0 ? `Popularity: ${dl.toLocaleString()} downloads (last 30 days)` : '',
   ].filter(Boolean);
@@ -424,13 +425,13 @@ export function compareLines(kind, r) {
   const n = (v) => Number(v || 0).toLocaleString();
   const out = [];
   if (kind === 'music') {
-    out.push(s.missing ? { tone: 'warn', text: `You have ${n(s.have)} of ${n(s.total)} tracks. ${n(s.missing)} are missing (${formatSize(s.bytesMissing) || '0 B'}).` } : { tone: 'ok', text: `You already have all ${n(s.total)} tracks in the library.` });
+    out.push(s.missing ? { tone: 'warn', text: tr('You have {have} of {total} tracks. {missing} are missing ({size}).', { have: n(s.have), total: n(s.total), missing: n(s.missing), size: formatSize(s.bytesMissing) || '0 B' }) } : { tone: 'ok', text: tr('You already have all {n} tracks in the library.', { n: n(s.total) }) });
     if (s.albums) out.push({ tone: 'info', text: `Albums: ${n(s.albums.complete)} complete, ${n(s.albums.partial)} partly there, ${n(s.albums.none)} not in your folder.` });
     if (s.damaged) out.push({ tone: 'warn', text: `${n(s.damaged)} of your files look empty or cut short and are not counted as owned; they will be downloaded again.` });
     return out;
   }
   const listName = r.list && r.list.name ? r.list.name : 'this list';
-  out.push(s.missing ? { tone: 'warn', text: `You have ${n((s.have || 0) + (s.haveByName || 0))} of ${n(s.total)}. ${n(s.missing)} are missing (${formatSize(s.bytesMissing) || '0 B'}).` } : { tone: 'ok', text: `You already have all ${n(s.total)} comics in ${listName}.` });
+  out.push(s.missing ? { tone: 'warn', text: tr('You have {have} of {total}. {missing} are missing ({size}).', { have: n((s.have || 0) + (s.haveByName || 0)), total: n(s.total), missing: n(s.missing), size: formatSize(s.bytesMissing) || '0 B' }) } : { tone: 'ok', text: tr('You already have all {n} comics in {list}.', { n: n(s.total), list: listName }) });
   if (s.haveByName) out.push({ tone: 'ok', text: `${n(s.haveByName)} were matched by name because they have no Comic Vine tag.` });
   if (s.maybe) out.push({ tone: 'info', text: `${n(s.maybe)} look like the same issue from a different year; they are listed as missing so nothing is skipped by mistake.` });
   if (s.damagedCount) out.push({ tone: 'warn', text: `${n(s.damagedCount)} of your files look damaged or cut short and are not counted as owned: ${(s.damaged || []).slice(0, 3).join(', ')}${s.damagedCount > 3 ? ', ...' : ''}` });
@@ -442,7 +443,7 @@ export function compareLines(kind, r) {
 export function startedLine(kind, r) {
   const n = (v) => Number(v || 0).toLocaleString();
   const unit = kind === 'music' ? 'tracks' : 'comics';
-  return `Started ${n(r.started)} download${r.started === 1 ? '' : 's'} (${n(r.files)} ${unit}, ${formatSize(r.bytes) || '0 B'}). They are in the Downloads tab, and arrive in ${r.folder}. Scan again afterwards.`;
+  return tr(r.started === 1 ? 'Started {n} download ({files} {unit}, {size}). It is in the Downloads tab, and arrives in {folder}. Scan again afterwards.' : 'Started {n} downloads ({files} {unit}, {size}). They are in the Downloads tab, and arrive in {folder}. Scan again afterwards.', { n: n(r.started), files: n(r.files), unit: tr(unit), size: formatSize(r.bytes) || '0 B', folder: r.folder });
 }
 
 // The lightning reveal is a welcome for a member's first sign-in in this app. It plays only after a real sign-in in this window, never when the window
@@ -796,5 +797,5 @@ export function updateCheckResult(r) {
   if (r.hasUpdate) {
     return { text: `v${r.latestVersion} is available (you have v${r.version}).` + (r.canAutoInstall ? ' Finish or pause your downloads first: updating restarts ARMGDDN App.' : ''), install: !!r.canAutoInstall, announce: true };
   }
-  return { text: r.version ? `You are on the latest version (v${r.version}).` : 'You are on the latest version.', install: false, announce: false };
+  return { text: r.version ? tr('You are on the latest version (v{v}).', { v: r.version }) : tr('You are on the latest version.'), install: false, announce: false };
 }

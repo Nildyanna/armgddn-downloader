@@ -1,0 +1,62 @@
+{
+ "wiki1": {
+  "stampedFrom": "2f188768",
+  "title": "1. Qué es la ARMGDDN App",
+  "html": "<p>La ARMGDDN App es una sola app para encontrar y descargar todo lo que hay en la biblioteca de ARMGDDN: juegos de PC, juegos PCVR, Testing, modelos de impresión 3D, aplicaciones de PC pirateadas, cómics y música. Exploras, eliges y pulsas Descargar. La app descarga en segundo plano y sigue mientras haces otra cosa. No hay un sitio web aparte que abrir ni una segunda app: explorar y descargar ocurren en la misma ventana.</p>"
+ },
+ "wiki2": {
+  "stampedFrom": "52eb56c8",
+  "title": "2. Primeros pasos",
+  "html": "<h3>2.1 Instalar</h3>\n<p>Descarga la ARMGDDN App para Windows, Linux o macOS 13 o posterior desde armgddnbrowser.com. Ábrela una vez para que termine de configurarse.</p>\n<h3>2.2 Iniciar sesión</h3>\n<p>Inicia sesión con Telegram cuando la app lo pida y aprueba el inicio de sesión allí. Seguirás con la sesión iniciada en ese equipo.</p>\n<h3>2.3 Primer vistazo</h3>\n<p>La ventana se abre en Inicio. Todo lo demás está a un clic en la barra de arriba. Jugadores de Linux y Steam Deck: ver la sección 13.</p>"
+ },
+ "wiki3": {
+  "stampedFrom": "878d59a1",
+  "title": "3. Cómo moverse",
+  "html": "<h3>3.1 La barra superior</h3>\n<p>Inicio, Juegos de PC, Juegos PCVR, Testing, modelos de impresión 3D, aplicaciones de PC pirateadas, Cómics y Música están a la izquierda. Herramientas, Ajustes, Wiki, Mi lista, Solicitudes y Descargas están a la derecha. La página en la que estás aparece resaltada.</p>\n<h3>3.2 La segunda barra</h3>\n<p>Cada página tiene aquí sus propios controles: un botón Atrás, el nombre de la página y luego búsqueda, categoría, orden, etc. según corresponda.</p>\n<h3>3.3 Atrás</h3>\n<p>Cada pantalla tiene un botón Atrás. Alt+Izquierda y el botón de retroceso del ratón también funcionan.</p>\n<h3>3.4 Cuadrícula o lista</h3>\n<p>El interruptor Cuadrícula / Lista a la derecha de la segunda barra muestra los títulos como tarjetas con imagen o como lista simple. La app recuerda tu elección.</p>\n<h3>3.5 La barra A-Z</h3>\n<p>En listas largas, la tira de letras del lateral muestra solo los títulos que empiezan por esa letra. Haz clic otra vez en la letra para volver a ver toda la lista.</p>"
+ },
+ "wiki4": {
+  "stampedFrom": "d66ce0cf",
+  "title": "4. Inicio",
+  "html": "<ul>\n<li><strong>Tendencias.</strong> La franja de lo más descargado ahora mismo (7 y 30 días). Haz clic en un título para abrirlo.</li>\n<li><strong>Radar de juegos.</strong> Sugerencias elegidas a partir de lo que abriste, guardaste y descargaste. Actualiza para ver otras, descarta las que no quieras y restablece para que vuelvan.</li>\n<li><strong>Retomar.</strong> Te lleva a la carpeta en la que estabas la última vez.</li>\n</ul>"
+ },
+ "wiki5": {
+  "stampedFrom": "74ae5e1c",
+  "title": "5. Explorar y buscar",
+  "html": "<ul>\n<li><strong>Abre una sección</strong> desde la barra superior. Si una sección solo tiene una carpeta dentro, la app la abre por ti. Una sección que agotó su cuota de descargas aparece atenuada y no se puede abrir; la cuota suele reiniciarse en 24 horas.</li>\n<li><strong>Carpetas que remiten a otro sitio.</strong> Una carpeta de juego casi vacía es solo un aviso hacia el otro servidor. Dice «Debes descargar desde el servidor PCVR» (o servidor PC) con un botón Ir allí que te lleva a la sección correcta.</li>\n<li><strong>La búsqueda</strong> filtra la página en la que estás. Se ignoran la puntuación y los espacios, así que «spider man» encuentra «Spider-Man».</li>\n<li><strong>Buscar en todas partes.</strong> Marca Buscar en todas partes para buscar en todas las secciones a la vez.</li>\n<li><strong>¿Escribiste mal un nombre?</strong> Si nada coincide exactamente, la app muestra los títulos más cercanos («No hay coincidencia exacta, la más cercana:»). Perdona un error en cada palabra de cinco letras o más.</li>\n<li><strong>También en otra sección.</strong> Cuando buscas dentro de una sección y el mismo título está en otra (una build más nueva en Testing, por ejemplo), una línea bajo la búsqueda lo indica, con un botón Buscar en todas las secciones.</li>\n<li><strong>Más nuevo y Más antiguo.</strong> Cuando el mismo juego está en más de un sitio con builds distintas, los resultados se marcan como Más nuevo o Más antiguo para que no tengas que comparar números de versión.</li>\n<li><strong>Avisarme cuando se añada.</strong> Debajo de cualquier búsqueda, este botón pone el título en tu lista de seguimiento. Recibes un mensaje de Telegram cuando se añade a la biblioteca o cuando aparece una build más nueva. Mi lista de seguimiento muestra lo que sigues, y ahí puedes dejar de seguir cualquier título. Es la misma lista que usa el sitio web.</li>\n<li><strong>Categoría / género.</strong> Donde una sección los tiene, el desplegable reduce la lista (por ejemplo, géneros de música). Elige Sin género para ver los títulos aún sin etiquetar.</li>\n<li><strong>Ordena</strong> por Nombre, Popularidad, Añadido o Lanzado, y pulsa el botón de invertir para dar la vuelta al orden.</li>\n<li><strong>Exportar lista.</strong> Guarda los títulos y tamaños de la sección en un archivo que puedes abrir en Excel.</li>\n</ul>"
+ },
+ "wiki6": {
+  "stampedFrom": "504d1210",
+  "title": "6. La página de un juego",
+  "html": "<p>Haz clic en un título para ver sus detalles: la portada, Ver tráiler, Leer el README, Explorar archivos, Añadir a Mi lista y Descargar.</p>\n<ul>\n<li><strong>Imágenes.</strong> Los títulos muestran su portada. Si un título aún no tiene, muestra la imagen de su categoría hasta que se añada la real.</li>\n<li><strong>README.</strong> Algunos juegos muestran su README antes de descargar.</li>\n<li><strong>Explorar archivos.</strong> Mira dentro de la carpeta de un juego y descarga archivos sueltos.</li>\n</ul>"
+ },
+ "wiki7": {
+  "stampedFrom": "82367607",
+  "title": "7. Descargar",
+  "html": "<h3>7.1 Empezar</h3>\n<p>Pulsa Descargar en un juego, álbum, colección de cómics o modelo 3D. La descarga empieza enseguida.</p>\n<h3>7.2 Varios a la vez</h3>\n<p>Marca Elegir varios elementos, marca los títulos que quieras y descárgalos juntos.</p>\n<h3>7.3 Parches de actualización</h3>\n<p>Si un juego tiene un parche de actualización, la app pregunta si ya tienes el repack anterior. Sí descarga solo el parche, No descarga solo el repack completo, Cancelar lo detiene.</p>\n<h3>7.4 La página Descargas</h3>\n<p>Muestra cada descarga con su progreso, velocidad y tiempo restante. Cada una tiene Pausar, Reanudar, Cancelar o Reintentar, y Abrir carpeta cuando termina. Borrar historial quita de la lista las terminadas.</p>\n<h3>7.5 Actualizar un juego que ya tienes</h3>\n<p>En Ajustes, Tus juegos, Comprobar mis juegos muestra cuáles de tus juegos descargados tienen una versión más nueva. Haz clic en uno para abrirlo en la biblioteca.</p>"
+ },
+ "wiki8": {
+  "stampedFrom": "c20aec55",
+  "title": "8. Música y cómics",
+  "html": "<ul>\n<li><strong>La música</strong> está por artista y álbum. El desplegable de géneros reduce la lista.</li>\n<li><strong>Los cómics</strong> están por serie y número. Cuando los datos de un cómic se han revisado, aparece con su título correcto, su número y su fecha de publicación, y las series se listan por orden de publicación. Una etiqueta ComicVine al lado abre ese número en ComicVine.</li>\n<li><strong>Colecciones de editoriales.</strong> Arriba en la página de Cómics, justo bajo el cuadro de Komga, la colección de cada editorial (Marvel, DC y más a medida que se añaden) tiene un botón Descargar todo que descarga cada serie copiada hasta ahora.</li>\n<li><strong>Solo lo que me falta.</strong> ¿Ya tienes parte de la colección? En Herramientas, escanea tu carpeta de cómics o de música; la app te muestra lo que no tienes.</li>\n<li><strong>Komga.</strong> La página de Cómics tiene un cuadro de Komga con enlaces para instalarlo (sección 12).</li>\n<li><strong>Carpetas.</strong> Dónde se descargan los cómics y la música se elige en Ajustes, Carpetas.</li>\n</ul>"
+ },
+ "wiki9": {
+  "stampedFrom": "7ea706dc",
+  "title": "9. Mi lista y Solicitudes",
+  "html": "<ul>\n<li><strong>Mi lista</strong> guarda lo que dejaste para después. Pulsa el corazón de cualquier tarjeta.</li>\n<li><strong>Solicitudes.</strong> Pide un juego que no está en la biblioteca y lee las respuestas. Cuando las solicitudes están cerradas, la página lo dice.</li>\n</ul>"
+ },
+ "wiki10": {
+  "stampedFrom": "2f2ccc10",
+  "title": "10. Ajustes",
+  "html": "<p>Los Ajustes están en grupos, una tarjeta cada uno.</p>\n<ul>\n<li><strong>Actualizaciones:</strong> Buscar actualizaciones (pasa a ser Actualizar a la vX cuando hay una), Novedades, Actualizar automáticamente, Instalar una actualización pendiente al cerrar la app.</li>\n<li><strong>Carpetas:</strong> carpetas de descargas, cómics y música.</li>\n<li><strong>Descargas:</strong> cuántas a la vez, conexiones por archivo (déjalo en Automático), límite de velocidad, comprobar archivos después de descargar, extraer archivos .7z automáticamente, el video sobre cómo abrir archivos .7z y el horario de descargas (pausar o ralentizar a ciertas horas).</li>\n<li><strong>Tus juegos:</strong> Comprobar mis juegos.</li>\n<li><strong>La app y su ventana:</strong> notificaciones, el botón Minimizar que oculta la ventana en la bandeja, el botón Cerrar que mantiene la app en la bandeja (desactivado: cerrar sale de la app), iniciar con el equipo, iniciar minimizado y la animación de inicio de sesión.</li>\n<li><strong>Importar:</strong> traer los ajustes de una instalación anterior de la ARMGDDN App, o tus preferencias del sitio web (Mi lista, tema, secciones ocultas, búsquedas recientes).</li>\n<li><strong>Ayuda e informes:</strong> enviar informes de errores, y Ayuda con problemas (sección 11).</li>\n<li><strong>Idioma:</strong> el idioma de la app. «Igual que Windows» sigue el idioma de tu equipo.</li>\n</ul>"
+ },
+ "wiki11": {
+  "stampedFrom": "37eaa943",
+  "title": "11. Actualizaciones, problemas y ayuda",
+  "html": "<h3>11.1 Actualizaciones</h3>\n<p>La app comprueba una vez por hora. Cuando hay una versión nueva aparece una barra bajo la cabecera con Actualizar ahora. También puedes usar File &gt; Check for updates. Con Actualizar automáticamente activado, la app instala sola una versión nueva cuando no se está descargando nada. Con «Instalar una actualización pendiente al cerrar la app» activado (por defecto), cerrar la app instala la actualización pendiente, pero nunca durante una descarga. Si hay descargas en curso, termínalas o páusalas primero, porque actualizar reinicia la app.</p>\n<h3>11.2 Novedades</h3>\n<p>Ajustes, Actualizaciones, Ver las novedades.</p>\n<h3>11.3 Ayuda con problemas</h3>\n<p>Ajustes, Ayuda e informes: ejecuta una comprobación, prueba la velocidad de tu conexión, copia un informe o envía tu registro al chat. Help &gt; Open the log folder abre los archivos de registro.</p>\n<h3>11.4 Salir</h3>\n<p>File &gt; Exit cierra la app por completo. Cerrar la ventana puede dejarla funcionando en la bandeja, según tu ajuste.</p>"
+ },
+ "wiki14": {
+  "stampedFrom": "ffe0b515",
+  "title": "14. Preguntas frecuentes",
+  "html": "<ul>\n<li><strong>¿Sigo necesitando el Companion?</strong> No. La ARMGDDN App hace las dos cosas.</li>\n<li><strong>¿Hay una ventana antigua a la que volver?</strong> No. Desde la versión 6.0.0 esta es la única ventana, y hace todo lo que hacían el sitio web y el antiguo Companion.</li>\n<li><strong>¿Dónde están mis descargas?</strong> Ajustes, Carpetas. Abrir carpeta en la página Descargas te lleva allí.</li>\n<li><strong>Un juego se cierra al arrancar o justo después de la pantalla de carga.</strong> Los repacks nuevos incluyen <strong>crashfix.bat</strong> en la carpeta de descarga del juego, junto a los archivos .7z. Ejecútalo después de instalar el juego: desactiva el overlay de Steam integrado en el juego, una causa habitual de estos cierres. Ejecútalo otra vez para volver a activarlo. Si no puede hacer el cambio, haz clic derecho y elige Ejecutar como administrador. Los repacks antiguos no lo tienen; en su lugar, cambia el nombre de <code>configs.overlay.ini</code> a <code>configs.overlay.bak</code> en la carpeta <code>steam_settings</code> del juego instalado.</li>\n<li><strong>Una página se congeló o muestra un error.</strong> Pulsa Reintentar o Atrás. Queda anotado en el registro, y Ayuda con problemas puede enviarlo.</li>\n<li><strong>¿Dónde está el panel de administración?</strong> En el sitio web, para el staff.</li>\n</ul>"
+ }
+}

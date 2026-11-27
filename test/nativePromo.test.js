@@ -102,7 +102,7 @@ test('App: the strip sits first on Home, the pill at the end of the top bar, the
   const header = src.slice(src.indexOf('<header class="topbar">'), src.indexOf('</header>', src.indexOf('<header class="topbar">')));
   assert.ok(header.indexOf('promo-pill') > header.indexOf("setView('downloads')"), 'the pill is at the right end of the top bar');
   assert.match(header, /promoNow\.pill \?/);
-  assert.match(src, /<h3>Home screen<\/h3>[\s\S]{0,400}Show the \$\{promo\.name\} strip on Home/);
+  assert.match(src, /<h3>Home screen<\/h3>[\s\S]{0,400}Show the \{name\} strip on Home', \{ name: promo\.name \}/);
   assert.match(src, /aria-label="Hide for 30 days"/);
   assert.match(src, /class="promo-visit"[^>]*onClick=\$\{onVisit\}/);
   assert.match(src, /<img src="3dff-logo\.png" alt=""/);

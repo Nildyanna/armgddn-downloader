@@ -1,0 +1,38 @@
+{
+ "Same as Windows": {
+  "fr": "Comme Windows",
+  "es": "Igual que Windows",
+  "pt-BR": "Igual ao Windows",
+  "de": "Wie Windows"
+ },
+ "tracks": {
+  "fr": "pistes",
+  "es": "pistas",
+  "pt-BR": "faixas",
+  "de": "Titel"
+ },
+ "comics": {
+  "fr": "BD",
+  "es": "cómics",
+  "pt-BR": "quadrinhos",
+  "de": "Comics"
+ },
+ "Animations on": {
+  "fr": "Animations activées",
+  "es": "Animaciones activadas",
+  "pt-BR": "Animações ligadas",
+  "de": "Animationen an"
+ },
+ "Animations off": {
+  "fr": "Animations désactivées",
+  "es": "Animaciones desactivadas",
+  "pt-BR": "Animações desligadas",
+  "de": "Animationen aus"
+ },
+ "about {n} min": {
+  "fr": "environ {n} min",
+  "es": "unos {n} min",
+  "pt-BR": "cerca de {n} min",
+  "de": "etwa {n} Min."
+ }
+}

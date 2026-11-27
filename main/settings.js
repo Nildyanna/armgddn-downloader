@@ -67,6 +67,7 @@ function applyStartupRegistration() {
 function normalizeSettings() {
   try {
     if (!ctx.settings || typeof ctx.settings !== 'object') return;
+    if (!['auto', 'en', 'fr', 'es', 'pt-BR', 'de'].includes(ctx.settings.language)) ctx.settings.language = 'auto';
     const maxConc = parseInt(String(ctx.settings.maxConcurrentDownloads), 10);
     // Enforce cap of 8 for stability
     ctx.settings.maxConcurrentDownloads = Number.isFinite(maxConc) && maxConc > 0 ? Math.min(maxConc, 6) : 2;

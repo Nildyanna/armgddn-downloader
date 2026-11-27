@@ -40,6 +40,7 @@ ipcMain.handle('save-settings', (event, newSettings) => {
     'startWithOsMinimized',
     'errorReporting',
     'errorReportingAsked',
+    'language',            // the app's language: 'auto' (follow the system) or en / fr / es / pt-BR / de
     'lastSeenVersion',
     // The 3D Flick Fix strip (renderer/native/promo.mjs): when the member hid it, which edition, which edition they clicked through.
     'promoHiddenAt',
