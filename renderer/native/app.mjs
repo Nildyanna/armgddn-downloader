@@ -336,12 +336,18 @@ function InboxView({ items, error, onOpen, onReadAll, onRefresh }) {
 }
 
 // The notices a download goes through on the website: bandwidth reminder (once a day), then the README if there is one.
+// copyPw: the PC Apps notice offers the archive password, like the website's Copy PW button (games have none).
+const APPS_ARCHIVE_PW = 'ARMGDDNGames';
 function GateModal({ gate }) {
   const g = gate.spec;
+  const [pwNote, setPwNote] = useState('');
+  const copyPw = async () => { const r = await api.copy(APPS_ARCHIVE_PW); setPwNote(r.ok ? 'Password copied.' : 'Could not copy the password.'); };
   return html`<${Modal} title=${g.title} onClose=${() => gate.resolve(false)} wide=${true}>
     ${g.image ? html`<img class="gateimg" src=${coverSrc(g.image)} alt="" />` : g.text ? html`<pre class="readme">${g.text}</pre>` : g.body}
+    ${g.copyPw ? html`<p class="sub" style="margin:10px 0 0">No password needed when Auto-extract is on. ${pwNote}</p>` : ''}
     <div class="dbtns" style="margin-top:12px">
       <button class="primary" onClick=${() => gate.resolve(true)}>${g.ok || 'Continue'}</button>
+      ${g.copyPw ? html`<button class="dbtn" onClick=${copyPw}>Copy PW</button>` : ''}
       <button class="dbtn" onClick=${() => gate.resolve(false)}>Cancel</button>
       ${g.skipKey ? html`<label class="skip"><input type="checkbox" onChange=${(e) => { gate.skip = e.target.checked; }} /> Don't show this again today</label>` : ''}
     </div></${Modal}>`;
@@ -1741,7 +1747,7 @@ function App() {
     let skipped = false; try { skipped = localStorage.getItem('bandwidthNoticeSkipDay') === dayKey(); } catch (e) { }
     if (!noBandwidth && !skipped && !(await ask({ title: 'Please read - bandwidth matters', skipKey: 'bandwidthNoticeSkipDay', ok: 'OK',
       body: html`<div class="notice-body"><h3>We pay for the bandwidth</h3><p>Downloading the same game over and over won't fix anything, and every extra copy is one that someone else now can't grab.</p><ul><li>Download the whole game, not one file at a time.</li><li>Turn on Auto-extract in Settings, or extract with 7-Zip.</li><li>If a game gives you trouble, ask for help first in the Telegram before downloading again.</li><li>Don't delete anything until you're sure the game works.</li></ul></div>` }))) return false;
-    if (remote === 'Pirated PC Apps') return ask({ title: 'READ THIS BEFORE DOWNLOADING PC APPS', image: 'https://www.armgddnbrowser.com/PC_Apps_Modal.jpg' });
+    if (remote === 'Pirated PC Apps') return ask({ title: 'READ THIS BEFORE DOWNLOADING PC APPS', image: 'https://www.armgddnbrowser.com/PC_Apps_Modal.jpg', copyPw: true });
     const r = await api.readme(remote, path);
     const d = r.ok ? r.data : null;
     if (d && d.found && d.contentHash && !acked.current.has(d.contentHash)) {
