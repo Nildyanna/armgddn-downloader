@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [6.19.0] - 2026-11-27
+
+### Added
+- Language setting (Settings > Language): English, French, Spanish, Portuguese (Brazil), German; "Same as Windows" (default) follows the system language. Every member screen, Wiki sections 1-11 and 14, and What's New entries that carry translations (`i18n` in whats-new.json). Staff/owner screens, window menus and the Komga and Linux guides stay English. Missing texts fall back to English; a Wiki section whose English changed shows in English until re-translated. Workflow in tools/i18n/README.md.
+- Wiki section 10: a Language line.
+
 ## [6.18.0] - 2026-11-27
 
 ### Added

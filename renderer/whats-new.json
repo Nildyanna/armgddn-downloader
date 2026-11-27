@@ -1,4 +1,41 @@
 {
+  "6.19.0": {
+    "title": "The app in your language",
+    "highlights": [
+      "Settings > Language: English, Français, Español, Português (Brasil) or Deutsch. \"Same as Windows\" (the default) follows your computer's language.",
+      "Every screen, most of the Wiki and these notes are translated. Anything not translated yet shows in English."
+    ],
+    "i18n": {
+      "fr": {
+        "title": "L’app dans votre langue",
+        "highlights": [
+          "Paramètres > Langue : English, Français, Español, Português (Brasil) ou Deutsch. « Comme Windows » (par défaut) suit la langue de votre ordinateur.",
+          "Chaque écran, la majeure partie du Wiki et ces notes sont traduits. Ce qui n’est pas encore traduit s’affiche en anglais."
+        ]
+      },
+      "es": {
+        "title": "La app en tu idioma",
+        "highlights": [
+          "Ajustes > Idioma: English, Français, Español, Português (Brasil) o Deutsch. «Igual que Windows» (predeterminado) sigue el idioma de tu equipo.",
+          "Todas las pantallas, la mayor parte de la Wiki y estas notas están traducidas. Lo que aún no está traducido aparece en inglés."
+        ]
+      },
+      "pt-BR": {
+        "title": "O app no seu idioma",
+        "highlights": [
+          "Configurações > Idioma: English, Français, Español, Português (Brasil) ou Deutsch. \"Igual ao Windows\" (o padrão) segue o idioma do seu computador.",
+          "Todas as telas, a maior parte da Wiki e estas notas estão traduzidas. O que ainda não foi traduzido aparece em inglês."
+        ]
+      },
+      "de": {
+        "title": "Die App in deiner Sprache",
+        "highlights": [
+          "Einstellungen > Sprache: English, Français, Español, Português (Brasil) oder Deutsch. „Wie Windows“ (Standard) folgt der Sprache deines Computers.",
+          "Jeder Bildschirm, der Großteil des Wikis und diese Hinweise sind übersetzt. Was noch nicht übersetzt ist, erscheint auf Englisch."
+        ]
+      }
+    }
+  },
   "6.18.0": {
     "title": "Copy PW for apps",
     "highlights": [
