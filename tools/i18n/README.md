@@ -20,7 +20,7 @@ Text built from pieces uses `tr('Scanned {n} files', { n })` (imported as `t as 
 
 `src/wiki.<lang>.json` holds translated sections with `stampedFrom`, the fingerprint of the English section they were made from.
 When the English Wiki changes (scripts/extract_wiki.py), that section shows in English until it is re-translated and `stampedFrom`
-is updated; the language test names the sections that need it. Sections 12 (Komga) and 13 (Linux) are not translated yet.
+is updated; the language test names the sections that need it. All 14 sections are translated (12 and 13 since 2026-11-27).
 
 ## What's New
 
