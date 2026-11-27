@@ -39,62 +39,16 @@ test('shown by default (pill and strip); only a brand-new install waits a day', 
   assert.equal(promoView(SITE, null, NOW).strip, true);
 });
 
-test('the ✕ hides the strip (not the pill) for 30 days, then it comes back by itself', async () => {
-  const { promoView, hidePatch } = await import('../renderer/native/promo.mjs');
-  const hid = { ...OLD_MEMBER, ...hidePatch(SITE, NOW) };
-  assert.deepEqual(hidePatch(SITE, NOW), { promoHiddenAt: iso(NOW), promoHiddenEdition: SITE.edition });
-  const v = promoView(SITE, hid, NOW + 1000);
-  assert.equal(v.strip, false); assert.equal(v.pill, true); assert.equal(v.hidden, true); assert.equal(v.hiddenAt, iso(NOW)); assert.equal(v.clicked, false);
-  assert.equal(promoView(SITE, hid, NOW + 29 * DAY).strip, false);
-  assert.equal(promoView(SITE, hid, NOW + 30 * DAY).strip, true);
-  assert.equal(promoView(SITE, hid, NOW + 30 * DAY).hidden, false);      // the Settings box ticks itself again too
+test('members cannot hide it: hides saved by older versions are ignored, a click-through does not hide it (George and DMP, 2026-11-27)', async () => {
+  const m = await import('../renderer/native/promo.mjs');
+  const oldHide = { ...OLD_MEMBER, promoHiddenAt: iso(NOW - DAY), promoHiddenEdition: SITE.edition };
+  assert.deepEqual(m.promoView(SITE, oldHide, NOW), { pill: true, strip: true, hidden: false, hiddenAt: null, clicked: false });
+  assert.equal(m.promoView(SITE, { ...oldHide, ...m.clickPatch(SITE) }, NOW).strip, true);
+  assert.deepEqual(m.clickPatch(SITE), { promoClickedEdition: SITE.edition });
+  for (const gone of ['hidePatch', 'showPatch', 'promoHelp', 'promoHidden', 'PROMO_RETURN_DAYS']) assert.equal(m[gone], undefined, gone + ' is gone');
 });
 
-test('after a click-through (Visit or the pill) a hidden strip stays hidden until a new edition', async () => {
-  const { promoView, hidePatch, clickPatch } = await import('../renderer/native/promo.mjs');
-  assert.deepEqual(clickPatch(SITE), { promoClickedEdition: SITE.edition });
-  const st = { ...OLD_MEMBER, ...clickPatch(SITE), ...hidePatch(SITE, NOW) };
-  assert.equal(promoView(SITE, st, NOW + 31 * DAY).strip, false);
-  assert.equal(promoView(SITE, st, NOW + 400 * DAY).strip, false);
-  assert.equal(promoView(SITE, st, NOW + 400 * DAY).clicked, true);
-  // a click alone does not hide anything
-  assert.equal(promoView(SITE, { ...OLD_MEMBER, ...clickPatch(SITE) }, NOW).strip, true);
-  // a click on an older edition does not keep this one away after 30 days
-  const older = { ...OLD_MEMBER, promoClickedEdition: 'older0000000', ...hidePatch(SITE, NOW) };
-  assert.equal(promoView(SITE, older, NOW + 31 * DAY).strip, true);
-});
-
-test('a new edition shows the strip again for everyone, including members who hid it and clicked through', async () => {
-  const { promoView, hidePatch, clickPatch } = await import('../renderer/native/promo.mjs');
-  const st = { ...OLD_MEMBER, ...clickPatch(SITE), ...hidePatch(SITE, NOW) };
-  const next = { ...SITE, edition: 'ffff000011112222' };
-  assert.equal(promoView(next, st, NOW + DAY).strip, true);
-  assert.equal(promoView(next, st, NOW + DAY).hidden, false);
-  // a new edition is still not shown on the first day
-  assert.equal(promoView(next, { ...st, firstRunAt: iso(NOW), firstRunFresh: true }, NOW + 1000).strip, false);
-});
-
-test('ticking the Settings box shows it again at once', async () => {
-  const { promoView, hidePatch, showPatch, clickPatch } = await import('../renderer/native/promo.mjs');
-  const st = { ...OLD_MEMBER, ...clickPatch(SITE), ...hidePatch(SITE, NOW) };
-  assert.equal(promoView(SITE, st, NOW + 1000).strip, false);
-  const back = { ...st, ...showPatch() };
-  assert.deepEqual(showPatch(), { promoHiddenAt: '', promoHiddenEdition: '' });
-  assert.equal(promoView(SITE, back, NOW + 2000).strip, true);
-});
-
-test('the Settings helper text', async () => {
-  const { promoView, promoHelp, hidePatch, clickPatch } = await import('../renderer/native/promo.mjs');
-  const fmt = () => 'December 20, 2026';
-  assert.equal(promoHelp(promoView(SITE, OLD_MEMBER, NOW), fmt), "It's how we pay the server bills.");
-  assert.equal(promoHelp(promoView(SITE, { ...OLD_MEMBER, ...hidePatch(SITE, NOW) }, NOW), fmt),
-    "It's how we pay the server bills. Hidden on December 20, 2026 — it comes back on its own after 30 days or when there’s something new to say.");
-  assert.equal(promoHelp(promoView(SITE, { ...OLD_MEMBER, ...clickPatch(SITE), ...hidePatch(SITE, NOW) }, NOW), fmt),
-    "It's how we pay the server bills. Hidden on December 20, 2026 — it comes back when there’s something new to say.");
-  assert.equal(promoHelp(null), "It's how we pay the server bills.");
-});
-
-test('App: the strip sits first on Home, the pill at the end of the top bar, the Settings box under Home screen', () => {
+test('App: the strip sits first on Home, the pill at the end of the top bar, and there is no way to hide it', () => {
   const src = read('renderer/native/app.mjs');
   const home = src.slice(src.indexOf('function HomeView('), src.indexOf('function HomeView(') + 4000);
   const main = home.slice(home.indexOf('return html`<main class="home">'));
@@ -102,8 +56,7 @@ test('App: the strip sits first on Home, the pill at the end of the top bar, the
   const header = src.slice(src.indexOf('<header class="topbar">'), src.indexOf('</header>', src.indexOf('<header class="topbar">')));
   assert.ok(header.indexOf('promo-pill') > header.indexOf("setView('downloads')"), 'the pill is at the right end of the top bar');
   assert.match(header, /promoNow\.pill \?/);
-  assert.match(src, /<h3>Home screen<\/h3>[\s\S]{0,400}Show the \{name\} strip on Home', \{ name: promo\.name \}/);
-  assert.match(src, /aria-label="Hide for 30 days"/);
+  assert.doesNotMatch(src, /promo-x|Hide for 30 days|strip on Home|hidePatch/, 'no close button and no Settings checkbox');
   assert.match(src, /class="promo-visit"[^>]*onClick=\$\{onVisit\}/);
   assert.match(src, /<img src="3dff-logo\.png" alt=""/);
 });
@@ -121,7 +74,7 @@ test('App: the logo is bundled (small), nothing is loaded from 3dflickfix.net, a
   assert.match(bridge, /ipcMain\.handle\('native:promo', wrap\(\(\) => api\.get\('\/api\/app-promo'/);
   assert.doesNotMatch(bridge + read('renderer/native/app.mjs'), /app-promo\/(click|view|impression|seen)|promo(Click|View|Impression)Report/i);
   const appSrc = read('renderer/native/app.mjs');
-  const visit = appSrc.slice(appSrc.indexOf('const visitPromo'), appSrc.indexOf('const hidePromo'));
+  const visit = appSrc.slice(appSrc.indexOf('const visitPromo'), appSrc.indexOf('};', appSrc.indexOf('const visitPromo')));
   assert.doesNotMatch(visit, /api\.(?!openLink|saveSettings)\w+\(/, 'a click only opens the link and saves the setting on this PC');
 });
 

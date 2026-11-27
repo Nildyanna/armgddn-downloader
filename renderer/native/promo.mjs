@@ -1,10 +1,10 @@
 // The App's one advertisement (Nov 25 2026, design approved by George): 3D Flick Fix, DMP's 3D-movie service whose profit pays the server
 // bills. The site says what to show (GET /api/app-promo, edited in the site's config/app-promo.json); the App decides whether to show it.
 // A slim strip at the top of Home and a "3D Flick Fix" pill in the top bar. These are the pure parts, tested in test/nativePromo.test.js.
-// No tracking: nothing here is sent anywhere. The member's choices are kept in the App's settings (main/settings.js):
-//   promoHiddenAt (ISO time the ✕ was pressed), promoHiddenEdition (the edition hidden), promoClickedEdition (the edition clicked through).
+// No tracking: nothing here is sent anywhere.
+// Members cannot hide it (George and DMP, 2026-11-27: "Let's not let them dismiss"; it is the App's only ad and pays the bills).
+// The ✕ and the Settings checkbox are gone, and hides saved by older versions (promoHiddenAt / promoHiddenEdition) are ignored.
 
-export const PROMO_RETURN_DAYS = 30;
 const DAY_MS = 24 * 60 * 60 * 1000;
 // The only place the strip and pill may send the member (the main process allows the same hosts, native/bridge.js LINK_HOSTS).
 export const PROMO_HOSTS = new Set(['3dflickfix.net', 'www.3dflickfix.net']);
@@ -29,39 +29,18 @@ export function cleanPromo(r) {
 
 const timeOf = (iso) => { const n = Date.parse(iso || ''); return Number.isFinite(n) ? n : null; };
 
-// Is the member's own choice keeping the strip away right now? (The Settings checkbox is the opposite of this.)
-// Hidden this edition and clicked through: hidden until a new edition. Hidden this edition: hidden for 30 days. A new edition: not hidden.
-export function promoHidden(promo, s, now = Date.now()) {
-  if (!promo || !s) return false;
-  const at = timeOf(s.promoHiddenAt);
-  if (at == null || s.promoHiddenEdition !== promo.edition) return false;
-  if (s.promoClickedEdition === promo.edition) return true;
-  return now - at < PROMO_RETURN_DAYS * DAY_MS;
-}
-
 // What to show: { pill, strip, hidden, hiddenAt, clicked }.
-// pill: whenever the site has a promo. strip: also not hidden, and not on a brand-new install's first day (settings.firstRunAt + firstRunFresh).
+// pill: whenever the site has a promo. strip: too, except on a brand-new install's first day (settings.firstRunAt + firstRunFresh).
+// hidden / hiddenAt / clicked stay in the answer (always false / null) so older callers keep working.
 export function promoView(promo, s, now = Date.now()) {
   if (!promo) return { pill: false, strip: false, hidden: false, hiddenAt: null, clicked: false };
   const st = s || {};
-  const hidden = promoHidden(promo, st, now);
+  const hidden = false;
   const first = timeOf(st.firstRunAt);
   // Only a brand-new install waits a day (firstRunFresh); members who already used the App see it at once.
   const firstDay = st.firstRunFresh === true && first != null && now - first < DAY_MS;
-  return { pill: true, strip: !hidden && !firstDay, hidden, hiddenAt: hidden ? st.promoHiddenAt : null, clicked: hidden && st.promoClickedEdition === promo.edition };
+  return { pill: true, strip: !firstDay, hidden, hiddenAt: null, clicked: false };
 }
 
-// The settings to save for each thing the member does.
-export const hidePatch = (promo, now = Date.now()) => ({ promoHiddenAt: new Date(now).toISOString(), promoHiddenEdition: promo ? promo.edition : '' });
-export const showPatch = () => ({ promoHiddenAt: '', promoHiddenEdition: '' });
+// The setting saved when the member clicks through (kept for the record; it no longer hides anything).
 export const clickPatch = (promo) => ({ promoClickedEdition: promo ? promo.edition : '' });
-
-// The Settings helper line under the checkbox.
-export function promoHelp(view, fmtDate = (d) => d.toLocaleDateString(undefined, { month: 'long', day: 'numeric', year: 'numeric' })) {
-  const base = "It's how we pay the server bills.";
-  if (!view || !view.hidden || !view.hiddenAt) return base;
-  const d = new Date(view.hiddenAt);
-  if (Number.isNaN(d.getTime())) return base;
-  // After a click-through it only comes back with a new edition, so the 30 days are not promised then.
-  return base + ' Hidden on ' + fmtDate(d) + (view.clicked ? ' — it comes back when there’s something new to say.' : ' — it comes back on its own after 30 days or when there’s something new to say.');
-}

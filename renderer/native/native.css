@@ -863,8 +863,6 @@ html[data-theme="harbor"] .upscreen { background: var(--hb-bg); }
 @media (max-width: 900px) { .promo-long { display: none; } .promo-short { display: inline; } }
 .promo-visit { flex: none; background: #ee5a24; color: #fff; border: 0; border-radius: 8px; padding: 8px 14px; font-size: 14px; font-weight: 700; white-space: nowrap; }   /* bold 14px: white on #ee5a24 (3.9:1) passes as large text */
 .promo-visit:hover { background: #ff6b35; }
-.promo-x { flex: none; width: 32px; height: 32px; display: grid; place-items: center; background: transparent; color: #c8ccd8; border: 1px solid transparent; border-radius: 8px; font-size: 14px; line-height: 1; }
-.promo-x:hover { color: #fff; background: rgba(138, 180, 248, .12); }
 .promo-strip button:focus-visible, .promo-pill:focus-visible { outline: 2px solid #8ab4f8; outline-offset: 2px; }
 .topbar .promo-pill { flex: none; margin-left: 4px; background: transparent; color: #8ab4f8; border: 1px solid rgba(138, 180, 248, .35); border-radius: 999px; padding: 3px 11px; font-size: 12px; font-weight: 600; white-space: nowrap; line-height: 1.4; }
 .topbar .promo-pill:hover { background: rgba(138, 180, 248, .12); }

@@ -9,7 +9,7 @@ import { AdminView } from './admin.mjs';
 import { THEME_MODES, effectiveMode, themeFor, loadChoice, withWebsiteTheme, withTheme, themesForMode } from './themeMode.mjs';
 import { OwnerDock } from './ownerDock.mjs';
 import { problemButton, previewRows } from './problemReport.mjs';
-import { cleanPromo, promoView, hidePatch, showPatch, clickPatch, promoHelp } from './promo.mjs';
+import { cleanPromo, promoView, clickPatch } from './promo.mjs';
 import { initLanguage, LANGUAGES, t as tr, localWiki, localWhatsNew } from './i18n.mjs';
 import { INBOX_POLL_MS, mergeInbox, unreadCount, freshItems, notificationFor, inboxTarget, inboxWhen, titleInListing } from './inbox.mjs';
 const api = window.nativeAPI;
@@ -832,7 +832,7 @@ function WhatsNewButton() {
     ${entry === null ? html`<div class="note">There is nothing to show for this version.</div>` : entry ? html`<${WhatsNewBox} entry=${entry} onClose=${() => setEntry(undefined)} />` : ''}</div>`;
 }
 
-function SettingsView({ say, onPrefs, onOpenGame, ownerToggle, promo }) {
+function SettingsView({ say, onPrefs, onOpenGame, ownerToggle }) {
   const [s, setS] = useState(null);
   const [prefsOpen, setPrefsOpen] = useState(false);
   useEffect(() => { api.getSettings().then((r) => setS(r && typeof r === 'object' ? r : {})).catch(() => setS({})); }, []);
@@ -876,9 +876,6 @@ function SettingsView({ say, onPrefs, onOpenGame, ownerToggle, promo }) {
     <section class="sgroup"><h3>Your games</h3>
     <${GameUpdatesRow} onOpenGame=${onOpenGame} />
     </section>
-    ${promo ? html`<section class="sgroup"><h3>Home screen</h3>
-    <label class="srow promo-setting"><input type="checkbox" checked=${!promo.view.hidden} onChange=${(e) => promo.set(e.target.checked)} /> <span class="slabel">${tr('Show the {name} strip on Home', { name: promo.name })} <span class="sval">${promoHelp(promo.view)}</span></span></label>
-    </section>` : ''}
     <section class="sgroup"><h3>The app and its window</h3>
     ${ownerToggle ? html`<label class="srow"><input type="checkbox" checked=${!ownerToggle.off} onChange=${(e) => ownerToggle.set(!e.target.checked)} /> <span class="slabel">Owner view: show the Admin tab and the status dock (turn off to see the app as a regular member)</span></label>` : ''}
     ${settingRow('showNotifications')}
@@ -1118,17 +1115,16 @@ function HarborLead({ windows, downloads, onOpen, fresh, actions }) {
 }
 
 // The 3D Flick Fix strip (promo.mjs): one row in 3D Flick Fix's own colours, never two. A narrow window shows the short line.
-function PromoStrip({ promo, onVisit, onHide }) {
+function PromoStrip({ promo, onVisit }) {
   const t = promo.text;
   return html`<aside class="promo-strip" aria-label=${(t.label ? t.label + ' ' : '') + t.name}>
     <span class="promo-logo"><img src="3dff-logo.png" alt="" width="40" height="31" decoding="async" /></span>
     <p class="promo-text">${t.label ? html`<span class="promo-label">${t.label}</span> ` : ''}<strong class="promo-name">${t.name}</strong>${t.line ? html` <span class="promo-line promo-long">${t.line}</span><span class="promo-line promo-short">${t.shortLine}</span>` : ''}</p>
     <button class="promo-visit" title="Opens in your browser" onClick=${onVisit}>${promo.button}</button>
-    <button class="promo-x" aria-label="Hide for 30 days" title="Hide for 30 days" onClick=${onHide}>\u2715</button>
   </aside>`;
 }
 
-function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSave, onResume, harbor, downloads, actions, promo, onPromoVisit, onPromoHide }) {
+function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSave, onResume, harbor, downloads, actions, promo, onPromoVisit }) {
   const [fresh, setFresh] = useState(null);
   useEffect(() => { if (harbor) harborNewest().then(setFresh).catch(() => setFresh([])); }, [harbor]);
   const [trend, setTrend] = useState(null);
@@ -1148,7 +1144,7 @@ function HomeView({ myList, render, onOpenTrend, history, onRadarOpen, onRadarSa
     });
   }, []);
   return html`<main class="home">
-    ${promo ? html`<${PromoStrip} promo=${promo} onVisit=${onPromoVisit} onHide=${onPromoHide} />` : ''}
+    ${promo ? html`<${PromoStrip} promo=${promo} onVisit=${onPromoVisit} />` : ''}
     ${harbor && trend ? html`<${HarborLead} windows=${trend} downloads=${downloads} onOpen=${onOpenTrend} fresh=${fresh} actions=${actions} />` : ''}
     ${harbor ? '' : html`<${Strip} id="trending" title="\u{1F525} Trending Downloads">
       ${trend === null ? html`<div class="loading">Loading…</div>` : html`<${TrendingStrip} windows=${trend} onOpen=${onOpenTrend} />`}
@@ -1521,8 +1517,6 @@ function App() {
     savePromo(clickPatch(promo));
     try { const r = await api.openLink(promo.url); if (r && r.ok === false) say((r.error && r.error.message) || 'Could not open the link'); } catch (e) { say('Could not open the link'); }
   };
-  const hidePromo = () => { if (promo) { savePromo(hidePatch(promo)); say('Hidden for 30 days. You can bring it back in Settings.'); } };
-  const promoSetting = promo ? { name: promo.text.name, view: promoNow, set: (on) => savePromo(on ? showPatch() : hidePatch(promo)) } : null;
   const [whatsNew, setWhatsNew] = useState(null);
   const [askReports, setAskReports] = useState(false);
   useEffect(() => { api.getSettings().then((r) => { if (r && typeof r === 'object' && r.errorReportingAsked !== true) setAskReports(true); }).catch(() => { }); }, []);
@@ -1975,7 +1969,7 @@ function App() {
     ${updateInfo ? html`<div class="notice soft updatebar"><span>${updateInfo.latestVersion ? tr('ARMGDDN App v{v} is available (you have v{current}).', { v: updateInfo.latestVersion, current: updateInfo.version || '' }) : tr('An ARMGDDN App update is available (you have v{current}).', { current: updateInfo.version || '' })}</span> ${runningCount > 0 ? html`<span class="sval">Finish or pause your downloads first: updating restarts ARMGDDN App.</span>` : ''}<button class="dbtn go" disabled=${updating || runningCount > 0 || !updateInfo.canAutoInstall} onClick=${installUpdate}>${updating ? 'Updating...' : 'Update now'}</button><button class="dbtn" onClick=${() => setUpdateInfo(null)}>Later</button></div>` : ''}
     <${PageGuard} key=${view} onBack=${goBack}>
     ${view === 'admin' && admin ? html`<${AdminView} key=${adminStart.n} admin=${admin} initialTab=${adminStart.tab} openId=${adminStart.openId} />` : ''}
-    ${view === 'home' ? html`<${HomeView} promo=${promoNow.strip ? promo : null} onPromoVisit=${visitPromo} onPromoHide=${hidePromo} harbor=${themeChoice === 'harbor'} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} promo=${promoSetting} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'inbox' ? html`<${InboxView} items=${inbox} error=${inboxErr} onOpen=${openInboxItem} onReadAll=${() => markInbox('all')} onRefresh=${refreshInbox} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor'} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
+    ${view === 'home' ? html`<${HomeView} promo=${promoNow.strip ? promo : null} onPromoVisit=${visitPromo} harbor=${themeChoice === 'harbor'} downloads=${downloads} actions=${{ download: startDownload, details: setDetails, toggle: toggleList, inList: (it) => myList.some((m) => m.remote === it._remote && m.path === itemPath(it)) }} myList=${myList} history=${radarHistory} onRadarOpen=${openRadar} onRadarSave=${saveRadar} onResume=${() => radarHistory[0] && goTo(radarHistory[0].remote, radarHistory[0].path)} onOpenTrend=${openTrend} render=${(it, tag) => html`<${Card} key=${tag + (it._remote || '') + '/' + it._folder + '/' + it.name} item=${it} remote=${it._remote} folder=${it._folder} platform=${it._remote === 'PCVR Games' ? 'PCVR' : it._remote === 'PC Games' ? 'PC' : ''} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${myList.some((m) => m.remote === it._remote && m.path === itemPath(it))} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'tools' ? html`<${ToolsView} say=${say} />` : view === 'settings' ? html`<${SettingsView} ownerToggle=${ownerToggle} say=${say} onPrefs=${applyPrefs} onOpenGame=${(rem, name) => { setCategory(''); setView('library'); autoOk.current = true; setRemote(rem); setFolder(''); setQuery(name); }} />` : view === 'wiki' ? html`<${WikiView} />` : view === 'mylist' ? html`<${MyListView} list=${myList} listMode=${viewMode === 'list'} render=${(it) => html`<${Card} listMode=${viewMode === 'list'} key=${it.remote + '/' + it.path} item=${it} remote=${it._remote} folder=${it._folder} onDownload=${startDownload} onDetails=${setDetails} onPreview=${setPreview} inList=${true} onToggleList=${toggleList} onOpen=${browseInto} />`} />` : view === 'requests' ? html`<${RequestsView} say=${say} openId=${openRequest} />` : view === 'inbox' ? html`<${InboxView} items=${inbox} error=${inboxErr} onOpen=${openInboxItem} onReadAll=${() => markInbox('all')} onRefresh=${refreshInbox} />` : view === 'badges' ? html`<${BadgesView} say=${say} />` : view === 'admin' ? '' : view === 'downloads' ? html`<${DownloadsView} harbor=${themeChoice === 'harbor'} list=${downloads} onClear=${async () => { try { await api.clearHistory(); setDownloads((downloads || []).filter(isActiveDownload)); say('History cleared'); } catch (e) { say('Could not clear the history'); } }} />` : html`<${Fragment}>
     <div class="crumbs" style=${everywhere ? "display:none" : ""}><button onClick=${() => { autoOk.current = false; setFolder(crumbs.root); }}>${remote || ''}</button>${crumbs.items.map((c) => html`<span> / <button onClick=${() => setFolder(c.path)}>${c.label}</button></span>`)}
       <span class="count">${items ? (() => { const total = items.filter((x) => !isHiddenItem(x)).length; return `${shown.length}${shown.length !== total ? ' of ' + total : ''} items`; })() : ''}</span></div>
     ${remote === '3D Printer Models' && !everywhere ? html`<div class="notice soft" role="note"><strong>Heads up:</strong> many 3D printer models don't have a cover picture yet. Missing covers in this section are expected and are not a bug; pictures are being added as we go.</div>` : ''}
