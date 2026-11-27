@@ -1,4 +1,10 @@
 {
+  "6.18.0": {
+    "title": "Copy PW for apps",
+    "highlights": [
+      "Downloading from Pirated PC Apps? The notice before the download now has a Copy PW button. You don't need it when Auto-extract is on."
+    ]
+  },
   "6.17.0": {
     "title": "Check files any time",
     "highlights": [
