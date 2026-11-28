@@ -868,3 +868,6 @@ html[data-theme="harbor"] .upscreen { background: var(--hb-bg); }
 .topbar .promo-pill:hover { background: rgba(138, 180, 248, .12); }
 /* Light themes: the pale blue would be unreadable on a light top bar, so the pill takes a darker blue there (applyTheme sets color-scheme). */
 html[style*="color-scheme: light"] .topbar .promo-pill { color: #2f5fb8; border-color: rgba(47, 95, 184, .45); }
+
+/* The request thread header is a flex row, which drops the space between the title and its details. */
+.rqmeta { margin-left: 6px; }

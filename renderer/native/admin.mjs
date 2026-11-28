@@ -195,7 +195,7 @@ function RequestThread({ req, onClose, act }) {
   };
   const when = (iso) => { try { return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); } catch (e) { return ''; } };
   return html`<div class="apanel reqthread">
-    <div class="dtools"><strong>#${req.id} ${req.title}</strong> <span class="sval">${req.category} · ${req.status} · by ${req.by ? '@' + req.by : 'unknown'}</span>${act ? html`<${StatusSelect} id=${req.id} title=${req.title} status=${req.status || 'pending'} act=${act} />` : ''}<button class="dbtn" onClick=${onClose}>Close</button></div>
+    <div class="dtools"><strong>#${req.id} ${req.title}</strong> <span class="sval rqmeta">${req.category} · ${req.status} · by ${req.by ? '@' + req.by : 'unknown'}</span>${act ? html`<${StatusSelect} id=${req.id} title=${req.title} status=${req.status || 'pending'} act=${act} />` : ''}<button class="dbtn" onClick=${onClose}>Close</button></div>
     <div class="thread"><div class="msg reqinfo"><div class="who">The request</div>${requestInfoLines(req.raw || { id: req.id, gameTitle: req.title, category: req.category, status: req.status, username: req.by, createdAt: req.requested }).map(([k, v]) => html`<div class="ri"><span class="rk">${k}</span> ${k === 'Link' && /^https:\/\//i.test(v) ? html`<a href="#" onClick=${(e) => { e.preventDefault(); api.openLink(v); }}>${v}</a>` : v}</div>`)}</div>${thread === null ? html`<div class="loading">Loading…</div>` : thread.length ? thread.map((c) => html`<div class=${'msg' + (c.system ? ' sys' : '')} key=${c.id}><div class="who">${c.authorName || c.username || (c.role === 'staff' ? 'Staff' : 'Member')} · ${when(c.createdAt)}</div><div>${c.message || c.text}</div></div>`) : html`<div class="empty">No comments yet.</div>`}</div>
     ${note ? html`<div class="notice soft">${note}</div>` : ''}
     <div class="compose"><input type="text" maxlength="500" placeholder="Write a comment…" aria-label="Write a comment…" value=${text} onInput=${(e) => setText(e.target.value)} onKeyDown=${(e) => { if (e.key === 'Enter') send(); }} /><button class="primary" onClick=${send}>Send</button></div>
@@ -255,17 +255,18 @@ function RequestsPage({ audit, owner, openId }) {
   const categories = [...new Set([...Object.keys(stats.byCategory || {}), ...all.map((r) => r.category).filter(Boolean)])].sort();
   // A click on a box of the request flow filters the list below, like it does on the website: a category sets the category, a status sets the status.
   const flowClick = (kind, key) => {
-    if (kind === 'reqCat') { setCategory(key); setStatus(''); return true; }
-    if (kind === 'reqStatus') { setStatus(key); setCategory(''); return true; }
-    if (kind === 'reqAll') { setCategory(''); setStatus(''); return true; }
+    // An open request from the old filter would otherwise stay pinned above the new list (George, 2026-11-28), so close it.
+    if (kind === 'reqCat') { setCategory(key); setStatus(''); setOpenReq(null); return true; }
+    if (kind === 'reqStatus') { setStatus(key); setCategory(''); setOpenReq(null); return true; }
+    if (kind === 'reqAll') { setCategory(''); setStatus(''); setOpenReq(null); return true; }
     return false;
   };
   return html`<div>
     ${!audit ? html`<${LiveMap} kind="requests" data=${stats} onOpen=${flowClick} />` : ''}
     ${!audit ? html`<${Cards} items=${['pending', 'approved', 'completed', 'rejected'].map((k) => ({ label: labelOf(k), value: String(stats[k] || 0), hint: '' })).concat([{ label: 'New in 7 days', value: String(stats.arrivals7 || 0), hint: '' }])} />` : ''}
     <div class="afilters">
-      <label>Status <select value=${status} onChange=${(e) => setStatus(e.target.value)}>${REQUEST_STATUSES.map((s) => html`<option value=${s}>${s ? labelOf(s) : 'All'}</option>`)}</select></label>
-      ${audit ? '' : html`<label>Category <select value=${category} onChange=${(e) => setCategory(e.target.value)}><option value="">All</option>${categories.map((c) => html`<option value=${c}>${c}</option>`)}</select></label>`}
+      <label>Status <select value=${status} onChange=${(e) => { setStatus(e.target.value); setOpenReq(null); }}>${REQUEST_STATUSES.map((s) => html`<option value=${s}>${s ? labelOf(s) : 'All'}</option>`)}</select></label>
+      ${audit ? '' : html`<label>Category <select value=${category} onChange=${(e) => { setCategory(e.target.value); setOpenReq(null); }}><option value="">All</option>${categories.map((c) => html`<option value=${c}>${c}</option>`)}</select></label>`}
       ${audit ? html`<label>Handled by <select value=${by} onChange=${(e) => setBy(e.target.value)}><option value="">All</option>${people.map((p) => html`<option value=${p}>@${p}</option>`)}</select></label>` : ''}
       ${audit ? '' : html`<button class=${'dbtn' + (unseenOnly ? ' on' : '')} title="Show only requests with comments you have not seen yet" onClick=${() => setUnseenOnly(!unseenOnly)}>${unseenOnly ? 'Showing unseen comments only' : 'Unseen comments'}${unseenTotal ? html`<span class="rqunread">${unseenTotal}</span>` : ''}</button>`}
       <span class="sval">${rows.length} shown</span>

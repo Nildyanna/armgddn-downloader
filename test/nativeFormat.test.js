@@ -435,10 +435,12 @@ test('number settings keep what you type until you press Enter, click away or us
 test('clicking a box of the request flow filters the requests list (category sets the category, status sets the status, Requests clears both)', () => {
   const a = require('fs').readFileSync(require('path').join(__dirname, '..', 'renderer', 'native', 'admin.mjs'), 'utf8');
   assert.ok(a.includes('<${LiveMap} kind="requests" data=${stats} onOpen=${flowClick} />'));
-  assert.ok(a.includes("if (kind === 'reqCat') { setCategory(key); setStatus(''); return true; }"));
-  assert.ok(a.includes("if (kind === 'reqStatus') { setStatus(key); setCategory(''); return true; }"));
-  assert.ok(a.includes("if (kind === 'reqAll') { setCategory(''); setStatus(''); return true; }"));
+  assert.ok(a.includes("if (kind === 'reqCat') { setCategory(key); setStatus(''); setOpenReq(null); return true; }"));
+  assert.ok(a.includes("if (kind === 'reqStatus') { setStatus(key); setCategory(''); setOpenReq(null); return true; }"));
+  assert.ok(a.includes("if (kind === 'reqAll') { setCategory(''); setStatus(''); setOpenReq(null); return true; }"));
   assert.ok(a.includes('byWho.filter((r) => r.category === category)') && a.includes('<label>Category <select'));
+  // A changed filter closes the open request, so it never sits pinned above a list it is not in.
+  assert.ok(a.includes('setCategory(e.target.value); setOpenReq(null);') && a.includes('setStatus(e.target.value); setOpenReq(null);'));
 });
 
 test('hand-made themes load from their own files, which the theme generator never rewrites', () => {
